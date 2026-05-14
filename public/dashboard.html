@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Leads">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; }
+
+    /* Login */
+    #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .login-card { background: white; border-radius: 12px; padding: 32px; width: 100%; max-width: 400px; }
+    .login-card h1 { font-size: 22px; margin-bottom: 8px; }
+    .login-card p { color: #666; font-size: 14px; margin-bottom: 24px; }
+    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; margin-top: 16px; }
+    input[type=email], input[type=password] { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 16px; font-family: inherit; }
+    .btn { margin-top: 20px; width: 100%; background: #2563eb; color: white; border: none; border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 500; cursor: pointer; }
+    .btn:hover { background: #1d4ed8; }
+    .btn-sm { background: none; border: 1px solid #ddd; color: #444; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    .error { color: #dc2626; font-size: 13px; margin-top: 12px; }
+
+    /* App */
+    #app { display: none; }
+    .topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 17px; font-weight: 500; }
+    .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Statistik */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .stat-card { background: white; border-radius: 10px; padding: 20px; border: 1px solid #e5e5e5; }
+    .stat-card .label { font-size: 12px; color: #888; margin-bottom: 6px; }
+    .stat-card .value { font-size: 28px; font-weight: 500; }
+    .stat-card .value.urgent { color: #dc2626; }
+    .stat-card .value.rate { color: #16a34a; }
+
+    /* Leads */
+    .section-title { font-size: 16px; font-weight: 500; margin-bottom: 12px; }
+    .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-btn { background: white; border: 1px solid #ddd; border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+    .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+
+    .lead-list { display: flex; flex-direction: column; gap: 10px; }
+    .lead-card { background: white; border-radius: 10px; border: 1px solid #e5e5e5; padding: 16px 20px; cursor: pointer; transition: border-color 0.15s; }
+    .lead-card:hover { border-color: #2563eb; }
+    .lead-card.urgent { border-left: 3px solid #dc2626; }
+    .lead-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .lead-name { font-weight: 500; font-size: 15px; }
+    .lead-time { font-size: 12px; color: #888; white-space: nowrap; }
+    .lead-address { font-size: 13px; color: #666; margin-top: 4px; }
+    .lead-task { font-size: 13px; color: #444; margin-top: 8px; line-height: 1.5; }
+    .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
+    .badge-urgent { background: #fee2e2; color: #991b1b; }
+    .badge-new { background: #dbeafe; color: #1e40af; }
+    .badge-completed { background: #dcfce7; color: #166534; }
+    .badge-images { background: #f3e8ff; color: #6b21a8; }
+
+    /* Modal */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: white; border-radius: 12px; padding: 24px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    .modal h2 { font-size: 18px; margin-bottom: 16px; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-field .field-label { font-size: 12px; color: #888; margin-bottom: 3px; }
+    .modal-field .field-value { font-size: 15px; }
+    .modal-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+    .modal-images img { width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 1; }
+    .modal-close { margin-top: 20px; width: 100%; }
+
+    .empty { text-align: center; color: #888; padding: 48px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Log ind</h1>
+    <p>Jens Hansen VVS — leadoversigt</p>
+    <label>Email</label>
+    <input type="email" id="email" placeholder="jens@vvs.dk">
+    <label>Adgangskode</label>
+    <input type="password" id="password" placeholder="••••••••">
+    <button class="btn" id="login-btn">Log ind</button>
+    <div class="error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+<div class="topbar">
+  <h1 id="firm-name">Dashboard</h1>
+  <button class="btn-sm" onclick="logout()">Log ud</button>
+</div>
+<div class="main">
+
+    <!-- Statistik -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">Opkald i alt</div>
+        <div class="value" id="stat-calls">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Leads modtaget</div>
+        <div class="value" id="stat-leads">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Konverteringsrate</div>
+        <div class="value rate" id="stat-rate">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Haster</div>
+        <div class="value urgent" id="stat-urgent">—</div>
+      </div>
+    </div>
+
+    <!-- Leads -->
+    <div class="section-title">Leads</div>
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
+      <button class="filter-btn" onclick="setFilter('new', this)">Nye</button>
+      <button class="filter-btn" onclick="setFilter('urgent', this)">Haster</button>
+      <button class="filter-btn" onclick="setFilter('completed', this)">Afsluttede</button>
+    </div>
+    <div class="lead-list" id="lead-list">
+      <div class="empty">Henter leads...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <h2 id="modal-name"></h2>
+    <div class="modal-field">
+      <div class="field-label">Telefon</div>
+      <div class="field-value" id="modal-phone"></div>
+    </div>
+    <div class="modal-field">
+      <div class="field-label">Adresse</div>
+      <div class="field-value" id="modal-address"></div>
+    </div>
+    <div class="modal-field">
+      <div class="field-label">Opgave</div>
+      <div class="field-value" id="modal-task"></div>
+    </div>
+    <div class="modal-field">
+      <div class="field-label">Ønsket tidspunkt</div>
+      <div class="field-value" id="modal-time"></div>
+    </div>
+    <div class="modal-field" id="modal-images-section" style="display:none">
+      <div class="field-label">Billeder</div>
+      <div class="modal-images" id="modal-images"></div>
+    </div>
+    <button class="btn modal-close" onclick="closeModal()">Luk</button>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://glymuxqtrbpeyzmflilf.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdseW11eHF0cmJwZXl6bWZsaWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjYyOTEsImV4cCI6MjA5MzIwMjI5MX0.ShrA33kAQyhA1csFWyr8f2-f8uAqldkFySALKSsywso';
+ // const { createClient } = supabase;
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let allLeads = [];
+  let currentFilter = 'all';
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  async function login() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    if (error) {
+      document.getElementById('login-error').textContent = 'Forkert email eller adgangskode';
+    }
+  }
+
+
+  async function logout() {
+    await db.auth.signOut();
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  db.auth.onAuthStateChange((event, session) => {
+    if (session) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      loadData();
+    }
+  });
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+  async function loadData() {
+    const { data: firmUser } = await db
+    .from("firm_users")
+    .select("firms(id, name)")
+    .eq("user_id", (await db.auth.getUser()).data.user.id)
+    .single();
+
+     console.log("firmUser:", JSON.stringify(firmUser));
+
+  const firm = firmUser?.firms; 
+  document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
+
+  // Hent calls for dette firma
+  const { data: calls } = await db
+    .from("calls")
+    .select("id, status")
+    .eq("firm_id", firm?.id);
+
+  // Hent leads via calls der tilhører dette firma
+  const callIds = calls?.map(c => c.id) || [];
+
+  const { data: leads } = await db
+    .from("leads")
+    .select("*, lead_images(image_url)")
+    .in("call_id", callIds)
+    .order("created_at", { ascending: false });
+
+  // Tilføj from_number til hvert lead
+  const leadsWithPhone = leads?.map(lead => ({
+    ...lead,
+    calls: calls?.find(c => c.id === lead.call_id)
+  })) || [];
+
+  const totalCalls = calls?.length || 0;
+  const totalLeads = leads?.length || 0;
+  const urgentLeads = leads?.filter(l => l.is_urgent).length || 0;
+  const rate = totalCalls > 0 ? Math.round((totalLeads / totalCalls) * 100) : 0;
+
+  document.getElementById("stat-calls").textContent = totalCalls;
+  document.getElementById("stat-leads").textContent = totalLeads;
+  document.getElementById("stat-rate").textContent = rate + "%";
+  document.getElementById("stat-urgent").textContent = urgentLeads;
+
+  allLeads = leadsWithPhone;
+  renderLeads();
+}
+
+  // ── Filter ────────────────────────────────────────────────────────────────
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderLeads();
+  }
+
+function renderLeads() {
+  const filtered = allLeads.filter(lead => {
+    if (currentFilter === 'urgent') return lead.is_urgent;
+    if (currentFilter === 'new') return !lead.is_urgent;
+    if (currentFilter === 'completed') return lead.calls?.status === 'completed';
+    return true;
+  });
+
+  const list = document.getElementById('lead-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Ingen leads i denne kategori</div>';
+    updateBadge(allLeads.length);
+    return;
+  }
+
+  list.innerHTML = filtered.map(lead => `
+    <div class="lead-card ${lead.is_urgent ? 'urgent' : ''}" onclick="openModal(${JSON.stringify(lead).replace(/"/g, '&quot;')})">
+      <div class="lead-top">
+        <div class="lead-name">${lead.name}</div>
+        <div class="lead-time">${formatDate(lead.created_at)}</div>
+      </div>
+      <div class="lead-address">${lead.address}</div>
+      <div class="lead-task">${lead.task}</div>
+      <div class="badges">
+        ${lead.is_urgent ? '<span class="badge badge-urgent">Haster</span>' : ''}
+        ${lead.lead_images?.length ? `<span class="badge badge-images">${lead.lead_images.length} billede${lead.lead_images.length > 1 ? 'r' : ''}</span>` : ''}
+        <span class="badge badge-new">Nyt lead</span>
+      </div>
+    </div>
+  `).join('');
+
+  updateBadge(allLeads.length);
+}
+   
+
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  function openModal(lead) {
+    document.getElementById('modal-name').textContent = lead.name;
+    document.getElementById('modal-phone').textContent = lead.calls?.from_number || '—';
+    document.getElementById('modal-address').textContent = lead.address;
+    document.getElementById('modal-task').textContent = lead.task;
+    document.getElementById('modal-time').textContent = lead.desired_time || 'Ikke angivet';
+
+    const imagesSection = document.getElementById('modal-images-section');
+    const imagesEl = document.getElementById('modal-images');
+    if (lead.lead_images?.length) {
+      imagesSection.style.display = 'block';
+      imagesEl.innerHTML = lead.lead_images.map(img =>
+        `<img src="${img.image_url}" onclick="window.open('${img.image_url}')">`
+      ).join('');
+    } else {
+      imagesSection.style.display = 'none';
+    }
+
+    document.getElementById('modal-bg').classList.add('open');
+  }
+
+  function closeModal(event) {
+    if (!event || event.target === document.getElementById('modal-bg')) {
+      document.getElementById('modal-bg').classList.remove('open');
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  // Registrer service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(reg => console.log('Service worker registreret'))
+    .catch(err => console.error('Service worker fejl:', err));
+}
+
+// Opdater badge med antal nye leads
+function updateBadge(count) {
+  if ('setAppBadge' in navigator) {
+    if (count > 0) {
+      navigator.setAppBadge(count);
+    } else {
+      navigator.clearAppBadge();
+    }
+  }
+}
+document.getElementById('login-btn').addEventListener('click', login);
+</script>
+</body>
+</html>
