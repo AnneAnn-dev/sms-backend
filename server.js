@@ -6,12 +6,12 @@ const twilio = require("twilio");
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('static'));
 app.get('/manifest.json', (req, res) => {
-  res.sendFile(__dirname + '/public/manifest.json');
+  res.sendFile(__dirname + '/static/manifest.json');
 });
 app.get('/sw.js', (req, res) => {
-  res.sendFile(__dirname + '/public/sw.js');
+  res.sendFile(__dirname + '/static/sw.js');
 });
 
 const supabase = createClient(
@@ -183,13 +183,13 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
       continue;
     }
 
-    const { data: publicUrl } = supabase.storage
+    const { data: staticUrl } = supabase.storage
       .from("lead-images")
-      .getPublicUrl(filePath);
+      .getstaticUrl(filePath);
 
     await supabase.from("lead_images").insert({
       lead_id: lead.id,
-      image_url: publicUrl.publicUrl,
+      image_url: staticUrl.staticUrl,
     });
   }
 
@@ -228,7 +228,7 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
 
 // dashboard
 app.get("/dashboard", (req, res) => {
-  res.sendFile(__dirname + "/public/dashboard.html");
+  res.sendFile(__dirname + "/static/dashboard.html");
 });
 
 const PORT = process.env.PORT || 3000;
