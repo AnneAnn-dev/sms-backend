@@ -30,6 +30,7 @@ const twilioClient = twilio(
 app.post("/opkald", async (req, res) => {
   console.log("📞 Opkald modtaget:", req.body.From);
   console.log("BASE_URL:", process.env.BASE_URL);
+  console.log("TWILIO_SID:", process.env.TWILIO_ACCOUNT_SID?.substring(0, 6));
   // Find firma baseret på det nummer der blev ringet til
   const { data: firm } = await supabase
     .from("firms")
