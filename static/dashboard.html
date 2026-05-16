@@ -343,6 +343,36 @@ function updateBadge(count) {
   }
 }
 document.getElementById('login-btn').addEventListener('click', login);
+
+// Tjek for nye leads hvert 30. sekund
+setInterval(async () => {
+  const { data: firmUser } = await db
+    .from("firm_users")
+    .select("firms(id)")
+    .eq("user_id", (await db.auth.getUser()).data.user.id)
+    .single();
+
+  const firm = firmUser?.firms;
+  
+  const { data: calls } = await db
+    .from("calls")
+    .select("id")
+    .eq("firm_id", firm?.id);
+
+  const callIds = calls?.map(c => c.id) || [];
+
+  const { data: leads } = await db
+    .from("leads")
+    .select("id")
+    .in("call_id", callIds);
+
+  const count = leads?.length || 0;
+  
+  if (count !== allLeads.length) {
+    // Der er kommet nye leads — genindlæs data
+    loadData();
+  }
+}, 30000);
 </script>
 </body>
 </html>
