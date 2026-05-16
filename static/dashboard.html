@@ -330,6 +330,10 @@ if ('serviceWorker' in navigator) {
 
 // Opdater badge med antal nye leads
 function updateBadge(count) {
+  // Opdater browser tab titel
+  document.title = count > 0 ? `(${count}) Leads` : 'Leads';
+  
+  // Native badge API (virker på Android)
   if ('setAppBadge' in navigator) {
     if (count > 0) {
       navigator.setAppBadge(count);
