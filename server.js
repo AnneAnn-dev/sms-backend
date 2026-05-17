@@ -3,6 +3,14 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const twilio = require("twilio");
 
+const webpush = require('web-push');
+
+webpush.setVapidDetails(
+  process.env.VAPID_EMAIL,
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
