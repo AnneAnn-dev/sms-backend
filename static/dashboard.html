@@ -263,7 +263,7 @@ function renderLeads() {
   const list = document.getElementById('lead-list');
   if (filtered.length === 0) {
     list.innerHTML = '<div class="empty">Ingen leads i denne kategori</div>';
-    updateBadge(allLeads.length);
+    updateBadge(allLeads.filter(l => !l.seen_at).length);
     return;
   }
 
@@ -278,18 +278,26 @@ function renderLeads() {
       <div class="badges">
         ${lead.is_urgent ? '<span class="badge badge-urgent">Haster</span>' : ''}
         ${lead.lead_images?.length ? `<span class="badge badge-images">${lead.lead_images.length} billede${lead.lead_images.length > 1 ? 'r' : ''}</span>` : ''}
-        <span class="badge badge-new">Nyt lead</span>
+        ${!lead.seen_at ? '<span class="badge badge-new">Ny</span>' : ''}
       </div>
     </div>
   `).join('');
 
-  updateBadge(allLeads.length);
+  updateBadge(allLeads.filter(l => !l.seen_at).length);
 }
    
 
 
   // ── Modal ─────────────────────────────────────────────────────────────────
   function openModal(lead) {
+    if (!lead.seen_at) {
+    const now = new Date().toISOString();
+    db.from('leads').update({ seen_at: now }).eq('id', lead.id);
+    lead.seen_at = now;
+    const idx = allLeads.findIndex(l => l.id === lead.id);
+    if (idx !== -1) allLeads[idx].seen_at = now;
+    updateBadge(allLeads.filter(l => !l.seen_at).length);
+  }
     document.getElementById('modal-name').textContent = lead.name;
     document.getElementById('modal-phone').textContent = lead.calls?.from_number || '—';
     document.getElementById('modal-address').textContent = lead.address;
@@ -363,12 +371,12 @@ setInterval(async () => {
 
   const { data: leads } = await db
     .from("leads")
-    .select("id")
+    .select("id, seen_at")   
     .in("call_id", callIds);
 
-  const count = leads?.length || 0;
-  
-  if (count !== allLeads.length) {
+
+ const unseenCount = leads?.filter(l => !l.seen_at).length || 0;
+if (unseenCount !== allLeads.filter(l => !l.seen_at).length) {
     // Der er kommet nye leads — genindlæs data
     loadData();
   }
