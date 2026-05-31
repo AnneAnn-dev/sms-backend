@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kom i gang</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #F4F7FA;
+      --surface:  #FFFFFF;
+      --border:   #DDE4EC;
+      --accent:   #2C6B9E;
+      --text:     #1C2A38;
+      --muted:    #4A5D6E;
+      --success:  #2E7D52;
+      --radius:   12px;
+    }
+
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 80px;
+    }
+
+    /* Progress bar */
+    .progress-wrap {
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 48px;
+    }
+
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .step-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: all .3s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-dot.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .step-dot.done {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .step-dot.done::after {
+      content: '✓';
+      font-size: 12px;
+      font-family: sans-serif;
+    }
+
+    .step-dot.done span { display: none; }
+
+    .step-line {
+      flex: 1;
+      height: 1.5px;
+      background: var(--border);
+      transition: background .3s ease;
+    }
+
+    .step-line.done { background: var(--accent); }
+
+    /* Cards */
+    .card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      display: none;
+      animation: fadeUp .35s ease forwards;
+    }
+
+    .card.active { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-label {
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 500;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    /* Number display */
+    .number-display {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 24px;
+      letter-spacing: .08em;
+      color: var(--accent);
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    /* Voice picker */
+    .voice-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .voice-option {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      cursor: pointer;
+      transition: all .2s ease;
+      text-align: center;
+      background: var(--bg);
+    }
+
+    .voice-option:hover {
+      border-color: var(--muted);
+    }
+
+    .voice-option.selected {
+      border-color: var(--accent);
+      background: rgba(44,107,158,.06);
+    }
+
+    .voice-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .voice-name {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .voice-desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Textarea */
+    .field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 15px;
+      color: var(--text);
+      resize: vertical;
+      min-height: 120px;
+      line-height: 1.6;
+      transition: border-color .2s;
+      margin-bottom: 8px;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .char-count {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      margin-bottom: 24px;
+    }
+
+    .preview-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      margin-bottom: 32px;
+      transition: all .2s;
+    }
+
+    .preview-btn:hover {
+      border-color: var(--muted);
+      color: var(--text);
+    }
+
+    /* Viderestilling guide */
+    .os-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .os-tab {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-family: 'Source Sans 3', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .os-tab.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(44,107,158,.06);
+    }
+
+    .os-guide { display: none; }
+    .os-guide.active { display: block; }
+
+    .guide-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-bottom: 28px;
+    }
+
+    .guide-step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .guide-step:last-child { border-bottom: none; }
+
+    .guide-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .guide-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .guide-code {
+      display: inline-block;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 13px;
+      color: var(--accent);
+      margin: 4px 0;
+    }
+
+    .copy-wrap {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0 24px;
+    }
+
+    .copy-code {
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 16px;
+      color: var(--accent);
+      letter-spacing: .05em;
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      transition: all .2s;
+    }
+
+    .copy-btn:hover { color: var(--text); border-color: var(--muted); }
+    .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+    /* Verifikation */
+    .verify-box {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      text-align: center;
+      margin-bottom: 28px;
+      background: var(--bg);
+    }
+
+    .verify-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .verify-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .verify-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .verify-status {
+      margin-top: 20px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .verify-status.waiting {
+      display: block;
+      background: rgba(44,107,158,.08);
+      color: var(--accent);
+    }
+
+    .verify-status.success {
+      display: block;
+      background: rgba(46,125,82,.08);
+      color: var(--success);
+    }
+
+    .verify-status.error {
+      display: block;
+      background: rgba(239,68,68,.08);
+      color: #f87171;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 15px;
+      font-weight: 500;
+      font-family: 'Source Sans 3', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover { background: #3579b0; }
+    .btn-primary:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 14px;
+      font-family: 'Source Sans 3', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      margin-top: 10px;
+    }
+
+    .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--bg);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Success screen */
+    .success-screen {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .success-check {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(46,125,82,.12);
+      border: 1.5px solid var(--success);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 24px;
+      animation: popIn .4s cubic-bezier(.175,.885,.32,1.275) forwards;
+    }
+
+    @keyframes popIn {
+      from { transform: scale(.5); opacity: 0; }
+      to   { transform: scale(1);  opacity: 1; }
+    }
+    h1, h2, h3 { font-family: 'Nunito', sans-serif; font-weight: 800; }
+    .btn-primary { font-family: 'Nunito', sans-serif; font-weight: 700; }
+    .step-label { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-steps">
+      <div class="step-dot active" id="dot-1"><span>1</span></div>
+      <div class="step-line" id="line-1"></div>
+      <div class="step-dot" id="dot-2"><span>2</span></div>
+      <div class="step-line" id="line-2"></div>
+      <div class="step-dot" id="dot-3"><span>3</span></div>
+      <div class="step-line" id="line-3"></div>
+      <div class="step-dot" id="dot-4"><span>4</span></div>
+    </div>
+  </div>
+
+  <!-- ── TRIN 1: Velkommen ─────────────────────────────────── -->
+  <div class="card active" id="step-1">
+    <div class="step-label">Trin 1 af 4</div>
+    <h1>Velkommen!</h1>
+    <p class="subtitle">Din konto er klar. Dit dedikerede nummer er reserveret til dig — kunder der ringer her, ender hos dig.</p>
+
+    <div class="number-display" id="display-number">+45 31 23 45 67</div>
+
+    <p class="subtitle" style="margin-bottom:0">
+      I de næste trin sætter vi din telefonsvarer op og sikrer at viderestillingen virker. Det tager under 5 minutter.
+    </p>
+
+    <br>
+    <label class="field-label" for="owner-phone">Dit eget mobilnummer</label>
+    <input
+      id="owner-phone"
+      type="tel"
+      placeholder="+45 12 34 56 78"
+      style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;font-size:16px;color:var(--text);font-family:'Source Sans 3',sans-serif;margin-bottom:24px;transition:border-color .2s"
+      oninput="state.ownerPhone = this.value"
+      onfocus="this.style.borderColor='var(--accent)'"
+      onblur="this.style.borderColor='var(--border)'"
+    >
+    <p style="font-size:12px;color:var(--muted);margin-top:-20px;margin-bottom:24px">
+      Vi ringer til dette nummer for at teste viderestillingen i trin 4.
+    </p>
+
+    <button class="btn-primary" onclick="validateStep1()">Kom i gang →</button>
+  </div>
+
+  <!-- ── TRIN 2: Stemme + besked ───────────────────────────── -->
+  <div class="card" id="step-2">
+    <div class="step-label">Trin 2 af 4</div>
+    <h1>Din telefonsvarer</h1>
+    <p class="subtitle">Vælg en stemme og tilpas beskeden — den læses op når en kunde ringer.</p>
+
+    <div class="voice-options">
+      <div class="voice-option selected" id="voice-female" onclick="selectVoice('female')">
+        <div class="voice-icon">👩</div>
+        <div class="voice-name">Kvinde</div>
+        <div class="voice-desc">Naja — dansk</div>
+      </div>
+      <div class="voice-option" id="voice-male" onclick="selectVoice('male')">
+        <div class="voice-icon">👨</div>
+        <div class="voice-name">Mand</div>
+        <div class="voice-desc">Mads — dansk</div>
+      </div>
+    </div>
+
+    <label class="field-label" for="greeting">Din besked</label>
+    <textarea id="greeting" oninput="updateCount()" maxlength="300"></textarea>
+    <div class="char-count"><span id="char-count">0</span> / 300 tegn</div>
+
+    <button class="preview-btn" onclick="previewVoice()">
+      ▶ Forhåndsvis besked
+    </button>
+
+    <button class="btn-primary" onclick="saveAndContinue()">
+      <span id="save-label">Gem og fortsæt</span>
+      <div class="spinner" id="save-spinner"></div>
+    </button>
+    <button class="btn-secondary" onclick="goTo(1)">← Tilbage</button>
+  </div>
+
+  <!-- ── TRIN 3: Viderestilling ────────────────────────────── -->
+  <div class="card" id="step-3">
+    <div class="step-label">Trin 3 af 4</div>
+    <h1>Sæt viderestilling op</h1>
+    <p class="subtitle">Når en kunde ringer til dit nuværende nummer og du ikke svarer, skal opkaldet viderestilles til dit nye nummer.</p>
+
+    <div class="os-tabs">
+      <button class="os-tab active" onclick="switchOS('android')">Android</button>
+      <button class="os-tab" onclick="switchOS('ios')">iPhone</button>
+    </div>
+
+    <!-- Android guide -->
+    <div class="os-guide active" id="guide-android">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Tast denne kode direkte i din opkaldsapp — den sætter viderestilling op automatisk:
+      </p>
+
+      <div class="copy-wrap">
+        <span class="copy-code" id="android-code">**61*+4531234567#</span>
+        <button class="copy-btn" onclick="copyCode('android-code', this)">Kopiér</button>
+      </div>
+
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="guide-num">1</div>
+          <div class="guide-text">Åbn din <strong>Telefon</strong>-app og gå til tastaturet</div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">2</div>
+          <div class="guide-text">Tast koden ovenfor præcist som vist og tryk på <strong>ring</strong>-knappen</div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">3</div>
+          <div class="guide-text">Du får en bekræftelsesbesked om at viderestilling er aktiveret</div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">4</div>
+          <div class="guide-text">Klik <strong>Test nu</strong> i næste trin — vi ringer til dig for at bekræfte det virker</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- iPhone guide -->
+    <div class="os-guide" id="guide-ios">
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="guide-num">1</div>
+          <div class="guide-text">Gå til <strong>Indstillinger → Telefon → Ring videre ved intet svar</strong></div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">2</div>
+          <div class="guide-text">Slå <strong>Ring videre</strong> til og indtast dit nye nummer:</div>
+        </div>
+      </div>
+
+      <div class="copy-wrap">
+        <span class="copy-code" id="ios-number">+4531234567</span>
+        <button class="copy-btn" onclick="copyCode('ios-number', this)">Kopiér</button>
+      </div>
+
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="guide-num">3</div>
+          <div class="guide-text">Tryk <strong>Gem</strong> og vent på bekræftelse fra din operatør (kan tage op til 30 sek.)</div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">4</div>
+          <div class="guide-text">Klik <strong>Test nu</strong> i næste trin — vi ringer til dig for at bekræfte det virker</div>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);line-height:1.6">
+        Ser du ikke menuen? Kontakt din operatør (TDC, Telenor, Yousee osv.) og bed dem aktivere "viderestilling ved intet svar" til dit nye nummer.
+      </p>
+    </div>
+
+    <button class="btn-primary" onclick="goTo(4)">Jeg har sat det op →</button>
+    <button class="btn-secondary" onclick="goTo(2)">← Tilbage</button>
+  </div>
+
+  <!-- ── TRIN 4: Verifikation ──────────────────────────────── -->
+  <div class="card" id="step-4">
+    <div class="step-label">Trin 4 af 4</div>
+    <h1>Test viderestillingen</h1>
+    <p class="subtitle">Vi ringer til dit nye nummer. Svarer du ikke, skal opkaldet lande hos os — det bekræfter at viderestillingen virker.</p>
+
+    <div class="verify-box">
+      <div class="verify-icon" id="verify-icon">📞</div>
+      <div class="verify-title" id="verify-title">Klar til test</div>
+      <div class="verify-desc" id="verify-desc">
+        Sørg for at din telefon er tæt på og <strong>lad være med at svare</strong> når vi ringer.
+      </div>
+      <div class="verify-status" id="verify-status"></div>
+    </div>
+
+    <button class="btn-primary" id="verify-btn" onclick="startVerification()">
+      <span id="verify-label">Ring til mig nu</span>
+      <div class="spinner" id="verify-spinner"></div>
+    </button>
+    <button class="btn-secondary" onclick="goTo(3)">← Tilbage</button>
+  </div>
+
+  <!-- ── SUCCESS ────────────────────────────────────────────── -->
+  <div class="card" id="step-success">
+    <div class="success-screen">
+      <div class="success-check">✓</div>
+      <h1 style="margin-bottom:12px">Alt virker!</h1>
+      <p class="subtitle">
+        Viderestillingen er bekræftet. Kunder der ringer til dig og ikke får svar, bliver nu guidet til at beskrive deres opgave.
+      </p>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;margin:28px 0;text-align:left">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.08em">Dit nummer</div>
+        <div style="font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:18px;color:var(--accent)" id="success-number">+45 31 23 45 67</div>
+      </div>
+      <a href="/dashboard">
+        <button class="btn-primary" style="text-decoration:none">Gå til dit dashboard →</button>
+      </a>
+      <p style="margin-top:16px;font-size:13px;color:var(--muted)">
+        Du kan altid ændre din besked og stemme under Indstillinger.
+      </p>
+    </div>
+  </div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────
+  const state = {
+    firmId:      null,
+    firmName:    '',
+    phoneNumber: '',
+    ownerPhone:  '',
+    voice:       'female',
+    greeting:    '',
+    verified:    false,
+  };
+
+  // ── Supabase klient ─────────────────────────────────────────────
+  const SUPABASE_URL = window.SUPABASE_URL || '';
+  const SUPABASE_KEY = window.SUPABASE_ANON_KEY || '';
+  const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+  // ── Init — hent firmadata fra Supabase session ────────────────────
+  async function init() {
+    try {
+      // Håndter magic link token i URL hash (Supabase sætter det automatisk)
+      if (db) {
+        const { data: sessionData } = await db.auth.getSession();
+
+        // Hvis ingen session endnu — prøv at hente fra URL hash
+        if (!sessionData?.session) {
+          const { data, error } = await db.auth.exchangeCodeForSession(
+            new URLSearchParams(location.search).get('code') || ''
+          );
+          if (error) console.warn('Ingen aktiv session');
+        }
+
+        const { data: { session } } = await db.auth.getSession();
+
+        if (session?.access_token) {
+          const res  = await fetch('/api/mig', {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+          });
+          const data = await res.json();
+
+          if (data?.firm) {
+            state.firmId      = data.firm.id;
+            state.firmName    = data.firm.name;
+            state.phoneNumber = data.firm.phone_number;
+            state.voice       = data.firm.voice_gender || 'female';
+            state.greeting    = data.firm.greeting_text || defaultGreeting(data.firm.name);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Auth fejl:', e);
+      // Fallback til demo-værdier lokalt
+      state.firmName    = 'Mogens Maler';
+      state.phoneNumber = '+4531234567';
+      state.greeting    = defaultGreeting(state.firmName);
+    }
+
+    // Udfyld UI
+    const fmt = state.phoneNumber.replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+    document.getElementById('display-number').textContent   = fmt;
+    document.getElementById('success-number').textContent   = fmt;
+    document.getElementById('android-code').textContent     = `**61*${state.phoneNumber}#`;
+    document.getElementById('ios-number').textContent       = state.phoneNumber;
+    document.getElementById('greeting').value               = state.greeting;
+    if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone;
+    updateCount();
+    selectVoice(state.voice);
+  }
+
+  function defaultGreeting(name) {
+    return `Hej, du har ringet til ${name}. Jeg har ikke mulighed for at tage telefonen lige nu, men jeg sender dig en SMS, så du kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`;
+  }
+
+  // ── Validér trin 1 ──────────────────────────────────────────────────────
+  function validateStep1() {
+    const phone = document.getElementById('owner-phone').value.trim();
+    if (!phone) {
+      document.getElementById('owner-phone').style.borderColor = '#f87171';
+      document.getElementById('owner-phone').focus();
+      return;
+    }
+    state.ownerPhone = phone;
+
+    // Gem owner_phone i Supabase hvis vi har en session
+    if (state.firmId) {
+      fetch('/api/firma/opdater-telefon', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ firm_id: state.firmId, owner_phone: phone }),
+      }).catch(e => console.warn('Kunne ikke gemme telefon:', e));
+    }
+    goTo(2);
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────
+  function goTo(n) {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    const target = n === 'success' ? 'step-success' : `step-${n}`;
+    document.getElementById(target).classList.add('active');
+    updateProgress(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function updateProgress(current) {
+    for (let i = 1; i <= 4; i++) {
+      const dot  = document.getElementById(`dot-${i}`);
+      const line = document.getElementById(`line-${i}`);
+
+      dot.classList.remove('active', 'done');
+      if (line) line.classList.remove('done');
+
+      if (i < current)       { dot.classList.add('done'); if (line) line.classList.add('done'); }
+      else if (i === current)  dot.classList.add('active');
+    }
+  }
+
+  // ── Stemmevalg ───────────────────────────────────────────────────
+  function selectVoice(gender) {
+    state.voice = gender;
+    document.getElementById('voice-female').classList.toggle('selected', gender === 'female');
+    document.getElementById('voice-male').classList.toggle('selected', gender === 'male');
+  }
+
+  // ── Tegntæller ───────────────────────────────────────────────────
+  function updateCount() {
+    const val = document.getElementById('greeting').value;
+    state.greeting = val;
+    document.getElementById('char-count').textContent = val.length;
+  }
+
+  // ── Forhåndsvis (browser TTS) ────────────────────────────────────
+  function previewVoice() {
+    if (!('speechSynthesis' in window)) return alert('Din browser understøtter ikke forhåndsvisning');
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(state.greeting);
+    u.lang = 'da-DK';
+    window.speechSynthesis.speak(u);
+  }
+
+  // ── Gem stemme + besked ──────────────────────────────────────────
+  async function saveAndContinue() {
+    const btn     = document.querySelector('#step-2 .btn-primary');
+    const label   = document.getElementById('save-label');
+    const spinner = document.getElementById('save-spinner');
+
+    if (!state.greeting.trim()) {
+      document.getElementById('greeting').focus();
+      return;
+    }
+
+    btn.disabled    = true;
+    label.textContent = 'Gemmer...';
+    spinner.style.display = 'block';
+
+    try {
+      if (state.firmId) {
+        await fetch('/api/firma/opdater', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            firm_id:      state.firmId,
+            voice_gender: state.voice,
+            greeting_text: state.greeting,
+          }),
+        });
+      }
+      goTo(3);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn.disabled          = false;
+      label.textContent     = 'Gem og fortsæt';
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── OS tabs ──────────────────────────────────────────────────────
+  function switchOS(os) {
+    document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.os-guide').forEach(g => g.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById(`guide-${os}`).classList.add('active');
+  }
+
+  // ── Kopiér kode ──────────────────────────────────────────────────
+  function copyCode(elementId, btn) {
+    const text = document.getElementById(elementId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Kopieret!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Kopiér';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  // ── Verifikationsopkald ──────────────────────────────────────────
+  async function startVerification() {
+    const btn     = document.getElementById('verify-btn');
+    const label   = document.getElementById('verify-label');
+    const spinner = document.getElementById('verify-spinner');
+    const status  = document.getElementById('verify-status');
+    const icon    = document.getElementById('verify-icon');
+    const title   = document.getElementById('verify-title');
+    const desc    = document.getElementById('verify-desc');
+
+    btn.disabled          = true;
+    label.textContent     = 'Ringer...';
+    spinner.style.display = 'block';
+    status.className      = 'verify-status waiting';
+    status.textContent    = 'Vi ringer til dit nummer nu — lad være med at svare...';
+    icon.textContent      = '📲';
+    title.textContent     = 'Ringer til dig...';
+
+    try {
+      const res = await fetch('/onboarding/verificer', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ firm_id: state.firmId, owner_phone: state.ownerPhone }),
+      });
+
+      if (!res.ok) throw new Error('Opkald fejlede');
+
+      // Poll efter verifikation (max 30 sek)
+      await pollVerification();
+
+    } catch (e) {
+      status.className   = 'verify-status error';
+      status.textContent = 'Opkaldet fejlede. Tjek at viderestillingen er sat op og prøv igen.';
+      icon.textContent   = '⚠️';
+      title.textContent  = 'Noget gik galt';
+      btn.disabled       = false;
+      label.textContent  = 'Prøv igen';
+      spinner.style.display = 'none';
+    }
+  }
+
+  async function pollVerification(attempts = 0) {
+    if (attempts > 12) {
+      // Timeout efter ~30 sek
+      const status = document.getElementById('verify-status');
+      status.className   = 'verify-status error';
+      status.textContent = 'Vi kunne ikke bekræfte viderestillingen. Er koden tastet korrekt ind?';
+      document.getElementById('verify-btn').disabled = false;
+      document.getElementById('verify-label').textContent = 'Prøv igen';
+      document.getElementById('verify-spinner').style.display = 'none';
+      document.getElementById('verify-icon').textContent  = '⚠️';
+      document.getElementById('verify-title').textContent = 'Ikke bekræftet endnu';
+      return;
+    }
+
+    await new Promise(r => setTimeout(r, 2500));
+
+    try {
+      const res  = await fetch(`/api/firma/status?firm_id=${state.firmId}`);
+      const data = await res.json();
+
+      if (data?.verification_status === 'verified') {
+        // Succes!
+        document.getElementById('verify-icon').textContent  = '✓';
+        document.getElementById('verify-title').textContent = 'Bekræftet!';
+        document.getElementById('verify-status').className      = 'verify-status success';
+        document.getElementById('verify-status').textContent    = 'Viderestillingen virker — du er klar!';
+        document.getElementById('verify-spinner').style.display = 'none';
+        setTimeout(() => goTo('success'), 1800);
+        return;
+      }
+    } catch (e) { /* fortsæt polling */ }
+
+    await pollVerification(attempts + 1);
+  }
+
+  // ── Start ────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>

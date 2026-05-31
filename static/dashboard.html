@@ -5,88 +5,190 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#2563eb">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#1A3A5C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Leads">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    #debug { position: fixed; bottom: 0; left: 0; right: 0; background: #000; color: #0f0; font-size: 12px; padding: 8px; z-index: 9999; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:#1A3A5C; --steel:#2C6B9E; --steel-hover:#3579b0; --smoke:#F4F7FA;
+      --forest:#2E7D52; --forest-dark:#25623F; --forest-text:#1B5E3A;
+      --ink:#1C2A38; --ink-muted:#4A5D6E;
+      --steel-light:#EAF2FB; --forest-light:#E8F5EE; --border:#DDE4EC; --white:#fff;
+      --danger:#dc2626; --danger-light:#fee2e2; --danger-dark:#991b1b;
+      --radius:12px; --radius-lg:16px;
+    }
+
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--smoke); color: var(--ink); }
+    h1, h2, h3, h4 { font-family: 'Nunito', sans-serif; font-weight: 800; line-height: 1.2; }
 
     /* Login */
     #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
-    .login-card { background: white; border-radius: 12px; padding: 32px; width: 100%; max-width: 400px; }
-    .login-card h1 { font-size: 22px; margin-bottom: 8px; }
-    .login-card p { color: #666; font-size: 14px; margin-bottom: 24px; }
-    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; margin-top: 16px; }
-    input[type=email], input[type=password] { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 16px; font-family: inherit; }
-    .btn { margin-top: 20px; width: 100%; background: #2563eb; color: white; border: none; border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 500; cursor: pointer; }
-    .btn:hover { background: #1d4ed8; }
-    .btn-sm { background: none; border: 1px solid #ddd; color: #444; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
-    .error { color: #dc2626; font-size: 13px; margin-top: 12px; }
+    .login-card { background: var(--white); border-radius: var(--radius-lg); padding: 32px; width: 100%; max-width: 400px; border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(26,58,92,.10); }
+    .login-card h1 { font-size: 24px; color: var(--navy); margin-bottom: 8px; }
+    .login-card p { color: var(--ink-muted); font-size: 15px; margin-bottom: 24px; }
+    label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-muted); margin-bottom: 8px; margin-top: 16px; font-family: 'Nunito', sans-serif; }
+    input[type=email], input[type=password] { width: 100%; background: var(--steel-light); border: 2px solid var(--border); border-radius: 10px; padding: 13px 16px; font-size: 16px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; }
+    input[type=email]:focus, input[type=password]:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.18); }
+    .btn { margin-top: 24px; width: 100%; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s, transform .15s; }
+    .btn:hover { background: var(--steel-hover); transform: translateY(-1px); }
+    .btn-sm { background: transparent; border: 1.5px solid rgba(255,255,255,.28); color: #fff; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; transition: all .2s; }
+    .btn-sm:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
+    .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
 
     /* App */
     #app { display: none; }
-    .topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-    .topbar h1 { font-size: 17px; font-weight: 500; }
-    .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-
-    /* Statistik */
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
-    .stat-card { background: white; border-radius: 10px; padding: 20px; border: 1px solid #e5e5e5; }
-    .stat-card .label { font-size: 12px; color: #888; margin-bottom: 6px; }
-    .stat-card .value { font-size: 28px; font-weight: 500; }
-    .stat-card .value.urgent { color: #dc2626; }
-    .stat-card .value.rate { color: #16a34a; }
+    .topbar { background: var(--navy); padding: 0 20px; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 16px rgba(0,0,0,.12); }
+    .topbar h1 { font-size: 19px; font-weight: 800; color: #fff; }
+    .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 90px; }
 
     /* Leads */
-    .section-title { font-size: 16px; font-weight: 500; margin-bottom: 12px; }
-    .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-    .filter-btn { background: white; border: 1px solid #ddd; border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
-    .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+    .section-title { font-size: 19px; font-weight: 800; color: var(--navy); margin-bottom: 12px; }
+    .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-btn { background: var(--white); border: 1.5px solid var(--border); border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 600; color: var(--ink-muted); cursor: pointer; transition: all .2s; }
+    .filter-btn:hover { border-color: var(--steel); color: var(--steel); }
+    .filter-btn.active { background: var(--steel); color: #fff; border-color: var(--steel); }
 
     .lead-list { display: flex; flex-direction: column; gap: 10px; }
-    .lead-card { background: white; border-radius: 10px; border: 1px solid #e5e5e5; padding: 16px 20px; cursor: pointer; transition: border-color 0.15s; }
-    .lead-card:hover { border-color: #2563eb; }
-    .lead-card.urgent { border-left: 3px solid #dc2626; }
+    .lead-card { background: var(--white); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 16px 20px; cursor: pointer; transition: transform .15s, box-shadow .2s, border-color .15s; }
+    .lead-card:hover { border-color: var(--steel); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(26,58,92,.10); }
+    .lead-card.urgent { border-left: 3px solid var(--danger); }
     .lead-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-    .lead-name { font-weight: 500; font-size: 15px; }
-    .lead-time { font-size: 12px; color: #888; white-space: nowrap; }
-    .lead-address { font-size: 13px; color: #666; margin-top: 4px; }
-    .lead-task { font-size: 13px; color: #444; margin-top: 8px; line-height: 1.5; }
+    .lead-name { font-weight: 700; font-size: 16px; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    .lead-time { font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+    .lead-address { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
+    .lead-task { font-size: 14px; color: var(--ink); margin-top: 8px; line-height: 1.5; }
     .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-    .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
-    .badge-urgent { background: #fee2e2; color: #991b1b; }
-    .badge-new { background: #dbeafe; color: #1e40af; }
-    .badge-completed { background: #dcfce7; color: #166534; }
-    .badge-images { background: #f3e8ff; color: #6b21a8; }
+    .badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-family: 'Nunito', sans-serif; }
+    .badge-urgent { background: var(--danger-light); color: var(--danger-dark); }
+    .badge-new { background: var(--steel-light); color: var(--navy); }
+    .badge-completed { background: var(--forest-light); color: var(--forest-text); }
+    .badge-rejected { background: #EAF0F5; color: var(--ink-muted); }
+    .badge-images { background: #E6EEF6; color: var(--steel); }
+
+    /* Bottom nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); display: flex; z-index: 90; padding-bottom: env(safe-area-inset-bottom); }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 4px 8px; cursor: pointer; background: none; border: none; font-family: inherit; color: var(--ink-muted); font-size: 11px; gap: 4px; font-weight: 600; }
+    .nav-item i { font-size: 22px; }
+    .nav-item.active { color: var(--steel); }
+    .nav-item.soon { color: #B7C2CE; cursor: default; }
+    .nav-item.soon span { font-size: 9px; color: #B7C2CE; }
+
+    /* Pages */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Profil */
+    .profile-card { background: var(--white); border-radius: var(--radius-lg); padding: 28px; border: 1px solid var(--border); text-align: center; margin-bottom: 16px; }
+    .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: var(--steel-light); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--steel); margin: 0 auto 12px; }
+    .profile-name { font-size: 20px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    .profile-firm { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
+    .profile-phone { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+
+    /* Tips */
+    .tip-card { background: var(--white); border-radius: var(--radius-lg); padding: 20px; border: 1px solid var(--border); margin-bottom: 12px; }
+    .tip-card h3 { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 6px; }
+    .tip-card p { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
 
     /* Modal */
-    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(26,58,92,.45); z-index: 100; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
     .modal-bg.open { display: flex; }
-    .modal { background: white; border-radius: 12px; padding: 24px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; }
-    .modal h2 { font-size: 18px; margin-bottom: 16px; }
-    .modal-field { margin-bottom: 14px; }
-    .modal-field .field-label { font-size: 12px; color: #888; margin-bottom: 3px; }
-    .modal-field .field-value { font-size: 15px; }
-    .modal-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
-    .modal-images img { width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 1; }
-    .modal-close { margin-top: 20px; width: 100%; }
+    .modal { background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 580px; margin: auto; overflow: hidden; box-shadow: 0 20px 60px rgba(26,58,92,.25); }
 
-    .empty { text-align: center; color: #888; padding: 48px 0; font-size: 14px; }
-#debug { display: block !important; }  
+    .mhead { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .mhead-left { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--steel-light); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--steel); flex-shrink: 0; }
+    .mhead-name { font-size: 16px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    .mhead-phone { font-size: 12px; color: var(--ink-muted); margin-top: 1px; }
+    .close-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); font-size: 16px; }
+    .close-btn:hover { background: var(--smoke); }
+
+    .mbody { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mfield label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 6px; margin-top: 0; font-weight: 700; font-family: 'Nunito', sans-serif; }
+    .mfield input[type=text], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 14px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
+    .mfield input[type=text]:focus, .mfield input[type=date]:focus, .mfield textarea:focus, .mfield select:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    .mfield textarea { height: 72px; }
+    .date-wrap { position: relative; }
+    .date-wrap input { padding-right: 32px; cursor: pointer; }
+    .date-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-muted); font-size: 16px; pointer-events: none; }
+
+    .urgent-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); cursor: pointer; }
+    .urgent-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--danger); cursor: pointer; }
+    .urgent-row label { font-size: 13px; color: var(--ink); cursor: pointer; margin: 0; font-weight: 400; font-family: 'Source Sans 3', sans-serif; text-transform: none; letter-spacing: 0; }
+    .urgent-row.checked { border-color: #fca5a5; background: #fef2f2; }
+    .urgent-row.checked label { color: var(--danger-dark); }
+
+    .upload-area { border: 2px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; background: var(--smoke); }
+    .upload-area:hover { border-color: var(--steel); }
+    .upload-area p { font-size: 13px; color: var(--ink-muted); margin-top: 4px; }
+    .upload-area i { font-size: 20px; color: #8FA3B5; }
+    .img-previews { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .img-thumb { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative; }
+    .img-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .img-thumb .rm { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    .mdivider { height: 1px; background: var(--border); }
+
+    .sms-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 700; font-family: 'Nunito', sans-serif; }
+    .tpl-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .tpl-btn { font-size: 12px; padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: none; color: var(--ink-muted); cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 600; }
+    .tpl-btn:hover { background: var(--smoke); }
+    .tpl-btn.active { background: var(--steel-light); border-color: var(--steel); color: var(--navy); }
+    .sms-textarea { width: 100%; padding: 11px 13px; font-size: 13px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; height: 80px; margin-top: 8px; transition: border-color .2s, box-shadow .2s; }
+    .sms-textarea:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
+
+    .mfoot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-call { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--white); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--ink); cursor: pointer; }
+    .btn-call:hover { background: var(--smoke); border-color: var(--steel); }
+    .btn-sms { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--steel); cursor: pointer; }
+    .btn-sms:hover { background: #DCE7F4; }
+    .mfoot-spacer { flex: 1; }
+    .btn-luk { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--border); background: none; font-size: 13px; font-weight: 600; color: var(--ink-muted); cursor: pointer; font-family: 'Nunito', sans-serif; }
+    .btn-luk:hover { background: var(--smoke); }
+    .btn-afslut { padding: 10px 16px; border-radius: 10px; border: none; background: var(--forest); font-size: 13px; font-weight: 800; font-family: 'Nunito', sans-serif; color: white; cursor: pointer; }
+    .btn-afslut:hover { background: var(--forest-dark); }
+    .btn-genaabn { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--forest); background: var(--forest-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--forest-text); cursor: pointer; }
+    .btn-genaabn:hover { background: #D6EFE0; }
+
+    .afslut-panel { background: var(--smoke); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: none; flex-direction: column; gap: 10px; }
+    .afslut-panel.open { display: flex; }
+    .afslut-panel p { font-size: 13px; color: var(--ink-muted); }
+    .afslut-opt { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: white; cursor: pointer; }
+    .afslut-opt:hover { border-color: var(--steel); }
+    .afslut-opt input { margin-top: 2px; accent-color: var(--steel); }
+    .afslut-opt .opt-title { font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    .afslut-opt .opt-desc { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+    .btn-confirm-afslut { padding: 10px 16px; border-radius: 10px; border: none; background: var(--danger); font-size: 13px; font-weight: 800; font-family: 'Nunito', sans-serif; color: white; cursor: pointer; align-self: flex-end; }
+    .btn-confirm-afslut:hover { background: #b91c1c; }
+
+    .modal-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+    .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
+
+    .empty { text-align: center; color: var(--ink-muted); padding: 48px 0; font-size: 14px; }
+    .sort-btn { background: var(--white); border: 1.5px solid var(--border); border-radius: 20px; padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--ink-muted); font-family: 'Nunito', sans-serif; font-weight: 600; }
+    .sort-btn.active { background: var(--steel); color: white; border-color: var(--steel); }
+    .sort-btn:hover:not(.active) { background: var(--smoke); }
   </style>
 </head>
 <body>
-  <p style="color:red;font-size:30px;">TEST123</p>
-<div id="debug" style="position:fixed;bottom:0;left:0;right:0;background:black;color:lime;font-size:16px;padding:10px;z-index:9999;">Venter...</div>
 
 <!-- Login -->
 <div id="login-screen">
   <div class="login-card">
     <h1>Log ind</h1>
-    <p>Jens Hansen VVS — leadoversigt</p>
+    <p>Mogens Maler — leadoversigt</p>
     <label>Email</label>
     <input type="email" id="email" placeholder="jens@vvs.dk">
     <label>Adgangskode</label>
@@ -100,69 +202,279 @@
 <div id="app">
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
-  <button class="btn-sm" onclick="logout()">Log ud</button>
+  <button class="btn-sm" onclick="openNewLeadModal()" style="display:flex;align-items:center;gap:5px"><i class="ti ti-plus" style="font-size:15px"></i> Ny opgave</button>
 </div>
 <div class="main">
 
-    <!-- Statistik -->
-    <div class="stats">
-      <div class="stat-card">
-        <div class="label">Opkald i alt</div>
-        <div class="value" id="stat-calls">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Leads modtaget</div>
-        <div class="value" id="stat-leads">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Konverteringsrate</div>
-        <div class="value rate" id="stat-rate">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Haster</div>
-        <div class="value urgent" id="stat-urgent">—</div>
-      </div>
+  <!-- Side: Opgaver -->
+  <div class="page active" id="page-opgaver">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">Opgaver</div>
     </div>
-
-    <!-- Leads -->
-    <div class="section-title">Leads</div>
-    <div class="filters">
+    <div class="filters" id="filter-row">
       <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
       <button class="filter-btn" onclick="setFilter('new', this)">Nye</button>
       <button class="filter-btn" onclick="setFilter('urgent', this)">Haster</button>
       <button class="filter-btn" onclick="setFilter('completed', this)">Afsluttede</button>
     </div>
+    <div id="sort-row" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--ink-muted);line-height:28px">Sortér:</span>
+      <button class="sort-btn active" onclick="setSort('created', this)">Oprettet</button>
+      <button class="sort-btn" onclick="setSort('name', this)">Navn</button>
+      <button class="sort-btn" onclick="setSort('street', this)">Vej</button>
+      <button class="sort-btn" onclick="setSort('city', this)">By</button>
+    </div>
     <div class="lead-list" id="lead-list">
       <div class="empty">Henter leads...</div>
     </div>
   </div>
+
+  <!-- Side: Profil -->
+  <div class="page" id="page-profil">
+    <div class="profile-card">
+      <div class="profile-avatar" id="profile-avatar">—</div>
+      <div class="profile-name" id="profile-name">—</div>
+      <div class="profile-firm" id="profile-firm">—</div>
+      <div class="profile-phone" id="profile-phone">—</div>
+    </div>
+    <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
+  </div>
+
+  <!-- Side: Tips og tricks -->
+  <div class="page" id="page-tips">
+    <div class="section-title" style="margin-bottom:16px">Tips og tricks</div>
+    <div class="tip-card">
+      <h3>📞 Svar hurtigt</h3>
+      <p>Kunder der ringer og ikke får svar vælger ofte den næste håndværker på listen. Ring tilbage inden for 2 timer for den bedste konverteringsrate.</p>
+    </div>
+    <div class="tip-card">
+      <h3>📸 Bed om billeder</h3>
+      <p>Kunden kan vedhæfte billeder i formularen. Billeder giver dig et bedre grundlag for at vurdere opgaven og lave et præcist tilbud.</p>
+    </div>
+    <div class="tip-card">
+      <h3>✅ Hold listen opdateret</h3>
+      <p>Marker opgaver som udført eller afvist så snart de er afsluttet. Det giver dig et klart overblik og holder din statistik præcis.</p>
+    </div>
+    <div class="tip-card">
+      <h3>🗒️ Brug notefeltet</h3>
+      <p>Skriv interne noter på opgaven — fx hvad I aftalte pr. telefon, eller hvad der skal medbringes. Det ses kun af dig.</p>
+    </div>
+  </div>
+
 </div>
 
+<!-- Bundbar -->
+<nav class="bottom-nav">
+  <button class="nav-item active" id="nav-opgaver" onclick="setPage('opgaver')">
+    <i class="ti ti-clipboard-list"></i>
+    Opgaver
+  </button>
+  <button class="nav-item" id="nav-profil" onclick="setPage('profil')">
+    <i class="ti ti-user-circle"></i>
+    Profil
+  </button>
+  <button class="nav-item" id="nav-tips" onclick="setPage('tips')">
+    <i class="ti ti-bulb"></i>
+    Tips
+  </button>
+</nav>
+
 <!-- Modal -->
-<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+<div class="modal-bg" id="modal-bg" onclick="closeBgClick(event)">
   <div class="modal" id="modal">
-    <h2 id="modal-name"></h2>
-    <div class="modal-field">
-      <div class="field-label">Telefon</div>
-      <div class="field-value" id="modal-phone"></div>
+
+    <div class="mhead">
+      <div class="mhead-left">
+        <div class="avatar" id="modal-avatar"></div>
+        <div>
+          <div class="mhead-name" id="modal-name"></div>
+          <div class="mhead-phone" id="modal-phone"></div>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeModal()" aria-label="Luk"><i class="ti ti-x"></i></button>
     </div>
-    <div class="modal-field">
-      <div class="field-label">Adresse</div>
-      <div class="field-value" id="modal-address"></div>
+
+    <div class="mbody">
+      <div class="row2">
+        <div class="mfield">
+          <label>Navn</label>
+          <input type="text" id="modal-name-input">
+        </div>
+        <div class="mfield">
+          <label>Telefon</label>
+          <input type="text" id="modal-phone-input" placeholder="+45 12 34 56 78">
+        </div>
+      </div>
+
+      <div class="mfield" style="position:relative">
+        <label>Adresse</label>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+          <div style="position:relative">
+            <input type="text" id="modal-address-street" placeholder="Søndergade 12" autocomplete="off">
+            <div id="modal-dawa-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:white;border:1px solid #DDE4EC;border-radius:8px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.1)"></div>
+          </div>
+          <input type="text" id="modal-address-city" placeholder="By" style="color:var(--ink-muted)">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-top:8px">
+          <input type="text" id="modal-address-zip" placeholder="Postnr." style="color:var(--ink-muted)">
+          <input type="text" id="modal-address-mail" placeholder="Mail til adresse (valgfrit)">
+        </div>
+      </div>
+
+      <div class="mfield">
+        <label>Beskriv opgaven</label>
+        <textarea id="modal-task"></textarea>
+      </div>
+
+      <div class="row2">
+        <div class="mfield">
+          <label>Deadline</label>
+          <div class="date-wrap">
+            <input type="date" id="modal-deadline">
+            <i class="ti ti-calendar date-icon" aria-hidden="true"></i>
+          </div>
+        </div>
+        <div class="mfield" style="display:flex;flex-direction:column;justify-content:flex-end">
+          <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
+            <input type="checkbox" id="modal-urgent-cb">
+            <label for="modal-urgent-cb"><i class="ti ti-bolt" aria-hidden="true"></i> Det haster</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="mfield">
+        <label>Ønsket tidspunkt fra kunde</label>
+        <input type="text" id="modal-time" readonly style="color:var(--ink-muted)">
+      </div>
+
+      <div class="mfield">
+        <label>Noter (interne)</label>
+        <textarea id="modal-notes" placeholder="Ses kun af dig..."></textarea>
+      </div>
+
+      <div class="mfield">
+        <label>Billeder</label>
+        <div class="modal-images" id="modal-images"></div>
+        <div class="upload-area" onclick="document.getElementById('modal-file-in').click()" style="margin-top:8px">
+          <i class="ti ti-photo-plus" aria-hidden="true"></i>
+          <p>Tryk for at tilføje billeder</p>
+          <input type="file" id="modal-file-in" accept="image/*" multiple style="display:none" onchange="addPreviews(this)">
+        </div>
+        <div class="img-previews" id="modal-previews"></div>
+      </div>
+
+      <div class="mdivider"></div>
+
+      <div>
+        <div class="sms-label">Send SMS</div>
+        <div class="tpl-row">
+          <button class="tpl-btn" onclick="setTpl(this,0)">Bekræft tidspunkt</button>
+          <button class="tpl-btn" onclick="setTpl(this,1)">Tilbud på vej</button>
+          <button class="tpl-btn" onclick="setTpl(this,2)">Skriv selv</button>
+        </div>
+        <textarea class="sms-textarea" id="modal-sms" oninput="updateSmsCount()" placeholder="Vælg en skabelon eller skriv din egen besked..."></textarea>
+        <div class="char-count"><span id="modal-sms-count">0</span> tegn</div>
+      </div>
+
+      <div class="afslut-panel" id="afslut-panel">
+        <p>Vælg hvordan opgaven afsluttes:</p>
+        <label class="afslut-opt">
+          <input type="radio" name="afslut" value="udfort">
+          <div>
+            <div class="opt-title">Opgave udført</div>
+            <div class="opt-desc">Arbejdet er færdigt. Opgaven arkiveres.</div>
+          </div>
+        </label>
+        <label class="afslut-opt">
+          <input type="radio" name="afslut" value="afslaaet">
+          <div>
+            <div class="opt-title">Afslå opgave</div>
+            <div class="opt-desc">Send en SMS til kunden og arkiver opgaven.</div>
+          </div>
+        </label>
+        <div id="afslut-sms-wrap" style="display:none">
+          <textarea class="sms-textarea" id="afslut-sms" style="height:68px">Hej, tak for din henvendelse. Desværre har vi ikke mulighed for at påtage os din opgave på nuværende tidspunkt. Vi håber du finder hjælp et andet sted.</textarea>
+        </div>
+        <button class="btn-confirm-afslut" onclick="confirmAfslut()">Bekræft og afslut opgave</button>
+      </div>
     </div>
-    <div class="modal-field">
-      <div class="field-label">Opgave</div>
-      <div class="field-value" id="modal-task"></div>
+
+    <div class="mfoot">
+      <button class="btn-call" id="modal-call-btn" onclick="ringTilbage()"><i class="ti ti-phone" aria-hidden="true"></i> Ring tilbage</button>
+      <button class="btn-sms" onclick="sendSms()"><i class="ti ti-send" aria-hidden="true"></i> Send SMS</button>
+      <div class="mfoot-spacer"></div>
+      <button class="btn-luk" onclick="closeModal()">Luk</button>
+      <button class="btn-afslut" id="btn-afslut-toggle" onclick="toggleAfslut()">Afslut opgave</button>
+      <button class="btn-genaabn" id="btn-genaabn" onclick="genaabнOpgave()" style="display:none">Genåbn opgave</button>
     </div>
-    <div class="modal-field">
-      <div class="field-label">Ønsket tidspunkt</div>
-      <div class="field-value" id="modal-time"></div>
+
+  </div>
+</div>
+
+<!-- Ny opgave modal -->
+<div class="modal-bg" id="new-lead-modal-bg" onclick="closeNewLeadModal(event)">
+  <div class="modal">
+    <div class="mhead">
+      <div class="mhead-left">
+        <div class="avatar" style="background:#E8F5EE;color:#1B5E3A"><i class="ti ti-plus"></i></div>
+        <div>
+          <div class="mhead-name">Ny opgave</div>
+          <div class="mhead-phone">Opret manuelt</div>
+        </div>
+      </div>
+      <button class="close-btn" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')" aria-label="Luk"><i class="ti ti-x"></i></button>
     </div>
-    <div class="modal-field" id="modal-images-section" style="display:none">
-      <div class="field-label">Billeder</div>
-      <div class="modal-images" id="modal-images"></div>
+    <div class="mbody">
+      <div class="mfield">
+        <label>Navn</label>
+        <input type="text" id="new-name" placeholder="Anders Hansen">
+      </div>
+      <div class="mfield">
+        <label>Telefon</label>
+        <input type="tel" id="new-phone" placeholder="+45 12 34 56 78">
+      </div>
+      <div class="mfield" style="position:relative">
+        <label>Adresse</label>
+        <input type="text" id="new-street" placeholder="Begynd at skrive vejnavn..." autocomplete="off">
+        <input type="hidden" id="new-city">
+        <input type="hidden" id="new-postnr">
+        <div id="new-dawa-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:white;border:1px solid #DDE4EC;border-radius:8px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.1)"></div>
+        <div style="color:#dc2626;font-size:12px;margin-top:3px;display:none" id="new-dawa-error">Vælg venligst en adresse fra listen</div>
+      </div>
+      <div class="mfield">
+        <label>Mailadresse (valgfrit)</label>
+        <input type="email" id="new-mail" placeholder="anders@eksempel.dk">
+      </div>
+      <div class="mfield">
+        <label>Beskriv opgaven</label>
+        <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
+      </div>
+      <div class="mfield">
+        <label>Hvornår passer det dig?</label>
+        <input type="text" id="new-time" placeholder="Hverdage efter kl. 16">
+      </div>
+      <div class="mfield">
+        <label>Billeder</label>
+        <div class="upload-area" onclick="document.getElementById('new-file-in').click()">
+          <i class="ti ti-photo-plus" style="font-size:20px;color:#8FA3B5" aria-hidden="true"></i>
+          <p>Tryk for at tilføje billeder</p>
+          <input type="file" id="new-file-in" accept="image/*" multiple style="display:none">
+        </div>
+      </div>
+      <div class="urgent-row" id="new-urgent-row" onclick="toggleNewUrgent()">
+        <input type="checkbox" id="new-urgent-cb">
+        <span><i class="ti ti-bolt" aria-hidden="true"></i> Det haster</span>
+      </div>
+      <div class="mfield">
+        <label>Noter (interne)</label>
+        <textarea id="new-notes" style="height:60px" placeholder="Kun synlig for dig..."></textarea>
+      </div>
     </div>
-    <button class="btn modal-close" onclick="closeModal()">Luk</button>
+    <div class="mfoot">
+      <div class="mfoot-spacer"></div>
+      <button class="btn-luk" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')">Annuller</button>
+      <button class="btn-afslut" onclick="saveNewLead()">Opret opgave</button>
+    </div>
   </div>
 </div>
 
@@ -193,25 +505,37 @@
   }
 
   db.auth.onAuthStateChange((event, session) => {
-    if (session) {
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-      loadData();
-    }
-  });
+  if (session) {
+    document.getElementById('login-screen').style.display = 'none';
+    // App vises først når loadData har bekræftet onboarding er gennemført
+    Notification.requestPermission();
+    loadData();
+  }
+});
 
   // ── Data ──────────────────────────────────────────────────────────────────
   async function loadData() {
     const { data: firmUser } = await db
     .from("firm_users")
-    .select("firms(id, name)")
+    .select("firms(id, name, status)")
     .eq("user_id", (await db.auth.getUser()).data.user.id)
     .single();
 
+  // Redirect til onboarding hvis opsætning ikke er gennemført
+  if (firmUser?.firms?.status === "onboarding") {
+    window.location.href = "/onboarding";
+    return;
+  }
+
+  // Onboarding gennemført — vis appen
+  document.getElementById('app').style.display = 'block';
+
      console.log("firmUser:", JSON.stringify(firmUser));
 
-  const firm = firmUser?.firms; 
+  const firm = firmUser?.firms;
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
+  const { data: { user } } = await db.auth.getUser();
+  populateProfile(user, firm?.name);
 
   // Hent calls for dette firma
   const { data: calls } = await db
@@ -234,16 +558,6 @@
     calls: calls?.find(c => c.id === lead.call_id)
   })) || [];
 
-  const totalCalls = calls?.length || 0;
-  const totalLeads = leads?.length || 0;
-  const urgentLeads = leads?.filter(l => l.is_urgent).length || 0;
-  const rate = totalCalls > 0 ? Math.round((totalLeads / totalCalls) * 100) : 0;
-
-  document.getElementById("stat-calls").textContent = totalCalls;
-  document.getElementById("stat-leads").textContent = totalLeads;
-  document.getElementById("stat-rate").textContent = rate + "%";
-  document.getElementById("stat-urgent").textContent = urgentLeads;
-
   allLeads = leadsWithPhone;
   renderLeads();
 }
@@ -258,74 +572,356 @@
 
 function renderLeads() {
   const filtered = allLeads.filter(lead => {
-    if (currentFilter === 'urgent') return lead.is_urgent;
-    if (currentFilter === 'new') return !lead.is_urgent;
-    if (currentFilter === 'completed') return lead.calls?.status === 'completed';
-    return true;
+    if (currentFilter === 'urgent') return lead.is_urgent && lead.status === 'open';
+    if (currentFilter === 'new') return !lead.seen_at && lead.status === 'open';
+    if (currentFilter === 'completed') return lead.status === 'completed' || lead.status === 'rejected';
+    return lead.status === 'open';
+  });
+
+  filtered.sort((a, b) => {
+    if (currentSort === 'created') return new Date(b.created_at) - new Date(a.created_at);
+    if (currentSort === 'name') return a.name.localeCompare(b.name, 'da');
+    if (currentSort === 'street') return (a.address || '').localeCompare(b.address || '', 'da');
+    if (currentSort === 'city') {
+      const extractCity = addr => {
+        const part = (addr || '').split(',')[1]?.trim() || '';
+        return part.replace(/^\d{4}\s*/, '');
+      };
+      return extractCity(a.address).localeCompare(extractCity(b.address), 'da');
+    }
+    return 0;
   });
 
   const list = document.getElementById('lead-list');
   if (filtered.length === 0) {
     list.innerHTML = '<div class="empty">Ingen leads i denne kategori</div>';
-    updateBadge(allLeads.filter(l => !l.seen_at).length);
+    updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
     return;
   }
 
   list.innerHTML = filtered.map(lead => `
-    <div class="lead-card ${lead.is_urgent ? 'urgent' : ''}" onclick="openModal(${JSON.stringify(lead).replace(/"/g, '&quot;')})">
+    <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${JSON.stringify(lead).replace(/"/g, '&quot;')})">
       <div class="lead-top">
         <div class="lead-name">${lead.name}</div>
-        <div class="lead-time">${formatDate(lead.created_at)}</div>
       </div>
       <div class="lead-address">${lead.address}</div>
-      <div class="lead-task">${lead.task}</div>
-      <div class="badges">
-        ${lead.is_urgent ? '<span class="badge badge-urgent">Haster</span>' : ''}
+      <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+        <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
+          ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
+        ${lead.is_urgent && lead.status === 'open' ? '<span class="badge badge-urgent">Haster</span>' : ''}
         ${lead.lead_images?.length ? `<span class="badge badge-images">${lead.lead_images.length} billede${lead.lead_images.length > 1 ? 'r' : ''}</span>` : ''}
-        ${!lead.seen_at ? '<span class="badge badge-new">Ny</span>' : ''}
+        ${!lead.seen_at && lead.status === 'open' ? '<span class="badge badge-new">Ny</span>' : ''}
       </div>
     </div>
   `).join('');
 
-  updateBadge(allLeads.filter(l => !l.seen_at).length);
+  updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
 }
+
+  let currentSort = 'created';
+
+  function openNewLeadModal() {
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-phone').value = '';
+    document.getElementById('new-street').value = '';
+    document.getElementById('new-city').value = '';
+    document.getElementById('new-task').value = '';
+    document.getElementById('new-time').value = '';
+    document.getElementById('new-mail').value = '';
+    document.getElementById('new-urgent-cb').checked = false;
+    document.getElementById('new-urgent-row').classList.remove('checked');
+    document.getElementById('new-lead-modal-bg').classList.add('open');
+  }
+
+  function closeNewLeadModal(event) {
+    if (event.target === document.getElementById('new-lead-modal-bg')) {
+      document.getElementById('new-lead-modal-bg').classList.remove('open');
+    }
+  }
+
+  function toggleNewUrgent() {
+    const cb = document.getElementById('new-urgent-cb');
+    const row = document.getElementById('new-urgent-row');
+    cb.checked = !cb.checked;
+    row.classList.toggle('checked', cb.checked);
+  }
+
+  async function saveNewLead() {
+    const name = document.getElementById('new-name').value.trim();
+    const phone = document.getElementById('new-phone').value.trim();
+    const street = document.getElementById('new-street').value.trim();
+    const city = document.getElementById('new-city').value.trim();
+    const postnr = document.getElementById('new-postnr').value.trim();
+    const task = document.getElementById('new-task').value.trim();
+
+    if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
+
+    if (street && !newDawaValgt) {
+      document.getElementById('new-dawa-error').style.display = 'block';
+      document.getElementById('new-street').focus();
+      return;
+    }
+
+    const address = [street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', ');
+
+    // Opret via server (undgår RLS)
+    const { data: firmUser } = await db.from('firm_users')
+      .select('firms(id)')
+      .eq('user_id', (await db.auth.getUser()).data.user.id)
+      .single();
+    const firmId = firmUser?.firms?.id;
+
+    const res = await fetch('/opret-opgave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        phone,
+        address,
+        task,
+        desired_time: document.getElementById('new-time').value.trim() || null,
+        is_urgent: document.getElementById('new-urgent-cb').checked,
+        notes: document.getElementById('new-notes').value.trim() || null,
+        address_mail: document.getElementById('new-mail').value.trim() || null,
+        firm_id: firmId,
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert('Kunne ikke gemme opgave: ' + err.error);
+      return;
+    }
+
+    document.getElementById('new-lead-modal-bg').classList.remove('open');
+    loadData();
+  }
+
+  function setPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('nav-' + page).classList.add('active');
+  }
+
+  function populateProfile(user, firmName) {
+    const email = user?.email || '—';
+    const initials = email.slice(0,2).toUpperCase();
+    document.getElementById('profile-avatar').textContent = initials;
+    document.getElementById('profile-name').textContent = email;
+    document.getElementById('profile-firm').textContent = firmName || '—';
+    document.getElementById('profile-phone').textContent = '';
+  }
+
+  function setSort(sort, btn) {
+    currentSort = sort;
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderLeads();
+  }
+
+
    
 
 
   // ── Modal ─────────────────────────────────────────────────────────────────
-  function openModal(lead) {
+  let currentLead = null;
+  let afslutOpen = false;
+
+  const smsTpls = [
+    'Hej, tak for din henvendelse. Hvornår passer det dig at vi kommer forbi? Vi har ledig tid mandag eller tirsdag.',
+    'Hej, tak for din besked. Vi arbejder på et tilbud til dig og vender tilbage inden for 24 timer.',
+    'Hej, tak for din besked. '
+  ];
+
+  async function openModal(lead) {
+    currentLead = lead;
+    afslutOpen = false;
+    document.getElementById('afslut-panel').classList.remove('open');
+    document.getElementById('btn-afslut-toggle').textContent = 'Afslut opgave';
+    document.querySelectorAll('input[name=afslut]').forEach(r => r.checked = false);
+    document.getElementById('afslut-sms-wrap').style.display = 'none';
+    document.getElementById('modal-sms').value = '';
+    document.getElementById('modal-sms-count').textContent = '0';
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('modal-previews').innerHTML = '';
+
     if (!lead.seen_at) {
-    const now = new Date().toISOString();
-    db.from('leads').update({ seen_at: now }).eq('id', lead.id);
-    lead.seen_at = now;
-    const idx = allLeads.findIndex(l => l.id === lead.id);
-    if (idx !== -1) allLeads[idx].seen_at = now;
-    updateBadge(allLeads.filter(l => !l.seen_at).length);
-  }
+      const now = new Date().toISOString();
+      await db.from('leads').update({ seen_at: now }).eq('id', lead.id);
+      lead.seen_at = now;
+      const idx = allLeads.findIndex(l => l.id === lead.id);
+      if (idx !== -1) allLeads[idx].seen_at = now;
+      updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
+    }
+
+    const initials = lead.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    document.getElementById('modal-avatar').textContent = initials;
     document.getElementById('modal-name').textContent = lead.name;
     document.getElementById('modal-phone').textContent = lead.calls?.from_number || '—';
-    document.getElementById('modal-address').textContent = lead.address;
-    document.getElementById('modal-task').textContent = lead.task;
-    document.getElementById('modal-time').textContent = lead.desired_time || 'Ikke angivet';
+    document.getElementById('modal-name-input').value = lead.name;
+    // Split adresse i dele: "Vejnavn Nummer, By" → street, number, city
+    const addrParts = (lead.address || '').split(',');
+    const streetAndNum = (addrParts[0] || '').trim();
+    const zipAndCity = (addrParts[1] || '').trim();
+    const zipMatch = zipAndCity.match(/^(\d{4})\s+(.+)$/);
+    document.getElementById('modal-address-street').value = streetAndNum;
+    document.getElementById('modal-address-zip').value = zipMatch ? zipMatch[1] : '';
+    document.getElementById('modal-address-city').value = zipMatch ? zipMatch[2] : zipAndCity;
+    document.getElementById('modal-address-mail').value = lead.address_mail || '';
+    document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
+    document.getElementById('modal-task').value = lead.task;
+    document.getElementById('modal-time').value = lead.desired_time || 'Ikke angivet';
+    document.getElementById('modal-notes').value = lead.notes || '';
+    document.getElementById('modal-deadline').value = lead.deadline || '';
 
-    const imagesSection = document.getElementById('modal-images-section');
+    const urgentCb = document.getElementById('modal-urgent-cb');
+    const urgentRow = document.getElementById('modal-urgent-row');
+    urgentCb.checked = !!lead.is_urgent;
+    urgentRow.classList.toggle('checked', !!lead.is_urgent);
+
+    document.getElementById('modal-call-btn').onclick = () => ringTilbage(lead.calls?.from_number);
+
     const imagesEl = document.getElementById('modal-images');
     if (lead.lead_images?.length) {
-      imagesSection.style.display = 'block';
       imagesEl.innerHTML = lead.lead_images.map(img =>
-        `<img src="${img.image_url}" onclick="window.open('${img.image_url}')">`
+        `<img src="${img.image_url}" onclick="window.open('${img.image_url}')" style="cursor:pointer">`
       ).join('');
     } else {
-      imagesSection.style.display = 'none';
+      imagesEl.innerHTML = '';
     }
 
     document.getElementById('modal-bg').classList.add('open');
+
+    const isClosed = lead.status === 'completed' || lead.status === 'rejected';
+    document.getElementById('btn-afslut-toggle').style.display = isClosed ? 'none' : '';
+    document.getElementById('afslut-panel').classList.remove('open');
+    document.getElementById('btn-genaabn').style.display = isClosed ? '' : 'none';
   }
 
-  function closeModal(event) {
-    if (!event || event.target === document.getElementById('modal-bg')) {
-      document.getElementById('modal-bg').classList.remove('open');
+
+  async function closeModal() {
+    if (currentLead) {
+      const street = document.getElementById('modal-address-street').value.trim();
+      const zip = document.getElementById('modal-address-zip').value.trim();
+      const city = document.getElementById('modal-address-city').value.trim();
+      const address = [street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', ');
+      const { error } = await db.from('leads').update({
+        address: address || null,
+        address_mail: document.getElementById('modal-address-mail').value.trim() || null,
+        notes: document.getElementById('modal-notes').value || null,
+      }).eq('id', currentLead.id);
+      if (error) console.error('❌ Gem fejl:', error);
+      else console.log('✅ Gemt OK');
     }
+    document.getElementById('modal-bg').classList.remove('open');
+    currentLead = null;
+    loadData();
+  }
+
+  function closeBgClick(event) {
+    if (event.target === document.getElementById('modal-bg')) closeModal();
+  }
+
+  function toggleUrgent() {
+    const cb = document.getElementById('modal-urgent-cb');
+    const row = document.getElementById('modal-urgent-row');
+    cb.checked = !cb.checked;
+    row.classList.toggle('checked', cb.checked);
+  }
+
+  function addPreviews(input) {
+    const wrap = document.getElementById('modal-previews');
+    Array.from(input.files).forEach(file => {
+      const url = URL.createObjectURL(file);
+      const div = document.createElement('div');
+      div.className = 'img-thumb';
+      div.innerHTML = `<img src="${url}"><button class="rm" onclick="this.parentNode.remove()" aria-label="Fjern">×</button>`;
+      wrap.appendChild(div);
+    });
+  }
+
+  function setTpl(btn, idx) {
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const ta = document.getElementById('modal-sms');
+    ta.value = smsTpls[idx];
+    updateSmsCount();
+    ta.focus();
+  }
+
+  function updateSmsCount() {
+    document.getElementById('modal-sms-count').textContent = document.getElementById('modal-sms').value.length;
+  }
+
+  function ringTilbage(phone) {
+    const num = phone || currentLead?.calls?.from_number;
+    if (!num) return;
+    window.open('tel:' + num);
+  }
+
+  function sendSms() {
+    const txt = document.getElementById('modal-sms').value.trim();
+    if (!txt) { alert('Skriv en besked først'); return; }
+    const phone = currentLead?.calls?.from_number;
+    if (!phone) { alert('Intet telefonnummer på dette lead'); return; }
+    fetch('/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead?.id })
+    }).then(r => {
+      if (r.ok) {
+        document.getElementById('modal-sms').value = '';
+        updateSmsCount();
+        document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+        alert('SMS sendt');
+      } else {
+        alert('Fejl ved afsendelse af SMS');
+      }
+    }).catch(() => alert('Fejl ved afsendelse af SMS'));
+  }
+
+  function toggleAfslut() {
+    afslutOpen = !afslutOpen;
+    document.getElementById('afslut-panel').classList.toggle('open', afslutOpen);
+    document.getElementById('btn-afslut-toggle').textContent = afslutOpen ? 'Annuller' : 'Afslut opgave';
+    if (afslutOpen) document.getElementById('afslut-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.querySelectorAll('input[name=afslut]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.getElementById('afslut-sms-wrap').style.display = r.value === 'afslaaet' ? 'block' : 'none';
+    });
+  });
+
+  async function confirmAfslut() {
+    const val = document.querySelector('input[name=afslut]:checked')?.value;
+    if (!val) { alert('Vælg hvordan opgaven afsluttes'); return; }
+    if (!currentLead) return;
+
+    if (val === 'afslaaet') {
+      const txt = document.getElementById('afslut-sms').value.trim();
+      const phone = currentLead?.calls?.from_number;
+      if (txt && phone) {
+        await fetch('/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead.id })
+        });
+      }
+    }
+
+    const newStatus = val === 'udfort' ? 'completed' : 'rejected';
+    await db.from('leads').update({ status: newStatus }).eq('id', currentLead.id);
+    closeModal();
+    loadData();
+  }
+
+  async function genaabнOpgave() {
+    if (!currentLead) return;
+    await db.from('leads').update({ status: 'open' }).eq('id', currentLead.id);
+    closeModal();
+    loadData();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -333,6 +929,12 @@ function renderLeads() {
     const d = new Date(iso);
     return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
+
+  function formatDateTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
   // Registrer service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js')
@@ -342,22 +944,116 @@ if ('serviceWorker' in navigator) {
 
 // Opdater badge med antal nye leads
 function updateBadge(count) {
-  document.getElementById('debug').textContent = 
-    `Count: ${count} | setAppBadge: ${'setAppBadge' in navigator} | unseen: ${allLeads.filter(l => !l.seen_at).length}`;
-  
   document.title = count > 0 ? `(${count}) Leads` : 'Leads';
   
   if ('setAppBadge' in navigator) {
     if (count > 0) {
-      navigator.setAppBadge(count).catch(e => {
-        document.getElementById('debug').textContent += ` | FEJL: ${e.message}`;
-      });
+      navigator.setAppBadge(count);
     } else {
       navigator.clearAppBadge();
     }
   }
 }
+// ── DAWA Autocomplete ─────────────────────────────────────────────────────
+ 
+function initDawa({ inputId, suggestionsId, onSelect, onType }) {
+  const inp = document.getElementById(inputId);
+  const boks = document.getElementById(suggestionsId);
+  let debounce = null, aktive = -1, forslag = [];
+ 
+  inp.addEventListener('input', () => {
+    if (onType) onType();
+    aktive = -1;
+    const q = inp.value.trim();
+    if (q.length < 2) { skjul(); return; }
+    clearTimeout(debounce);
+    debounce = setTimeout(() => hent(q), 200);
+  });
+ 
+  inp.addEventListener('keydown', e => {
+    if (!forslag.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); aktive = Math.min(aktive+1, forslag.length-1); vis(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); aktive = Math.max(aktive-1, 0); vis(); }
+    else if (e.key === 'Enter' && aktive >= 0) { e.preventDefault(); vaelg(forslag[aktive]); }
+    else if (e.key === 'Escape') skjul();
+  });
+ 
+  document.addEventListener('click', e => { if (e.target !== inp && !boks.contains(e.target)) skjul(); });
+ 
+  async function hent(q) {
+    try {
+      const r = await fetch('https://api.dataforsyningen.dk/autocomplete?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      forslag = await r.json();
+      vis();
+    } catch { skjul(); }
+  }
+ 
+  function fremhæv(tekst, q) {
+    const i = tekst.toLowerCase().indexOf(q.toLowerCase());
+    if (i === -1) return tekst;
+    return tekst.slice(0,i) + '<strong>' + tekst.slice(i, i+q.length) + '</strong>' + tekst.slice(i+q.length);
+  }
+ 
+  function vis() {
+    if (!forslag.length) { skjul(); return; }
+    const q = inp.value.trim();
+    boks.innerHTML = forslag.map((s,i) =>
+      `<div data-i="${i}" style="padding:9px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid #DDE4EC;${i===aktive?'background:#EAF2FB':''}">${fremhæv(s.tekst, q)}</div>`
+    ).join('');
+    boks.style.display = 'block';
+    boks.querySelectorAll('div').forEach(el => {
+      el.addEventListener('mousedown', e => { e.preventDefault(); vaelg(forslag[+el.dataset.i]); });
+    });
+  }
+ 
+  function vaelg(s) {
+    inp.value = s.tekst;
+    skjul();
+    if (onSelect) onSelect(s);
+  }
+ 
+  function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
+}
+ 
+// DAWA til "Ny opgave"-modal
+let newDawaValgt = false;
+initDawa({
+  inputId: 'new-street',
+  suggestionsId: 'new-dawa-suggestions',
+  onType: () => {
+    newDawaValgt = false;
+    document.getElementById('new-dawa-error').style.display = 'none';
+    document.getElementById('new-city').value = '';
+    document.getElementById('new-postnr').value = '';
+  },
+  onSelect: (s) => {
+    newDawaValgt = true;
+    document.getElementById('new-dawa-error').style.display = 'none';
+    if (s.data) {
+      document.getElementById('new-city').value = s.data.postnrnavn || '';
+      document.getElementById('new-postnr').value = s.data.postnr || '';
+    }
+  }
+});
+ 
+// DAWA til "Rediger lead"-modal
+initDawa({
+  inputId: 'modal-address-street',
+  suggestionsId: 'modal-dawa-suggestions',
+  onType: () => {
+    document.getElementById('modal-address-zip').value = '';
+    document.getElementById('modal-address-city').value = '';
+  },
+  onSelect: (s) => {
+    if (s.data) {
+      document.getElementById('modal-address-zip').value = s.data.postnr || '';
+      document.getElementById('modal-address-city').value = s.data.postnrnavn || '';
+    }
+  }
+});
+ 
 document.getElementById('login-btn').addEventListener('click', login);
+
 
 // Tjek for nye leads hvert 30. sekund
 setInterval(async () => {

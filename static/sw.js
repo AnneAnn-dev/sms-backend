@@ -26,4 +26,8 @@ self.addEventListener('push', (event) => {
       badge: '/icons/icon-192.png',
     })
   );
-});
+  // Badge på app-ikonet (Android Chrome + nogle desktop browsere)
+  if (data.count && 'setAppBadge' in self.navigator) {
+    self.navigator.setAppBadge(data.count);
+  }
+});   
