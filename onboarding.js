@@ -12,8 +12,8 @@
 
 const express    = require("express");
 const crypto     = require("crypto");
-const nodemailer = require("nodemailer");
 const twilio     = require("twilio");
+const { sendWelcomeMail } = require("./mail");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -22,47 +22,7 @@ module.exports = function registerOnboarding(app, supabase) {
     process.env.TWILIO_AUTH_TOKEN
   );
 
-  // ─── HJÆLPER: Send velkomstmail ──────────────────────────────────────────
-  async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from:    `"${process.env.APP_NAME || 'Håndværkerservice'}" <${process.env.SMTP_FROM}>`,
-      to,
-      subject: `Velkommen, ${firmName} — din konto er klar`,
-      html: `
-        <div style="font-family:'Source Sans 3',Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1C2A38">
-          <h1 style="font-family:'Nunito',Helvetica,Arial,sans-serif;font-size:23px;font-weight:800;color:#1A3A5C;margin-bottom:8px">Velkommen, ${firmName}!</h1>
-          <p style="color:#4A5D6E;font-size:15px;line-height:1.6;margin-bottom:24px">
-            Din konto er oprettet og klar til brug. Dit dedikerede telefonnummer er:
-          </p>
-          <div style="background:#EAF2FB;border:1px solid #DDE4EC;border-radius:12px;padding:16px 24px;font-size:22px;
-                      font-weight:800;font-family:'Nunito',Helvetica,Arial,sans-serif;letter-spacing:0.04em;text-align:center;margin-bottom:24px;color:#1A3A5C">
-            ${phoneNumber}
-          </div>
-          <p style="color:#4A5D6E;font-size:15px;line-height:1.6;margin-bottom:24px">
-            Næste skridt: Log ind og færdiggør din opsætning — vælg stemme, skriv
-            din velkomstbesked, og sæt viderestilling op på din telefon.
-          </p>
-          <a href="${loginUrl}"
-             style="display:inline-block;background:#2C6B9E;color:#fff;padding:14px 28px;
-                    border-radius:10px;text-decoration:none;font-weight:800;font-family:'Nunito',Helvetica,Arial,sans-serif;font-size:16px">
-            Log ind og kom i gang
-          </a>
-          <p style="color:#8FA3B5;font-size:13px;margin-top:32px">
-            Linket er gyldigt i 24 timer. Har du spørgsmål? Svar på denne mail.
-          </p>
-        </div>
-      `,
-    });
-  }
+  // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
   // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
   // MIGRATION: Erstat denne funktion med Sinch SMS API når du er klar
@@ -224,7 +184,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, voice_gender, greeting_text, verification_status")
+      .select("id, name, voice_gender, greeting_text, verification_status, status, billing_status")
       .eq("phone_number", toNumber)
       .single();
 
@@ -268,6 +228,23 @@ module.exports = function registerOnboarding(app, supabase) {
             Det virker! Din viderestilling er nu sat korrekt op.
             Du er klar til at modtage opgaver fra dine kunder.
           </Say>
+        </Response>
+      `);
+    }
+
+    // ─── GATE: kun betalende firmaer modtager leads ───────────────────────
+    // Bemærk: vi gater KUN på billing_status, ikke på status. Hvis et opkald
+    // overhovedet når frem til Twilio-nummeret, virker viderestillingen — så
+    // selv et firma der stadig står som "onboarding" skal kunne fange leads.
+    // Verifikationsopkaldet ovenfor er allerede håndteret og rammes ikke her.
+    if (firm.billing_status && firm.billing_status !== "active") {
+      console.log(`⏸️  Opkald til suspenderet firma (billing: ${firm.billing_status}):`, firm.id);
+      return res.type("text/xml").send(`
+        <Response>
+          <Say language="da-DK" voice="Polly.Naja">
+            Dette nummer er ikke aktivt i øjeblikket.
+          </Say>
+          <Hangup/>
         </Response>
       `);
     }

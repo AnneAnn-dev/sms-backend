@@ -34,6 +34,10 @@ const supabase = createClient(
 // ─── Onboarding: Shopify webhook + Twilio opkaldshandler ────────────────────
 require("./onboarding")(app, supabase);
 
+// ─── Frisbii Billing & Pay: betalings-webhook (onboarding-trigger) ──────────
+// Behøver IKKE rå body — Frisbii signerer kun timestamp+id, så global express.json() er nok.
+require("./frisbii-webhook")(app, supabase);
+
 // ─── 2. VIS FORMULAR ────────────────────────────────────────────────────────
 app.get("/formular/:token", async (req, res) => {
   const { data: call } = await supabase
@@ -84,10 +88,16 @@ app.get("/formular/:token", async (req, res) => {
       <input id="navn" name="navn" type="text" placeholder="Anders Andersen" required>
 
       <label>Adresse</label>
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
-        <input name="vej" type="text" placeholder="Søndergade 12" required>
-        <input name="by" type="text" placeholder="Aarhus" required>
+      <div style="position:relative">
+        <input id="dawa-input" name="vej" type="text" placeholder="Begynd at skrive vejnavn..." autocomplete="off" required>
+        <input type="hidden" name="by" id="dawa-by">
+        <input type="hidden" name="postnr" id="dawa-postnr">
+        <div id="dawa-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:99;background:white;border:1px solid #ddd;border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12)"></div>
       </div>
+      <div style="color:#dc2626;font-size:13px;margin-top:4px;display:none" id="dawa-error">Vælg venligst en adresse fra listen</div>
+
+      <label for="email">Email (valgfrit)</label>
+      <input id="email" name="email" type="email" placeholder="anders@eksempel.dk">
 
       <label for="opgave">Beskriv opgaven</label>
       <textarea id="opgave" name="opgave" placeholder="Bruseren drypper og vandhanen i køkkenet løber..." required></textarea>
@@ -106,6 +116,84 @@ app.get("/formular/:token", async (req, res) => {
       <button type="submit">Send opgave</button>
     </form>
   </div>
+<script>
+  let dawaValgt = false;
+  let debounce = null;
+  let aktive = -1;
+  let forslag = [];
+
+  const inp = document.getElementById('dawa-input');
+  const boks = document.getElementById('dawa-suggestions');
+  const fejl = document.getElementById('dawa-error');
+
+  inp.addEventListener('input', () => {
+    dawaValgt = false;
+    aktive = -1;
+    const q = inp.value.trim();
+    if (q.length < 2) { skjul(); return; }
+    clearTimeout(debounce);
+    debounce = setTimeout(() => hentForslag(q), 200);
+  });
+
+  inp.addEventListener('keydown', e => {
+    if (!forslag.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); aktive = Math.min(aktive+1, forslag.length-1); vis(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); aktive = Math.max(aktive-1, 0); vis(); }
+    else if (e.key === 'Enter' && aktive >= 0) { e.preventDefault(); vaelg(forslag[aktive]); }
+    else if (e.key === 'Escape') skjul();
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target !== inp && !boks.contains(e.target)) skjul();
+  });
+
+  async function hentForslag(q) {
+    try {
+      const r = await fetch('https://api.dataforsyningen.dk/autocomplete?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      forslag = await r.json();
+      vis();
+    } catch { skjul(); }
+  }
+
+  function fremhæv(tekst, q) {
+    const i = tekst.toLowerCase().indexOf(q.toLowerCase());
+    if (i === -1) return tekst;
+    return tekst.slice(0,i) + '<strong>' + tekst.slice(i, i+q.length) + '</strong>' + tekst.slice(i+q.length);
+  }
+
+  function vis() {
+    if (!forslag.length) { skjul(); return; }
+    const q = inp.value.trim();
+    boks.innerHTML = forslag.map((s,i) =>
+      '<div data-i="'+i+'" style="padding:10px 14px;font-size:15px;cursor:pointer;border-bottom:1px solid #f0f0f0;'+(i===aktive?'background:#EAF2FB':'')+'">' + fremhæv(s.tekst, q) + '</div>'
+    ).join('');
+    boks.style.display = 'block';
+    boks.querySelectorAll('div').forEach(el => {
+      el.addEventListener('mousedown', e => { e.preventDefault(); vaelg(forslag[+el.dataset.i]); });
+    });
+  }
+
+  function vaelg(s) {
+    inp.value = s.tekst;
+    dawaValgt = true;
+    skjul();
+    fejl.style.display = 'none';
+    if (s.data) {
+      document.getElementById('dawa-by').value = s.data.postnrnavn || '';
+      document.getElementById('dawa-postnr').value = s.data.postnr || '';
+    }
+  }
+
+  function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
+
+  document.querySelector('form').addEventListener('submit', e => {
+    if (!dawaValgt) {
+      e.preventDefault();
+      fejl.style.display = 'block';
+      inp.focus();
+    }
+  });
+</script>
 </body>
 </html>`);
 });
@@ -127,7 +215,8 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
     .insert({
       call_id:      call.id,
       name:         req.body.navn,
-      address:      [req.body.vej, req.body.by].filter(Boolean).join(", "),
+      address:      [req.body.vej, req.body.postnr && req.body.by ? req.body.postnr + ' ' + req.body.by : req.body.by].filter(Boolean).join(", "),
+      address_mail: req.body.email || null,
       task:         req.body.opgave,
       desired_time: req.body.tidspunkt,
       is_urgent:    req.body.urgent === "on",
@@ -212,6 +301,66 @@ app.get('/onboarding', (req, res) => {
 
   html = html.replace('</head>', config + '</head>');
   res.send(html);
+});
+
+// ─── EFTER BETALING: KVITTERINGSSIDE (Frisbii accept URL) ───────────────────
+app.get("/tilmeldt", (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tak for din tilmelding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: #F4F7FA; color: #1C2A38; padding: 24px 16px; text-align: center; }
+    .card { background: #fff; border: 1px solid #DDE4EC; border-radius: 16px; padding: 44px 24px; max-width: 480px; margin: 40px auto; box-shadow: 0 12px 40px rgba(26,58,92,.08); }
+    .check { width: 64px; height: 64px; border-radius: 50%; background: #E8F5EE; color: #2E7D52; font-size: 32px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+    h1 { font-family: 'Nunito', sans-serif; font-size: 23px; font-weight: 800; color: #1A3A5C; margin-bottom: 8px; }
+    p { color: #4A5D6E; font-size: 15px; line-height: 1.6; }
+    .mail { font-weight: 700; color: #1A3A5C; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="check">✓</div>
+    <h1>Tak for din tilmelding!</h1>
+    <p>Din konto er ved at blive oprettet. Vi har sendt dig en
+    <span class="mail">mail med et login-link</span>, så du kan færdiggøre opsætningen —
+    vælg stemme, skriv din velkomstbesked, og sæt viderestilling op.</p>
+    <p style="margin-top:16px;color:#8595A4;font-size:14px">Tjek også din spam-mappe, hvis du ikke ser mailen inden for et par minutter.</p>
+  </div>
+</body>
+</html>`);
+});
+
+// ─── EFTER AFBRUDT BETALING (Frisbii cancel URL) ────────────────────────────
+app.get("/tilmelding-afbrudt", (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tilmelding afbrudt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: #F4F7FA; color: #1C2A38; padding: 24px 16px; text-align: center; }
+    .card { background: #fff; border: 1px solid #DDE4EC; border-radius: 16px; padding: 44px 24px; max-width: 480px; margin: 40px auto; box-shadow: 0 12px 40px rgba(26,58,92,.08); }
+    h1 { font-family: 'Nunito', sans-serif; font-size: 23px; font-weight: 800; color: #1A3A5C; margin-bottom: 8px; }
+    p { color: #4A5D6E; font-size: 15px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Tilmeldingen blev afbrudt</h1>
+    <p>Der er ikke trukket nogen betaling. Du er velkommen til at prøve igen, når det passer dig.</p>
+  </div>
+</body>
+</html>`);
 });
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
