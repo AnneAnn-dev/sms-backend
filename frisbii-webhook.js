@@ -116,8 +116,11 @@ module.exports = (app, supabase) => {
       user_metadata: { firm_id: firm.id, firm_name: company },
     });
     if (authErr) {
-      console.error("❌ Auth-bruger fejlede:", authErr);
-      // Firma er oprettet — log og fortsaet
+      if (authErr.code === "email_exists" || /already.*regist/i.test(authErr.message)) {
+        console.log("ℹ️  Auth-bruger findes allerede for", email, "— fortsaetter (magic link virker stadig)");
+      } else {
+        console.error("❌ Auth-bruger fejlede:", authErr.message);
+      }
     }
     if (authUser?.user) {
       await supabase.from("firm_users").insert({
@@ -151,10 +154,17 @@ module.exports = (app, supabase) => {
   app.post("/webhook/frisbii", async (req, res) => {
     const body = req.body;
 
+    // Eneste ting der kan give et ikke-2xx-svar: en ugyldig signatur.
+    // Et aegte Frisbii-webhook har altid gyldig signatur, saa det faar altid 200.
     if (!verifySignature(body)) {
       console.warn("⚠️  Frisbii webhook: ugyldig signatur", body?.id);
       return res.status(401).send("invalid signature");
     }
+
+    // Kvittér STRAKS med 200, FØR vi provisionerer. Saa kan en fejl i oprettelsen
+    // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
+    // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot.
+    res.status(200).send("ok");
 
     try {
       switch (body.event_type) {
@@ -184,10 +194,9 @@ module.exports = (app, supabase) => {
         default:
           break; // oevrige events ignoreres bevidst
       }
-      return res.status(200).send("ok");
     } catch (err) {
-      console.error("❌ Frisbii webhook fejl:", err);
-      return res.status(500).send("error"); // 500 -> Frisbii retry'er
+      // Svaret er allerede sendt (200) — vi logger bare, saa webhooket forbliver enabled.
+      console.error("❌ Frisbii efterbehandling fejlede (webhook forbliver enabled):", err);
     }
   });
 
