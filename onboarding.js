@@ -14,6 +14,7 @@ const express    = require("express");
 const crypto     = require("crypto");
 const twilio     = require("twilio");
 const { sendWelcomeMail } = require("./mail");
+const { renderGreeting }  = require("./tts");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -184,7 +185,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, voice_gender, greeting_text, verification_status, status, billing_status")
+      .select("id, name, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status")
       .eq("phone_number", toNumber)
       .single();
 
@@ -256,8 +257,20 @@ module.exports = function registerOnboarding(app, supabase) {
       body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${process.env.BASE_URL}/formular/${call.lead_token}`,
     }).catch(err => console.error("❌ SMS fejl:", err));
 
-    // Twilio TwiML — vælg stemme baseret på firms.voice_gender
-    // Polly.Naja = dansk kvindestemme, Polly.Mads = dansk mandestemme
+    // Afspil hilsen. Foretræk den renderede ElevenLabs-lydfil; falder tilbage
+    // til live Polly-TTS hvis der ingen fil er (fx firma der ikke har gemt
+    // stemmevalg endnu, eller en render der fejlede), så et opkald aldrig knækker.
+    // MIGRATION TIL SINCH: <Play> → playFiles:[{url}], <Say> → say (uændret logik).
+    if (firm.greeting_audio_url) {
+      const audioUrl = firm.greeting_audio_url.replace(/&/g, "&amp;"); // XML-sikker
+      return res.type("text/xml").send(`
+        <Response>
+          <Play>${audioUrl}</Play>
+        </Response>
+      `);
+    }
+
+    // Fallback: Polly.Naja = dansk kvindestemme, Polly.Mads = dansk mandestemme
     const voice = firm.voice_gender === "male" ? "Polly.Mads" : "Polly.Naja";
 
     return res.type("text/xml").send(`
@@ -379,6 +392,29 @@ module.exports = function registerOnboarding(app, supabase) {
       .eq('id', firm_id);
 
     if (error) return res.status(500).json({ error: error.message });
+
+    // Render hilsenen til en ElevenLabs-lydfil og gem URL'en på firmaet.
+    // Synkront, men i try/catch: fejler renderingen (fx ElevenLabs nede),
+    // gemmer vi bare ingen URL — så falder /opkald tilbage til live-TTS, og
+    // onboarding fortsætter uhindret. Hver gem re-renderer, så ny tekst/stemme
+    // altid afspejles i lydfilen.
+    if (voice_gender && greeting_text) {
+      try {
+        const { url } = await renderGreeting(supabase, {
+          firmId:      firm_id,
+          text:        greeting_text,
+          voiceGender: voice_gender,
+        });
+        await supabase
+          .from('firms')
+          .update({ greeting_audio_url: url })
+          .eq('id', firm_id);
+        console.log("🔊 Hilsen renderet for firma:", firm_id);
+      } catch (e) {
+        console.error("❌ TTS-render fejlede (falder tilbage til live-TTS):", e.message);
+      }
+    }
+
     res.json({ ok: true });
   });
 

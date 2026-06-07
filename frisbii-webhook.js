@@ -13,7 +13,7 @@
 // -----------------------------------------------------------------------------
 
 const crypto = require("crypto");
-const { sendWelcomeMail } = require("./mail");
+const { sendWelcomeMail, sendAdminAlert } = require("./mail");
 
 const FRISBII_API = "https://api.frisbii.com/v1";
 
@@ -77,7 +77,15 @@ module.exports = (app, supabase) => {
       .single();
     if (phoneErr || !phoneRow) {
       console.error("❌ Ingen ledige numre i puljen!");
-      // TODO: intern alarm (Slack/mail) naar puljen er ved at loebe toer
+      // Kritisk: en betalende kunde kunne ikke faa et nummer.
+      await sendAdminAlert({
+        subject: "KRITISK: nummerpuljen er TOM",
+        text:
+          `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
+          `Kunde: ${company} <${email}>\n` +
+          `Frisbii-abonnement: ${subHandle}\n\n` +
+          `Firmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
+      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
       throw new Error("Ingen ledige numre");
     }
 
@@ -108,6 +116,22 @@ module.exports = (app, supabase) => {
       .from("phone_numbers")
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
+
+    // Advar hvis puljen er ved at loebe toer (taeller ledige numre TILBAGE)
+    const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
+    const { count: ledige } = await supabase
+      .from("phone_numbers")
+      .select("*", { count: "exact", head: true })
+      .is("firm_id", null);
+    if (typeof ledige === "number" && ledige <= LOW_POOL) {
+      console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
+      await sendAdminAlert({
+        subject: `Nummerpulje lav: ${ledige} ledige tilbage`,
+        text:
+          `Der er kun ${ledige} ledige numre tilbage i phone_numbers.\n\n` +
+          `Laeg flere numre i puljen, foer den loeber helt toer og en kunde ikke kan oprettes.`,
+      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+    }
 
     // Opret Supabase Auth-bruger
     const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({

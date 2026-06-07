@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");

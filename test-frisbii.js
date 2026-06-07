@@ -10,7 +10,7 @@
 //   node test-frisbii.js https://din-app.railway.app     -> mod deployet                     (forvent 200)
 // -----------------------------------------------------------------------------
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const crypto = require("crypto");
 
 const target = (process.argv[2] || "http://localhost:3000").replace(/\/$/, "") + "/webhook/frisbii";
