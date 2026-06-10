@@ -1,22 +1,31 @@
-const CACHE_NAME = 'dashboard-v3';
+const CACHE_NAME = 'dashboard-v4';
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();                          // tag den nye SW i brug straks
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(['/dashboard']);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(['/dashboard']))
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  // ryd gamle caches ved versions-bump
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  // Rør KUN GET. POST/PUT/DELETE passerer uberørt til netværket.
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    fetch(event.request).catch(() =>
-      caches.match(event.request)
-    )
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });
 
-// Modtag push notifikation
+// Push notifikation (uændret)
 self.addEventListener('push', (event) => {
   const data = event.data?.json() || {};
   event.waitUntil(
@@ -26,8 +35,7 @@ self.addEventListener('push', (event) => {
       badge: '/icons/icon-192.png',
     })
   );
-  // Badge på app-ikonet (Android Chrome + nogle desktop browsere)
   if (data.count && 'setAppBadge' in self.navigator) {
     self.navigator.setAppBadge(data.count);
   }
-});   
+});
