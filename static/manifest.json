@@ -1,6 +1,6 @@
 {
   "name": "Håndværker Dashboard",
-  "short_name": "Leads",
+  "short_name": "Lommekontor",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#F4F7FA",
