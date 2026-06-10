@@ -15,6 +15,7 @@ const crypto     = require("crypto");
 const twilio     = require("twilio");
 const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
+const { firmIdFromToken } = require("./auth");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -286,9 +287,10 @@ module.exports = function registerOnboarding(app, supabase) {
   // Kaldes fra onboarding-dashboardet når håndværkeren klikker "Test nu"
   // MIGRATION TIL SINCH: Skift twilioClient.calls.create til Sinch Calling API
   app.post("/onboarding/verificer", async (req, res) => {
-    const { firm_id, owner_phone: bodyPhone } = req.body;
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
 
-    if (!firm_id) return res.status(400).json({ error: "Mangler firm_id" });
+    const { owner_phone: bodyPhone } = req.body;
 
     const { data: firm } = await supabase
       .from("firms")
@@ -369,8 +371,11 @@ module.exports = function registerOnboarding(app, supabase) {
 
   // ─── API: Gem håndværkerens eget mobilnummer ────────────────────────────
   app.post('/api/firma/opdater-telefon', async (req, res) => {
-    const { firm_id, owner_phone } = req.body;
-    if (!firm_id || !owner_phone) return res.status(400).json({ error: 'Mangler data' });
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { owner_phone } = req.body;
+    if (!owner_phone) return res.status(400).json({ error: 'Mangler data' });
 
     const { error } = await supabase
       .from('firms')
@@ -383,8 +388,10 @@ module.exports = function registerOnboarding(app, supabase) {
 
   // ─── API: Opdater stemme og besked ───────────────────────────────────────
   app.post('/api/firma/opdater', async (req, res) => {
-    const { firm_id, voice_gender, greeting_text } = req.body;
-    if (!firm_id) return res.status(400).json({ error: 'Mangler firm_id' });
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { voice_gender, greeting_text } = req.body;
 
     const { error } = await supabase
       .from('firms')
@@ -420,8 +427,8 @@ module.exports = function registerOnboarding(app, supabase) {
 
   // ─── API: Hent verifikationsstatus ───────────────────────────────────────
   app.get('/api/firma/status', async (req, res) => {
-    const { firm_id } = req.query;
-    if (!firm_id) return res.status(400).json({ error: 'Mangler firm_id' });
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
 
     const { data: firm } = await supabase
       .from('firms')

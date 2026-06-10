@@ -484,6 +484,13 @@
  // const { createClient } = supabase;
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // Returnerer Authorization-headeren med brugerens session-token, så
+  // server-endpoints kan udlede firmaet fra token'et i stedet for body'en.
+  async function authHeader() {
+    const { data: { session } } = await db.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  }
+
   let allLeads = [];
   let currentFilter = 'all';
 
@@ -669,16 +676,10 @@ function renderLeads() {
 
       const address = [street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', ');
 
-      // Opret via server (undgår RLS)
-      const { data: firmUser } = await db.from('firm_users')
-        .select('firms(id)')
-        .eq('user_id', (await db.auth.getUser()).data.user.id)
-        .single();
-      const firmId = firmUser?.firms?.id;
-
+      // Opret via server (undgår RLS). Firmaet udledes server-side fra token'et.
       const res = await fetch('/opret-opgave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           name,
           phone,
@@ -688,7 +689,6 @@ function renderLeads() {
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
-          firm_id: firmId,
         })
       });
 
@@ -869,14 +869,14 @@ function renderLeads() {
     window.open('tel:' + num);
   }
 
-  function sendSms() {
+  async function sendSms() {
     const txt = document.getElementById('modal-sms').value.trim();
     if (!txt) { alert('Skriv en besked først'); return; }
     const phone = currentLead?.calls?.from_number;
     if (!phone) { alert('Intet telefonnummer på dette lead'); return; }
     fetch('/send-sms', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
       body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead?.id })
     }).then(r => {
       if (r.ok) {
@@ -914,7 +914,7 @@ function renderLeads() {
       if (txt && phone) {
         await fetch('/send-sms', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
           body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead.id })
         });
       }

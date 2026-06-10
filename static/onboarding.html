@@ -736,6 +736,7 @@
         const { data: { session } } = await db.auth.getSession();
 
         if (session?.access_token) {
+          state.token = session.access_token;
           const res  = await fetch('/api/mig', {
             headers: { Authorization: `Bearer ${session.access_token}` }
           });
@@ -788,8 +789,8 @@
     if (state.firmId) {
       fetch('/api/firma/opdater-telefon', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firm_id: state.firmId, owner_phone: phone }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body:    JSON.stringify({ owner_phone: phone }),
       }).catch(e => console.warn('Kunne ikke gemme telefon:', e));
     }
     goTo(2);
@@ -888,9 +889,8 @@
       if (state.firmId) {
         await fetch('/api/firma/opdater', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
           body:    JSON.stringify({
-            firm_id:      state.firmId,
             voice_gender: state.voice,
             greeting_text: state.greeting,
           }),
@@ -948,8 +948,8 @@
     try {
       const res = await fetch('/onboarding/verificer', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firm_id: state.firmId, owner_phone: state.ownerPhone }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body:    JSON.stringify({ owner_phone: state.ownerPhone }),
       });
 
       if (!res.ok) throw new Error('Opkald fejlede');
@@ -985,7 +985,9 @@
     await new Promise(r => setTimeout(r, 2500));
 
     try {
-      const res  = await fetch(`/api/firma/status?firm_id=${state.firmId}`);
+      const res  = await fetch('/api/firma/status', {
+        headers: { Authorization: `Bearer ${state.token}` }
+      });
       const data = await res.json();
 
       if (data?.verification_status === 'verified') {

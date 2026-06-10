@@ -3,6 +3,7 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");
 const multer = require("multer");
+const { firmIdFromToken } = require("./auth");
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -31,6 +32,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Escaper tekst der saettes ind i HTML, saa fx et firmanavn med < > & " '
+// ikke kan injicere markup paa de offentlige sider.
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ─── Onboarding: Shopify webhook + Twilio opkaldshandler ────────────────────
 require("./onboarding")(app, supabase);
 
@@ -48,7 +60,7 @@ app.get("/formular/:token", async (req, res) => {
 
   if (!call) return res.status(404).send("Link ikke gyldigt");
 
-  const firmName = call.firms?.name || "os";
+  const firmName = escapeHtml(call.firms?.name || "os");
 
   res.send(`<!DOCTYPE html>
 <html lang="da">
@@ -370,10 +382,13 @@ app.get("/dashboard", (req, res) =>
 
 // ─── MANUEL OPRETTELSE AF OPGAVE FRA DASHBOARD ──────────────────────────────
 app.post("/opret-opgave", async (req, res) => {
-  const { name, phone, address, address_mail, task, desired_time, is_urgent, notes, firm_id } = req.body;
+  const firm_id = await firmIdFromToken(supabase, req);
+  if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
 
-  if (!name || !task || !firm_id)
-    return res.status(400).json({ error: "Mangler navn, opgave eller firma" });
+  const { name, phone, address, address_mail, task, desired_time, is_urgent, notes } = req.body;
+
+  if (!name || !task)
+    return res.status(400).json({ error: "Mangler navn eller opgave" });
 
   const { data: call, error: callError } = await supabase
     .from("calls")
