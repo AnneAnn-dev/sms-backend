@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard</title>
+  <title>Lommekontor</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -473,7 +473,7 @@
     <div class="mfoot">
       <div class="mfoot-spacer"></div>
       <button class="btn-luk" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')">Annuller</button>
-      <button class="btn-afslut" onclick="saveNewLead()">Opret opgave</button>
+      <button class="btn-afslut" onclick="saveNewLead(this)">Opret opgave</button>
     </div>
   </div>
 </div>
@@ -646,55 +646,64 @@ function renderLeads() {
     row.classList.toggle('checked', cb.checked);
   }
 
-  async function saveNewLead() {
-    const name = document.getElementById('new-name').value.trim();
-    const phone = document.getElementById('new-phone').value.trim();
-    const street = document.getElementById('new-street').value.trim();
-    const city = document.getElementById('new-city').value.trim();
-    const postnr = document.getElementById('new-postnr').value.trim();
-    const task = document.getElementById('new-task').value.trim();
+  let savingLead = false;                       // vagt mod dobbelt-submit
+  async function saveNewLead(btn) {
+    if (savingLead) return;                     // ignorér klik nr. 2
+    savingLead = true;
+    if (btn) btn.disabled = true;
+    try {
+      const name = document.getElementById('new-name').value.trim();
+      const phone = document.getElementById('new-phone').value.trim();
+      const street = document.getElementById('new-street').value.trim();
+      const city = document.getElementById('new-city').value.trim();
+      const postnr = document.getElementById('new-postnr').value.trim();
+      const task = document.getElementById('new-task').value.trim();
 
-    if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
+      if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
 
-    if (street && !newDawaValgt) {
-      document.getElementById('new-dawa-error').style.display = 'block';
-      document.getElementById('new-street').focus();
-      return;
+      if (street && !newDawaValgt) {
+        document.getElementById('new-dawa-error').style.display = 'block';
+        document.getElementById('new-street').focus();
+        return;
+      }
+
+      const address = [street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', ');
+
+      // Opret via server (undgår RLS)
+      const { data: firmUser } = await db.from('firm_users')
+        .select('firms(id)')
+        .eq('user_id', (await db.auth.getUser()).data.user.id)
+        .single();
+      const firmId = firmUser?.firms?.id;
+
+      const res = await fetch('/opret-opgave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          phone,
+          address,
+          task,
+          desired_time: document.getElementById('new-time').value.trim() || null,
+          is_urgent: document.getElementById('new-urgent-cb').checked,
+          notes: document.getElementById('new-notes').value.trim() || null,
+          address_mail: document.getElementById('new-mail').value.trim() || null,
+          firm_id: firmId,
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Kunne ikke gemme opgave: ' + err.error);
+        return;
+      }
+
+      document.getElementById('new-lead-modal-bg').classList.remove('open');
+      loadData();
+    } finally {
+      savingLead = false;                        // nulstil, så man kan rette og gemme igen
+      if (btn) btn.disabled = false;
     }
-
-    const address = [street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', ');
-
-    // Opret via server (undgår RLS)
-    const { data: firmUser } = await db.from('firm_users')
-      .select('firms(id)')
-      .eq('user_id', (await db.auth.getUser()).data.user.id)
-      .single();
-    const firmId = firmUser?.firms?.id;
-
-    const res = await fetch('/opret-opgave', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        phone,
-        address,
-        task,
-        desired_time: document.getElementById('new-time').value.trim() || null,
-        is_urgent: document.getElementById('new-urgent-cb').checked,
-        notes: document.getElementById('new-notes').value.trim() || null,
-        address_mail: document.getElementById('new-mail').value.trim() || null,
-        firm_id: firmId,
-      })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      alert('Kunne ikke gemme opgave: ' + err.error);
-      return;
-    }
-
-    document.getElementById('new-lead-modal-bg').classList.remove('open');
-    loadData();
   }
 
   function setPage(page) {
