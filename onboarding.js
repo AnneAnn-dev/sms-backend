@@ -439,4 +439,61 @@ module.exports = function registerOnboarding(app, supabase) {
     res.json(firm);
   });
 
+  // ─── SEND SMS til en kundes lead (fra dashboardet) ──────────────────────────
+  // Sikkerhed: udled firma fra token; bekraeft at lead'et tilhoerer firmaet; og
+  // send KUN til nummeret paa det lead (aldrig et frit "to" fra body'en). Sender
+  // fra firmaets eget Twilio-nummer.
+  // MIGRATION TIL SINCH: erstat sendSms-implementeringen — denne rute er uaendret.
+  app.post("/send-sms", async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
+
+    const { body: smsText, lead_id } = req.body;
+    if (!smsText || !smsText.trim()) return res.status(400).json({ error: "Tom besked" });
+    if (!lead_id) return res.status(400).json({ error: "Mangler lead_id" });
+
+    // Find lead'et og det opkald det hoerer til
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, call_id")
+      .eq("id", lead_id)
+      .single();
+    if (!lead) return res.status(404).json({ error: "Lead findes ikke" });
+
+    // Bekraeft ejerskab: opkaldet skal tilhoere DETTE firma
+    const { data: call } = await supabase
+      .from("calls")
+      .select("firm_id, from_number")
+      .eq("id", lead.call_id)
+      .single();
+    if (!call || call.firm_id !== firm_id) {
+      return res.status(403).json({ error: "Lead tilhoerer ikke dit firma" });
+    }
+
+    // Modtager = kundens nummer paa lead'et (ikke et frit nummer fra body'en)
+    const to = call.from_number;
+    if (!to || to === "Manuel oprettelse") {
+      return res.status(400).json({ error: "Dette lead har intet gyldigt telefonnummer" });
+    }
+
+    // Afsender = firmaets eget Twilio-nummer
+    const { data: firm } = await supabase
+      .from("firms")
+      .select("phone_number")
+      .eq("id", firm_id)
+      .single();
+    if (!firm?.phone_number) {
+      return res.status(500).json({ error: "Firmaet har intet afsendernummer" });
+    }
+
+    try {
+      await sendSms({ to, from: firm.phone_number, body: smsText });
+      console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("❌ SMS fejl:", err.message);
+      res.status(500).json({ error: "Kunne ikke sende SMS" });
+    }
+  });
+
 };
