@@ -793,8 +793,16 @@ function renderLeads() {
 
     const imagesEl = document.getElementById('modal-images');
     if (lead.lead_images?.length) {
-      imagesEl.innerHTML = lead.lead_images.map(img =>
-        `<img src="${img.image_url}" onclick="window.open('${img.image_url}')" style="cursor:pointer">`
+      // Bucket'en er privat — lav korttidssignerede URL'er (1 time) pr. billede.
+      // RLS paa storage.objects sikrer at man kun kan signere eget firmas billeder.
+      const signed = await Promise.all(lead.lead_images.map(async (img) => {
+        const path = img.image_url.split('/lead-images/')[1]; // stien efter bucket-navnet
+        if (!path) return null;
+        const { data } = await db.storage.from('lead-images').createSignedUrl(path, 3600);
+        return data?.signedUrl || null;
+      }));
+      imagesEl.innerHTML = signed.filter(Boolean).map(url =>
+        `<img src="${url}" onclick="window.open('${url}')" style="cursor:pointer">`
       ).join('');
     } else {
       imagesEl.innerHTML = '';
