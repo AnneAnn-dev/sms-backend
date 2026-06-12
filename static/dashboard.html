@@ -549,28 +549,18 @@
   const { data: { user } } = await db.auth.getUser();
   populateProfile(user, firm?.name);
 
-  // Hent calls for dette firma
-  const { data: calls } = await db
-    .from("calls")
-    .select("id, status")
-    .eq("firm_id", firm?.id);
-
-  // Hent leads via calls der tilhører dette firma
-  const callIds = calls?.map(c => c.id) || [];
-
+  // Hent leads + deres opkald + billeder i ÉT kald.
+  // leads har ikke firm_id direkte — de hører til firmaet GENNEM deres opkald
+  // (call_id → calls.firm_id). calls!inner laver et inner join, og .eq filtrerer
+  // på det relaterede firmas id. lead.calls bliver det indlejrede opkalds-objekt,
+  // så from_number er straks tilgængelig i modalen — ingen efterbehandling nødvendig.
   const { data: leads } = await db
     .from("leads")
-    .select("*, lead_images(image_url)")
-    .in("call_id", callIds)
+    .select("*, lead_images(image_url), calls!inner(id, status, from_number, firm_id)")
+    .eq("calls.firm_id", firm?.id)
     .order("created_at", { ascending: false });
 
-  // Tilføj from_number til hvert lead
-  const leadsWithPhone = leads?.map(lead => ({
-    ...lead,
-    calls: calls?.find(c => c.id === lead.call_id)
-  })) || [];
-
-  allLeads = leadsWithPhone;
+  allLeads = leads || [];
   renderLeads();
 }
 
