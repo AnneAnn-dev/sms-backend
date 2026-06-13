@@ -106,9 +106,9 @@
     /* Modal */
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(26,58,92,.45); z-index: 100; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
     .modal-bg.open { display: flex; }
-    .modal { background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 580px; margin: auto; overflow: hidden; box-shadow: 0 20px 60px rgba(26,58,92,.25); }
+    .modal { background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 580px; margin: auto; overflow: hidden; box-shadow: 0 20px 60px rgba(26,58,92,.25); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; }
 
-    .mhead { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .mhead { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .mhead-left { display: flex; align-items: center; gap: 10px; }
     .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--steel-light); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--steel); flex-shrink: 0; }
     .mhead-name { font-size: 16px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); }
@@ -116,7 +116,7 @@
     .close-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); font-size: 16px; }
     .close-btn:hover { background: var(--smoke); }
 
-    .mbody { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .mbody { padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .mfield label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 6px; margin-top: 0; font-weight: 700; font-family: 'Nunito', sans-serif; }
     .mfield input[type=text], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 14px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
@@ -152,7 +152,7 @@
     .sms-textarea:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
     .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
 
-    .mfoot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .mfoot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
     .btn-call { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--white); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--ink); cursor: pointer; }
     .btn-call:hover { background: var(--smoke); border-color: var(--steel); }
     .btn-sms { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--steel); cursor: pointer; }

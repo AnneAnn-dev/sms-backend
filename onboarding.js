@@ -1,11 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ONBOARDING — Frisbii-baseret oprettelse + Sinch opkalds-/SMS-håndtering
+// ONBOARDING — Frisbii-baseret oprettelse + Twilio opkalds-/SMS-håndtering
 // Tilføj denne fil til dit projekt og require den i server.js:
 //   require('./onboarding')(app, supabase);
 //
-// Telefoni kører på Sinch via ./sinch.js (signatur, SMS, TTS-callout).
-// Krævede env: SINCH_APP_KEY, SINCH_APP_SECRET, SINCH_SMS_SERVICE_PLAN,
-//              SINCH_SMS_API_TOKEN, SINCH_SYSTEM_NUMBER
+// Telefoni kører på Twilio (twilioClient.messages / .calls + TwiML).
+// Krævede env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SYSTEM_NUMBER
 //
 // BEMÆRK: Shopify-webhooken nedenfor er formentlig forældet (onboarding kører
 // nu via frisbii-webhook.js). Slet den når du har bekræftet at intet bruger den.
@@ -13,19 +12,24 @@
 
 const express    = require("express");
 const crypto     = require("crypto");
-const sinch      = require("./sinch");
+const twilio     = require("twilio");
 const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 
 module.exports = function registerOnboarding(app, supabase) {
 
+  const twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+
   // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
-  // ─── HJÆLPER: Send SMS via Sinch ────────────────────────────────────────
+  // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
   // Uændret signatur, så /send-sms og /opkald kalder den som før.
   async function sendSms({ to, from, body }) {
-    return sinch.sendSms({ to, from, body });
+    return twilioClient.messages.create({ to, from, body });
   }
 
   // ─── 1. SHOPIFY WEBHOOK — ny håndværker har købt abonnement ─────────────
@@ -166,40 +170,22 @@ module.exports = function registerOnboarding(app, supabase) {
     }
   );
 
-  // ─── 2. SINCH OPKALDSHANDLER (ICE) ───────────────────────────────────────
-  // Sinch sender en Incoming Call Event (ICE) som POST hertil når en kunde
-  // ringer til et af jeres numre. Vi svarer med et SVAML-objekt (JSON).
-  // Sæt callback-URL'en i Sinch-dashboardet (Voice app → Callbacks):
+  // ─── 2. TWILIO OPKALDSHANDLER ────────────────────────────────────────────
+  // Twilio kalder denne URL (POST, form-encoded) når en kunde ringer til et af
+  // jeres numre. Vi svarer med TwiML (XML). Sæt webhook-URL'en i Twilio Console
+  // for hvert nummer (Phone Numbers → Configure → A call comes in):
   //   https://dinapp.railway.app/opkald
-  // Den SKAL matche stien præcis, da den indgår i signaturen.
-  //
-  // express.raw kræves, fordi signaturvalideringen beregnes over rå body.
-  // Læg denne rute FØR en evt. global express.json (som med Shopify-webhooken).
-  app.post("/opkald", express.raw({ type: "*/*" }), async (req, res) => {
-    // 1) Validér Sinch-signaturen før vi stoler på noget.
-    if (!sinch.verifyVoiceSignature(req)) {
-      console.warn("⚠️  Ugyldig Sinch-signatur på /opkald");
-      return res.status(401).send("invalid signature");
-    }
-
-    const evt = JSON.parse(req.body.toString("utf8"));
-
-    // Sinch sender ice/ace/dice til samme URL. Vi håndterer kun ice (indgående).
-    // ace/dice/notify kvitteres bare med 200.
-    if (evt.event !== "ice") {
-      return res.status(200).send();
-    }
-
-    // I ICE er "to" et objekt {type, endpoint}; "from" er typisk en streng,
-    // men kan også være et objekt. Vi håndterer begge. (⚠️ bekræft i test.)
-    const toNumber   = evt.to && evt.to.endpoint;
-    const fromNumber = typeof evt.from === "string"
-      ? evt.from
-      : (evt.from && evt.from.endpoint);
+  // Ingen express.raw her — Twilio sender form-encoded, og global
+  // express.urlencoded i server.js giver os req.body.From / .To direkte.
+  app.post("/opkald", async (req, res) => {
+    const toNumber   = req.body.To;    // firmaets Twilio-nummer
+    const fromNumber = req.body.From;  // kundens nummer
 
     console.log("📞 Opkald modtaget:", fromNumber, "→", toNumber);
 
-    // Find firma baseret på Sinch-nummeret
+    const twiml = new twilio.twiml.VoiceResponse();
+
+    // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
       .select("id, name, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number")
@@ -208,7 +194,8 @@ module.exports = function registerOnboarding(app, supabase) {
 
     if (!firm) {
       console.warn("⚠️  Intet firma fundet for nummer:", toNumber);
-      return res.json({ action: { name: "hangup" } });
+      twiml.hangup();
+      return res.type("text/xml").send(twiml.toString());
     }
 
     // Gem opkaldet
@@ -218,18 +205,19 @@ module.exports = function registerOnboarding(app, supabase) {
         from_number: fromNumber,
         to_number:   toNumber,
         firm_id:     firm.id,
-        raw_payload: evt,
+        raw_payload: req.body,
       })
       .select()
       .single();
 
     if (error) {
       console.error("❌ Supabase fejl:", error);
-      return res.json({ action: { name: "hangup" } });
+      twiml.hangup();
+      return res.type("text/xml").send(twiml.toString());
     }
 
-    // Verifikationsopkald — from og to er samme nummer
-    // Sæt firma til "active" og bekræft viderestilling
+    // Verifikationsopkald — from og to er samme nummer.
+    // Sæt firma til "active" og bekræft viderestilling.
     if (fromNumber === toNumber || fromNumber === firm.phone_number) {
       await supabase
         .from("firms")
@@ -238,71 +226,43 @@ module.exports = function registerOnboarding(app, supabase) {
 
       console.log("✅ Viderestilling verificeret for firma:", firm.id);
 
-      return res.json({
-        instructions: [
-          { name: "answer" },
-          {
-            name: "say",
-            locale: "da-DK",
-            text: "Det virker! Din viderestilling er nu sat korrekt op. Du er klar til at modtage opgaver fra dine kunder.",
-          },
-        ],
-        action: { name: "hangup" },
-      });
+      twiml.say({ voice: "Polly.Naja", language: "da-DK" },
+        "Det virker! Din viderestilling er nu sat korrekt op. Du er klar til at modtage opgaver fra dine kunder.");
+      twiml.hangup();
+      return res.type("text/xml").send(twiml.toString());
     }
 
     // ─── GATE: kun betalende firmaer modtager leads ───────────────────────
-    // Bemærk: vi gater KUN på billing_status, ikke på status. Hvis et opkald
-    // overhovedet når frem til Sinch-nummeret, virker viderestillingen — så
-    // selv et firma der stadig står som "onboarding" skal kunne fange leads.
-    // Verifikationsopkaldet ovenfor er allerede håndteret og rammes ikke her.
+    // Gater KUN på billing_status, ikke på status — så selv et firma der stadig
+    // står som "onboarding" kan fange leads, så længe abonnementet er aktivt.
     if (firm.billing_status && firm.billing_status !== "active") {
       console.log(`⏸️  Opkald til suspenderet firma (billing: ${firm.billing_status}):`, firm.id);
-      return res.json({
-        instructions: [
-          { name: "answer" },
-          { name: "say", locale: "da-DK", text: "Dette nummer er ikke aktivt i øjeblikket." },
-        ],
-        action: { name: "hangup" },
-      });
+      twiml.say({ voice: "Polly.Naja", language: "da-DK" },
+        "Dette nummer er ikke aktivt i øjeblikket.");
+      twiml.hangup();
+      return res.type("text/xml").send(twiml.toString());
     }
 
-    // Normalt opkald fra kunde — send SMS og afspil besked
+    // Normalt opkald fra kunde — send SMS med formular-link
     sendSms({
       to:   fromNumber,
       from: toNumber,
       body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${process.env.BASE_URL}/formular/${call.lead_token}`,
     }).catch(err => console.error("❌ SMS fejl:", err));
 
-    // Afspil hilsen. Foretræk den renderede ElevenLabs-lydfil; falder tilbage
-    // til live-TTS hvis der ingen fil er (fx firma der ikke har gemt stemmevalg
-    // endnu, eller en render der fejlede), så et opkald aldrig knækker.
-    // <Play> → playFiles, <Say> → say.
-    //
-    // ⚠️ VOICEMAIL: action er "hangup" indtil storage-spørgsmålet til Sinch er
-    //    afklaret (Scaleway vs. AWS S3 EU). Derefter skifter "hangup" til
-    //    connectConf med recording mod bucket'en, så kunden kan indtale besked.
+    // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
+    // til Polly (da-DK) hvis der ingen fil er, så et opkald aldrig knækker.
     if (firm.greeting_audio_url) {
-      // ⚠️ bekræft i test om playFiles' "ids" accepterer en offentlig URL
-      //    direkte, eller om filen skal pre-registreres hos Sinch.
-      return res.json({
-        instructions: [
-          { name: "answer" },
-          { name: "playFiles", ids: [firm.greeting_audio_url] },
-        ],
-        action: { name: "hangup" },
-      });
+      twiml.play(firm.greeting_audio_url);
+    } else {
+      const voice = firm.voice_gender === "male" ? "Polly.Mads" : "Polly.Naja";
+      twiml.say({ voice, language: "da-DK" }, firm.greeting_text);
     }
 
-    // Fallback: indbygget dansk TTS (da-DK = Naja, da-DK/male = Mads, eller Sofie).
-    const voiceText = firm.greeting_text;
-    return res.json({
-      instructions: [
-        { name: "answer" },
-        { name: "say", locale: "da-DK", text: voiceText },
-      ],
-      action: { name: "hangup" },
-    });
+    // FASE 2 (telefonsvarer): her kan twiml.record({...}) indsættes, så kunden
+    // kan indtale en besked. Holdes ude indtil optagelses-storage (EU) er afklaret.
+    twiml.hangup();
+    return res.type("text/xml").send(twiml.toString());
   });
 
   // ─── 3. VERIFIKATIONSOPKALD — system ringer til håndværker ──────────────
@@ -329,14 +289,13 @@ module.exports = function registerOnboarding(app, supabase) {
 
     try {
       // Ring til håndværkerens PRIVATE mobilnummer med en TTS-besked.
-      // Hvis viderestilling er sat op, viderestilles opkaldet til Sinch-nummeret
+      // Hvis viderestilling er sat op, viderestilles opkaldet til Twilio-nummeret
       // og /opkald registrerer det og sætter firma til "active".
-      // Sinch har TTS-teksten inline i selve callouten — ingen separat URL.
-      await sinch.makeTtsCallout({
-        to:     callTo,
-        from:   process.env.SINCH_SYSTEM_NUMBER,
-        locale: "da-DK",
-        text:   "Dette er en automatisk test af din viderestilling. Det virker! Du kan nu modtage opgaver fra dine kunder.",
+      // TTS-beskeden ligger inline i TwiML — ingen separat URL nødvendig.
+      await twilioClient.calls.create({
+        to:    callTo,
+        from:  process.env.TWILIO_SYSTEM_NUMBER,
+        twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Dette er en automatisk test af din viderestilling. Det virker! Du kan nu modtage opgaver fra dine kunder.</Say></Response>`,
       });
 
       await supabase
@@ -348,13 +307,13 @@ module.exports = function registerOnboarding(app, supabase) {
 
     } catch (err) {
       console.error("❌ Verifikationsopkald fejlede:", err.message);
-      console.error("❌ Ring til:", callTo, "Fra:", process.env.SINCH_SYSTEM_NUMBER);
+      console.error("❌ Ring til:", callTo, "Fra:", process.env.TWILIO_SYSTEM_NUMBER);
       res.status(500).json({ error: "Opkald fejlede", detail: err.message });
     }
   });
 
-  // (TwiML-ruten /opkald-verificer-twiml er fjernet — Sinch ttsCallout har
-  //  beskeden inline, så der er ingen URL Sinch skal hente under opkaldet.)
+  // (Verifikationsopkaldet bruger inline TwiML i calls.create — ingen separat
+  //  TwiML-URL nødvendig.)
 
 
   // ─── API: Hent firmadata for indlogget bruger ────────────────────────────
@@ -456,7 +415,7 @@ module.exports = function registerOnboarding(app, supabase) {
   // Sikkerhed: udled firma fra token; bekraeft at lead'et tilhoerer firmaet; og
   // send KUN til nummeret paa det lead (aldrig et frit "to" fra body'en). Sender
   // fra firmaets eget Twilio-nummer.
-  // MIGRATION TIL SINCH: erstat sendSms-implementeringen — denne rute er uaendret.
+  // PROVIDER: sender via sendSms-hjælperen (Twilio). Ruten er provider-agnostisk.
   app.post("/send-sms", async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);
     if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
