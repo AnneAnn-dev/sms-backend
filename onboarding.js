@@ -251,8 +251,7 @@ console.log("SMS link:", `${process.env.BASE_URL}/formular/${call.lead_token}`);
       to:   fromNumber,
       from: toNumber,
       body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${process.env.BASE_URL}/formular/${call.lead_token}`,
-    }).catch(err => console.error("❌ SMS fejl:", err));
-  .then(msg => console.log("✅ SMS sendt, SID:", msg.sid, "status:", msg.status))
+    }).then(msg => console.log("✅ SMS sendt, SID:", msg.sid, "status:", msg.status))
   .catch(err => console.error("❌ SMS fejl:", err.status, err.code, err.message, err.moreInfo));
 
  //.catch(err => console.error("❌ SMS fejl:", err));
