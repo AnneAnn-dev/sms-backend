@@ -251,10 +251,8 @@ console.log("SMS link:", `${process.env.BASE_URL}/formular/${call.lead_token}`);
       to:   fromNumber,
       from: toNumber,
       body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${process.env.BASE_URL}/formular/${call.lead_token}`,
-    }).then(msg => console.log("✅ SMS sendt, SID:", msg.sid, "status:", msg.status))
-  .catch(err => console.error("❌ SMS fejl:", err.status, err.code, err.message, err.moreInfo));
-
- //.catch(err => console.error("❌ SMS fejl:", err));
+    }).catch(err => console.error("❌ SMS fejl:", err));
+    
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
     // til Polly (da-DK) hvis der ingen fil er, så et opkald aldrig knækker.
     if (firm.greeting_audio_url) {
