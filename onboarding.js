@@ -243,6 +243,9 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
+// Normalt opkald fra kunde — send SMS med formular-link
+console.log("SMS link:", `${process.env.BASE_URL}/formular/${call.lead_token}`);
+
     // Normalt opkald fra kunde — send SMS med formular-link
     sendSms({
       to:   fromNumber,
