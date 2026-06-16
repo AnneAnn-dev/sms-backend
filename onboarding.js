@@ -189,7 +189,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number")
+      .select("id, name, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number")
       .eq("phone_number", toNumber)
       .single();
 
@@ -245,14 +245,15 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
-// Normalt opkald fra kunde — send SMS med formular-link
-console.log("SMS link:", `${process.env.BASE_URL}/formular/${call.lead_token}`);
+    // Normalt opkald fra kunde — send SMS med formular-link.
+    // Nyt format: opgave.lommekontor.dk/{firma-slug}/{lead_token}
+    const formUrl = `https://opgave.lommekontor.dk/${firm.slug}/${call.lead_token}`;
+    console.log("SMS link:", formUrl);
 
-    // Normalt opkald fra kunde — send SMS med formular-link
     sendSms({
       to:   fromNumber,
       from: toNumber,
-      body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${process.env.BASE_URL}/formular/${call.lead_token}`,
+      body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${formUrl}`,
     }).catch(err => console.error("❌ SMS fejl:", err));
     
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage

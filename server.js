@@ -426,5 +426,32 @@ app.post("/opret-opgave", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── MASKERET FORMULAR-LINK: opgave.lommekontor.dk/{slug}/{token} ───────────
+// SMS'en sender det pæne, maskerede link med firma-slug. Her validerer vi
+// tokenet og sender videre til den kanoniske /formular/:token (samme domæne,
+// så den grimme Railway-URL ses aldrig). Slug'en er ren kosmetik i SMS'en —
+// selve opslaget sker på tokenet, ikke på slug'en.
+//
+// VIGTIGT: denne route registreres SIDST (lige før app.listen), så den strikse
+// token-regex er det eneste der overhovedet fanger to-segments-stier. Alt der
+// ikke matcher et 12-tegns token (favicon, statiske filer, /formular/:token med
+// gammelt UUID osv.) falder igennem via next() til normal 404-håndtering.
+const MASK_TOKEN_RE = /^[a-z0-9]{12}$/;
+
+app.get("/:slug/:token", async (req, res, next) => {
+  const { token } = req.params;
+  if (!MASK_TOKEN_RE.test(token)) return next(); // ikke et gyldigt token → videre i stakken
+
+  const { data: call } = await supabase
+    .from("calls")
+    .select("id")
+    .eq("lead_token", token)
+    .single();
+
+  if (!call) return next(); // ukendt token → 404
+
+  return res.redirect(302, `/formular/${token}`);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server kører på port ${PORT}`));
