@@ -16,6 +16,7 @@ const twilio     = require("twilio");
 const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
+const { generateToken }   = require("./token");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -205,6 +206,7 @@ module.exports = function registerOnboarding(app, supabase) {
         from_number: fromNumber,
         to_number:   toNumber,
         firm_id:     firm.id,
+        lead_token:  generateToken(),   // app'en sætter nu token (punkt 7)
         raw_payload: req.body,
       })
       .select()
