@@ -119,9 +119,8 @@
     .wl-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
     .wl-empty { font-size: 13px; color: var(--ink-muted); padding: 6px 0; }
     .wl-row { display: flex; align-items: center; gap: 12px; background: var(--smoke); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-    .wl-row-info { flex: 1; min-width: 0; }
-    .wl-row-num { font-size: 15px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-    .wl-row-label { font-size: 12px; color: var(--ink-muted); margin-top: 1px; }
+    .wl-row-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wl-row-num { flex: 0 0 auto; font-size: 14px; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .wl-row-del { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--white); color: var(--ink-muted); font-size: 18px; line-height: 1; cursor: pointer; transition: all .2s; }
     .wl-row-del:hover { border-color: #fca5a5; background: var(--danger-light); color: var(--danger-dark); }
 
@@ -786,10 +785,8 @@ function renderLeads() {
     }
     list.innerHTML = whitelist.map(n => `
       <div class="wl-row">
-        <div class="wl-row-info">
-          <div class="wl-row-num">${wlEsc(n.number)}</div>
-          ${n.label ? `<div class="wl-row-label">${wlEsc(n.label)}</div>` : ''}
-        </div>
+        <div class="wl-row-name">${wlEsc(n.label || n.number)}</div>
+        <div class="wl-row-num">${n.label ? wlEsc(n.number) : ''}</div>
         <button class="wl-row-del" onclick="deleteWhitelistNumber('${wlEsc(n.id)}')" aria-label="Slet">×</button>
       </div>`).join('');
   }
