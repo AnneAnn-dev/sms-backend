@@ -14,6 +14,7 @@
 
 const crypto = require("crypto");
 const { sendWelcomeMail, sendAdminAlert } = require("./mail");
+const { uniqueSlug } = require("./slug");
 
 const FRISBII_API = "https://api.frisbii.com/v1";
 
@@ -89,11 +90,17 @@ module.exports = (app, supabase) => {
       throw new Error("Ingen ledige numre");
     }
 
+    // Generér en unik slug til den maskerede formular-URL
+    // (opgave.lommekontor.dk/{slug}/{token}). Skal sættes ved oprettelse, ellers
+    // bliver SMS-linket til nye firmaer …/null/{token}.
+    const slug = await uniqueSlug(supabase, company);
+
     // Opret firma (samme felter som Shopify-flow)
     const { data: firm, error: firmErr } = await supabase
       .from("firms")
       .insert({
         name:                 company,
+        slug,
         email,
         phone_number:         phoneRow.number,
         frisbii_subscription: subHandle,
