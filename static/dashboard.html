@@ -103,6 +103,28 @@
     .tip-card h3 { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 6px; }
     .tip-card p { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
 
+    /* Hvidliste */
+    .wl-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .wl-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
+    .wl-count { font-size: 13px; font-weight: 700; color: var(--ink-muted); }
+    .wl-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
+    .wl-add { display: flex; flex-wrap: wrap; gap: 8px; }
+    .wl-input { flex: 1 1 140px; min-width: 0; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 11px 13px; font-size: 15px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; }
+    .wl-input:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
+    .wl-btn { flex: 0 0 auto; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
+    .wl-btn:hover { background: var(--steel-hover); }
+    .wl-btn:disabled { opacity: .55; cursor: default; }
+    .wl-error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 0; }
+    .wl-error:empty { display: none; }
+    .wl-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .wl-empty { font-size: 13px; color: var(--ink-muted); padding: 6px 0; }
+    .wl-row { display: flex; align-items: center; gap: 12px; background: var(--smoke); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .wl-row-info { flex: 1; min-width: 0; }
+    .wl-row-num { font-size: 15px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .wl-row-label { font-size: 12px; color: var(--ink-muted); margin-top: 1px; }
+    .wl-row-del { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--white); color: var(--ink-muted); font-size: 18px; line-height: 1; cursor: pointer; transition: all .2s; }
+    .wl-row-del:hover { border-color: #fca5a5; background: var(--danger-light); color: var(--danger-dark); }
+
     /* Modal */
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(26,58,92,.45); z-index: 100; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
     .modal-bg.open { display: flex; }
@@ -242,6 +264,20 @@
       <div class="profile-firm" id="profile-firm">—</div>
       <div class="profile-phone" id="profile-phone">—</div>
     </div>
+
+    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
+    <div class="wl-card">
+      <div class="wl-title">Numre uden opgaveformular <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Disse numre får <strong>ikke</strong> en SMS med opgaveformular, når de ringer. De hører i stedet en kort besked om, at du ikke kan tage telefonen. God til familie, leverandører og sælgere.</p>
+      <div class="wl-add">
+        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
+        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
+        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
+      </div>
+      <div id="wl-error" class="wl-error"></div>
+      <div id="wl-list" class="wl-list"></div>
+    </div>
+
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
   </div>
 
@@ -548,6 +584,7 @@
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
   const { data: { user } } = await db.auth.getUser();
   populateProfile(user, firm?.name);
+  loadWhitelist();
 
   // Hent leads + deres opkald + billeder i ÉT kald.
   // leads har ikke firm_id direkte — de hører til firmaet GENNEM deres opkald
@@ -715,6 +752,84 @@ function renderLeads() {
     document.getElementById('profile-name').textContent = email;
     document.getElementById('profile-firm').textContent = firmName || '—';
     document.getElementById('profile-phone').textContent = '';
+  }
+
+  // ── Hvidliste: numre uden opgaveformular ───────────────────────────────────
+  let whitelist = [];
+  let whitelistMax = 20;
+
+  function wlEsc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function loadWhitelist() {
+    try {
+      const res = await fetch('/api/firma/hvidliste', { headers: { ...(await authHeader()) } });
+      if (!res.ok) return;
+      const data = await res.json();
+      whitelist = data.numbers || [];
+      whitelistMax = data.max || 20;
+      renderWhitelist();
+    } catch (e) { /* stille — listen er ikke kritisk for resten af dashboardet */ }
+  }
+
+  function renderWhitelist() {
+    const count = document.getElementById('wl-count');
+    const list = document.getElementById('wl-list');
+    if (count) count.textContent = `(${whitelist.length}/${whitelistMax})`;
+    if (!list) return;
+    if (!whitelist.length) {
+      list.innerHTML = '<div class="wl-empty">Ingen numre på listen endnu.</div>';
+      return;
+    }
+    list.innerHTML = whitelist.map(n => `
+      <div class="wl-row">
+        <div class="wl-row-info">
+          <div class="wl-row-num">${wlEsc(n.number)}</div>
+          ${n.label ? `<div class="wl-row-label">${wlEsc(n.label)}</div>` : ''}
+        </div>
+        <button class="wl-row-del" onclick="deleteWhitelistNumber('${wlEsc(n.id)}')" aria-label="Slet">×</button>
+      </div>`).join('');
+  }
+
+  async function addWhitelistNumber(btn) {
+    const numEl = document.getElementById('wl-number');
+    const labelEl = document.getElementById('wl-label');
+    const errEl = document.getElementById('wl-error');
+    errEl.textContent = '';
+
+    const number = numEl.value.trim();
+    if (!number) { errEl.textContent = 'Indtast et telefonnummer.'; return; }
+
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch('/api/firma/hvidliste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify({ number, label: labelEl.value.trim() || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { errEl.textContent = data.error || 'Kunne ikke tilføje nummeret.'; return; }
+      numEl.value = '';
+      labelEl.value = '';
+      await loadWhitelist();
+    } catch (e) {
+      errEl.textContent = 'Noget gik galt. Prøv igen.';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function deleteWhitelistNumber(id) {
+    try {
+      const res = await fetch('/api/firma/hvidliste/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: { ...(await authHeader()) }
+      });
+      if (res.ok) await loadWhitelist();
+    } catch (e) { /* stille */ }
   }
 
   function setSort(sort, btn) {

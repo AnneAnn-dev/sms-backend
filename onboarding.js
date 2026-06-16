@@ -17,6 +17,7 @@ const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
+const { normalizePhone }  = require("./phone");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -199,27 +200,9 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
-    // Gem opkaldet
-    const { data: call, error } = await supabase
-      .from("calls")
-      .insert({
-        from_number: fromNumber,
-        to_number:   toNumber,
-        firm_id:     firm.id,
-        lead_token:  generateToken(),   // app'en sætter nu token (punkt 7)
-        raw_payload: req.body,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("❌ Supabase fejl:", error);
-      twiml.hangup();
-      return res.type("text/xml").send(twiml.toString());
-    }
-
     // Verifikationsopkald — from og to er samme nummer.
     // Sæt firma til "active" og bekræft viderestilling.
+    // (Ingen call-række oprettes her — det sker først for ægte kundeopkald nedenfor.)
     if (fromNumber === toNumber || fromNumber === firm.phone_number) {
       await supabase
         .from("firms")
@@ -234,6 +217,29 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
+    // ─── HVIDLISTE: numre der ikke skal have opgaveformular ───────────────
+    // Håndværkeren kan registrere numre (familie, leverandører, sælgere, eget
+    // andet nummer) der IKKE skal modtage SMS med opgaveformular. De får en kort
+    // beroligende besked og lægges på — ingen call-række, intet lead, ingen SMS.
+    const fromNorm = normalizePhone(fromNumber);
+    if (fromNorm) {
+      const { data: hit } = await supabase
+        .from("firm_whitelist")
+        .select("id")
+        .eq("firm_id", firm.id)
+        .eq("number", fromNorm)
+        .maybeSingle();
+
+      if (hit) {
+        console.log("⚪ Hvidlistet nummer — springer opgaveformular over:", fromNorm, "→", firm.id);
+        const voice = firm.voice_gender === "male" ? "Polly.Mads" : "Polly.Naja";
+        twiml.say({ voice, language: "da-DK" },
+          "Hej, jeg kan desværre ikke tage telefonen lige nu. Ring gerne igen senere.");
+        twiml.hangup();
+        return res.type("text/xml").send(twiml.toString());
+      }
+    }
+
     // ─── GATE: kun betalende firmaer modtager leads ───────────────────────
     // Gater KUN på billing_status, ikke på status — så selv et firma der stadig
     // står som "onboarding" kan fange leads, så længe abonnementet er aktivt.
@@ -241,6 +247,25 @@ module.exports = function registerOnboarding(app, supabase) {
       console.log(`⏸️  Opkald til suspenderet firma (billing: ${firm.billing_status}):`, firm.id);
       twiml.say({ voice: "Polly.Naja", language: "da-DK" },
         "Dette nummer er ikke aktivt i øjeblikket.");
+      twiml.hangup();
+      return res.type("text/xml").send(twiml.toString());
+    }
+
+    // Ægte kundeopkald — opret nu call-rækken (med kort lead_token) og send SMS.
+    const { data: call, error } = await supabase
+      .from("calls")
+      .insert({
+        from_number: fromNumber,
+        to_number:   toNumber,
+        firm_id:     firm.id,
+        lead_token:  generateToken(),   // app'en sætter token (punkt 7)
+        raw_payload: req.body,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("❌ Supabase fejl:", error);
       twiml.hangup();
       return res.type("text/xml").send(twiml.toString());
     }
@@ -417,7 +442,72 @@ module.exports = function registerOnboarding(app, supabase) {
     res.json(firm);
   });
 
-  // ─── SEND SMS til en kundes lead (fra dashboardet) ──────────────────────────
+  // ─── HVIDLISTE: numre der ikke skal have opgaveformular ─────────────────────
+  // Op til 20 numre pr. firma. Numre gemmes normaliseret (+45…) så matching i
+  // /opkald altid er æbler-mod-æbler. Alle ruter auth'es via token → firm_id.
+  const WHITELIST_MAX = 20;
+
+  // Hent firmaets hvidliste
+  app.get('/api/firma/hvidliste', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { data, error } = await supabase
+      .from('firm_whitelist')
+      .select('id, number, label, created_at')
+      .eq('firm_id', firm_id)
+      .order('created_at', { ascending: true });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ numbers: data || [], max: WHITELIST_MAX });
+  });
+
+  // Tilføj et nummer til hvidlisten
+  app.post('/api/firma/hvidliste', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const number = normalizePhone(req.body.number);
+    if (!number) return res.status(400).json({ error: 'Ugyldigt telefonnummer' });
+    const label = (req.body.label || '').toString().trim().slice(0, 60) || null;
+
+    // Håndhæv 20-grænsen
+    const { count } = await supabase
+      .from('firm_whitelist')
+      .select('*', { count: 'exact', head: true })
+      .eq('firm_id', firm_id);
+    if (typeof count === 'number' && count >= WHITELIST_MAX) {
+      return res.status(409).json({ error: `Du kan højst have ${WHITELIST_MAX} numre på listen` });
+    }
+
+    const { data, error } = await supabase
+      .from('firm_whitelist')
+      .insert({ firm_id, number, label })
+      .select('id, number, label, created_at')
+      .single();
+
+    // 23505 = unik-konflikt → nummeret er allerede på listen
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'Nummeret er allerede på listen' });
+    }
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, number: data });
+  });
+
+  // Slet et nummer fra hvidlisten (kun firmaets egne rækker)
+  app.delete('/api/firma/hvidliste/:id', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { error } = await supabase
+      .from('firm_whitelist')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('firm_id', firm_id);   // bånd til firmaet → kan ikke slette andres rækker
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  });
   // Sikkerhed: udled firma fra token; bekraeft at lead'et tilhoerer firmaet; og
   // send KUN til nummeret paa det lead (aldrig et frit "to" fra body'en). Sender
   // fra firmaets eget Twilio-nummer.
