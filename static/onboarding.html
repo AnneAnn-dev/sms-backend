@@ -714,8 +714,8 @@
   };
 
   // ── Supabase klient ─────────────────────────────────────────────
-  const SUPABASE_URL = window.SUPABASE_URL || '';
-  const SUPABASE_KEY = window.SUPABASE_ANON_KEY || '';
+  const SUPABASE_URL = 'https://glymuxqtrbpeyzmflilf.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdseW11eHF0cmJwZXl6bWZsaWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjYyOTEsImV4cCI6MjA5MzIwMjI5MX0.ShrA33kAQyhA1csFWyr8f2-f8uAqldkFySALKSsywso';
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
   // ── Init — hent firmadata fra Supabase session ────────────────────
