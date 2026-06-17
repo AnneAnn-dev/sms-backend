@@ -501,7 +501,7 @@
 <body>
 
   <!-- Progress -->
-  <div class="progress-wrap">
+  <div class="progress-wrap" id="progress">
     <div class="progress-steps">
       <div class="step-dot active" id="dot-1"><span>1</span></div>
       <div class="step-line" id="line-1"></div>
@@ -511,6 +511,31 @@
       <div class="step-line" id="line-3"></div>
       <div class="step-dot" id="dot-4"><span>4</span></div>
     </div>
+  </div>
+
+  <!-- ── Udløbet/ugyldigt link: send et nyt ────────────────── -->
+  <div class="card" id="step-expired">
+    <h1>Linket virker ikke længere</h1>
+    <p class="subtitle">Dit login-link er enten allerede brugt eller udløbet. Skriv din e-mail, så sender vi dig et nyt.</p>
+
+    <label class="field-label" for="relink-email">Din e-mail</label>
+    <input
+      id="relink-email"
+      type="email"
+      autocomplete="email"
+      placeholder="dig@firma.dk"
+      style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;font-size:16px;color:var(--text);font-family:'Source Sans 3',sans-serif;margin-bottom:20px;transition:border-color .2s"
+      onfocus="this.style.borderColor='var(--accent)'"
+      onblur="this.style.borderColor='var(--border)'"
+      onkeydown="if(event.key==='Enter')requestNewLink()"
+    >
+
+    <button class="btn-primary" id="relink-btn" onclick="requestNewLink()">
+      <span id="relink-label">Send nyt link</span>
+      <div class="spinner" id="relink-spinner"></div>
+    </button>
+
+    <div class="verify-status" id="relink-status" style="margin-top:16px"></div>
   </div>
 
   <!-- ── TRIN 1: Velkommen ─────────────────────────────────── -->
@@ -718,48 +743,71 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdseW11eHF0cmJwZXl6bWZsaWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjYyOTEsImV4cCI6MjA5MzIwMjI5MX0.ShrA33kAQyhA1csFWyr8f2-f8uAqldkFySALKSsywso';
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-  // ── Init — hent firmadata fra Supabase session ────────────────────
+  // ── Init — etablér session og hent firmadata ─────────────────────
   async function init() {
     try {
-      // Håndter magic link token i URL hash (Supabase sætter det automatisk)
-      if (db) {
-        const { data: sessionData } = await db.auth.getSession();
+      let session = (await db.auth.getSession()).data.session;
 
-        // Hvis ingen session endnu — prøv at hente fra URL hash
-        if (!sessionData?.session) {
-          const { data, error } = await db.auth.exchangeCodeForSession(
-            new URLSearchParams(location.search).get('code') || ''
-          );
-          if (error) console.warn('Ingen aktiv session');
-        }
-
-        const { data: { session } } = await db.auth.getSession();
-
-        if (session?.access_token) {
-          state.token = session.access_token;
-          const res  = await fetch('/api/mig', {
-            headers: { Authorization: `Bearer ${session.access_token}` }
-          });
-          const data = await res.json();
-
-          if (data?.firm) {
-            state.firmId      = data.firm.id;
-            state.firmName    = data.firm.name;
-            state.phoneNumber = data.firm.phone_number;
-            state.voice       = data.firm.voice_gender || 'female';
-            state.greeting    = data.firm.greeting_text || defaultGreeting(data.firm.name);
+      // Prefetch-sikkert login: token_hash i URL'en verificeres FØRST her, i
+      // browseren. En mail-scanner der blot laver et GET på linket kalder ikke
+      // verifyOtp og forbruger derfor ikke tokenet — kun den rigtige bruger gør.
+      if (!session) {
+        const params    = new URLSearchParams(location.search);
+        const tokenHash = params.get('token_hash');
+        const type      = params.get('type') || 'email';
+        if (tokenHash) {
+          const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type });
+          if (!error && data?.session) {
+            session = data.session;
+            // Fjern token_hash fra URL'en (så den ikke ligger i historik/genindlæsning)
+            history.replaceState(null, '', location.pathname);
+          } else if (error) {
+            console.warn('verifyOtp fejlede:', error.message);
           }
         }
       }
+
+      // Bagudkompatibelt: gamle action_link-mails lander med #access_token i
+      // hashen, som supabase-js selv parser ved load — så tjek én gang til.
+      if (!session) session = (await db.auth.getSession()).data.session;
+
+      // Intet gyldigt login? Vis "nyt link"-skærmen — ALDRIG en tom side.
+      if (!session?.access_token) {
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          // Lokal udvikling uden session: demo-værdier, så siden kan testes.
+          state.firmName    = 'Mogens Maler';
+          state.phoneNumber = '+4531234567';
+          state.greeting    = defaultGreeting(state.firmName);
+          return loadUI();
+        }
+        return showExpired();
+      }
+
+      // Vi har en session — hent firmaet.
+      state.token = session.access_token;
+      const res   = await fetch('/api/mig', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      const data  = await res.json();
+
+      if (data?.firm) {
+        state.firmId      = data.firm.id;
+        state.firmName    = data.firm.name;
+        state.phoneNumber = data.firm.phone_number;
+        state.voice       = data.firm.voice_gender || 'female';
+        state.greeting    = data.firm.greeting_text || defaultGreeting(data.firm.name);
+      }
     } catch (e) {
       console.warn('Auth fejl:', e);
-      // Fallback til demo-værdier lokalt
-      state.firmName    = 'Mogens Maler';
-      state.phoneNumber = '+4531234567';
-      state.greeting    = defaultGreeting(state.firmName);
+      // Ægte fejl (netværk e.l.) — vis nyt-link-skærmen frem for en tom side.
+      return showExpired();
     }
 
-    // Udfyld UI
+    loadUI();
+  }
+
+  // ── Udfyld UI med firmaets data ──────────────────────────────────
+  function loadUI() {
     const fmt = state.phoneNumber.replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
     document.getElementById('display-number').textContent   = fmt;
     document.getElementById('success-number').textContent   = fmt;
@@ -769,6 +817,54 @@
     if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone;
     updateCount();
     selectVoice(state.voice);
+  }
+
+  // ── "Linket virker ikke"-skærm ───────────────────────────────────
+  function showExpired() {
+    const progress = document.getElementById('progress');
+    if (progress) progress.style.display = 'none';
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    document.getElementById('step-expired').classList.add('active');
+  }
+
+  // ── Bed om et nyt login-link (sendes via din egen backend + Scaleway) ──
+  async function requestNewLink() {
+    const input   = document.getElementById('relink-email');
+    const btn     = document.getElementById('relink-btn');
+    const label   = document.getElementById('relink-label');
+    const spinner = document.getElementById('relink-spinner');
+    const status  = document.getElementById('relink-status');
+    const email   = input.value.trim();
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      input.style.borderColor = '#f87171';
+      input.focus();
+      return;
+    }
+    input.style.borderColor = 'var(--border)';
+
+    btn.disabled         = true;
+    label.textContent    = 'Sender...';
+    spinner.style.display = 'block';
+    status.style.display = 'none';
+
+    try {
+      await fetch('/onboarding/nyt-link', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      });
+    } catch (e) {
+      console.warn('Kunne ikke anmode om nyt link:', e);
+    }
+
+    // Samme svar uanset om e-mailen findes (ingen email-enumeration).
+    status.textContent    = 'Hvis der findes en konto med den e-mail, har vi sendt et nyt login-link. Tjek din indbakke (og evt. spam).';
+    status.className      = 'verify-status success';
+    status.style.display  = 'block';
+    label.textContent     = 'Send nyt link';
+    spinner.style.display = 'none';
+    btn.disabled          = false;
   }
 
   function defaultGreeting(name) {

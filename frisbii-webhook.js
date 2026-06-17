@@ -161,13 +161,20 @@ module.exports = (app, supabase) => {
       });
     }
 
-    // Generer magic link til login
+    // Generer prefetch-sikkert login-link via token_hash (IKKE action_link).
+    // action_link peger paa Supabases /verify-endpoint, som forbruger tokenet
+    // ved ethvert GET — mail-scannere braender det dermed foer kunden naar frem.
+    // Med token_hash sker verifikationen foerst naar browseren kalder verifyOtp
+    // paa /onboarding, saa et scanner-GET ikke kan oedelaegge linket.
     const { data: linkData } = await supabase.auth.admin.generateLink({
       type:    "magiclink",
       email,
       options: { redirectTo: `${process.env.BASE_URL}/onboarding` },
     });
-    const loginUrl = linkData?.properties?.action_link || `${process.env.BASE_URL}/dashboard`;
+    const tokenHash = linkData?.properties?.hashed_token;
+    const loginUrl = tokenHash
+      ? `${process.env.BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`
+      : `${process.env.BASE_URL}/dashboard`;
 
     // Send velkomstmail (delt funktion fra mail.js)
     try {
