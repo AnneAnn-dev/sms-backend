@@ -33,6 +33,10 @@ for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUP
 const client   = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+// Systemnummeret må ALDRIG ende i puljen (ellers kunne det tildeles en kunde).
+const { normalizePhone } = require("./phone");
+const SYSTEM_NUMBER = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
+
 (async () => {
   // 1) Find ledige danske MOBIL-numre (både voice og SMS — som appen kræver)
   const available = await client.availablePhoneNumbers("DK").mobile.list({
@@ -72,7 +76,13 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
         friendlyName: `LommeKontor pool ${cand.phoneNumber}`,
       });
 
-      // 3) Læg i puljen (firm_id null = ledigt til næste onboarding)
+      // 3) Vagt: læg ALDRIG systemnummeret i puljen
+      if (SYSTEM_NUMBER && normalizePhone(num.phoneNumber) === SYSTEM_NUMBER) {
+        console.error(`  ⛔ ${num.phoneNumber} er TWILIO_SYSTEM_NUMBER — lægges IKKE i puljen.`);
+        continue;
+      }
+
+      // 4) Læg i puljen (firm_id null = ledigt til næste onboarding)
       const { error } = await supabase.from("phone_numbers").insert({
         number:     num.phoneNumber,  // E.164, fx +45XXXXXXXX
         twilio_sid: num.sid,          // PNxxxx — til senere styring/frigivelse

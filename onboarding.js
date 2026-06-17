@@ -224,6 +224,30 @@ module.exports = function registerOnboarding(app, supabase) {
 
       console.log("✅ Viderestilling verificeret for firma:", firm.id);
 
+      // Send håndværkeren en demo-SMS med et ÆGTE, virkende formular-link, så de
+      // ser præcis hvad deres kunder modtager (og kan trykke på linket selv).
+      // Best-effort: må aldrig blokere verifikationen, derfor try/catch + .catch.
+      try {
+        const demoToken = generateToken();
+        await supabase.from("calls").insert({
+          from_number: fromNumber,
+          to_number:   toNumber,
+          firm_id:     firm.id,
+          lead_token:  demoToken,
+          status:      "demo",   // markér som demo, så det ikke forveksles med ægte opkald
+          raw_payload: req.body,
+        });
+        const demoUrl = `https://opgave.lommekontor.dk/${firm.slug}/${demoToken}`;
+        sendSms({
+          to:   firm.owner_phone || fromNumber,
+          from: toNumber,
+          body: `Sådan ser den SMS ud, som dine kunder modtager, når de ringer og du ikke svarer:\n\nHej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${demoUrl}`,
+        }).catch(err => console.error("❌ Demo-SMS fejl:", err));
+        console.log("📨 Demo-SMS sendt til håndværker:", firm.owner_phone || fromNumber);
+      } catch (e) {
+        console.error("⚠️  Kunne ikke sende demo-SMS (verifikation fortsætter):", e.message);
+      }
+
       twiml.say({ voice: "Polly.Naja", language: "da-DK" },
         "Det virker! Din viderestilling er nu sat korrekt op. Du er klar til at modtage opgaver fra dine kunder.");
       twiml.hangup();
