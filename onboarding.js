@@ -190,7 +190,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number")
+      .select("id, name, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number, owner_phone")
       .eq("phone_number", toNumber)
       .single();
 
@@ -200,10 +200,23 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
-    // Verifikationsopkald — from og to er samme nummer.
-    // Sæt firma til "active" og bekræft viderestilling.
+    // Normalisér From én gang — bruges af både verifikation og hvidliste.
+    const fromNorm = normalizePhone(fromNumber);
+
+    // Verifikationsopkald: systemet ringer til håndværkerens owner_phone, som ved
+    // ubesvaret viderestilles til Twilio-nummeret. Twilio ser da et indgående kald
+    // med From = owner_phone (og To = firmaets Twilio-nummer). Vi matcher derfor på
+    // owner_phone — med systemnummeret som sikkerhedsnet, hvis et teleselskab i
+    // stedet præsenterer det oprindelige afsendernummer. Kører kun så længe firmaet
+    // ikke allerede er verificeret, så håndværkerens senere opkald falder normalt.
+    const ownerNorm  = normalizePhone(firm.owner_phone);
+    const systemNorm = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
+    const erVerifikation =
+      firm.verification_status !== "verified" &&
+      fromNorm && (fromNorm === ownerNorm || fromNorm === systemNorm);
+
     // (Ingen call-række oprettes her — det sker først for ægte kundeopkald nedenfor.)
-    if (fromNumber === toNumber || fromNumber === firm.phone_number) {
+    if (erVerifikation) {
       await supabase
         .from("firms")
         .update({ verification_status: "verified", status: "active" })
@@ -221,7 +234,6 @@ module.exports = function registerOnboarding(app, supabase) {
     // Håndværkeren kan registrere numre (familie, leverandører, sælgere, eget
     // andet nummer) der IKKE skal modtage SMS med opgaveformular. De får en kort
     // beroligende besked og lægges på — ingen call-række, intet lead, ingen SMS.
-    const fromNorm = normalizePhone(fromNumber);
     if (fromNorm) {
       const { data: hit } = await supabase
         .from("firm_whitelist")
