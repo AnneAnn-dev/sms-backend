@@ -16,9 +16,9 @@ const { renderTTS } = require("./tts");
 
 // Fast demosaetning — repraesenterer stemmen uden at vaere firma-specifik.
 const SAMPLE_TEXT =
-  "Hej, du har ringet til mig. Jeg kan desvaerre ikke tage telefonen lige nu, " +
-  "men jeg sender dig en SMS, saa du kan beskrive din opgave. " +
-  "Jeg vender tilbage hurtigst muligt.";
+  "Hej. Du har ringet til Hansens Malerfirma. Jeg kan desværre ikke tage ' +
+  'telefonen. Jeg sender dig en SMS med et link, hvor du beskriver din opgave. Jeg ' +
+  'vender tilbage så hurtigt som muligt. Tak for din henvendelse..";
 
 async function main() {
   const supabase = createClient(

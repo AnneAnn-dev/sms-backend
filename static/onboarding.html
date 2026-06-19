@@ -868,7 +868,7 @@
   }
 
   function defaultGreeting(name) {
-    return `Hej, du har ringet til ${name}. Jeg har ikke mulighed for at tage telefonen lige nu, men jeg sender dig en SMS, så du kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`;
+    return `Hej. Du har ringet til ${name}. Jeg kan desværre ikke tage telefonen. Jeg sender dig en SMS, hvor du beskriver din opgave. Jeg vender tilbage så hurtigt som muligt. Tak for din henvendelse.`;
   }
 
   // ── Validér trin 1 ──────────────────────────────────────────────────────
@@ -926,7 +926,7 @@
     if (audio && !audio.paused) {
       audio.pause();
       audio.currentTime = 0;
-      if (btn) btn.textContent = '▶ Forhåndsvis stemme';
+      if (btn) btn.textContent = '▶ Afspil stemmevalg';
     }
   }
 
@@ -943,8 +943,8 @@
   // Bemærk: dette er en standard-demosætning, IKKE firmaets egen tekst.
   // Deres egen tekst renderes først når de gemmer (/api/firma/opdater).
   const SAMPLE_URL = {
-    female: "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/female.mp3",
-    male:   "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/male.mp3",
+    female: "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/female.mp3?v=2",
+    male:   "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/male.mp3?v=2",
   };
 
   function previewVoice() {
@@ -955,7 +955,7 @@
     if (!audio.paused && audio.src) {
       audio.pause();
       audio.currentTime = 0;
-      btn.textContent = '▶ Forhåndsvis stemme';
+      btn.textContent = '▶ Afspil stemmevalg';
       return;
     }
 

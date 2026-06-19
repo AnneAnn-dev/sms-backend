@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dashboard-v7';   // <-- bump dette tal ved hver deploy
+const CACHE_NAME = 'dashboard-v8';   // <-- bump dette tal ved hver deploy
 
 // App-skallen: det mindste der skal til for at vise siden med det samme.
 const APP_SHELL = ['/dashboard'];
