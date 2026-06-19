@@ -592,7 +592,7 @@
     <div class="char-count"><span id="char-count">0</span> / 300 tegn</div>
 
     <button class="preview-btn" id="preview-btn" onclick="previewVoice()">
-      ▶ Forhåndsvis stemme
+      ▶ Afspil stemme
     </button>
     <audio id="voice-preview" preload="none"></audio>
 
@@ -960,10 +960,10 @@
     }
 
     audio.src = SAMPLE_URL[state.voice] || SAMPLE_URL.female;
-    audio.onended = () => { btn.textContent = '▶ Forhåndsvis stemme'; };
+    audio.onended = () => { btn.textContent = '▶ Afspil stemme'; };
     audio.play()
       .then(() => { btn.textContent = '⏸ Afspiller…'; })
-      .catch(() => { btn.textContent = '▶ Forhåndsvis stemme'; });
+      .catch(() => { btn.textContent = '▶ Afspil stemme'; });
   }
 
   // ── Gem stemme + besked ──────────────────────────────────────────
