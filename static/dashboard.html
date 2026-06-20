@@ -48,6 +48,10 @@
     .btn-sm { background: transparent; border: 1.5px solid rgba(255,255,255,.28); color: #fff; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; transition: all .2s; }
     .btn-sm:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
     .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
+    .link-btn { display: block; width: 100%; margin-top: 14px; background: none; border: none; color: var(--steel); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; text-align: center; }
+    .link-btn:hover { text-decoration: underline; }
+    .link-btn:disabled { opacity: .6; cursor: default; text-decoration: none; }
+    .login-note { font-size: 13px; color: var(--ink-muted); text-align: center; margin-top: 10px; line-height: 1.5; }
 
     /* App */
     #app { display: none; }
@@ -155,6 +159,18 @@
 
     .greeting-saved { font-size: 13px; font-weight: 700; text-align: center; margin-top: 10px; min-height: 18px; }
 
+    /* Skift adgangskode */
+    .pw-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .pw-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
+    .pw-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
+    .pw-label { font-size: 13px; font-weight: 700; color: var(--ink-muted); margin: 0 0 6px; display: block; }
+    .pw-input { width: 100%; box-sizing: border-box; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 13px; font-size: 15px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; margin-bottom: 14px; }
+    .pw-input:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
+    .pw-save { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
+    .pw-save:hover { background: var(--steel-hover); }
+    .pw-save:disabled { opacity: .65; cursor: default; }
+    .pw-msg { font-size: 13px; font-weight: 700; text-align: center; margin-top: 10px; min-height: 18px; }
+
     /* Modal */
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(26,58,92,.45); z-index: 100; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
     .modal-bg.open { display: flex; }
@@ -252,6 +268,12 @@
     <input type="password" id="password" placeholder="••••••••">
     <button class="btn" id="login-btn">Log ind</button>
     <div class="error" id="login-error"></div>
+
+    <!-- Redningsvej: send et login-link hvis man ikke kan sin adgangskode -->
+    <button type="button" id="magic-link-btn" class="link-btn" onclick="sendLoginLink()">
+      Kan du ikke logge ind? Send mig et login-link
+    </button>
+    <div class="login-note" id="magic-link-status"></div>
   </div>
 </div>
 
@@ -338,6 +360,24 @@
       </div>
       <div id="wl-error" class="wl-error"></div>
       <div id="wl-list" class="wl-list"></div>
+    </div>
+
+    <!-- Skift adgangskode -->
+    <div class="pw-card">
+      <div class="pw-title">Skift adgangskode</div>
+      <p class="pw-help">Vælg en ny adgangskode til dit login. Mindst 8 tegn.</p>
+
+      <label class="pw-label" for="pw-new">Ny adgangskode</label>
+      <input class="pw-input" id="pw-new" type="password" autocomplete="new-password" placeholder="Mindst 8 tegn">
+
+      <label class="pw-label" for="pw-confirm">Gentag ny adgangskode</label>
+      <input class="pw-input" id="pw-confirm" type="password" autocomplete="new-password" placeholder="Skriv den samme igen">
+
+      <button class="pw-save" id="pw-save-btn" type="button" onclick="changePassword()">
+        <span id="pw-save-label">Gem ny adgangskode</span>
+        <span class="spinner" id="pw-save-spinner" style="display:none"></span>
+      </button>
+      <div class="pw-msg" id="pw-msg"></div>
     </div>
 
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
@@ -605,6 +645,45 @@
     if (error) {
       document.getElementById('login-error').textContent = 'Forkert email eller adgangskode';
     }
+  }
+
+  // ── Send et login-link (redningsvej hvis man ikke kan sin adgangskode) ──────
+  // Genbruger backend-endpointet /onboarding/nyt-link, som mailer et friskt,
+  // prefetch-sikkert login-link via jeres egen Scaleway-mail. Vi svarer ens uanset
+  // om e-mailen findes (ingen email-enumeration), præcis som onboarding-skærmen.
+  // Linket lander på /onboarding, som sender allerede-aktive firmaer videre til
+  // dashboardet — så brugeren kommer ind uden at kende sin adgangskode.
+  async function sendLoginLink() {
+    const email  = document.getElementById('email').value.trim();
+    const status = document.getElementById('magic-link-status');
+    const btn    = document.getElementById('magic-link-btn');
+
+    status.style.color = 'var(--ink-muted)';
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Skriv din e-mail i feltet ovenfor først.';
+      return;
+    }
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Sender…';
+
+    try {
+      await fetch('/onboarding/nyt-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch (e) {
+      console.warn('Kunne ikke sende login-link:', e);
+    }
+
+    // Samme svar uanset om e-mailen findes (ingen email-enumeration)
+    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt et login-link. Tjek din indbakke (og evt. spam).';
+    btn.disabled = false;
+    btn.textContent = original;
   }
 
 
@@ -926,6 +1005,60 @@ function renderLeads() {
       // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
       btn.disabled = false;
       label.textContent = 'Gem ændringer';
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── Skift adgangskode ──────────────────────────────────────────────────────
+  // Brugeren er allerede logget ind (de står i dashboardet), så vi kan sætte en
+  // ny adgangskode direkte i browseren via Supabase — der skal IKKE backend til.
+  // db.auth.updateUser({ password }) opdaterer den NUVÆRENDE brugers kode.
+  async function changePassword() {
+    const btn     = document.getElementById('pw-save-btn');
+    const label   = document.getElementById('pw-save-label');
+    const spinner = document.getElementById('pw-save-spinner');
+    const msg     = document.getElementById('pw-msg');
+    const newPw   = document.getElementById('pw-new').value;
+    const confirm = document.getElementById('pw-confirm').value;
+
+    msg.textContent = '';
+
+    // Validering — fang fejl her, så vi ikke sender noget ugyldigt afsted
+    if (newPw.length < 8) {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Adgangskoden skal være mindst 8 tegn.';
+      return;
+    }
+    if (newPw !== confirm) {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'De to adgangskoder er ikke ens.';
+      return;
+    }
+
+    // ── Spinner til ──────────────────────────────────────────────
+    btn.disabled = true;
+    label.textContent = 'Gemmer…';
+    spinner.style.display = 'block';
+
+    try {
+      const { error } = await db.auth.updateUser({ password: newPw });
+      if (error) {
+        msg.style.color = 'var(--danger)';
+        msg.textContent = error.message || 'Kunne ikke gemme adgangskoden. Prøv igen.';
+        return;
+      }
+      // Ryd felterne og kvittér
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-confirm').value = '';
+      msg.style.color = 'var(--forest-text)';
+      msg.textContent = '✓ Din adgangskode er gemt. Brug den næste gang du logger ind.';
+    } catch (e) {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Noget gik galt. Prøv igen.';
+    } finally {
+      // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
+      btn.disabled = false;
+      label.textContent = 'Gem ny adgangskode';
       spinner.style.display = 'none';
     }
   }

@@ -202,6 +202,22 @@
       display: block;
     }
 
+    /* Tekstfelt brugt til adgangskode i trin 1 */
+    .onb-input {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 16px;
+      color: var(--text);
+      font-family: 'Source Sans 3', sans-serif;
+      margin-bottom: 16px;
+      transition: border-color .2s;
+    }
+    .onb-input:focus { outline: none; border-color: var(--accent); }
+
     textarea {
       width: 100%;
       background: var(--bg);
@@ -565,7 +581,21 @@
       Vi ringer til dette nummer for at teste viderestillingen i trin 4.
     </p>
 
-    <button class="btn-primary" onclick="validateStep1()">Kom i gang →</button>
+    <label class="field-label" for="onb-pw">Vælg en adgangskode</label>
+    <input id="onb-pw" class="onb-input" type="password" autocomplete="new-password" placeholder="Mindst 8 tegn">
+
+    <label class="field-label" for="onb-pw2">Gentag adgangskode</label>
+    <input id="onb-pw2" class="onb-input" type="password" autocomplete="new-password" placeholder="Skriv den samme igen">
+
+    <p style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:8px">
+      Den bruger du til at logge ind på dit dashboard fremover.
+    </p>
+    <div id="onb-pw-error" style="color:#f87171;font-size:13px;min-height:0;margin-bottom:16px"></div>
+
+    <button class="btn-primary" id="step1-btn" onclick="validateStep1()">
+      <span id="step1-label">Kom i gang →</span>
+      <div class="spinner" id="step1-spinner"></div>
+    </button>
   </div>
 
   <!-- ── TRIN 2: Stemme + besked ───────────────────────────── -->
@@ -791,6 +821,15 @@
       const data  = await res.json();
 
       if (data?.firm) {
+        // Allerede onboardet? Så er /onboarding ikke rette sted. Det sker fx når
+        // en eksisterende bruger klikker et login-link for at komme ind igen —
+        // send dem direkte til dashboardet i stedet for at vise opsætningen forfra.
+        // (Kræver at /api/mig returnerer firm.status; ellers springes dette bare over.)
+        if (data.firm.status === 'active') {
+          window.location.replace('/dashboard');
+          return;
+        }
+
         state.firmId      = data.firm.id;
         state.firmName    = data.firm.name;
         state.phoneNumber = data.firm.phone_number;
@@ -871,25 +910,78 @@
     return `Hej. Du har ringet til ${name}. Jeg kan desværre ikke tage telefonen. Jeg sender dig en SMS, hvor du beskriver din opgave. Jeg vender tilbage så hurtigt som muligt. Tak for din henvendelse.`;
   }
 
-  // ── Validér trin 1 ──────────────────────────────────────────────────────
-  function validateStep1() {
-    const phone = document.getElementById('owner-phone').value.trim();
+  // ── Validér trin 1 (telefon + vælg adgangskode) ─────────────────────────────
+  // Her sættes adgangskoden FØRSTE gang, mens brugeren stadig har en gyldig
+  // session fra login-linket. Det er det, der lukker hullet: uden dette trin får
+  // brugeren aldrig en kode og kan ikke logge ind igen, når sessionen udløber.
+  async function validateStep1() {
+    const phone   = document.getElementById('owner-phone').value.trim();
+    const pw      = document.getElementById('onb-pw').value;
+    const pw2     = document.getElementById('onb-pw2').value;
+    const errEl   = document.getElementById('onb-pw-error');
+    const btn     = document.getElementById('step1-btn');
+    const label   = document.getElementById('step1-label');
+    const spinner = document.getElementById('step1-spinner');
+
+    errEl.textContent = '';
+
+    // 1) Telefon skal være udfyldt
     if (!phone) {
       document.getElementById('owner-phone').style.borderColor = '#f87171';
       document.getElementById('owner-phone').focus();
       return;
     }
+    document.getElementById('owner-phone').style.borderColor = 'var(--border)';
     state.ownerPhone = phone;
 
-    // Gem owner_phone i Supabase hvis vi har en session
-    if (state.firmId) {
-      fetch('/api/firma/opdater-telefon', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-        body:    JSON.stringify({ owner_phone: phone }),
-      }).catch(e => console.warn('Kunne ikke gemme telefon:', e));
+    // 2) Adgangskode: mindst 8 tegn, og de to felter skal være ens
+    if (pw.length < 8) {
+      errEl.textContent = 'Adgangskoden skal være mindst 8 tegn.';
+      document.getElementById('onb-pw').focus();
+      return;
     }
-    goTo(2);
+    if (pw !== pw2) {
+      errEl.textContent = 'De to adgangskoder er ikke ens.';
+      document.getElementById('onb-pw2').focus();
+      return;
+    }
+
+    // ── Spinner til ──────────────────────────────────────────────
+    btn.disabled = true;
+    label.textContent = 'Gemmer...';
+    spinner.style.display = 'block';
+
+    try {
+      // Lokal udvikling uden session: spring server-kaldene over, men lad
+      // flowet køre videre, så UI'et kan testes.
+      if (state.firmId) {
+        // a) Gem ejerens telefonnummer (bruges til verifikation i trin 4)
+        await fetch('/api/firma/opdater-telefon', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+          body:    JSON.stringify({ owner_phone: phone }),
+        });
+
+        // b) SÆT adgangskoden på den indloggede bruger (Supabase, i browseren)
+        const { error } = await db.auth.updateUser({ password: pw });
+        // Hvis koden er den SAMME som før (fx man er gået et trin tilbage og frem
+        // igen), svarer Supabase "skal være anderledes". Den ignorerer vi — koden
+        // er allerede sat, så vi går bare videre. Alle andre fejl stopper os.
+        if (error && !/different|samme|same/i.test(error.message || '')) {
+          errEl.textContent = error.message || 'Kunne ikke gemme adgangskoden. Prøv igen.';
+          return;   // bliv på trin 1 — finally rydder spinneren
+        }
+      }
+      goTo(2);
+    } catch (e) {
+      console.warn('Trin 1 fejlede:', e);
+      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
+    } finally {
+      // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
+      btn.disabled = false;
+      label.textContent = 'Kom i gang →';
+      spinner.style.display = 'none';
+    }
   }
 
   // ── Navigation ───────────────────────────────────────────────────
