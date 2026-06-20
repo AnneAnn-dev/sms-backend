@@ -11,7 +11,9 @@
 // Kræver i miljøet (.env eller export):
 //   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-//   TWILIO_BUNDLE_SID, TWILIO_ADDRESS_SID   ← den GODKENDTE DK-bundle + adresse
+//   TWILIO_ADDRESS_SID   ← godkendt adresse (ADxxxx). DK-MOBIL kræver KUN en adresse.
+//   (valgfrit) TWILIO_BUNDLE_SID  ← bundle er IKKE nødvendig for DK-mobil; Twilio
+//                                   afviser dem. Sættes kun hvis reglerne ændrer sig.
 //   (valgfrit) VOICE_URL, SMS_URL
 // -----------------------------------------------------------------------------
 
@@ -23,8 +25,8 @@ const COUNT       = Number(process.argv[2] || 5);
 const DRY_RUN     = process.env.DRY_RUN === "1";
 const VOICE_URL   = process.env.VOICE_URL || "https://sms-backend-production-5ee1.up.railway.app/opkald";
 const SMS_URL     = process.env.SMS_URL || "";            // sæt kun hvis du har en indgående SMS-handler
-const BUNDLE_SID  = process.env.TWILIO_BUNDLE_SID || undefined;   // BUxxxx
-const ADDRESS_SID = process.env.TWILIO_ADDRESS_SID || undefined;  // ADxxxx
+const BUNDLE_SID  = process.env.TWILIO_BUNDLE_SID || undefined;   // BUxxxx — IKKE nødvendig for DK-mobil
+const ADDRESS_SID = process.env.TWILIO_ADDRESS_SID || undefined;  // ADxxxx — PÅKRÆVET for DK-mobil
 
 for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
   if (!process.env[k]) { console.error(`Mangler ${k} i miljøet.`); process.exit(1); }
@@ -57,9 +59,13 @@ const SYSTEM_NUMBER = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
     return;
   }
 
-  if (!BUNDLE_SID || !ADDRESS_SID) {
-    console.warn("⚠️  TWILIO_BUNDLE_SID / TWILIO_ADDRESS_SID er ikke sat.");
-    console.warn("    DK-numre kræver en godkendt bundle + adresse — købet fejler uden dem.");
+  // DK-mobil kræver en godkendt adresse (men ingen bundle). Uden adresse vil
+  // HVERT køb fejle hos Twilio — så vi stopper her i stedet for at spilde forsøg.
+  if (!ADDRESS_SID) {
+    console.error("⛔ TWILIO_ADDRESS_SID mangler — DK-mobilnumre kræver en godkendt adresse.");
+    console.error("   Opret/find den i Console > Phone Numbers > Regulatory Compliance > Addresses");
+    console.error("   (husk Customer Name, ingen postboks), og læg AD-SID'et i din .env.");
+    process.exit(1);
   }
 
   let bought = 0;
@@ -72,7 +78,7 @@ const SYSTEM_NUMBER = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
         voiceMethod:  "POST",
         ...(SMS_URL     ? { smsUrl: SMS_URL, smsMethod: "POST" } : {}),
         ...(BUNDLE_SID  ? { bundleSid:  BUNDLE_SID }  : {}),
-        ...(ADDRESS_SID ? { addressSid: ADDRESS_SID } : {}),
+        addressSid:   ADDRESS_SID,
         friendlyName: `LommeKontor pool ${cand.phoneNumber}`,
       });
 

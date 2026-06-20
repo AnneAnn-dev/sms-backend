@@ -124,6 +124,37 @@
     .wl-row-del { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--white); color: var(--ink-muted); font-size: 18px; line-height: 1; cursor: pointer; transition: all .2s; }
     .wl-row-del:hover { border-color: #fca5a5; background: var(--danger-light); color: var(--danger-dark); }
 
+    /* Telefonbesked: stemmevalg + tekst */
+    .greeting-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .greeting-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
+    .greeting-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
+
+    .voice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    .voice-option { border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all .2s ease; text-align: center; background: var(--white); }
+    .voice-option:hover { border-color: var(--steel); }
+    .voice-option.selected { border-color: var(--steel); background: var(--steel-light); }
+    .voice-icon { font-size: 26px; margin-bottom: 6px; }
+    .voice-name { font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 2px; }
+    .voice-desc { font-size: 12px; color: var(--ink-muted); }
+
+    .greeting-label { font-size: 13px; font-weight: 700; color: var(--ink-muted); margin-bottom: 8px; display: block; }
+    .greeting-textarea { width: 100%; box-sizing: border-box; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 13px; font-family: inherit; font-size: 15px; color: var(--ink); resize: vertical; min-height: 110px; line-height: 1.6; outline: none; transition: border-color .2s, box-shadow .2s; }
+    .greeting-textarea:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
+    .greeting-count { font-size: 12px; color: var(--ink-muted); text-align: right; margin: 6px 0 14px; }
+
+    .greeting-preview { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 14px; color: var(--ink-muted); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; margin-bottom: 16px; transition: all .2s; }
+    .greeting-preview:hover { border-color: var(--steel); color: var(--steel); }
+
+    /* Gem-knap med spinner */
+    .greeting-save { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
+    .greeting-save:hover { background: var(--steel-hover); }
+    .greeting-save:disabled { opacity: .65; cursor: default; }
+
+    .spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .greeting-saved { font-size: 13px; font-weight: 700; text-align: center; margin-top: 10px; min-height: 18px; }
+
     /* Modal */
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(26,58,92,.45); z-index: 100; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
     .modal-bg.open { display: flex; }
@@ -262,6 +293,38 @@
       <div class="profile-name" id="profile-name">—</div>
       <div class="profile-firm" id="profile-firm">—</div>
       <div class="profile-phone" id="profile-phone">—</div>
+    </div>
+
+    <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
+    <div class="greeting-card">
+      <div class="greeting-title">Din telefonbesked</div>
+      <p class="greeting-help">Det her hører kunden, når du ikke når telefonen. Vælg en stemme og skriv din besked — den bliver læst op automatisk ved opkald.</p>
+
+      <div class="voice-options">
+        <div class="voice-option" id="g-voice-female" onclick="selectGreetingVoice('female')">
+          <div class="voice-icon">👩</div>
+          <div class="voice-name">Kvinde</div>
+          <div class="voice-desc">Naturlig dansk stemme</div>
+        </div>
+        <div class="voice-option" id="g-voice-male" onclick="selectGreetingVoice('male')">
+          <div class="voice-icon">👨</div>
+          <div class="voice-name">Mand</div>
+          <div class="voice-desc">Naturlig dansk stemme</div>
+        </div>
+      </div>
+
+      <label class="greeting-label" for="g-text">Besked</label>
+      <textarea class="greeting-textarea" id="g-text" maxlength="300" oninput="updateGreetingCount()" placeholder="Fx: Hej, du har ringet til Hansens VVS. Jeg kan ikke tage telefonen lige nu — du får straks en SMS med et link, hvor du kan beskrive din opgave."></textarea>
+      <div class="greeting-count"><span id="g-count">0</span> / 300 tegn</div>
+
+      <button class="greeting-preview" id="g-preview-btn" type="button" onclick="previewGreetingVoice()">▶ Afspil stemme</button>
+      <audio id="g-preview-audio" preload="none"></audio>
+
+      <button class="greeting-save" id="g-save-btn" type="button" onclick="saveGreeting()">
+        <span id="g-save-label">Gem ændringer</span>
+        <span class="spinner" id="g-save-spinner" style="display:none"></span>
+      </button>
+      <div class="greeting-saved" id="g-saved"></div>
     </div>
 
     <!-- Hvidliste: numre der ikke skal have opgaveformular -->
@@ -564,7 +627,7 @@
   async function loadData() {
     const { data: firmUser } = await db
     .from("firm_users")
-    .select("firms(id, name, status)")
+    .select("firms(id, name, status, greeting_text, voice_gender)")
     .eq("user_id", (await db.auth.getUser()).data.user.id)
     .single();
 
@@ -583,6 +646,7 @@
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
   const { data: { user } } = await db.auth.getUser();
   populateProfile(user, firm?.name);
+  populateGreeting(firm);
   loadWhitelist();
 
   // Hent leads + deres opkald + billeder i ÉT kald.
@@ -751,6 +815,119 @@ function renderLeads() {
     document.getElementById('profile-name').textContent = email;
     document.getElementById('profile-firm').textContent = firmName || '—';
     document.getElementById('profile-phone').textContent = '';
+  }
+
+  // ── Telefonbesked: stemme + tekst ──────────────────────────────────────────
+  // Den valgte stemme. Bliver sat til firmaets nuværende værdi når siden loader,
+  // og opdateres når man klikker på Kvinde/Mand.
+  let greetingVoice = 'female';
+
+  // Fylder kortet ud med firmaets NUVÆRENDE stemme + besked, så håndværkeren
+  // ser det de allerede har — ikke et tomt felt. Kaldes fra loadData().
+  function populateGreeting(firm) {
+    greetingVoice = firm?.voice_gender || 'female';
+    selectGreetingVoice(greetingVoice);                 // marker den rigtige knap
+    const text = firm?.greeting_text || '';
+    document.getElementById('g-text').value = text;
+    document.getElementById('g-count').textContent = text.length;
+  }
+
+  // Skifter den valgte stemme (flytter den blå ramme) og stopper afspilning,
+  // så man ikke står og hører den forrige stemme.
+  function selectGreetingVoice(gender) {
+    greetingVoice = gender;
+    document.getElementById('g-voice-female').classList.toggle('selected', gender === 'female');
+    document.getElementById('g-voice-male').classList.toggle('selected', gender === 'male');
+
+    const audio = document.getElementById('g-preview-audio');
+    const btn   = document.getElementById('g-preview-btn');
+    if (audio && !audio.paused) { audio.pause(); audio.currentTime = 0; }
+    if (btn) btn.textContent = '▶ Afspil stemme';
+  }
+
+  // Tæller tegn mens man skriver (matcher maxlength="300" i HTML'en).
+  function updateGreetingCount() {
+    const val = document.getElementById('g-text').value;
+    document.getElementById('g-count').textContent = val.length;
+  }
+
+  // Forhåndsvisning: afspiller en fast ElevenLabs-demosætning i den valgte
+  // stemme. BEMÆRK: det er en standardsætning, ikke firmaets egen tekst — den
+  // egne tekst renderes først når man trykker Gem (backend kalder ElevenLabs).
+  const GREETING_SAMPLE_URL = {
+    female: 'https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/female.mp3?v=2',
+    male:   'https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/male.mp3?v=2',
+  };
+
+  function previewGreetingVoice() {
+    const audio = document.getElementById('g-preview-audio');
+    const btn   = document.getElementById('g-preview-btn');
+
+    // Klik igen mens den spiller = stop
+    if (!audio.paused && audio.src) {
+      audio.pause();
+      audio.currentTime = 0;
+      btn.textContent = '▶ Afspil stemme';
+      return;
+    }
+
+    audio.src = GREETING_SAMPLE_URL[greetingVoice] || GREETING_SAMPLE_URL.female;
+    audio.onended = () => { btn.textContent = '▶ Afspil stemme'; };
+    audio.play()
+      .then(() => { btn.textContent = '⏸ Afspiller…'; })
+      .catch(() => { btn.textContent = '▶ Afspil stemme'; });
+  }
+
+  // Gem stemme + besked.
+  // Backend-ruten /api/firma/opdater gemmer felterne OG renderer ny lyd hos
+  // ElevenLabs — det tager et par sekunder. Derfor:
+  //   1) slår vi knappen fra og viser en spinner, så man ikke trykker to gange
+  //   2) viser en kvittering når det er færdigt
+  // Firmaet udledes af login-token'et (authHeader), så vi sender IKKE firm_id.
+  async function saveGreeting() {
+    const btn     = document.getElementById('g-save-btn');
+    const label   = document.getElementById('g-save-label');
+    const spinner = document.getElementById('g-save-spinner');
+    const saved   = document.getElementById('g-saved');
+    const text    = document.getElementById('g-text').value.trim();
+
+    saved.textContent = '';
+
+    if (!text) {
+      saved.style.color = 'var(--danger)';
+      saved.textContent = 'Skriv en besked først.';
+      return;
+    }
+
+    // ── Spinner til ──────────────────────────────────────────────
+    btn.disabled = true;
+    label.textContent = 'Gemmer…';
+    spinner.style.display = 'block';
+
+    try {
+      const res = await fetch('/api/firma/opdater', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify({ voice_gender: greetingVoice, greeting_text: text }),
+      });
+
+      if (!res.ok) {
+        saved.style.color = 'var(--danger)';
+        saved.textContent = 'Kunne ikke gemme. Prøv igen.';
+        return;
+      }
+
+      saved.style.color = 'var(--forest-text)';
+      saved.textContent = '✓ Gemt — den nye besked bruges ved næste opkald.';
+    } catch (e) {
+      saved.style.color = 'var(--danger)';
+      saved.textContent = 'Noget gik galt. Prøv igen.';
+    } finally {
+      // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
+      btn.disabled = false;
+      label.textContent = 'Gem ændringer';
+      spinner.style.display = 'none';
+    }
   }
 
   // ── Hvidliste: numre uden opgaveformular ───────────────────────────────────

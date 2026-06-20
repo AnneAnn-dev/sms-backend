@@ -26,6 +26,8 @@
  *   --number +4538000000   (claim et BESTEMT ledigt puljenummer; ellers første ledige)
  *   --greeting "Egen hilsentekst"
  *   --slug test-vvs
+ *   --dry-run              (vis planen og afslut UDEN at oprette/binde noget)
+ *   --yes                  (spring bekræftelses-prompten over)
  *
  * Påkrævede env vars (i .env):
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -41,6 +43,7 @@
 
 require('dotenv').config();
 
+const readline = require('readline');
 const { createClient } = require('@supabase/supabase-js');
 const { renderGreeting } = require('./tts');
 
@@ -122,6 +125,17 @@ function fail(step, err) {
     '(firma/pulje-claim/bruger) og ryd op før du kører igen.\n'
   );
   process.exit(1);
+}
+
+// Ja/nej-prompt i terminalen. Returnerer true kun ved j/ja/y/yes.
+function confirm(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(/^(j|ja|y|yes)$/i.test(answer.trim()));
+    });
+  });
 }
 
 async function findUserByEmail(supabase, email) {
@@ -210,6 +224,32 @@ async function main() {
   catch (err) { fail('pulje-tjek', err); }
   const lommeNumber = poolPick[CONFIG.COL_POOL_NUMBER];
   console.log(`   ✓ Ledigt: ${lommeNumber}`);
+
+  // ── Plan + bekræftelse (intet er oprettet/bundet endnu) ──────────────────
+  console.log('\n────────────────────────────────────────────────────────');
+  console.log('PLAN — følgende vil blive oprettet:');
+  console.log('────────────────────────────────────────────────────────');
+  console.log(`Firma:        ${name}  (slug: ${slug})`);
+  console.log(`Claimer nr.:  ${lommeNumber}   ← bindes til firmaet`);
+  console.log(`Login-email:  ${email}`);
+  console.log(`Ejer-tlf:     ${phone}`);
+  console.log(`Stemme:       ${voice}`);
+  console.log(`Markér test:  ${CONFIG.MARK_TEST ? 'ja (is_test=true)' : 'nej'}`);
+  console.log('────────────────────────────────────────────────────────');
+
+  if (args['dry-run']) {
+    console.log('\n🔍 Tør kørsel (--dry-run) — INTET oprettet eller bundet. Afslutter.\n');
+    process.exit(0);
+  }
+
+  if (!args.yes) {
+    const ok = await confirm('\nFortsæt og bind nummeret? (j/N) ');
+    if (!ok) {
+      console.log('\n⏹  Afbrudt — intet oprettet eller bundet.\n');
+      process.exit(0);
+    }
+  }
+  console.log('');
 
   // 1. Opret firma (med nummer + verificeret/aktiv slutstand)
   console.log('1) Opretter firma i Supabase …');
