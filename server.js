@@ -114,9 +114,6 @@ app.get("/formular/:token", async (req, res) => {
       <label for="opgave">Beskriv opgaven</label>
       <textarea id="opgave" name="opgave" placeholder="Bruseren drypper og vandhanen i køkkenet løber..." required></textarea>
 
-      <label for="tidspunkt">Hvornår passer det dig?</label>
-      <input id="tidspunkt" name="tidspunkt" type="text" placeholder="Hverdage efter kl. 16, eller weekend">
-
       <label for="billeder">Vedhæft billeder (valgfrit)</label>
       <input id="billeder" name="billeder" type="file" accept="image/*" multiple>
 
@@ -230,7 +227,6 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
       address:      [req.body.vej, req.body.postnr && req.body.by ? req.body.postnr + ' ' + req.body.by : req.body.by].filter(Boolean).join(", "),
       address_mail: req.body.email || null,
       task:         req.body.opgave,
-      desired_time: req.body.tidspunkt,
       is_urgent:    req.body.urgent === "on",
     })
     .select()
