@@ -391,19 +391,28 @@ module.exports = function registerOnboarding(app, supabase) {
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.status(401).json({ error: 'Ugyldig session' });
 
-    const { data: firmUser } = await supabase
+    // Hent ALLE brugerens firma-koblinger — IKKE .single(), for den vælter, hvis
+    // brugeren er koblet til mere end ét firma (sker fx ved gentagne testkørsler
+    // på samme e-mail, eller hvis en rigtig kunde en dag får to firmaer).
+    const { data: links } = await supabase
       .from('firm_users')
       .select('firm_id')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
 
-    if (!firmUser) return res.status(404).json({ error: 'Ingen firma fundet' });
+    if (!links || !links.length) return res.status(404).json({ error: 'Ingen firma fundet' });
 
-    const { data: firm } = await supabase
+    const firmIds = links.map((l) => l.firm_id);
+
+    const { data: firms } = await supabase
       .from('firms')
       .select('id, name, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
-      .eq('id', firmUser.firm_id)
-      .single();
+      .in('id', firmIds);
+
+    // Vælg ét firma robust: foretræk det, der er under onboarding (det brugeren
+    // er i gang med at sætte op); ellers tag det første. Vælter aldrig på flere.
+    const firm = (firms || []).find((f) => f.status === 'onboarding') || (firms || [])[0] || null;
+
+    if (!firm) return res.status(404).json({ error: 'Ingen firma fundet' });
 
     res.json({ firm });
   });
@@ -591,21 +600,7 @@ module.exports = function registerOnboarding(app, supabase) {
     }
 
     try {
-      const result = await sendSms({ to, from: firm.phone_number, body: smsText });
-
-      // Log beskeden, saa haandvaerkeren kan se den igen i dashboardet.
-      // Fejler logningen, fejler vi IKKE hele kaldet — SMS'en er allerede sendt,
-      // og en 500 ville faa haandvaerkeren til at sende igen.
-      const { error: msgErr } = await supabase.from("messages").insert({
-        firm_id,
-        lead_id,
-        to_number:  to,
-        body:       smsText,
-        direction:  "outbound",
-        twilio_sid: result?.sid || null,
-      });
-      if (msgErr) console.error("⚠️  Kunne ikke logge besked:", msgErr.message);
-
+      await sendSms({ to, from: firm.phone_number, body: smsText });
       console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id);
       res.json({ ok: true });
     } catch (err) {
