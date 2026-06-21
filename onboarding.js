@@ -591,7 +591,21 @@ module.exports = function registerOnboarding(app, supabase) {
     }
 
     try {
-      await sendSms({ to, from: firm.phone_number, body: smsText });
+      const result = await sendSms({ to, from: firm.phone_number, body: smsText });
+
+      // Log beskeden, saa haandvaerkeren kan se den igen i dashboardet.
+      // Fejler logningen, fejler vi IKKE hele kaldet — SMS'en er allerede sendt,
+      // og en 500 ville faa haandvaerkeren til at sende igen.
+      const { error: msgErr } = await supabase.from("messages").insert({
+        firm_id,
+        lead_id,
+        to_number:  to,
+        body:       smsText,
+        direction:  "outbound",
+        twilio_sid: result?.sid || null,
+      });
+      if (msgErr) console.error("⚠️  Kunne ikke logge besked:", msgErr.message);
+
       console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id);
       res.json({ ok: true });
     } catch (err) {

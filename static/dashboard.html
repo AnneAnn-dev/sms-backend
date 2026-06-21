@@ -218,12 +218,16 @@
     .mdivider { height: 1px; background: var(--border); }
 
     .sms-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 700; font-family: 'Nunito', sans-serif; }
-    .tpl-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-    .tpl-btn { font-size: 12px; padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: none; color: var(--ink-muted); cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 600; }
-    .tpl-btn:hover { background: var(--smoke); }
-    .tpl-btn.active { background: var(--steel-light); border-color: var(--steel); color: var(--navy); }
     .sms-textarea { width: 100%; padding: 11px 13px; font-size: 13px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; height: 80px; margin-top: 8px; transition: border-color .2s, box-shadow .2s; }
     .sms-textarea:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+
+    /* Sendte beskeder (historik i opgave-modalen) */
+    .msg-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; margin-top: 8px; }
+    .msg-item { background: var(--steel-light); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+    .msg-item.inbound { background: var(--white); }
+    .msg-body { font-size: 13px; color: var(--ink); line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+    .msg-meta { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
+    .msg-empty { font-size: 13px; color: var(--ink-muted); padding: 2px 0; }
     .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
 
     .mfoot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
@@ -503,13 +507,15 @@
 
       <div>
         <div class="sms-label">Send SMS</div>
-        <div class="tpl-row">
-          <button class="tpl-btn" onclick="setTpl(this,0)">Bekræft tidspunkt</button>
-          <button class="tpl-btn" onclick="setTpl(this,1)">Tilbud på vej</button>
-          <button class="tpl-btn" onclick="setTpl(this,2)">Skriv selv</button>
-        </div>
-        <textarea class="sms-textarea" id="modal-sms" oninput="updateSmsCount()" placeholder="Vælg en skabelon eller skriv din egen besked..."></textarea>
+        <textarea class="sms-textarea" id="modal-sms" oninput="updateSmsCount()" placeholder="Skriv din besked her"></textarea>
         <div class="char-count"><span id="modal-sms-count">0</span> tegn</div>
+      </div>
+
+      <div>
+        <div class="sms-label">Sendte beskeder</div>
+        <div class="msg-list" id="modal-msg-list">
+          <div class="msg-empty">Indlæser…</div>
+        </div>
       </div>
 
       <div class="afslut-panel" id="afslut-panel">
@@ -1141,12 +1147,6 @@ function renderLeads() {
   let currentLead = null;
   let afslutOpen = false;
 
-  const smsTpls = [
-    'Hej, tak for din henvendelse. Hvornår passer det dig at vi kommer forbi? Vi har ledig tid mandag eller tirsdag.',
-    'Hej, tak for din besked. Vi arbejder på et tilbud til dig og vender tilbage inden for 24 timer.',
-    'Hej, tak for din besked. '
-  ];
-
   async function openModal(lead) {
     currentLead = lead;
     afslutOpen = false;
@@ -1156,8 +1156,8 @@ function renderLeads() {
     document.getElementById('afslut-sms-wrap').style.display = 'none';
     document.getElementById('modal-sms').value = '';
     document.getElementById('modal-sms-count').textContent = '0';
-    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('modal-previews').innerHTML = '';
+    loadMessages(lead.id);
 
     if (!lead.seen_at) {
       const now = new Date().toISOString();
@@ -1263,15 +1263,6 @@ function renderLeads() {
     });
   }
 
-  function setTpl(btn, idx) {
-    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const ta = document.getElementById('modal-sms');
-    ta.value = smsTpls[idx];
-    updateSmsCount();
-    ta.focus();
-  }
-
   function updateSmsCount() {
     document.getElementById('modal-sms-count').textContent = document.getElementById('modal-sms').value.length;
   }
@@ -1295,7 +1286,7 @@ function renderLeads() {
       if (r.ok) {
         document.getElementById('modal-sms').value = '';
         updateSmsCount();
-        document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+        if (currentLead) loadMessages(currentLead.id);
         alert('SMS sendt');
       } else {
         alert('Fejl ved afsendelse af SMS');
@@ -1347,6 +1338,45 @@ function renderLeads() {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  async function loadMessages(leadId) {
+    const wrap = document.getElementById('modal-msg-list');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="msg-empty">Indlæser…</div>';
+    try {
+      const { data, error } = await db
+        .from('messages')
+        .select('body, created_at, direction')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      renderMessages(data || []);
+    } catch (e) {
+      console.warn('Kunne ikke hente beskeder:', e.message || e);
+      wrap.innerHTML = '<div class="msg-empty">Ingen sendte beskeder endnu.</div>';
+    }
+  }
+
+  function renderMessages(msgs) {
+    const wrap = document.getElementById('modal-msg-list');
+    if (!wrap) return;
+    if (!msgs.length) {
+      wrap.innerHTML = '<div class="msg-empty">Ingen sendte beskeder endnu.</div>';
+      return;
+    }
+    wrap.innerHTML = msgs.map(m => `
+      <div class="msg-item ${m.direction === 'inbound' ? 'inbound' : ''}">
+        <div class="msg-body">${escapeHtml(m.body)}</div>
+        <div class="msg-meta">${m.direction === 'inbound' ? 'Kunde' : 'Du'} · ${formatDateTime(m.created_at)}</div>
+      </div>
+    `).join('');
+  }
+
   function formatDate(iso) {
     const d = new Date(iso);
     return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
