@@ -10,6 +10,9 @@
 // Provisioneringen spejler 1:1 din Shopify-flow i onboarding.js (samme kolonner,
 // samme status-felter, samme mail). Eneste forskel er triggeren + idempotens-noeglen.
 // Kraever Node 18+ (global fetch).
+//
+// FORUDSAETNING: koer frisbii-webhook-migration.sql i Supabase foerst (tilfoejer
+// tabellen frisbii_webhook_events + kolonnen firms.billing_status_updated_at).
 // -----------------------------------------------------------------------------
 
 const crypto = require("crypto");
@@ -24,8 +27,12 @@ module.exports = (app, supabase) => {
 
   // ─── Signatur: HMAC-SHA256(secret, timestamp + id), hex ─────────────────────
   // Daekker KUN timestamp+id -> ingen raa body noedvendig (modsat Shopify).
+  // NB: signaturen beviser AT webhooket stammer fra Frisbii og at id/timestamp
+  // ikke er aendret. Den beviser IKKE at webhooket ikke er en gentagelse/replay
+  // af et tidligere, helt legitimt webhook — det haandteres separat nedenfor.
   function verifySignature(body) {
     if (!body || !body.timestamp || !body.id || !body.signature) return false;
+    if (typeof body.signature !== "string") return false;
     const expected = crypto
       .createHmac("sha256", WEBHOOK_SECRET)
       .update(body.timestamp + body.id)
@@ -33,6 +40,34 @@ module.exports = (app, supabase) => {
     const a = Buffer.from(expected, "utf8");
     const b = Buffer.from(body.signature, "utf8");
     return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
+  // ─── Replay-beskyttelse: har vi set dette webhook-id foer? ──────────────────
+  // Frisbii dokumenterer selv at id+timestamp er det eneste signaturen daekker,
+  // og anbefaler at modtageren gemmer id og ignorerer gensete id'er. Det er
+  // OGSAA den officielle vej til idempotens ved netvaerksfejl/dobbelt-levering.
+  // Returnerer true hvis webhooket er NYT (skal behandles), false hvis det er
+  // set foer (skal ignoreres).
+  async function claimWebhookEvent(body) {
+    const { error } = await supabase
+      .from("frisbii_webhook_events")
+      .insert({ id: body.id, event_id: body.event_id, event_type: body.event_type });
+
+    if (!error) return true; // nyt id, frit foer
+
+    // Unique violation (Postgres-kode 23505) = vi har allerede set dette id.
+    if (error.code === "23505") {
+      console.log("ℹ️  Frisbii webhook allerede behandlet, ignorerer:", body.id);
+      return false;
+    }
+
+    // Anden DB-fejl (forbindelse osv.) — vi kan ikke garantere idempotens lige
+    // nu. Vi vælger at behandle webhooket alligevel (frem for at tabe det),
+    // fordi provisionFirm() i sig selv er idempotent på frisbii_subscription.
+    // Billing-status-opdateringerne er rene upserts, så en dobbelt-koersel
+    // her er ufarlig, kun overfloedig.
+    console.error("⚠️  Kunne ikke registrere webhook-id (fortsætter alligevel):", error);
+    return true;
   }
 
   // ─── Frisbii API (Basic auth: noegle som brugernavn, tom adgangskode) ───────
@@ -43,6 +78,49 @@ module.exports = (app, supabase) => {
     });
     if (!r.ok) throw new Error(`Frisbii GET ${path} -> ${r.status}: ${await r.text()}`);
     return r.json();
+  }
+
+  // ─── Saet billing_status, men kun hvis dette webhook er NYERE end det ───────
+  // sidste der opdaterede statussen. Frisbii garanterer FIFO-levering KUN hvis
+  // intet fejler; en retry kan derfor ankomme efter en nyere webhook (fx en
+  // forsinket "invoice_failed"-retry der dukker op efter en "invoice_settled"
+  // der allerede har gjort kunden active igen). Uden dette tjek kan en gammel
+  // retry skubbe en ellers sund kunde tilbage i past_due/cancelled.
+  async function setBillingStatus(subscriptionHandle, status, webhookTimestamp) {
+    const { data: firm, error: findErr } = await supabase
+      .from("firms")
+      .select("id, billing_status, billing_status_updated_at")
+      .eq("frisbii_subscription", subscriptionHandle)
+      .maybeSingle();
+
+    if (findErr) {
+      console.error("❌ Kunne ikke slå firma op for billing-opdatering:", findErr);
+      return;
+    }
+    if (!firm) {
+      // Sker for et abonnement der endnu ikke er provisioneret (race med
+      // invoice_settled), eller for testdata uden tilhørende firma.
+      console.warn("⚠️  Intet firma for frisbii_subscription:", subscriptionHandle, "— ignorerer", status);
+      return;
+    }
+
+    if (firm.billing_status_updated_at && webhookTimestamp <= firm.billing_status_updated_at) {
+      console.log(
+        `ℹ️  Ignorerer aeldre/lige-gammel billing-webhook for firma ${firm.id} ` +
+        `(${status} @ ${webhookTimestamp} <= sidst anvendt ${firm.billing_status_updated_at})`
+      );
+      return;
+    }
+
+    const { error: updateErr } = await supabase
+      .from("firms")
+      .update({ billing_status: status, billing_status_updated_at: webhookTimestamp })
+      .eq("id", firm.id);
+    if (updateErr) {
+      console.error("❌ billing_status-opdatering fejlede:", updateErr);
+      return;
+    }
+    console.log(`✅ billing_status -> ${status} for firma ${firm.id} (${subscriptionHandle})`);
   }
 
   // ─── Provisionering (spejler Shopify-flowet i onboarding.js) ────────────────
@@ -99,17 +177,18 @@ module.exports = (app, supabase) => {
     const { data: firm, error: firmErr } = await supabase
       .from("firms")
       .insert({
-        name:                 company,
+        name:                       company,
         slug,
         email,
-        phone_number:         phoneRow.number,
-        frisbii_subscription: subHandle,
-        frisbii_customer:     customer.handle,
-        status:               "onboarding", // onboarding-tilstand: → "active" efter verifikation
-        billing_status:       "active",     // abonnementstilstand (adskilt fra onboarding)
-        voice_gender:         "female",
-        greeting_text:        `Hej, du har ringet til ${company}. Jeg har ikke mulighed for at tage telefonen lige nu, men jeg sender dig en SMS, så du kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`,
-        verification_status:  "pending",
+        phone_number:               phoneRow.number,
+        frisbii_subscription:       subHandle,
+        frisbii_customer:           customer.handle,
+        status:                     "onboarding", // onboarding-tilstand: → "active" efter verifikation
+        billing_status:             "active",     // abonnementstilstand (adskilt fra onboarding)
+        billing_status_updated_at:  new Date().toISOString(),
+        voice_gender:               "female",
+        greeting_text:              `Hej, du har ringet til ${company}. Jeg har ikke mulighed for at tage telefonen lige nu, men jeg sender dig en SMS, så du kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`,
+        verification_status:        "pending",
       })
       .select()
       .single();
@@ -199,10 +278,19 @@ module.exports = (app, supabase) => {
       return res.status(401).send("invalid signature");
     }
 
+    // Replay/dublet-tjek FOER vi svarer. Dette er stadig hurtigt (ét insert),
+    // og er den officielt anbefalede idempotens-mekanisme — se kommentar ved
+    // claimWebhookEvent(). Et duplikeret webhook faar stadig 200 (Frisbii skal
+    // ikke se det som en fejl og begynde at retry'e), men udløser ingen
+    // sideeffekter anden gang.
+    const isNew = await claimWebhookEvent(body);
+
     // Kvittér STRAKS med 200, FØR vi provisionerer. Saa kan en fejl i oprettelsen
     // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
     // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot.
     res.status(200).send("ok");
+
+    if (!isNew) return; // allerede behandlet — intet mere at gøre
 
     try {
       switch (body.event_type) {
@@ -213,20 +301,42 @@ module.exports = (app, supabase) => {
             frisbiiGet(`/subscription/${body.subscription}`),
           ]);
           await provisionFirm({ customer, subscription });
+          // En settled invoice betyder ogsaa at abonnementet er (tilbage i)
+          // god stand — vigtigt efter en tidligere invoice_failed/dunning.
+          await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
         }
 
         case "invoice_failed":
-          await supabase.from("firms")
-            .update({ billing_status: "past_due" })
-            .eq("frisbii_subscription", body.subscription);
+          await setBillingStatus(body.subscription, "past_due", body.timestamp);
+          break;
+
+        case "invoice_reactivate":
+          // En tidligere failed/cancelled faktura er sat tilbage til pending.
+          // Ikke noedvendigvis betalt endnu, men ikke laengere i en fejltilstand.
+          await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
 
         case "subscription_cancelled":
         case "subscription_expired":
-          await supabase.from("firms")
-            .update({ billing_status: "cancelled" })
-            .eq("frisbii_subscription", body.subscription);
+          await setBillingStatus(body.subscription, "cancelled", body.timestamp);
+          break;
+
+        case "subscription_on_hold_dunning":
+        case "subscription_expired_dunning":
+          // Adskilt fra invoice_failed: her er hele ABONNEMENTET sat paa hold
+          // / udloebet pga. mislykket dunning-proces, ikke kun en enkelt faktura.
+          await setBillingStatus(
+            body.subscription,
+            body.event_type === "subscription_expired_dunning" ? "cancelled" : "past_due",
+            body.timestamp
+          );
+          break;
+
+        case "subscription_reactivated":
+          // Et tidligere "on hold"-abonnement er saet aktivt igen (admin eller
+          // kunden har rettet betalingsmetoden).
+          await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
 
         default:

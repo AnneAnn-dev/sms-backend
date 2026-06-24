@@ -526,6 +526,103 @@
     h1, h2, h3 { font-family: 'Nunito', sans-serif; font-weight: 800; }
     .btn-primary { font-family: 'Nunito', sans-serif; font-weight: 700; }
     .step-label { font-weight: 700; }
+
+    /* ── Hvidliste (trin 5) ─────────────────────────────────── */
+    .wl-add-btn {
+      width: 100%;
+      background: transparent;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Nunito', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all .2s;
+    }
+    .wl-add-btn:hover { background: rgba(44,107,158,.06); }
+    .wl-add-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .wl-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 8px; }
+    .wl-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .wl-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .wl-item-number {
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 14px;
+      color: var(--accent);
+    }
+    .wl-item-label {
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wl-remove {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .wl-remove:hover { border-color: #f87171; color: #f87171; }
+    .wl-empty {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      padding: 18px;
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      margin: 12px 0 8px;
+    }
+    .wl-count-row { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 0; }
+
+    /* ── Gem som app (PWA) på success-skærmen ───────────────── */
+    .pwa-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin: 8px 0 24px;
+      background: var(--surface);
+      text-align: left;
+    }
+    .pwa-heading {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+    .pwa-block .guide-steps { margin-bottom: 0; }
+    .pwa-installed {
+      background: rgba(46,125,82,.08);
+      color: var(--success);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin: 8px 0 24px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -540,6 +637,8 @@
       <div class="step-dot" id="dot-3"><span>3</span></div>
       <div class="step-line" id="line-3"></div>
       <div class="step-dot" id="dot-4"><span>4</span></div>
+      <div class="step-line" id="line-4"></div>
+      <div class="step-dot" id="dot-5"><span>5</span></div>
     </div>
   </div>
 
@@ -570,7 +669,7 @@
 
   <!-- ── TRIN 1: Velkommen ─────────────────────────────────── -->
   <div class="card active" id="step-1">
-    <div class="step-label">Trin 1 af 4</div>
+    <div class="step-label">Trin 1 af 5</div>
     <h1>Velkommen!</h1>
     <p class="subtitle">Din konto er klar. Dit dedikerede nummer er reserveret til dig — kunder der ringer her, ender hos dig.</p>
 
@@ -619,7 +718,7 @@
 
   <!-- ── TRIN 2: Stemme + besked ───────────────────────────── -->
   <div class="card" id="step-2">
-    <div class="step-label">Trin 2 af 4</div>
+    <div class="step-label">Trin 2 af 5</div>
     <h1>Din telefonsvarer</h1>
     <p class="subtitle">Vælg en stemme og tilpas beskeden — den læses op når en kunde ringer.</p>
 
@@ -654,7 +753,7 @@
 
   <!-- ── TRIN 3: Viderestilling ────────────────────────────── -->
   <div class="card" id="step-3">
-    <div class="step-label">Trin 3 af 4</div>
+    <div class="step-label">Trin 3 af 5</div>
     <h1>Sæt viderestilling op</h1>
     <p class="subtitle">Når en kunde ringer til dit nuværende nummer og du ikke svarer, skal opkaldet viderestilles til dit nye nummer.</p>
 
@@ -710,7 +809,7 @@
 
   <!-- ── TRIN 4: Verifikation ──────────────────────────────── -->
   <div class="card" id="step-4">
-    <div class="step-label">Trin 4 af 4</div>
+    <div class="step-label">Trin 4 af 5</div>
     <h1>Test viderestillingen</h1>
     <p class="subtitle">Vi ringer til dit eget nummer fra <strong>+45 52 51 60 63</strong>. Svarer du ikke, bliver opkaldet viderestillet til os — og det bekræfter at viderestillingen virker.</p>
 
@@ -730,6 +829,58 @@
     <button class="btn-secondary" onclick="goTo(3)">← Tilbage</button>
   </div>
 
+  <!-- ── TRIN 5: Hvidliste (valgfrit) ──────────────────────── -->
+  <div class="card" id="step-5">
+    <div class="step-label">Trin 5 af 5</div>
+    <h1>Hvem skal ikke have en opgave-SMS?</h1>
+    <p class="subtitle">
+      Når nogen ringer forgæves, sender LommeKontor dem normalt en SMS med din opgaveformular. Men nogle skal ikke have den — fx dit eget andet nummer, kolleger, faste leverandører eller sælgere. Numre på listen her hører i stedet en kort besked og bliver lagt på, uden at ende som en opgave. Helt valgfrit, og du kan altid redigere listen senere under Indstillinger.
+    </p>
+
+    <label class="field-label" for="wl-number">Mobilnummer</label>
+    <div class="phone-field" id="wl-number-field">
+      <span class="phone-prefix">+45</span>
+      <input
+        id="wl-number"
+        class="phone-input"
+        type="tel"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="12 34 56 78"
+        onfocus="document.getElementById('wl-number-field').classList.add('focus')"
+        onblur="document.getElementById('wl-number-field').classList.remove('focus')"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addWhitelist();}"
+      >
+    </div>
+
+    <label class="field-label" for="wl-label">Navn (valgfrit)</label>
+    <input
+      id="wl-label"
+      class="onb-input"
+      type="text"
+      maxlength="60"
+      placeholder="fx Kollega Jens eller Stærk VVS"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addWhitelist();}"
+    >
+
+    <div id="wl-error" style="color:#f87171;font-size:13px;margin:-8px 0 12px;min-height:0"></div>
+
+    <button class="wl-add-btn" id="wl-add-btn" onclick="addWhitelist()">
+      <span id="wl-add-label">+ Tilføj til listen</span>
+      <div class="spinner" id="wl-add-spinner" style="border-color:rgba(44,107,158,.25);border-top-color:transparent"></div>
+    </button>
+    <p id="wl-max-note" style="display:none;font-size:12px;color:#f87171;margin:8px 0 0">Du har nået grænsen på 20 numre.</p>
+
+    <div class="wl-count-row">
+      <span class="field-label" style="margin:0">På listen (<span id="wl-count">0</span>/20)</span>
+    </div>
+    <div class="wl-list" id="wl-list"></div>
+    <div class="wl-empty" id="wl-empty">Ingen numre endnu. Du kan springe det over og tilføje dem senere.</div>
+
+    <button class="btn-primary" onclick="goTo('success')" style="margin-top:20px">Fortsæt →</button>
+    <button class="btn-secondary" onclick="goTo('success')">Spring over</button>
+  </div>
+
   <!-- ── SUCCESS ────────────────────────────────────────────── -->
   <div class="card" id="step-success">
     <div class="success-screen">
@@ -742,11 +893,71 @@
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px;font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.08em">Dit nummer</div>
         <div style="font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:18px;color:var(--accent)" id="success-number">+45 31 23 45 67</div>
       </div>
+      <!-- ── Gem LommeKontor som en app (PWA) ── det allersidste skridt ── -->
+      <div class="pwa-block" id="pwa-block">
+        <div class="pwa-heading">📱 Sidste skridt: gem LommeKontor som en app</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">
+          Læg LommeKontor på din hjemmeskærm, så du åbner dine opgaver med ét tryk — ligesom en rigtig app, uden at skulle finde browseren frem hver gang.
+        </p>
+
+        <div class="os-tabs" id="pwa-tabs">
+          <button class="os-tab" type="button" id="pwa-tab-ios" onclick="selectPwaOS('ios')">iPhone</button>
+          <button class="os-tab" type="button" id="pwa-tab-android" onclick="selectPwaOS('android')">Android</button>
+        </div>
+
+        <div class="os-guide" id="pwa-guide-ios">
+          <div class="guide-steps">
+            <div class="guide-step">
+              <div class="guide-num">1</div>
+              <div class="guide-text">Tryk på <strong>Åbn mit dashboard</strong> nedenfor — og bliv i <strong>Safari</strong>.</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">2</div>
+              <div class="guide-text">Tryk på <strong>Del</strong>-ikonet (firkanten med pilen op) nederst på skærmen.</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">3</div>
+              <div class="guide-text">Rul ned og vælg <strong>Føj til hjemmeskærm</strong>.</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">4</div>
+              <div class="guide-text">Tryk <strong>Tilføj</strong> — nu ligger LommeKontor som et ikon på din telefon.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="os-guide" id="pwa-guide-android">
+          <div class="guide-steps">
+            <div class="guide-step">
+              <div class="guide-num">1</div>
+              <div class="guide-text">Tryk på <strong>Åbn mit dashboard</strong> nedenfor — og bliv i <strong>Chrome</strong>.</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">2</div>
+              <div class="guide-text">Tryk på menuen <strong>⋮</strong> øverst til højre.</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">3</div>
+              <div class="guide-text">Vælg <strong>Føj til startskærm</strong> (eller <strong>Installér app</strong>).</div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">4</div>
+              <div class="guide-text">Bekræft — nu ligger LommeKontor som et ikon på din telefon.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vises kun hvis siden allerede kører som installeret app -->
+      <div class="pwa-installed" id="pwa-installed" style="display:none">
+        ✓ Du kører allerede LommeKontor som app — perfekt.
+      </div>
+
       <a href="/dashboard">
-        <button class="btn-primary" style="text-decoration:none">Gå til dit dashboard →</button>
+        <button class="btn-primary" style="text-decoration:none">Åbn mit dashboard →</button>
       </a>
       <p style="margin-top:16px;font-size:13px;color:var(--muted)">
-        Du kan altid ændre din besked og stemme under Indstillinger.
+        Du kan altid ændre din besked, stemme og dine numre under Indstillinger.
       </p>
     </div>
   </div>
@@ -991,19 +1202,24 @@
     const target = n === 'success' ? 'step-success' : `step-${n}`;
     document.getElementById(target).classList.add('active');
     updateProgress(n);
+    if (n === 5)          loadWhitelist();    // hent firmaets hvidliste når trinnet vises
+    if (n === 'success')  setupPwaInstall();  // vælg rigtig app-vejledning til enheden
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function updateProgress(current) {
-    for (let i = 1; i <= 4; i++) {
+    const total = 5;
+    // 'success' = alt er færdigt → marker alle prikker som done
+    const cur = current === 'success' ? total + 1 : current;
+    for (let i = 1; i <= total; i++) {
       const dot  = document.getElementById(`dot-${i}`);
       const line = document.getElementById(`line-${i}`);
 
       dot.classList.remove('active', 'done');
       if (line) line.classList.remove('done');
 
-      if (i < current)       { dot.classList.add('done'); if (line) line.classList.add('done'); }
-      else if (i === current)  dot.classList.add('active');
+      if (i < cur)       { dot.classList.add('done'); if (line) line.classList.add('done'); }
+      else if (i === cur)  dot.classList.add('active');
     }
   }
 
@@ -1180,12 +1396,183 @@
         document.getElementById('verify-status').className      = 'verify-status success';
         document.getElementById('verify-status').textContent    = 'Viderestillingen virker — du er klar!';
         document.getElementById('verify-spinner').style.display = 'none';
-        setTimeout(() => goTo('success'), 1800);
+        setTimeout(() => goTo(5), 1800);
         return;
       }
     } catch (e) { /* fortsæt polling */ }
 
     await pollVerification(attempts + 1);
+  }
+
+  // ── Hjælpere ─────────────────────────────────────────────────────
+  function formatPhone(e164) {
+    return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+  }
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  // ── Hvidliste (trin 5) ───────────────────────────────────────────
+  // Numre der IKKE skal have opgave-SMS (eget andet nummer, kolleger,
+  // leverandører …). Backend: GET/POST/DELETE /api/firma/hvidliste (max 20).
+  const WL_MAX = 20;
+  let wlNumbers = [];   // [{ id, number, label }]
+
+  async function loadWhitelist() {
+    if (!state.firmId) { renderWhitelist(); return; }   // lokal udvikling: tom liste
+    try {
+      const res  = await fetch('/api/firma/hvidliste', {
+        headers: { Authorization: `Bearer ${state.token}` }
+      });
+      const data = await res.json();
+      wlNumbers  = data.numbers || [];
+    } catch (e) {
+      console.warn('Kunne ikke hente hvidliste:', e);
+    }
+    renderWhitelist();
+  }
+
+  function renderWhitelist() {
+    const list   = document.getElementById('wl-list');
+    const empty  = document.getElementById('wl-empty');
+    document.getElementById('wl-count').textContent = wlNumbers.length;
+
+    if (!wlNumbers.length) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      list.innerHTML = wlNumbers.map(n => `
+        <div class="wl-item">
+          <div class="wl-item-main">
+            <span class="wl-item-number">${formatPhone(n.number)}</span>
+            ${n.label ? `<span class="wl-item-label">${escapeHtml(n.label)}</span>` : ''}
+          </div>
+          <button class="wl-remove" type="button" aria-label="Fjern nummer"
+                  onclick="removeWhitelist('${n.id}')">×</button>
+        </div>
+      `).join('');
+    }
+
+    const atMax = wlNumbers.length >= WL_MAX;
+    document.getElementById('wl-add-btn').disabled  = atMax;
+    document.getElementById('wl-max-note').style.display = atMax ? 'block' : 'none';
+  }
+
+  async function addWhitelist() {
+    const rawNum   = document.getElementById('wl-number').value;
+    const label    = document.getElementById('wl-label').value.trim();
+    const errEl    = document.getElementById('wl-error');
+    const numField = document.getElementById('wl-number-field');
+    const btn      = document.getElementById('wl-add-btn');
+    const lbl      = document.getElementById('wl-add-label');
+    const spin     = document.getElementById('wl-add-spinner');
+    errEl.textContent = '';
+
+    // Brugeren taster kun de 8 cifre — vi sætter +45 på (skrev de selv +45/45, fjernes det)
+    let digits = (rawNum || '').replace(/\D/g, '');
+    if (digits.length > 8 && digits.startsWith('45')) digits = digits.slice(2);
+    if (digits.length !== 8) {
+      numField.style.borderColor = '#f87171';
+      errEl.textContent = 'Indtast et 8-cifret mobilnummer.';
+      document.getElementById('wl-number').focus();
+      return;
+    }
+    numField.style.borderColor = 'var(--border)';
+    const number = '+45' + digits;
+
+    if (wlNumbers.length >= WL_MAX) {
+      errEl.textContent = `Du kan højst tilføje ${WL_MAX} numre.`;
+      return;
+    }
+    if (wlNumbers.some(n => n.number === number)) {
+      errEl.textContent = 'Nummeret er allerede på listen.';
+      return;
+    }
+
+    btn.disabled = true;
+    lbl.textContent = 'Tilføjer...';
+    spin.style.display = 'block';
+
+    try {
+      if (state.firmId) {
+        const res  = await fetch('/api/firma/hvidliste', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+          body:    JSON.stringify({ number, label }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Kunne ikke tilføje nummeret. Prøv igen.';
+          return;
+        }
+        wlNumbers.push(data.number);
+      } else {
+        // Lokal udvikling uden session: vis bare i UI'et
+        wlNumbers.push({ id: 'local-' + Date.now(), number, label: label || null });
+      }
+      document.getElementById('wl-number').value = '';
+      document.getElementById('wl-label').value  = '';
+      renderWhitelist();
+      document.getElementById('wl-number').focus();
+    } catch (e) {
+      console.warn('Hvidliste-tilføjelse fejlede:', e);
+      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
+    } finally {
+      lbl.textContent = '+ Tilføj til listen';
+      spin.style.display = 'none';
+      btn.disabled = wlNumbers.length >= WL_MAX;
+    }
+  }
+
+  async function removeWhitelist(id) {
+    const prev = wlNumbers;
+    // Optimistisk: fjern straks i UI'et, rul tilbage hvis serveren fejler
+    wlNumbers = wlNumbers.filter(n => String(n.id) !== String(id));
+    renderWhitelist();
+    if (!state.firmId) return;
+    try {
+      const res = await fetch('/api/firma/hvidliste/' + encodeURIComponent(id), {
+        method:  'DELETE',
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      if (!res.ok) throw new Error('delete failed');
+    } catch (e) {
+      console.warn('Kunne ikke slette nummer:', e);
+      wlNumbers = prev;
+      renderWhitelist();
+    }
+  }
+
+  // ── Gem som app (PWA) — vises på success-skærmen ─────────────────
+  function selectPwaOS(os) {
+    document.getElementById('pwa-tab-ios').classList.toggle('active', os === 'ios');
+    document.getElementById('pwa-tab-android').classList.toggle('active', os === 'android');
+    document.getElementById('pwa-guide-ios').classList.toggle('active', os === 'ios');
+    document.getElementById('pwa-guide-android').classList.toggle('active', os === 'android');
+  }
+
+  function setupPwaInstall() {
+    // Kører siden allerede som installeret app? Så er vejledningen unødig.
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    if (standalone) {
+      const block = document.getElementById('pwa-block');
+      const done  = document.getElementById('pwa-installed');
+      if (block) block.style.display = 'none';
+      if (done)  done.style.display  = 'block';
+      return;
+    }
+
+    // Vælg den rigtige vejledning ud fra enheden (kan altid skiftes manuelt).
+    const ua    = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+                  (/Macintosh/.test(ua) && 'ontouchend' in document); // iPad på iPadOS
+    selectPwaOS(isIOS ? 'ios' : 'android');
   }
 
   // ── Start ────────────────────────────────────────────────────────
