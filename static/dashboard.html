@@ -200,12 +200,6 @@
     .urgent-row.checked { border-color: #fca5a5; background: #fef2f2; }
     .urgent-row.checked label { color: var(--danger-dark); }
 
-    /* Haster-felt i opgave-modalen — ligner de øvrige felter, kryds + farveskift */
-    .urgent-box { display: flex; align-items: center; justify-content: center; height: 42px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: transparent; cursor: pointer; transition: border-color .2s, background .2s, color .2s; }
-    .urgent-box .ti { width: 22px; height: 22px; stroke-width: 2.5; }
-    .urgent-box:hover { border-color: var(--steel); }
-    .urgent-box.checked { border-color: #fca5a5; background: #fef2f2; color: var(--danger); }
-
     .upload-area { border: 2px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; background: var(--smoke); }
     .upload-area:hover { border-color: var(--steel); }
     .upload-area p { font-size: 13px; color: var(--ink-muted); margin-top: 4px; }
@@ -218,16 +212,12 @@
     .mdivider { height: 1px; background: var(--border); }
 
     .sms-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 700; font-family: 'Nunito', sans-serif; }
+    .tpl-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .tpl-btn { font-size: 12px; padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: none; color: var(--ink-muted); cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 600; }
+    .tpl-btn:hover { background: var(--smoke); }
+    .tpl-btn.active { background: var(--steel-light); border-color: var(--steel); color: var(--navy); }
     .sms-textarea { width: 100%; padding: 11px 13px; font-size: 13px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; height: 80px; margin-top: 8px; transition: border-color .2s, box-shadow .2s; }
     .sms-textarea:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
-
-    /* Sendte beskeder (historik i opgave-modalen) */
-    .msg-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; margin-top: 8px; }
-    .msg-item { background: var(--steel-light); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
-    .msg-item.inbound { background: var(--white); }
-    .msg-body { font-size: 13px; color: var(--ink); line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
-    .msg-meta { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
-    .msg-empty { font-size: 13px; color: var(--ink-muted); padding: 2px 0; }
     .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
 
     .mfoot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
@@ -264,14 +254,14 @@
   </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5l9 -9"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></symbol><symbol id="i-photo-plus" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"/></symbol><symbol id="i-user-circle" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M10 14l11 -11"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2"/></symbol><symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"/><path d="M9 12l.01 0"/><path d="M13 12l2 0"/><path d="M9 16l.01 0"/><path d="M13 16l2 0"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></symbol><symbol id="i-photo-plus" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"/></symbol><symbol id="i-user-circle" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M10 14l11 -11"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2"/></symbol><symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"/><path d="M9 12l.01 0"/><path d="M13 12l2 0"/><path d="M9 16l.01 0"/><path d="M13 16l2 0"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/></symbol></svg>
 
 
 <!-- Login -->
 <div id="login-screen">
   <div class="login-card">
     <h1>Log ind</h1>
-    <p>Mogens Maler — leadoversigt</p>
+    <p>Din opgaveoversigt</p>
     <label>Email</label>
     <input type="email" id="email" placeholder="jens@vvs.dk">
     <label>Adgangskode</label>
@@ -479,12 +469,25 @@
         <textarea id="modal-task"></textarea>
       </div>
 
-      <div class="mfield">
-        <label>Haster</label>
-        <div class="urgent-box" id="modal-urgent-row" onclick="toggleUrgent()" role="checkbox" tabindex="0" aria-label="Haster">
-          <input type="checkbox" id="modal-urgent-cb" hidden>
-          <svg class="ti" aria-hidden="true"><use href="#i-check"/></svg>
+      <div class="row2">
+        <div class="mfield">
+          <label>Deadline</label>
+          <div class="date-wrap">
+            <input type="date" id="modal-deadline">
+            <svg class="ti date-icon" aria-hidden="true"><use href="#i-calendar"/></svg>
+          </div>
         </div>
+        <div class="mfield" style="display:flex;flex-direction:column;justify-content:flex-end">
+          <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
+            <input type="checkbox" id="modal-urgent-cb">
+            <label for="modal-urgent-cb"><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="mfield">
+        <label>Ønsket tidspunkt fra kunde</label>
+        <input type="text" id="modal-time" readonly style="color:var(--ink-muted)">
       </div>
 
       <div class="mfield">
@@ -507,15 +510,13 @@
 
       <div>
         <div class="sms-label">Send SMS</div>
-        <textarea class="sms-textarea" id="modal-sms" oninput="updateSmsCount()" placeholder="Skriv din besked her"></textarea>
-        <div class="char-count"><span id="modal-sms-count">0</span> tegn</div>
-      </div>
-
-      <div>
-        <div class="sms-label">Sendte beskeder</div>
-        <div class="msg-list" id="modal-msg-list">
-          <div class="msg-empty">Indlæser…</div>
+        <div class="tpl-row">
+          <button class="tpl-btn" onclick="setTpl(this,0)">Bekræft tidspunkt</button>
+          <button class="tpl-btn" onclick="setTpl(this,1)">Tilbud på vej</button>
+          <button class="tpl-btn" onclick="setTpl(this,2)">Skriv selv</button>
         </div>
+        <textarea class="sms-textarea" id="modal-sms" oninput="updateSmsCount()" placeholder="Vælg en skabelon eller skriv din egen besked..."></textarea>
+        <div class="char-count"><span id="modal-sms-count">0</span> tegn</div>
       </div>
 
       <div class="afslut-panel" id="afslut-panel">
@@ -590,6 +591,10 @@
       <div class="mfield">
         <label>Beskriv opgaven</label>
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
+      </div>
+      <div class="mfield">
+        <label>Hvornår passer det dig?</label>
+        <input type="text" id="new-time" placeholder="Hverdage efter kl. 16">
       </div>
       <div class="mfield">
         <label>Billeder</label>
@@ -802,6 +807,7 @@ function renderLeads() {
     document.getElementById('new-street').value = '';
     document.getElementById('new-city').value = '';
     document.getElementById('new-task').value = '';
+    document.getElementById('new-time').value = '';
     document.getElementById('new-mail').value = '';
     document.getElementById('new-urgent-cb').checked = false;
     document.getElementById('new-urgent-row').classList.remove('checked');
@@ -853,6 +859,7 @@ function renderLeads() {
           phone,
           address,
           task,
+          desired_time: document.getElementById('new-time').value.trim() || null,
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
@@ -1147,6 +1154,12 @@ function renderLeads() {
   let currentLead = null;
   let afslutOpen = false;
 
+  const smsTpls = [
+    'Hej, tak for din henvendelse. Hvornår passer det dig at vi kommer forbi? Vi har ledig tid mandag eller tirsdag.',
+    'Hej, tak for din besked. Vi arbejder på et tilbud til dig og vender tilbage inden for 24 timer.',
+    'Hej, tak for din besked. '
+  ];
+
   async function openModal(lead) {
     currentLead = lead;
     afslutOpen = false;
@@ -1156,8 +1169,8 @@ function renderLeads() {
     document.getElementById('afslut-sms-wrap').style.display = 'none';
     document.getElementById('modal-sms').value = '';
     document.getElementById('modal-sms-count').textContent = '0';
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('modal-previews').innerHTML = '';
-    loadMessages(lead.id);
 
     if (!lead.seen_at) {
       const now = new Date().toISOString();
@@ -1184,7 +1197,9 @@ function renderLeads() {
     document.getElementById('modal-address-mail').value = lead.address_mail || '';
     document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
     document.getElementById('modal-task').value = lead.task;
+    document.getElementById('modal-time').value = lead.desired_time || 'Ikke angivet';
     document.getElementById('modal-notes').value = lead.notes || '';
+    document.getElementById('modal-deadline').value = lead.deadline || '';
 
     const urgentCb = document.getElementById('modal-urgent-cb');
     const urgentRow = document.getElementById('modal-urgent-row');
@@ -1231,7 +1246,6 @@ function renderLeads() {
         address: address || null,
         address_mail: document.getElementById('modal-address-mail').value.trim() || null,
         notes: document.getElementById('modal-notes').value || null,
-        is_urgent: document.getElementById('modal-urgent-cb').checked,
       }).eq('id', currentLead.id);
       if (error) console.error('❌ Gem fejl:', error);
       else console.log('✅ Gemt OK');
@@ -1263,6 +1277,15 @@ function renderLeads() {
     });
   }
 
+  function setTpl(btn, idx) {
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const ta = document.getElementById('modal-sms');
+    ta.value = smsTpls[idx];
+    updateSmsCount();
+    ta.focus();
+  }
+
   function updateSmsCount() {
     document.getElementById('modal-sms-count').textContent = document.getElementById('modal-sms').value.length;
   }
@@ -1286,7 +1309,7 @@ function renderLeads() {
       if (r.ok) {
         document.getElementById('modal-sms').value = '';
         updateSmsCount();
-        if (currentLead) loadMessages(currentLead.id);
+        document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
         alert('SMS sendt');
       } else {
         alert('Fejl ved afsendelse af SMS');
@@ -1338,45 +1361,6 @@ function renderLeads() {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
-
-  async function loadMessages(leadId) {
-    const wrap = document.getElementById('modal-msg-list');
-    if (!wrap) return;
-    wrap.innerHTML = '<div class="msg-empty">Indlæser…</div>';
-    try {
-      const { data, error } = await db
-        .from('messages')
-        .select('body, created_at, direction')
-        .eq('lead_id', leadId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      renderMessages(data || []);
-    } catch (e) {
-      console.warn('Kunne ikke hente beskeder:', e.message || e);
-      wrap.innerHTML = '<div class="msg-empty">Ingen sendte beskeder endnu.</div>';
-    }
-  }
-
-  function renderMessages(msgs) {
-    const wrap = document.getElementById('modal-msg-list');
-    if (!wrap) return;
-    if (!msgs.length) {
-      wrap.innerHTML = '<div class="msg-empty">Ingen sendte beskeder endnu.</div>';
-      return;
-    }
-    wrap.innerHTML = msgs.map(m => `
-      <div class="msg-item ${m.direction === 'inbound' ? 'inbound' : ''}">
-        <div class="msg-body">${escapeHtml(m.body)}</div>
-        <div class="msg-meta">${m.direction === 'inbound' ? 'Kunde' : 'Du'} · ${formatDateTime(m.created_at)}</div>
-      </div>
-    `).join('');
-  }
-
   function formatDate(iso) {
     const d = new Date(iso);
     return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });

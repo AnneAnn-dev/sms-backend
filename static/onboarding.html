@@ -218,6 +218,12 @@
     }
     .onb-input:focus { outline: none; border-color: var(--accent); }
 
+    /* Telefonfelt med fast +45-prefiks (så brugeren kun taster de 8 cifre) */
+    .phone-field { display: flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 24px; transition: border-color .2s; background: var(--bg); }
+    .phone-field.focus { border-color: var(--accent); }
+    .phone-prefix { display: flex; align-items: center; padding: 0 14px; background: rgba(0,0,0,.04); color: var(--muted); font-size: 16px; font-weight: 600; border-right: 1.5px solid var(--border); user-select: none; }
+    .phone-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 14px 16px; font-size: 16px; color: var(--text); font-family: 'Source Sans 3', sans-serif; }
+
     textarea {
       width: 100%;
       background: var(--bg);
@@ -568,17 +574,22 @@
 
     <br>
     <label class="field-label" for="owner-phone">Dit eget mobilnummer</label>
-    <input
-      id="owner-phone"
-      type="tel"
-      placeholder="+45 12 34 56 78"
-      style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;font-size:16px;color:var(--text);font-family:'Source Sans 3',sans-serif;margin-bottom:24px;transition:border-color .2s"
-      oninput="state.ownerPhone = this.value"
-      onfocus="this.style.borderColor='var(--accent)'"
-      onblur="this.style.borderColor='var(--border)'"
-    >
+    <div class="phone-field" id="owner-phone-field">
+      <span class="phone-prefix">+45</span>
+      <input
+        id="owner-phone"
+        class="phone-input"
+        type="tel"
+        inputmode="numeric"
+        autocomplete="tel-national"
+        placeholder="12 34 56 78"
+        oninput="state.ownerPhone = this.value"
+        onfocus="document.getElementById('owner-phone-field').classList.add('focus')"
+        onblur="document.getElementById('owner-phone-field').classList.remove('focus')"
+      >
+    </div>
     <p style="font-size:12px;color:var(--muted);margin-top:-20px;margin-bottom:24px">
-      Vi ringer til dette nummer for at teste viderestillingen i trin 4.
+      Du skal kun taste de 8 cifre — +45 sætter vi på. Vi ringer til nummeret i trin 4 for at teste viderestillingen.
     </p>
 
     <label class="field-label" for="onb-pw">Vælg en adgangskode</label>
@@ -717,13 +728,13 @@
   <div class="card" id="step-4">
     <div class="step-label">Trin 4 af 4</div>
     <h1>Test viderestillingen</h1>
-    <p class="subtitle">Vi ringer til dit nye nummer. Svarer du ikke, skal opkaldet lande hos os — det bekræfter at viderestillingen virker.</p>
+    <p class="subtitle">Vi ringer til dit eget nummer fra <strong>+45 52 51 60 63</strong>. Svarer du ikke, bliver opkaldet viderestillet til os — og det bekræfter at viderestillingen virker.</p>
 
     <div class="verify-box">
       <div class="verify-icon" id="verify-icon">📞</div>
       <div class="verify-title" id="verify-title">Klar til test</div>
       <div class="verify-desc" id="verify-desc">
-        Sørg for at din telefon er tæt på og <strong>lad være med at svare</strong> når vi ringer.
+        Om lidt ringer <strong>+45 52 51 60 63</strong> til dig. Hav telefonen klar og <strong>lad være med at svare</strong> — så bliver opkaldet sendt videre til os.
       </div>
       <div class="verify-status" id="verify-status"></div>
     </div>
@@ -853,7 +864,7 @@
     document.getElementById('android-code').textContent     = `**61*${state.phoneNumber}#`;
     document.getElementById('ios-number').textContent       = state.phoneNumber;
     document.getElementById('greeting').value               = state.greeting;
-    if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone;
+    if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone.replace(/^\+?45\s*/, '');
     updateCount();
     selectVoice(state.voice);
   }
@@ -915,23 +926,29 @@
   // session fra login-linket. Det er det, der lukker hullet: uden dette trin får
   // brugeren aldrig en kode og kan ikke logge ind igen, når sessionen udløber.
   async function validateStep1() {
-    const phone   = document.getElementById('owner-phone').value.trim();
+    const rawPhone = document.getElementById('owner-phone').value;
     const pw      = document.getElementById('onb-pw').value;
     const pw2     = document.getElementById('onb-pw2').value;
     const errEl   = document.getElementById('onb-pw-error');
+    const phoneField = document.getElementById('owner-phone-field');
     const btn     = document.getElementById('step1-btn');
     const label   = document.getElementById('step1-label');
     const spinner = document.getElementById('step1-spinner');
 
     errEl.textContent = '';
 
-    // 1) Telefon skal være udfyldt
-    if (!phone) {
-      document.getElementById('owner-phone').style.borderColor = '#f87171';
+    // 1) Telefon: brugeren taster kun de 8 lokale cifre — vi sætter +45 på selv.
+    //    Skrev de alligevel +45 eller 45 foran, fjerner vi det.
+    let digits = (rawPhone || '').replace(/\D/g, '');
+    if (digits.length > 8 && digits.startsWith('45')) digits = digits.slice(2);
+    if (digits.length !== 8) {
+      phoneField.style.borderColor = '#f87171';
+      errEl.textContent = 'Indtast dit 8-cifrede mobilnummer.';
       document.getElementById('owner-phone').focus();
       return;
     }
-    document.getElementById('owner-phone').style.borderColor = 'var(--border)';
+    phoneField.style.borderColor = 'var(--border)';
+    const phone = '+45' + digits;
     state.ownerPhone = phone;
 
     // 2) Adgangskode: mindst 8 tegn, og de to felter skal være ens
