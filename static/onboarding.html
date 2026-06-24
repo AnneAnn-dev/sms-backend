@@ -362,6 +362,14 @@
       margin: 8px 0 24px;
     }
 
+    /* "Virker koden ikke?"-foldeudgave (native <details>) */
+    .cf-alt { margin: 4px 0 8px; }
+    .cf-alt summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); list-style: none; padding: 4px 0; }
+    .cf-alt summary::-webkit-details-marker { display: none; }
+    .cf-alt summary::before { content: '＋ '; }
+    .cf-alt[open] summary::before { content: '－ '; }
+    .cf-alt .copy-wrap { margin-bottom: 8px; }
+
     .copy-code {
       font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
       font-size: 16px;
@@ -650,75 +658,51 @@
     <h1>Sæt viderestilling op</h1>
     <p class="subtitle">Når en kunde ringer til dit nuværende nummer og du ikke svarer, skal opkaldet viderestilles til dit nye nummer.</p>
 
-    <div class="os-tabs">
-      <button class="os-tab active" onclick="switchOS('android')">Android</button>
-      <button class="os-tab" onclick="switchOS('ios')">iPhone</button>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+      Tast denne kode i din telefons opkaldsapp — den sætter viderestilling op, så opkald du ikke svarer på, sendes videre til dit nye nummer:
+    </p>
+
+    <div class="copy-wrap">
+      <span class="copy-code" id="cf-code">**61*+4531234567#</span>
+      <button class="copy-btn" onclick="copyCode('cf-code', this)">Kopiér</button>
     </div>
 
-    <!-- Android guide -->
-    <div class="os-guide active" id="guide-android">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-        Tast denne kode direkte i din opkaldsapp — den sætter viderestilling op automatisk:
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin:-14px 0 22px">
+      💡 Telefonen ringer typisk <strong>20-30 sekunder</strong> uden svar, før opkaldet sendes videre. Den præcise tid bestemmer dit teleselskab.
+    </p>
+
+    <div class="guide-steps">
+      <div class="guide-step">
+        <div class="guide-num">1</div>
+        <div class="guide-text">Tryk på <strong>Kopiér</strong> i feltet ovenfor</div>
+      </div>
+      <div class="guide-step">
+        <div class="guide-num">2</div>
+        <div class="guide-text">Åbn din <strong>Telefon</strong>-app og gå til tastaturet</div>
+      </div>
+      <div class="guide-step">
+        <div class="guide-num">3</div>
+        <div class="guide-text">Indsæt koden og tryk på <strong>ring</strong>-knappen</div>
+      </div>
+      <div class="guide-step">
+        <div class="guide-num">4</div>
+        <div class="guide-text">Du får en bekræftelse fra din operatør om at viderestilling er aktiveret</div>
+      </div>
+    </div>
+
+    <details class="cf-alt">
+      <summary>Virker koden ikke?</summary>
+      <p style="font-size:13px;color:var(--muted);margin:12px 0 10px">
+        Nogle telefoner vil kun have <strong>én</strong> stjerne foran 61. Prøv denne i stedet:
       </p>
-
       <div class="copy-wrap">
-        <span class="copy-code" id="android-code">**61*+4531234567#</span>
-        <button class="copy-btn" onclick="copyCode('android-code', this)">Kopiér</button>
+        <span class="copy-code" id="cf-code-alt">*61*+4531234567#</span>
+        <button class="copy-btn" onclick="copyCode('cf-code-alt', this)">Kopiér</button>
       </div>
-
-      <div class="guide-steps">
-        <div class="guide-step">
-          <div class="guide-num">1</div>
-          <div class="guide-text">Åbn din <strong>Telefon</strong>-app og gå til tastaturet</div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-num">2</div>
-          <div class="guide-text">Tast koden ovenfor præcist som vist og tryk på <strong>ring</strong>-knappen</div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-num">3</div>
-          <div class="guide-text">Du får en bekræftelsesbesked om at viderestilling er aktiveret</div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-num">4</div>
-          <div class="guide-text">Klik <strong>Test nu</strong> i næste trin — vi ringer til dig for at bekræfte det virker</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- iPhone guide -->
-    <div class="os-guide" id="guide-ios">
-      <div class="guide-steps">
-        <div class="guide-step">
-          <div class="guide-num">1</div>
-          <div class="guide-text">Gå til <strong>Indstillinger → Telefon → Ring videre ved intet svar</strong></div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-num">2</div>
-          <div class="guide-text">Slå <strong>Ring videre</strong> til og indtast dit nye nummer:</div>
-        </div>
-      </div>
-
-      <div class="copy-wrap">
-        <span class="copy-code" id="ios-number">+4531234567</span>
-        <button class="copy-btn" onclick="copyCode('ios-number', this)">Kopiér</button>
-      </div>
-
-      <div class="guide-steps">
-        <div class="guide-step">
-          <div class="guide-num">3</div>
-          <div class="guide-text">Tryk <strong>Gem</strong> og vent på bekræftelse fra din operatør (kan tage op til 30 sek.)</div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-num">4</div>
-          <div class="guide-text">Klik <strong>Test nu</strong> i næste trin — vi ringer til dig for at bekræfte det virker</div>
-        </div>
-      </div>
-
-      <p style="font-size:12px;color:var(--muted);line-height:1.6">
-        Ser du ikke menuen? Kontakt din operatør (TDC, Telenor, Yousee osv.) og bed dem aktivere "viderestilling ved intet svar" til dit nye nummer.
+      <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:12px">
+        Virker ingen af dem? Kontakt din operatør (TDC, Telenor, Yousee osv.) og bed dem aktivere "viderestilling ved intet svar" til dit nye nummer.
       </p>
-    </div>
+    </details>
 
     <button class="btn-primary" onclick="goTo(4)">Jeg har sat det op →</button>
     <button class="btn-secondary" onclick="goTo(2)">← Tilbage</button>
@@ -734,7 +718,7 @@
       <div class="verify-icon" id="verify-icon">📞</div>
       <div class="verify-title" id="verify-title">Klar til test</div>
       <div class="verify-desc" id="verify-desc">
-        Om lidt ringer <strong>+45 52 51 60 63</strong> til dig. Hav telefonen klar og <strong>lad være med at svare</strong> — så bliver opkaldet sendt videre til os.
+        Om lidt ringer <strong>+45 52 51 60 63</strong> til dig. Hav telefonen klar og <strong>lad være med at svare</strong> — lad den ringe i 20-30 sekunder, så bliver opkaldet sendt videre til os.
       </div>
       <div class="verify-status" id="verify-status"></div>
     </div>
@@ -861,8 +845,8 @@
     const fmt = state.phoneNumber.replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
     document.getElementById('display-number').textContent   = fmt;
     document.getElementById('success-number').textContent   = fmt;
-    document.getElementById('android-code').textContent     = `**61*${state.phoneNumber}#`;
-    document.getElementById('ios-number').textContent       = state.phoneNumber;
+    document.getElementById('cf-code').textContent          = `**61*${state.phoneNumber}#`;
+    document.getElementById('cf-code-alt').textContent       = `*61*${state.phoneNumber}#`;
     document.getElementById('greeting').value               = state.greeting;
     if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone.replace(/^\+?45\s*/, '');
     updateCount();
@@ -1111,14 +1095,6 @@
     }
   }
 
-  // ── OS tabs ──────────────────────────────────────────────────────
-  function switchOS(os) {
-    document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.os-guide').forEach(g => g.classList.remove('active'));
-    event.target.classList.add('active');
-    document.getElementById(`guide-${os}`).classList.add('active');
-  }
-
   // ── Kopiér kode ──────────────────────────────────────────────────
   function copyCode(elementId, btn) {
     const text = document.getElementById(elementId).textContent;
@@ -1146,7 +1122,7 @@
     label.textContent     = 'Ringer...';
     spinner.style.display = 'block';
     status.className      = 'verify-status waiting';
-    status.textContent    = 'Vi ringer til dit nummer nu — lad være med at svare...';
+    status.textContent    = 'Vi ringer til dit nummer nu — lad den ringe i 20-30 sek. uden at svare...';
     icon.textContent      = '📲';
     title.textContent     = 'Ringer til dig...';
 
@@ -1174,13 +1150,15 @@
   }
 
   async function pollVerification(attempts = 0) {
-    if (attempts > 12) {
-      // Timeout efter ~30 sek
+    if (attempts > 28) {
+      // Timeout efter ~70 sek. Sat højt med vilje: uden en kort GSM-timer ringer
+      // telefonen 20-30 sek., før den viderestiller — så det forwardede opkald når
+      // typisk først frem efter ~30-40 sek. En kortere timeout ville give op for tidligt.
       const status = document.getElementById('verify-status');
       status.className   = 'verify-status error';
-      status.textContent = 'Vi kunne ikke bekræfte viderestillingen. Er koden tastet korrekt ind?';
+      status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, og tryk Ring igen — og lad den så ringe ud uden at svare. (Tjek også at koden er tastet korrekt ind.)';
       document.getElementById('verify-btn').disabled = false;
-      document.getElementById('verify-label').textContent = 'Prøv igen';
+      document.getElementById('verify-label').textContent = 'Ring igen';
       document.getElementById('verify-spinner').style.display = 'none';
       document.getElementById('verify-icon').textContent  = '⚠️';
       document.getElementById('verify-title').textContent = 'Ikke bekræftet endnu';

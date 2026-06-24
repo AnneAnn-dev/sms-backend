@@ -359,10 +359,15 @@ module.exports = function registerOnboarding(app, supabase) {
       // Hvis viderestilling er sat op, viderestilles opkaldet til Twilio-nummeret
       // og /opkald registrerer det og sætter firma til "active".
       // TTS-beskeden ligger inline i TwiML — ingen separat URL nødvendig.
+      // Beskeden her høres KUN hvis håndværkeren TAGER telefonen — og i så fald
+      // blev opkaldet ikke viderestillet, så verifikationen lykkedes ikke. Derfor
+      // må den ikke sige "det virker"; den skal guide dem til at prøve igen uden
+      // at svare. (Svarer de ikke, viderestilles opkaldet, og /opkald spiller den
+      // rigtige "det virker"-besked og markerer firmaet verificeret.)
       await twilioClient.calls.create({
         to:    callTo,
         from:  process.env.TWILIO_SYSTEM_NUMBER,
-        twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Dette er en automatisk test af din viderestilling. Det virker! Du kan nu modtage opgaver fra dine kunder.</Say></Response>`,
+        twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Hej. Det her er en automatisk test fra Lomme Kontor. Du har taget telefonen, men for at teste din viderestilling skal du lade være med at svare. Læg på nu, gå tilbage til appen, og tryk Ring til mig igen. Lad så telefonen ringe uden at svare.</Say></Response>`,
       });
 
       await supabase
