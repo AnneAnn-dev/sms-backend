@@ -4,6 +4,7 @@ const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");
 const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
+const { expressErrorHandler } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -448,6 +449,11 @@ app.get("/:slug/:token", async (req, res, next) => {
 
   return res.redirect(302, `/formular/${token}`);
 });
+
+// ─── AppSignal: fejlhåndterer — EFTER alle routes, FØR app.listen ────────────
+// Fanger fejl der kastes eller sendes via next(err) i routes/middleware
+// (rapporterer status ≥ 500). Skal ligge sidst i middleware-kæden.
+app.use(expressErrorHandler());
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server kører på port ${PORT}`));

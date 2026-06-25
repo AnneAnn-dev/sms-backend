@@ -1,0 +1,130 @@
+// frisbii-checkout.js
+// -----------------------------------------------------------------------------
+// Starter en Frisbii Checkout-session (subscription) — broen mellem Simply-siden
+// og Frisbii. Simply-siden kan IKKE linke direkte til en statisk Frisbii-URL:
+// en checkout-session skal oprettes server-til-server FØRST (kræver den private
+// API-nøgle, som aldrig må eksponeres client-side), og Frisbii returnerer en
+// session-url, kunden derefter omdirigeres til (eller en session-id til JS-SDK'en,
+// hvis I senere vil vise checkout som overlay i stedet for redirect).
+//
+// Indlaeses fra server.js med:  require("./frisbii-checkout")(app);
+// (kraever ikke supabase — denne route rører ikke databasen; det gør
+// frisbii-webhook.js, når invoice_settled rent faktisk modtages bagefter.)
+//
+// Flow:  Simply-side -> POST /checkout/start -> denne route -> Frisbii API
+//        -> { url } -> Simply-siden omdirigerer kunden -> kunde betaler
+//        -> Frisbii sender invoice_settled-webhook (frisbii-webhook.js)
+//
+// Kraever Node 18+ (global fetch).
+// -----------------------------------------------------------------------------
+
+const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
+
+module.exports = (app) => {
+  const PRIVATE_KEY  = process.env.FRISBII_PRIVATE_KEY;   // samme noegle som frisbii-webhook.js bruger til frisbiiGet
+  const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // fx "lommekontor-standard" — IKKE "test-abonement" i produktion
+  const SIMPLY_BASE_URL = process.env.SIMPLY_BASE_URL;    // Simply-sidens domæne, til accept_url/cancel_url
+
+  function requireConfig() {
+    const missing = [];
+    if (!PRIVATE_KEY)     missing.push("FRISBII_PRIVATE_KEY");
+    if (!PLAN_HANDLE)     missing.push("FRISBII_PLAN_HANDLE");
+    if (!SIMPLY_BASE_URL) missing.push("SIMPLY_BASE_URL");
+    return missing;
+  }
+
+  // Meget simpel e-mail-sanity-tjek — den egentlige validering (RFC 822) sker
+  // hos Frisbii selv, når de opretter kunden. Vi vil bare undgå at sende et
+  // tomt/åbenlyst forkert felt og få en kryptisk Frisbii-fejl tilbage.
+  function looksLikeEmail(s) {
+    return typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  }
+
+  app.post("/checkout/start", async (req, res) => {
+    const missing = requireConfig();
+    if (missing.length) {
+      console.error("❌ /checkout/start: mangler env vars:", missing.join(", "));
+      return res.status(500).json({ error: "server_misconfigured" });
+    }
+
+    const { name, email, phone, company } = req.body || {};
+
+    if (!looksLikeEmail(email)) {
+      return res.status(400).json({ error: "invalid_email" });
+    }
+    // Navn er ikke strengt nødvendigt for Frisbii (de kan splitte first/last
+    // fra company senere), men vi kræver det her, så provisionFirm() i
+    // frisbii-webhook.js altid har et brugbart firmanavn at vise/sende mail med.
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "missing_name" });
+    }
+
+    // E.164-tjek er bevidst løst her (kun præfiks) — phone er valgfri for
+    // Frisbii (de prefilder kun Vipps/MobilePay-signup-siden med den), og
+    // jeres egen owner_phone-validering sker først rigtigt i onboarding trin 1.
+    const cleanPhone = typeof phone === "string" && phone.trim() ? phone.trim() : undefined;
+
+    const auth = Buffer.from(`${PRIVATE_KEY}:`).toString("base64");
+
+    const payload = {
+      prepare_subscription: {
+        plan: PLAN_HANDLE,
+        create_customer: {
+          email: email.toLowerCase().trim(),
+          first_name: name.trim(),
+          company: company && company.trim() ? company.trim() : undefined,
+          phone: cleanPhone,
+          generate_handle: true, // lad Frisbii generere et unikt customer-handle
+        },
+      },
+      payment_methods: ["vipps_recurring"],
+      accept_url: `${SIMPLY_BASE_URL}/tak`,
+      cancel_url: `${SIMPLY_BASE_URL}/afbrudt`,
+      // Prefilder kundens telefonnummer på Vipps/MobilePay-signup-siden, hvis givet.
+      ...(cleanPhone ? { phone: cleanPhone } : {}),
+    };
+
+    let frisbiiRes;
+    try {
+      frisbiiRes = await fetch(`${FRISBII_CHECKOUT_API}/session/subscription`, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.error("❌ /checkout/start: netværksfejl mod Frisbii:", err.message);
+      return res.status(502).json({ error: "frisbii_unreachable" });
+    }
+
+    const bodyText = await frisbiiRes.text();
+    if (!frisbiiRes.ok) {
+      // Frisbii returnerer en struktureret fejl (code/error/message) — log den
+      // fulde tekst, så en evt. plan/MSN-fejlkonfiguration er let at se i
+      // Railway-loggen, men eksponer kun en generisk fejl til Simply-siden.
+      console.error(`❌ /checkout/start: Frisbii afviste (HTTP ${frisbiiRes.status}):`, bodyText);
+      return res.status(502).json({ error: "frisbii_rejected_session" });
+    }
+
+    let session;
+    try {
+      session = JSON.parse(bodyText);
+    } catch {
+      console.error("❌ /checkout/start: kunne ikke parse Frisbii-svar:", bodyText);
+      return res.status(502).json({ error: "frisbii_invalid_response" });
+    }
+
+    if (!session.url) {
+      console.error("❌ /checkout/start: Frisbii-svar uden url:", bodyText);
+      return res.status(502).json({ error: "frisbii_missing_url" });
+    }
+
+    console.log("🧾 Checkout-session oprettet:", session.id, "for", email);
+    res.json({ url: session.url, session_id: session.id });
+  });
+
+  console.log("🧾 Frisbii checkout-rute registreret paa /checkout/start");
+};
