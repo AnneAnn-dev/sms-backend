@@ -4,7 +4,7 @@ const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");
 const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
-const { expressErrorHandler } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
+const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -450,19 +450,18 @@ app.get("/:slug/:token", async (req, res, next) => {
   return res.redirect(302, `/formular/${token}`);
 });
 
-// ─── AppSignal: fejlhåndterer — EFTER alle routes, FØR app.listen ────────────
-// Fanger fejl der kastes eller sendes via next(err) i routes/middleware
-// (rapporterer status ≥ 500). Skal ligge sidst i middleware-kæden.
-
-// MIDLERTIDIG — fjern efter test
-// MIDLERTIDIG — fjern efter test
-const { sendError } = require("@appsignal/nodejs");
+// MIDLERTIDIG — fjern efter test (verificerer at fejl når AppSignal)
 app.get("/test-appsignal", (req, res) => {
-  sendError(new Error("AppSignal sendError-test 🚨"));
-  res.send("sendError sendt");
+  throw new Error("AppSignal test-fejl 🚨");
 });
 
-app.use(expressErrorHandler());
+// ─── AppSignal: robust fejlhåndterer — EFTER alle routes, FØR app.listen ─────
+// Bruger sendError (egen rod-span), så route-fejl fanges uanset om Express 5
+// endnu er instrumenteret. Skal ligge sidst i middleware-kæden.
+app.use((err, req, res, next) => {
+  sendError(err);
+  next(err); // lad Express sende det normale fejl-svar
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server kører på port ${PORT}`));
