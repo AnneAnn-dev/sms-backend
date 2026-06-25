@@ -453,6 +453,12 @@ app.get("/:slug/:token", async (req, res, next) => {
 // ─── AppSignal: fejlhåndterer — EFTER alle routes, FØR app.listen ────────────
 // Fanger fejl der kastes eller sendes via next(err) i routes/middleware
 // (rapporterer status ≥ 500). Skal ligge sidst i middleware-kæden.
+
+// MIDLERTIDIG — fjern efter test
+app.get("/test-appsignal", (req, res) => {
+  throw new Error("AppSignal test-fejl 🚨");
+});
+
 app.use(expressErrorHandler());
 
 const PORT = process.env.PORT || 3000;
