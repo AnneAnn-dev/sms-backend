@@ -455,8 +455,11 @@ app.get("/:slug/:token", async (req, res, next) => {
 // (rapporterer status ≥ 500). Skal ligge sidst i middleware-kæden.
 
 // MIDLERTIDIG — fjern efter test
+// MIDLERTIDIG — fjern efter test
+const { sendError } = require("@appsignal/nodejs");
 app.get("/test-appsignal", (req, res) => {
-  throw new Error("AppSignal test-fejl 🚨");
+  sendError(new Error("AppSignal sendError-test 🚨"));
+  res.send("sendError sendt");
 });
 
 app.use(expressErrorHandler());
