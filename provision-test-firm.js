@@ -26,6 +26,11 @@
  *   --number +4538000000   (claim et BESTEMT ledigt puljenummer; ellers første ledige)
  *   --greeting "Egen hilsentekst"
  *   --slug test-vvs
+ *   --onboarding           (opret i ONBOARDING-tilstand: brugeren gennemgår selv
+ *                           opsætningen via linket — sæt kode, stemme/besked,
+ *                           viderestilling, verificér via opkald. --phone bliver
+ *                           valgfri, da brugeren indtaster nummeret i trin 1.
+ *                           UDEN flaget oprettes et færdigt verified+active firma.)
  *   --dry-run              (vis planen og afslut UDEN at oprette/binde noget)
  *   --yes                  (spring bekræftelses-prompten over)
  *
@@ -188,10 +193,18 @@ async function main() {
   const voice = (args.voice || 'female').toLowerCase();
   const specificNumber = typeof args.number === 'string' ? args.number : undefined;
 
-  if (!name || !email || !phone) {
+  // --onboarding: opret firmaet i ONBOARDING-tilstand (som et frisk Frisbii-firma),
+  // så linket lander brugeren i den rigtige onboarding (sæt kode → stemme/besked →
+  // viderestilling → verificér via opkald). Uden flaget oprettes et færdigt,
+  // verificeret+aktivt firma (test af opkald/lead-flow), som springer onboarding over.
+  const onboardingMode = !!args.onboarding;
+
+  // I onboarding-mode indtaster brugeren selv sit nummer i trin 1, så --phone er valgfri der.
+  if (!name || !email || (!phone && !onboardingMode)) {
     console.error(
       '\nBrug: node provision-test-firm.js --name "Firma" --email x@y.dk ' +
-      '--phone +45... --voice male [--number +45...]\n'
+      '--phone +45... --voice male [--number +45...] [--onboarding]\n' +
+      '(--phone er valgfri sammen med --onboarding — brugeren indtaster det i trin 1.)\n'
     );
     process.exit(1);
   }
@@ -232,8 +245,11 @@ async function main() {
   console.log(`Firma:        ${name}  (slug: ${slug})`);
   console.log(`Claimer nr.:  ${lommeNumber}   ← bindes til firmaet`);
   console.log(`Login-email:  ${email}`);
-  console.log(`Ejer-tlf:     ${phone}`);
+  console.log(`Ejer-tlf:     ${phone || '(indtastes i onboarding trin 1)'}`);
   console.log(`Stemme:       ${voice}`);
+  console.log(`Tilstand:     ${onboardingMode
+    ? 'onboarding — brugeren gennemgår opsætningen (status=onboarding, pending)'
+    : 'active — færdigt, verificeret firma (springer onboarding over)'}`);
   console.log(`Markér test:  ${CONFIG.MARK_TEST ? 'ja (is_test=true)' : 'nej'}`);
   console.log('────────────────────────────────────────────────────────');
 
@@ -251,7 +267,9 @@ async function main() {
   }
   console.log('');
 
-  // 1. Opret firma (med nummer + verificeret/aktiv slutstand)
+  // 1. Opret firma. Onboarding-mode spejler et frisk Frisbii-firma (status
+  //    'onboarding'/'pending', ingen ejer-tlf, ingen forud-renderet hilsen);
+  //    standard-mode opretter et færdigt verificeret+aktivt firma.
   console.log('1) Opretter firma i Supabase …');
   let firmId;
   try {
@@ -260,13 +278,15 @@ async function main() {
       slug,
       email,
       phone_number: lommeNumber,
-      owner_phone: phone,
       voice_gender: voice,
       greeting_text: greetingText,
-      status: CONFIG.FIRM_STATUS_VALUE,
-      verification_status: CONFIG.FIRM_VERIFICATION_VALUE,
-      billing_status: CONFIG.FIRM_BILLING_VALUE,
+      status: onboardingMode ? 'onboarding' : CONFIG.FIRM_STATUS_VALUE,
+      verification_status: onboardingMode ? 'pending' : CONFIG.FIRM_VERIFICATION_VALUE,
+      billing_status: CONFIG.FIRM_BILLING_VALUE, // /opkald gater KUN på denne — også i onboarding-mode
     };
+    // Ejer-tlf: i onboarding-mode indtaster brugeren den selv i trin 1 (lad være null,
+    // som hos et rigtigt Frisbii-firma). Er --phone alligevel givet, sætter vi den.
+    if (phone) row.owner_phone = phone;
     if (CONFIG.MARK_TEST) row[CONFIG.IS_TEST_COLUMN] = true;
 
     const { data, error } = await supabase
@@ -282,19 +302,25 @@ async function main() {
   catch (err) { fail('pulje-claim', err); }
   console.log(`   ✓ ${lommeNumber} tildelt firmaet`);
 
-  // 3. Render hilsen via din egen ./tts (best-effort; ellers Polly-fallback i /opkald)
-  console.log('3) Renderer hilsen (./tts renderGreeting) …');
-  try {
-    const { url } = await renderGreeting(supabase, {
-      firmId,
-      text: greetingText,
-      voiceGender: voice,
-    });
-    await supabase.from(CONFIG.FIRMS_TABLE)
-      .update({ greeting_audio_url: url }).eq('id', firmId);
-    console.log(`   ✓ Hilsen: ${url}`);
-  } catch (err) {
-    console.log(`   ⚠️  TTS fejlede (${err.message}) — firmaet bruger live Polly-fallback.`);
+  // 3. Render hilsen. I onboarding-mode SPRINGES dette over — onboarding trin 2
+  //    renderer hilsenen, når brugeren gemmer (præcis som et rigtigt Frisbii-firma,
+  //    der har greeting_audio_url = null indtil trin 2). Indtil da bruger /opkald Polly.
+  if (onboardingMode) {
+    console.log('3) Springer hilsen-render over (renderes i onboarding trin 2) …');
+  } else {
+    console.log('3) Renderer hilsen (./tts renderGreeting) …');
+    try {
+      const { url } = await renderGreeting(supabase, {
+        firmId,
+        text: greetingText,
+        voiceGender: voice,
+      });
+      await supabase.from(CONFIG.FIRMS_TABLE)
+        .update({ greeting_audio_url: url }).eq('id', firmId);
+      console.log(`   ✓ Hilsen: ${url}`);
+    } catch (err) {
+      console.log(`   ⚠️  TTS fejlede (${err.message}) — firmaet bruger live Polly-fallback.`);
+    }
   }
 
   // 4. Auth-bruger (genbruger hvis e-mailen findes)
@@ -325,6 +351,45 @@ async function main() {
   } catch (err) { fail('firm_users-kobling', err); }
   console.log('   ✓ Koblet');
 
+  // 5b. Ryd brugerens GAMLE koblinger fra tidligere testkørsler.
+  //     Ellers hober de sig op, og /api/mig (som vælger ét firma) ser flere
+  //     firmaer for samme bruger. Vi frigør de gamle firmaers numre (så puljen
+  //     ikke lækker), fjerner koblingerne, og forsøger at slette de nu forældreløse
+  //     firmaer (best-effort — har de opkald/leads hængende, lader vi dem stå med
+  //     phone_number = null; kør reset-test-data.js for en fuld oprydning).
+  try {
+    const { data: oldLinks } = await supabase
+      .from(CONFIG.FIRM_USERS_TABLE)
+      .select('firm_id')
+      .eq('user_id', userId)
+      .neq('firm_id', firmId);
+    const oldFirmIds = [...new Set((oldLinks || []).map((l) => l.firm_id).filter(Boolean))];
+
+    if (oldFirmIds.length) {
+      // Frigør de gamle numre, så de kan genbruges
+      await supabase.from(CONFIG.POOL_TABLE)
+        .update({ [CONFIG.COL_POOL_FIRM_ID]: null }).in('firm_id', oldFirmIds);
+      // Fjern de gamle koblinger (så /api/mig kun ser det nye firma)
+      await supabase.from(CONFIG.FIRM_USERS_TABLE)
+        .delete().eq('user_id', userId).neq('firm_id', firmId);
+      // Forsøg at slette de forældreløse firmaer
+      const { error: delErr } = await supabase
+        .from(CONFIG.FIRMS_TABLE).delete().in('id', oldFirmIds);
+      if (delErr) {
+        // Kunne ikke slettes (fx FK fra calls/leads) — nulstil i det mindste deres
+        // nummer, så to firmaer ikke ender på samme nummer.
+        await supabase.from(CONFIG.FIRMS_TABLE)
+          .update({ phone_number: null }).in('id', oldFirmIds);
+        console.log(`   ↺ ${oldFirmIds.length} gammelt firma frakoblet (ikke slettet — kør reset-test-data.js for fuld oprydning)`);
+      } else {
+        console.log(`   ↺ Ryddede ${oldFirmIds.length} gammelt testfirma for brugeren`);
+      }
+    }
+  } catch (err) {
+    // Oprydning er best-effort — en fejl her må ikke vælte selve provisioneringen.
+    console.log(`   ⚠️  Kunne ikke rydde gamle koblinger (${err.message}) — kør evt. reset-test-data.js`);
+  }
+
   // 6. Magic link
   console.log('6) Genererer magic link …');
   let magicLink;
@@ -333,25 +398,43 @@ async function main() {
     if (error) throw error;
     const tokenHash = data.properties.hashed_token;
     const appUrl = (process.env.DASHBOARD_URL || process.env.BASE_URL || '').replace(/\/$/, '');
-    magicLink = `${appUrl}${CONFIG.VERIFY_PATH}?token_hash=${tokenHash}&type=magiclink`;
+    // VIGTIGT: type=email (ikke magiclink). Selvom tokenet genereres med
+    // generateLink({ type: "magiclink" }), forventer onboardingens verifyOtp
+    // type=email for token_hash-links — præcis som frisbii-webhook.js og
+    // onboarding-link.js. Med magiclink fejler verifyOtp, og brugeren kommer
+    // aldrig forbi første skærm.
+    magicLink = `${appUrl}${CONFIG.VERIFY_PATH}?token_hash=${tokenHash}&type=email`;
   } catch (err) { fail('magic link', err); }
 
   // Opsummering
   console.log('\n────────────────────────────────────────────────────────');
-  console.log('✅ TESTFIRMA KLAR');
+  console.log(onboardingMode ? '✅ TESTFIRMA KLAR (onboarding-mode)' : '✅ TESTFIRMA KLAR');
   console.log('────────────────────────────────────────────────────────');
   console.log(`Firma:        ${name}`);
   console.log(`Slug:         ${slug}`);
   console.log(`Firma-id:     ${firmId}`);
   console.log(`Ring til:     ${lommeNumber}`);
-  console.log(`Ejer-tlf:     ${phone}`);
+  console.log(`Ejer-tlf:     ${phone || '(indtastes i onboarding trin 1)'}`);
   console.log(`Login-email:  ${email}`);
   console.log('');
-  console.log('Test-flow: lad en BEKENDT ringe til nummeret (ikke et whitelistet');
-  console.log('nummer) → hilsen afspilles → kunde-SMS med opgave-link → udfyld →');
-  console.log('leadet dukker op i dashboardet.');
+
+  if (onboardingMode) {
+    console.log('Onboarding-test: åbn linket → trin 1: sæt adgangskode + ejer-tlf →');
+    console.log('trin 2: vælg stemme + besked (hilsenen renderes nu) → trin 3:');
+    console.log('viderestilling → trin 4: ring til nummeret FRA ejer-telefonen for at');
+    console.log('verificere. Derefter er firmaet verified + active.');
+    console.log('');
+    console.log('Vil du bagefter teste lead-flowet, så lad en BEKENDT ringe (ikke');
+    console.log('ejer-tlf/whitelistet nummer), så opkaldet bliver til et ægte lead.');
+  } else {
+    console.log('Test-flow: lad en BEKENDT ringe til nummeret (ikke et whitelistet');
+    console.log('nummer) → hilsen afspilles → kunde-SMS med opgave-link → udfyld →');
+    console.log('leadet dukker op i dashboardet.');
+  }
   console.log('');
-  console.log('🔑 Send denne magic link til testeren (login til dashboard):');
+  console.log(onboardingMode
+    ? '🔑 Send denne magic link til testeren (starter onboardingen):'
+    : '🔑 Send denne magic link til testeren (login til dashboard):');
   console.log(magicLink);
   console.log('────────────────────────────────────────────────────────\n');
 }

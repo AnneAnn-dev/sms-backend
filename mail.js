@@ -34,6 +34,22 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
     );
   }
 
+  // --- Staging-sikkerhed: omdiriger ALT udgaaende mail til egen adresse ---
+  // MAIL_OVERRIDE_TO bruges KUN uden for production. Selv hvis variablen ved en
+  // fejl saettes i prod, IGNORERES den her (prod er gated paa
+  // APPSIGNAL_APP_ENV === "production") — saa du behoever ikke at HUSKE reglen,
+  // koden haandhaever den. Den oprindelige modtager laegges i emnet.
+  const isProd = process.env.APPSIGNAL_APP_ENV === "production";
+  if (process.env.MAIL_OVERRIDE_TO && !isProd) {
+    subject = `[STAGING -> ${to}] ${subject}`;
+    to = process.env.MAIL_OVERRIDE_TO;
+  } else if (process.env.MAIL_OVERRIDE_TO && isProd) {
+    // Fejlkonfiguration: override sat i prod. Send normalt til kunden, men raab op.
+    console.error(
+      "⚠️  MAIL_OVERRIDE_TO er sat i PRODUCTION og blev IGNORERET. Fjern den fra prod-miljoeet."
+    );
+  }
+
   const body = {
     from: { email: fromEmail, name: fromName },
     to: [{ email: to }],
