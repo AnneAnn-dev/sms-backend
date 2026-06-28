@@ -51,6 +51,13 @@ require("./onboarding")(app, supabase);
 // Behøver IKKE rå body — Frisbii signerer kun timestamp+id, så global express.json() er nok.
 require("./frisbii-webhook")(app, supabase);
 
+// ─── "Send mig et login-link": redningsvej for glemt adgangskode ────────────
+// Registrerer POST /onboarding/nyt-link (prefetch-sikkert login-link via egen
+// Scaleway-mail, rate-limitet + anti-enumeration). UDEN denne linje findes
+// routen ikke → POST giver 404, fetch kaster ikke, og knappen "lykkes" tavst
+// uden at sende nogen mail.
+require("./onboarding-link")(app, supabase);
+
 // ─── 2. VIS FORMULAR ────────────────────────────────────────────────────────
 app.get("/formular/:token", async (req, res) => {
   const { data: call } = await supabase
