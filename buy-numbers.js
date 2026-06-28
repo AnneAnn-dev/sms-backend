@@ -17,7 +17,7 @@
 //   (valgfrit) VOICE_URL, SMS_URL
 // -----------------------------------------------------------------------------
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const twilio = require("twilio");
 const { createClient } = require("@supabase/supabase-js");
 

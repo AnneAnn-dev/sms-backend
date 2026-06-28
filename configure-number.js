@@ -13,7 +13,7 @@
 //                SUPABASE_SERVICE_ROLE_KEY
 // -----------------------------------------------------------------------------
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const twilio = require("twilio");
 const { createClient } = require("@supabase/supabase-js");
 

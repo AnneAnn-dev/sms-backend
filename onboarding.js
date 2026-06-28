@@ -26,6 +26,13 @@ module.exports = function registerOnboarding(app, supabase) {
     process.env.TWILIO_AUTH_TOKEN
   );
 
+  // ─── Maskeret formular-domæne ───────────────────────────────────────────
+  // Bygges fra appens eget BASE_URL (Railway custom domain, fx
+  // https://opgave.ditdigitalekontor.dk) — IKKE hårdkodet, så et domæneskift
+  // kun kræver at BASE_URL ændres ét sted. Trailing slash strippes defensivt,
+  // så `${FORM_BASE}/${slug}/${token}` aldrig bliver til et dobbelt-slash-link.
+  const FORM_BASE = (process.env.BASE_URL || "").replace(/\/$/, "");
+
   // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
   // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
@@ -237,7 +244,7 @@ module.exports = function registerOnboarding(app, supabase) {
           status:      "demo",   // markér som demo, så det ikke forveksles med ægte opkald
           raw_payload: req.body,
         });
-        const demoUrl = `https://opgave.lommekontor.dk/${firm.slug}/${demoToken}`;
+        const demoUrl = `${FORM_BASE}/${firm.slug}/${demoToken}`;
         sendSms({
           to:   firm.owner_phone || fromNumber,
           from: toNumber,
@@ -307,8 +314,8 @@ module.exports = function registerOnboarding(app, supabase) {
     }
 
     // Normalt opkald fra kunde — send SMS med formular-link.
-    // Nyt format: opgave.lommekontor.dk/{firma-slug}/{lead_token}
-    const formUrl = `https://opgave.lommekontor.dk/${firm.slug}/${call.lead_token}`;
+    // Format: ${BASE_URL}/{firma-slug}/{lead_token}  (maskeret opgave-subdomæne)
+    const formUrl = `${FORM_BASE}/${firm.slug}/${call.lead_token}`;
     console.log("SMS link:", formUrl);
 
     sendSms({
