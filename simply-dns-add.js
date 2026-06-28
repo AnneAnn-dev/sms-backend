@@ -14,13 +14,18 @@ require("dotenv").config({ quiet: true });
 
 const ACCOUNT = process.env.SIMPLY_ACCOUNT;  // fx "S123456"
 const API_KEY = process.env.SIMPLY_API_KEY;  // fra kontrolpanelet
-const DOMAIN  = "lommekontor.dk";
+const DOMAIN  = "ditdigitalekontor.dk";
 
-// ── Record der skal tilfoejes (DKIM fra Scaleway) ───────────────────────────
+// ── Record der skal tilfoejes (DKIM fra Scaleway, ditdigitalekontor.dk) ──────
+// VIGTIGT: name er RELATIVT (uden .ditdigitalekontor.dk) — ellers bliver det
+// til ...domainkey.ditdigitalekontor.dk.ditdigitalekontor.dk (faelden fra sidst).
+// Selectoren er den samme som paa lommekontor.dk (delt Scaleway-projektnoegle),
+// men selve noeglen (p=...) er en ANDEN — kopieret fra Scaleway DNS Records-fanen
+// for ditdigitalekontor.dk.
 const RECORD = {
   type: "TXT",
-  name: "be25bfdf-bf2d-4a09-9d5b-fedab3e03e05._domainkey", // UDEN .lommekontor.dk
-  data: "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuW3ll8wkrwTsMfv7d20EXSjj6jOvfTgKMEJAOLtmVMAIWrUxTmPUfvgnfi8rM4/I71dKW0mC6RHsinc1iyH8lFiX8n5maC5I4tu7B04VK2jl1HV+eT+q2kd/ZKSlrmxMO8iIgmic1xVPswrO3fN6+GMguF3bsPTtxcEgHhsUIL+y/BSvBeTG5zbbTFx0PYR6pqp571/HAwwPf+NY+H9AgpltJvOiaJbtRIFSHclzIychZqDdJTswpmLtJr523WdVaN0/Y7jEKfmGN/YuGh3JEwIVibUmL5BDvuuC8K8Q3r4i8aWil2hYNxI4eHmz1/JYSt19XQZWqOK3t3ZcjeNbGQIDAQAB",
+  name: "be25bfdf-bf2d-4a09-9d5b-fedab3e03e05._domainkey", // UDEN .ditdigitalekontor.dk
+  data: "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1R03bJMVSdEPKVI8ONjlz0TvwyL48L3XsXMUeAtdj/YuE1QXqydubi/50BFiaOPnYazXei/s5bPVpYIQgO1ia2GqMw7sGZxoUvowjy+mb97bZIcHQcMs2YnTiYQcKycPKySlloK1hPNZ3WJRE6j8InLyeF4fN5iku5IgCDbXTuN4beNCzUab25FMmWNYa7o6xDX+4y0chL5N+880prf8n3ZJyw7Z9tAVglfA6W3RqXjNBEv1EpHmTGvScpE5EPDE46mbB2EtYIlVaF+S1de1R8jATpngKMW8VJ+MyPAutYt/Hlq6rkrBjWflWg13pP34q/J7+tMveqZIFBXJ5duPLwIDAQAB",
   ttl: 3600,
 };
 
