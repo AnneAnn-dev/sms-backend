@@ -1,6 +1,6 @@
 // frisbii-webhook.js
 // -----------------------------------------------------------------------------
-// Onboarding-trigger for LommeKontor via Frisbii Billing & Pay (tidl. Reepay).
+// Onboarding-trigger for Dit Digitale Kontor via Frisbii Billing & Pay (tidl. Reepay).
 // Indlaeses fra server.js med:  require("./frisbii-webhook")(app, supabase);
 //
 // Flow:  Simply-side -> Frisbii hosted checkout -> kunde betaler
@@ -169,7 +169,7 @@ module.exports = (app, supabase) => {
     }
 
     // Generér en unik slug til den maskerede formular-URL
-    // (opgave.lommekontor.dk/{slug}/{token}). Skal sættes ved oprettelse, ellers
+    // (opgave.ditdigitalekontor.dk/{slug}/{token}). Skal sættes ved oprettelse, ellers
     // bliver SMS-linket til nye firmaer …/null/{token}.
     const slug = await uniqueSlug(supabase, company);
 

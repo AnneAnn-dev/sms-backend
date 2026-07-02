@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// SLUG — firma-slug til maskerede formular-URL'er (opgave.lommekontor.dk/{slug}/…)
+// SLUG — firma-slug til maskerede formular-URL'er (opgave.ditdigitalekontor.dk/{slug}/…)
 //
 // slugify() matcher den SQL-backfill der satte slugs på eksisterende firmaer:
 //   lowercase, æ/ø/å → ae/oe/aa, ikke-alfanumerisk → bindestreg, trim, max 40 tegn.
