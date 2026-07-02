@@ -10,7 +10,7 @@
 //   SCW_SECRET_KEY   Scaleway API secret key  (sendes som X-Auth-Token)
 //   SCW_PROJECT_ID   Scaleway project ID
 //   SCW_REGION       fx "fr-par"  (default hvis ikke sat)
-//   SMTP_FROM        afsenderadresse, fx "noreply@lommekontor.dk"  (genbrugt)
+//   SMTP_FROM        afsenderadresse, fx "noreply@ditdigitalekontor.dk"  (genbrugt)
 //   APP_NAME         afsendernavn  (valgfri)
 //   ADMIN_EMAIL      modtager for systemalarmer  (falder tilbage til SMTP_FROM)
 //
@@ -122,8 +122,8 @@ async function sendAdminAlert({ subject, text }) {
   await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
-    fromName:  `${process.env.APP_NAME || "LommeKontor"} (system)`,
-    subject:   `[LommeKontor] ${subject}`,
+    fromName:  `${process.env.APP_NAME || "Dit Digitale Kontor"} (system)`,
+    subject:   `[Dit Digitale Kontor] ${subject}`,
     text,
   });
 }

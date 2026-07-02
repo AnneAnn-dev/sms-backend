@@ -430,7 +430,7 @@ app.post("/opret-opgave", async (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── MASKERET FORMULAR-LINK: opgave.lommekontor.dk/{slug}/{token} ───────────
+// ─── MASKERET FORMULAR-LINK: opgave.ditdigitalekontor.dk/{slug}/{token} ───────────
 // SMS'en sender det pæne, maskerede link med firma-slug. Her validerer vi
 // tokenet og sender videre til den kanoniske /formular/:token (samme domæne,
 // så den grimme Railway-URL ses aldrig). Slug'en er ren kosmetik i SMS'en —
