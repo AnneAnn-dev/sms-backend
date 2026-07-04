@@ -257,8 +257,12 @@ module.exports = (app, supabase) => {
 
     // Send velkomstmail (delt funktion fra mail.js)
     try {
-      await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: phoneRow.number });
-      console.log("✉️  Velkomstmail sendt til:", email);
+      const mailResult = await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: phoneRow.number });
+      if (mailResult?.blocked) {
+        console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", email);
+      } else {
+        console.log("✉️  Velkomstmail sendt til:", email);
+      }
     } catch (mailErr) {
       console.error("❌ Mail fejlede:", mailErr);
       // Firma er oprettet — mail kan sendes igen manuelt

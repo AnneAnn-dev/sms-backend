@@ -162,13 +162,17 @@ module.exports = function registerOnboarding(app, supabase) {
 
       // Send velkomstmail
       try {
-        await sendWelcomeMail({
+        const mailResult = await sendWelcomeMail({
           to:          email,
           firmName:    company,
           loginUrl,
           phoneNumber: phoneRow.number,
         });
-        console.log("✉️  Velkomstmail sendt til:", email);
+        if (mailResult?.blocked) {
+          console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", email);
+        } else {
+          console.log("✉️  Velkomstmail sendt til:", email);
+        }
       } catch (mailErr) {
         console.error("❌ Mail fejlede:", mailErr);
         // Firma er oprettet — mail kan sendes igen manuelt fra admin panel

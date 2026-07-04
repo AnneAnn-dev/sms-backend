@@ -89,8 +89,10 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
 }
 
 // ─── Send velkomstmail (magic link) ─────────────────────────────────────────
+// Returnerer resultatet fra sendViaScaleway — herunder { blocked: true } hvis
+// mailen blev stoppet af staging-gaten. Kaldsteder kan (og boer) logge derefter.
 async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
-  await sendViaScaleway({
+  return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  process.env.APP_NAME || "Håndværkerservice",
@@ -125,13 +127,14 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 // ─── Send intern alarm til admin ────────────────────────────────────────────
 // Bruges fx naar nummerpuljen er ved at loebe toer. Sendes til ADMIN_EMAIL
 // (falder tilbage til SMTP_FROM, saa den virker selvom ADMIN_EMAIL ikke er sat).
+// Returnerer resultatet fra sendViaScaleway ({ blocked: true } ved staging-gate).
 async function sendAdminAlert({ subject, text }) {
   const to = process.env.ADMIN_EMAIL || process.env.SMTP_FROM;
   if (!to) {
     console.error("⚠️  Ingen ADMIN_EMAIL/SMTP_FROM sat — kan ikke sende alarm:", subject);
-    return;
+    return { blocked: true };
   }
-  await sendViaScaleway({
+  return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  `${process.env.APP_NAME || "Dit Digitale Kontor"} (system)`,
