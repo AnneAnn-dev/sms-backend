@@ -86,13 +86,17 @@ module.exports = (app, supabase) => {
 
       if (firm) {
         const loginUrl = await buildMagicLink(email);
-        await sendWelcomeMail({
+        const mailResult = await sendWelcomeMail({
           to:          email,
           firmName:    firm.name,
           loginUrl,
           phoneNumber: firm.phone_number,
         });
-        console.log("✉️  Nyt login-link sendt til:", email);
+        if (mailResult?.blocked) {
+          console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", email);
+        } else {
+          console.log("✉️  Nyt login-link sendt til:", email);
+        }
       } else {
         // Ukendt email: log internt, men svar stadig generisk (ingen laekage).
         console.log("ℹ️  Nyt-link anmodet for ukendt email (ingen mail sendt):", email);

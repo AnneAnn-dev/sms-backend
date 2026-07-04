@@ -3,3 +3,8 @@ ngrok
 ngrok.exe
 node_modules
 *_files/
+schema.sql
+data.sql
+auth-users.sql
+*.dump
+auth-users.sql

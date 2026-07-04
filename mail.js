@@ -39,7 +39,19 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
   // fejl saettes i prod, IGNORERES den her (prod er gated paa
   // APPSIGNAL_APP_ENV === "production") — saa du behoever ikke at HUSKE reglen,
   // koden haandhaever den. Den oprindelige modtager laegges i emnet.
+  //
+  // FAIL-CLOSED (tilfoejet 3/7-26): uden for production UDEN override sendes
+  // der INGENTING — en glemt/slettet MAIL_OVERRIDE_TO maa aldrig betyde, at
+  // staging mailer rigtige modtagere med prod-creds. Blokeringen logges
+  // hoejlydt, saa den er synlig i Railway-loggen og AppSignal-breadcrumbs.
   const isProd = process.env.APPSIGNAL_APP_ENV === "production";
+  if (!isProd && !process.env.MAIL_OVERRIDE_TO) {
+    console.error(
+      `✋ Mail BLOKERET (ikke-production uden MAIL_OVERRIDE_TO): "${subject}" → ${to}. ` +
+      "Saet MAIL_OVERRIDE_TO i miljoeet for at modtage staging-mails."
+    );
+    return { blocked: true };
+  }
   if (process.env.MAIL_OVERRIDE_TO && !isProd) {
     subject = `[STAGING -> ${to}] ${subject}`;
     to = process.env.MAIL_OVERRIDE_TO;
@@ -77,8 +89,10 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
 }
 
 // ─── Send velkomstmail (magic link) ─────────────────────────────────────────
+// Returnerer resultatet fra sendViaScaleway — herunder { blocked: true } hvis
+// mailen blev stoppet af staging-gaten. Kaldsteder kan (og boer) logge derefter.
 async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
-  await sendViaScaleway({
+  return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  process.env.APP_NAME || "Håndværkerservice",
@@ -113,13 +127,14 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 // ─── Send intern alarm til admin ────────────────────────────────────────────
 // Bruges fx naar nummerpuljen er ved at loebe toer. Sendes til ADMIN_EMAIL
 // (falder tilbage til SMTP_FROM, saa den virker selvom ADMIN_EMAIL ikke er sat).
+// Returnerer resultatet fra sendViaScaleway ({ blocked: true } ved staging-gate).
 async function sendAdminAlert({ subject, text }) {
   const to = process.env.ADMIN_EMAIL || process.env.SMTP_FROM;
   if (!to) {
     console.error("⚠️  Ingen ADMIN_EMAIL/SMTP_FROM sat — kan ikke sende alarm:", subject);
-    return;
+    return { blocked: true };
   }
-  await sendViaScaleway({
+  return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  `${process.env.APP_NAME || "Dit Digitale Kontor"} (system)`,
