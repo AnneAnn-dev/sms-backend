@@ -39,7 +39,19 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
   // fejl saettes i prod, IGNORERES den her (prod er gated paa
   // APPSIGNAL_APP_ENV === "production") — saa du behoever ikke at HUSKE reglen,
   // koden haandhaever den. Den oprindelige modtager laegges i emnet.
+  //
+  // FAIL-CLOSED (tilfoejet 3/7-26): uden for production UDEN override sendes
+  // der INGENTING — en glemt/slettet MAIL_OVERRIDE_TO maa aldrig betyde, at
+  // staging mailer rigtige modtagere med prod-creds. Blokeringen logges
+  // hoejlydt, saa den er synlig i Railway-loggen og AppSignal-breadcrumbs.
   const isProd = process.env.APPSIGNAL_APP_ENV === "production";
+  if (!isProd && !process.env.MAIL_OVERRIDE_TO) {
+    console.error(
+      `✋ Mail BLOKERET (ikke-production uden MAIL_OVERRIDE_TO): "${subject}" → ${to}. ` +
+      "Saet MAIL_OVERRIDE_TO i miljoeet for at modtage staging-mails."
+    );
+    return { blocked: true };
+  }
   if (process.env.MAIL_OVERRIDE_TO && !isProd) {
     subject = `[STAGING -> ${to}] ${subject}`;
     to = process.env.MAIL_OVERRIDE_TO;
