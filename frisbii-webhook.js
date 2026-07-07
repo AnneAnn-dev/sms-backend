@@ -42,32 +42,73 @@ module.exports = (app, supabase) => {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
-  // ─── Replay-beskyttelse: har vi set dette webhook-id foer? ──────────────────
+  // ─── Replay-beskyttelse + dead-letter: har vi set OG behandlet id'et foer? ──
   // Frisbii dokumenterer selv at id+timestamp er det eneste signaturen daekker,
-  // og anbefaler at modtageren gemmer id og ignorerer gensete id'er. Det er
-  // OGSAA den officielle vej til idempotens ved netvaerksfejl/dobbelt-levering.
-  // Returnerer true hvis webhooket er NYT (skal behandles), false hvis det er
-  // set foer (skal ignoreres).
+  // og anbefaler at modtageren gemmer id og ignorerer gensete id'er.
+  //
+  // Skelner nu (jf. migration webhook_events_processed) mellem:
+  //   "new"        -> aldrig set: behandl
+  //   "unprocessed"-> set foer, men processed_at er NULL: et tidligere forsoeg
+  //                   fejlede efter claim (fx Frisbii-API nede). Frisbiis retry
+  //                   er vores anden chance — BEHANDL IGEN. Downstream er
+  //                   idempotent (provisionFirm tjekker frisbii_subscription;
+  //                   setBillingStatus har timestamp-guard), saa genkoersel er ufarlig.
+  //   "processed"  -> set og faerdigbehandlet: ignorer.
   async function claimWebhookEvent(body) {
     const { error } = await supabase
       .from("frisbii_webhook_events")
       .insert({ id: body.id, event_id: body.event_id, event_type: body.event_type });
 
-    if (!error) return true; // nyt id, frit foer
+    if (!error) return "new"; // nyt id, frit foer
 
-    // Unique violation (Postgres-kode 23505) = vi har allerede set dette id.
+    // Unique violation (Postgres-kode 23505) = vi har set dette id foer.
+    // Men blev det ogsaa FAERDIGBEHANDLET? (dead-letter-tjekket)
     if (error.code === "23505") {
+      const { data: seen, error: lookupErr } = await supabase
+        .from("frisbii_webhook_events")
+        .select("processed_at")
+        .eq("id", body.id)
+        .maybeSingle();
+
+      if (lookupErr) {
+        // Kan ikke afgoere status — vaelg genbehandling frem for tab (idempotent downstream).
+        console.error("⚠️  Kunne ikke slaa webhook-status op (genbehandler for en sikkerheds skyld):", lookupErr);
+        return "unprocessed";
+      }
+      if (seen && !seen.processed_at) {
+        console.warn("🔁 Frisbii webhook set foer men ALDRIG faerdigbehandlet — genbehandler:", body.id);
+        return "unprocessed";
+      }
       console.log("ℹ️  Frisbii webhook allerede behandlet, ignorerer:", body.id);
-      return false;
+      return "processed";
     }
 
     // Anden DB-fejl (forbindelse osv.) — vi kan ikke garantere idempotens lige
     // nu. Vi vælger at behandle webhooket alligevel (frem for at tabe det),
-    // fordi provisionFirm() i sig selv er idempotent på frisbii_subscription.
-    // Billing-status-opdateringerne er rene upserts, så en dobbelt-koersel
-    // her er ufarlig, kun overfloedig.
+    // fordi downstream i sig selv er idempotent (se ovenfor).
     console.error("⚠️  Kunne ikke registrere webhook-id (fortsætter alligevel):", error);
-    return true;
+    return "new";
+  }
+
+  // ─── Bogfoer udfaldet af behandlingen ────────────────────────────────────────
+  // processed_at saettes KUN ved succes. Ved fejl gemmes aarsagen i error og
+  // processed_at forbliver NULL — saa Frisbiis naeste retry faar "unprocessed"
+  // og proever igen. Tabellen ER dermed vores dead-letter-liste:
+  //   select * from frisbii_webhook_events where processed_at is null;
+  async function markProcessed(webhookId) {
+    const { error } = await supabase
+      .from("frisbii_webhook_events")
+      .update({ processed_at: new Date().toISOString(), error: null })
+      .eq("id", webhookId);
+    if (error) console.error("⚠️  Kunne ikke markere webhook som behandlet:", webhookId, error);
+  }
+
+  async function markFailed(webhookId, message) {
+    const { error } = await supabase
+      .from("frisbii_webhook_events")
+      .update({ error: String(message).slice(0, 2000) })
+      .eq("id", webhookId);
+    if (error) console.error("⚠️  Kunne ikke gemme webhook-fejl:", webhookId, error);
   }
 
   // ─── Frisbii API (Basic auth: noegle som brugernavn, tom adgangskode) ───────
@@ -285,16 +326,18 @@ module.exports = (app, supabase) => {
     // Replay/dublet-tjek FOER vi svarer. Dette er stadig hurtigt (ét insert),
     // og er den officielt anbefalede idempotens-mekanisme — se kommentar ved
     // claimWebhookEvent(). Et duplikeret webhook faar stadig 200 (Frisbii skal
-    // ikke se det som en fejl og begynde at retry'e), men udløser ingen
-    // sideeffekter anden gang.
-    const isNew = await claimWebhookEvent(body);
+    // ikke se det som en fejl og begynde at retry'e), men udløser kun
+    // sideeffekter, hvis det foerste forsoeg aldrig kom i maal ("unprocessed").
+    const claim = await claimWebhookEvent(body);
 
     // Kvittér STRAKS med 200, FØR vi provisionerer. Saa kan en fejl i oprettelsen
     // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
-    // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot.
+    // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot —
+    // OG bogfoeres i frisbii_webhook_events (processed_at/error), saa et fejlet
+    // event kan genbehandles ved Frisbiis naeste retry i stedet for at gaa tabt.
     res.status(200).send("ok");
 
-    if (!isNew) return; // allerede behandlet — intet mere at gøre
+    if (claim === "processed") return; // faerdigbehandlet tidligere — intet mere at goere
 
     try {
       switch (body.event_type) {
@@ -344,11 +387,17 @@ module.exports = (app, supabase) => {
           break;
 
         default:
-          break; // oevrige events ignoreres bevidst
+          break; // oevrige events ignoreres bevidst — men markeres behandlet nedenfor
       }
+
+      // Alt gik godt (eller eventet var bevidst ignoreret): bogfoer succes,
+      // saa fremtidige dubletter/retries afvises som "processed".
+      await markProcessed(body.id);
     } catch (err) {
-      // Svaret er allerede sendt (200) — vi logger bare, saa webhooket forbliver enabled.
-      console.error("❌ Frisbii efterbehandling fejlede (webhook forbliver enabled):", err);
+      // Svaret er allerede sendt (200) — vi logger og bogfoerer fejlen.
+      // processed_at forbliver NULL -> Frisbiis naeste retry genbehandler.
+      console.error("❌ Frisbii efterbehandling fejlede (genbehandles ved naeste retry):", err);
+      await markFailed(body.id, err.message || err);
     }
   });
 
