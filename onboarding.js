@@ -88,11 +88,13 @@ module.exports = function registerOnboarding(app, supabase) {
         return res.status(200).send("OK");
       }
 
-      // Find ledigt Twilio-nummer i puljen
+      // Find ledigt Twilio-nummer i puljen — spring numre i KARANTAENE over
+      // (reserveret til evt. vundet-tilbage kunder, jf. frisbii-webhook.js)
       const { data: phoneRow, error: phoneErr } = await supabase
         .from("phone_numbers")
         .select("id, number")
         .is("firm_id", null)
+        .or(`quarantined_until.is.null,quarantined_until.lt.${new Date().toISOString()}`)
         .limit(1)
         .single();
 

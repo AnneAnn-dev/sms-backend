@@ -127,6 +127,8 @@ module.exports = (app, supabase) => {
   // forsinket "invoice_failed"-retry der dukker op efter en "invoice_settled"
   // der allerede har gjort kunden active igen). Uden dette tjek kan en gammel
   // retry skubbe en ellers sund kunde tilbage i past_due/cancelled.
+  // RETURNERER true hvis opdateringen blev ANVENDT (nyere end sidste), ellers
+  // false — saa kaldere kan gate sideeffekter (fx deprovisionering) paa guarden.
   async function setBillingStatus(subscriptionHandle, status, webhookTimestamp) {
     const { data: firm, error: findErr } = await supabase
       .from("firms")
@@ -136,13 +138,13 @@ module.exports = (app, supabase) => {
 
     if (findErr) {
       console.error("❌ Kunne ikke slå firma op for billing-opdatering:", findErr);
-      return;
+      return false;
     }
     if (!firm) {
       // Sker for et abonnement der endnu ikke er provisioneret (race med
       // invoice_settled), eller for testdata uden tilhørende firma.
       console.warn("⚠️  Intet firma for frisbii_subscription:", subscriptionHandle, "— ignorerer", status);
-      return;
+      return false;
     }
 
     if (firm.billing_status_updated_at && webhookTimestamp <= firm.billing_status_updated_at) {
@@ -150,7 +152,7 @@ module.exports = (app, supabase) => {
         `ℹ️  Ignorerer aeldre/lige-gammel billing-webhook for firma ${firm.id} ` +
         `(${status} @ ${webhookTimestamp} <= sidst anvendt ${firm.billing_status_updated_at})`
       );
-      return;
+      return false;
     }
 
     const { error: updateErr } = await supabase
@@ -159,9 +161,102 @@ module.exports = (app, supabase) => {
       .eq("id", firm.id);
     if (updateErr) {
       console.error("❌ billing_status-opdatering fejlede:", updateErr);
-      return;
+      return false;
     }
     console.log(`✅ billing_status -> ${status} for firma ${firm.id} (${subscriptionHandle})`);
+    return true;
+  }
+
+  // ─── Har abonnementet nogensinde haft en betalt faktura? ────────────────────
+  // Afgoer karantaeneperioden ved deprovisionering: proevekunder (aldrig betalt)
+  // faar kort karantaene, betalende kunder lang. Kilden er Frisbii (fakturaerne
+  // lyver ikke). FAIL-SAFE: kan sporgsmaalet ikke besvares (API-fejl, ukendt
+  // svarformat), antages BETALT -> lang karantaene. Hellere gemme et nummer for
+  // laenge end at genbruge en betalende kundes nummer for tidligt.
+  async function hasEverPaid(subscriptionHandle) {
+    try {
+      const res = await frisbiiGet(
+        `/list/invoice?subscription=${encodeURIComponent(subscriptionHandle)}&state=settled&size=20`
+      );
+      const invoices = res?.content || res || [];
+      if (!Array.isArray(invoices)) throw new Error("uventet svarformat fra /list/invoice");
+      return invoices.some((inv) => (inv.amount ?? 0) > 0);
+    } catch (err) {
+      console.warn("⚠️  Kunne ikke afgoere betalingshistorik (antager BETALT, lang karantaene):", err.message);
+      return true;
+    }
+  }
+
+  // ─── Deprovisionering: her lukkes udgiftsdriveren ────────────────────────────
+  // Kaldes ved subscription_expired (og expired_dunning): kunden har ikke
+  // laengere et betalt abonnement. Firmaet saettes inaktivt (rutning stopper),
+  // og nummeret haandteres efter betalingshistorik:
+  //   - proevekunde (aldrig betalt):  frigives STRAKS til puljen (ingen karantaene)
+  //   - betalende kunde:              KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
+  //     — en vundet-tilbage kunde skal kunne faa SIT nummer igen (det staar paa bilen!)
+  // last_firm_id gemmes, saa win-back kan genforene kunde og nummer med ét opslag.
+  // Pool-udvaelgelsen springer karantaene-numre over, til perioden er udloebet.
+  // Idempotent: koeres den to gange, goer anden koersel intet.
+  // VIGTIGT: rydder BEGGE nummer-registreringer — pool-raekkens firm_id OG
+  // firms.phone_number (ellers ville et genbrugt nummer pege paa to firmaer,
+  // og rutnings-opslaget i /opkald ville knaekke paa .single()).
+  // Twilio-nummeret beholdes i (sub)kontoen — kun den interne tildeling ryddes.
+  async function deprovisionFirm(subscriptionHandle) {
+    const { data: firm, error: findErr } = await supabase
+      .from("firms")
+      .select("id, name, phone_number, status")
+      .eq("frisbii_subscription", subscriptionHandle)
+      .maybeSingle();
+
+    if (findErr) {
+      console.error("❌ Deprovisionering: kunne ikke slaa firma op:", findErr);
+      throw findErr; // -> markFailed: genbehandles ved naeste retry
+    }
+    if (!firm) {
+      console.warn("⚠️  Deprovisionering: intet firma for", subscriptionHandle, "— ignorerer");
+      return;
+    }
+    if (firm.status === "inactive" && !firm.phone_number) {
+      console.log("ℹ️  Firma allerede deprovisioneret:", firm.id);
+      return;
+    }
+
+    // Karantaeneperiode efter betalingshistorik:
+    //   - proevekunde (aldrig betalt en krone): INGEN karantaene — nummeret
+    //     frigives straks (svag binding: nummeret naaede naeppe bilen paa en proeve)
+    //   - betalende kunde: QUARANTINE_DAYS_PAID (default 30) — win-back-vindue
+    const paid = await hasEverPaid(subscriptionHandle);
+    const days = paid ? (Number(process.env.QUARANTINE_DAYS_PAID) || 30) : 0;
+    const quarantinedUntil = days > 0
+      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    // 1) Frigiv nummeret — med karantaene hvis kunden var betalende.
+    //    last_firm_id gemmes i BEGGE tilfaelde (billigt historisk spor).
+    const { error: poolErr } = await supabase
+      .from("phone_numbers")
+      .update({ firm_id: null, quarantined_until: quarantinedUntil, last_firm_id: firm.id })
+      .eq("firm_id", firm.id);
+    if (poolErr) {
+      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr);
+      throw poolErr;
+    }
+
+    // 2) Ryd firmaets nummer-kolonne + saet inaktiv (rutning stopper)
+    const { error: firmErr } = await supabase
+      .from("firms")
+      .update({ status: "inactive", phone_number: null })
+      .eq("id", firm.id);
+    if (firmErr) {
+      console.error("❌ Deprovisionering: kunne ikke saette firma inaktivt:", firmErr);
+      throw firmErr;
+    }
+
+    console.log(
+      paid
+        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} i karantaene til ${quarantinedUntil} (betalt kunde: ${days} dage)`
+        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} frigivet STRAKS (proevekunde, ingen karantaene)`
+    );
   }
 
   // ─── Provisionering (spejler Shopify-flowet i onboarding.js) ────────────────
@@ -188,11 +283,14 @@ module.exports = (app, supabase) => {
       return;
     }
 
-    // Find ledigt nummer i puljen (samme som Shopify: firm_id IS NULL)
+    // Find ledigt nummer i puljen (firm_id IS NULL) — og spring numre i
+    // KARANTAENE over (reserveret til evt. vundet-tilbage kunder).
+    const nowIso = new Date().toISOString();
     const { data: phoneRow, error: phoneErr } = await supabase
       .from("phone_numbers")
       .select("id, number")
       .is("firm_id", null)
+      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`)
       .limit(1)
       .single();
     if (phoneErr || !phoneRow) {
@@ -244,12 +342,14 @@ module.exports = (app, supabase) => {
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
 
-    // Advar hvis puljen er ved at loebe toer (taeller ledige numre TILBAGE)
+    // Advar hvis puljen er ved at loebe toer (taeller kun REELT ledige numre
+    // — karantaene-numre er ikke tilgaengelige for nye kunder)
     const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
     const { count: ledige } = await supabase
       .from("phone_numbers")
       .select("*", { count: "exact", head: true })
-      .is("firm_id", null);
+      .is("firm_id", null)
+      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`);
     if (typeof ledige === "number" && ledige <= LOW_POOL) {
       console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
       await sendAdminAlert({
@@ -365,20 +465,43 @@ module.exports = (app, supabase) => {
           break;
 
         case "subscription_cancelled":
-        case "subscription_expired":
+          // OPSIGELSE ≠ UDLØB (korrekthedsregel 1): kunden har betalt til
+          // periodeslut — service FORTSAETTER, nummeret beholdes. Statussen er
+          // et retention-signal (kontakt kunden!). Deprovisionering sker foerst
+          // ved subscription_expired.
           await setBillingStatus(body.subscription, "cancelled", body.timestamp);
           break;
 
-        case "subscription_on_hold_dunning":
-        case "subscription_expired_dunning":
-          // Adskilt fra invoice_failed: her er hele ABONNEMENTET sat paa hold
-          // / udloebet pga. mislykket dunning-proces, ikke kun en enkelt faktura.
-          await setBillingStatus(
-            body.subscription,
-            body.event_type === "subscription_expired_dunning" ? "cancelled" : "past_due",
-            body.timestamp
-          );
+        case "subscription_uncancelled":
+          // Kunden (eller admin) har fortrudt opsigelsen foer periodeslut.
+          // NB: en cancel-retry kan ankomme EFTER uncancel — timestamp-guarden
+          // i setBillingStatus haandterer raekkefoelgen.
+          await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
+
+        case "subscription_expired": {
+          // UDLØB: abonnementet er reelt slut (periodeslut efter opsigelse,
+          // eller udloeb af anden aarsag). Her lukkes udgiftsdriveren.
+          // Deprovisionering gates paa guarden: en gammel expired-retry, der
+          // ankommer efter fx en genoptegning, maa ikke rive firmaet ned.
+          const applied = await setBillingStatus(body.subscription, "expired", body.timestamp);
+          if (applied) await deprovisionFirm(body.subscription);
+          break;
+        }
+
+        case "subscription_on_hold_dunning":
+          // Hele abonnementet er sat PAA HOLD pga. mislykket dunning — endnu
+          // ikke udloebet. Kunden kan stadig redde det (ny betalingsmetode).
+          await setBillingStatus(body.subscription, "past_due", body.timestamp);
+          break;
+
+        case "subscription_expired_dunning": {
+          // Dunning-processen er opgivet -> abonnementet ER udloebet.
+          // Samme slutstatus og deprovisionering som subscription_expired.
+          const applied = await setBillingStatus(body.subscription, "expired", body.timestamp);
+          if (applied) await deprovisionFirm(body.subscription);
+          break;
+        }
 
         case "subscription_reactivated":
           // Et tidligere "on hold"-abonnement er saet aktivt igen (admin eller
