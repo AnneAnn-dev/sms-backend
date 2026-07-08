@@ -509,6 +509,36 @@ module.exports = (app, supabase) => {
           await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
 
+        case "invoice_refund": {
+          // REFUNDERING (korrekthedsregel: bogfoer/flag — ingen automatik).
+          // En refund kan betyde mange ting (fejlopkraevning, kulance, tvist),
+          // saa systemet skal IKKE selv aendre kundens status eller deprovisionere
+          // — det er en MENNESKE-beslutning. Vi goer to ting:
+          //  1) Henter fakturaen og logger beloeb + kunde synligt.
+          //  2) Alarmerer admin via mail (sendAdminAlert), saa sagen vurderes.
+          // Frisbii er selv kilden til refund-historikken; vi behoever ikke
+          // duplikere den i egne kolonner.
+          let detaljer = `Faktura: ${body.invoice}, abonnement: ${body.subscription || "?"}`;
+          try {
+            const invoice = await frisbiiGet(`/invoice/${body.invoice}`);
+            const beloeb = ((invoice.refunded_amount ?? invoice.amount ?? 0) / 100).toFixed(2);
+            detaljer = `Faktura ${body.invoice}: ${beloeb} ${invoice.currency || "DKK"} refunderet` +
+                       ` — kunde ${invoice.customer || body.customer || "?"}, abonnement ${body.subscription || "?"}`;
+          } catch (err) {
+            console.warn("⚠️  Kunne ikke hente refund-detaljer (alarmerer med det vi har):", err.message);
+          }
+          console.warn(`💸 REFUND registreret: ${detaljer}`);
+          await sendAdminAlert({
+            subject: "Refundering registreret — kraever vurdering",
+            text:
+              `Frisbii har registreret en refundering:\n\n${detaljer}\n\n` +
+              `Systemet har IKKE aendret kundens status eller nummer — vurder sagen manuelt:\n` +
+              `- Fejlopkraevning/kulance: formentlig ingen handling.\n` +
+              `- Reel fortrydelse/tvist: overvej opsigelse i Frisbii (expired-flowet deprovisionerer saa selv).`,
+          });
+          break;
+        }
+
         default:
           break; // oevrige events ignoreres bevidst — men markeres behandlet nedenfor
       }
