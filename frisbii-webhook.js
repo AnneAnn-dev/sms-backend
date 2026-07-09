@@ -42,32 +42,73 @@ module.exports = (app, supabase) => {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
-  // ─── Replay-beskyttelse: har vi set dette webhook-id foer? ──────────────────
+  // ─── Replay-beskyttelse + dead-letter: har vi set OG behandlet id'et foer? ──
   // Frisbii dokumenterer selv at id+timestamp er det eneste signaturen daekker,
-  // og anbefaler at modtageren gemmer id og ignorerer gensete id'er. Det er
-  // OGSAA den officielle vej til idempotens ved netvaerksfejl/dobbelt-levering.
-  // Returnerer true hvis webhooket er NYT (skal behandles), false hvis det er
-  // set foer (skal ignoreres).
+  // og anbefaler at modtageren gemmer id og ignorerer gensete id'er.
+  //
+  // Skelner nu (jf. migration webhook_events_processed) mellem:
+  //   "new"        -> aldrig set: behandl
+  //   "unprocessed"-> set foer, men processed_at er NULL: et tidligere forsoeg
+  //                   fejlede efter claim (fx Frisbii-API nede). Frisbiis retry
+  //                   er vores anden chance — BEHANDL IGEN. Downstream er
+  //                   idempotent (provisionFirm tjekker frisbii_subscription;
+  //                   setBillingStatus har timestamp-guard), saa genkoersel er ufarlig.
+  //   "processed"  -> set og faerdigbehandlet: ignorer.
   async function claimWebhookEvent(body) {
     const { error } = await supabase
       .from("frisbii_webhook_events")
       .insert({ id: body.id, event_id: body.event_id, event_type: body.event_type });
 
-    if (!error) return true; // nyt id, frit foer
+    if (!error) return "new"; // nyt id, frit foer
 
-    // Unique violation (Postgres-kode 23505) = vi har allerede set dette id.
+    // Unique violation (Postgres-kode 23505) = vi har set dette id foer.
+    // Men blev det ogsaa FAERDIGBEHANDLET? (dead-letter-tjekket)
     if (error.code === "23505") {
+      const { data: seen, error: lookupErr } = await supabase
+        .from("frisbii_webhook_events")
+        .select("processed_at")
+        .eq("id", body.id)
+        .maybeSingle();
+
+      if (lookupErr) {
+        // Kan ikke afgoere status — vaelg genbehandling frem for tab (idempotent downstream).
+        console.error("⚠️  Kunne ikke slaa webhook-status op (genbehandler for en sikkerheds skyld):", lookupErr);
+        return "unprocessed";
+      }
+      if (seen && !seen.processed_at) {
+        console.warn("🔁 Frisbii webhook set foer men ALDRIG faerdigbehandlet — genbehandler:", body.id);
+        return "unprocessed";
+      }
       console.log("ℹ️  Frisbii webhook allerede behandlet, ignorerer:", body.id);
-      return false;
+      return "processed";
     }
 
     // Anden DB-fejl (forbindelse osv.) — vi kan ikke garantere idempotens lige
     // nu. Vi vælger at behandle webhooket alligevel (frem for at tabe det),
-    // fordi provisionFirm() i sig selv er idempotent på frisbii_subscription.
-    // Billing-status-opdateringerne er rene upserts, så en dobbelt-koersel
-    // her er ufarlig, kun overfloedig.
+    // fordi downstream i sig selv er idempotent (se ovenfor).
     console.error("⚠️  Kunne ikke registrere webhook-id (fortsætter alligevel):", error);
-    return true;
+    return "new";
+  }
+
+  // ─── Bogfoer udfaldet af behandlingen ────────────────────────────────────────
+  // processed_at saettes KUN ved succes. Ved fejl gemmes aarsagen i error og
+  // processed_at forbliver NULL — saa Frisbiis naeste retry faar "unprocessed"
+  // og proever igen. Tabellen ER dermed vores dead-letter-liste:
+  //   select * from frisbii_webhook_events where processed_at is null;
+  async function markProcessed(webhookId) {
+    const { error } = await supabase
+      .from("frisbii_webhook_events")
+      .update({ processed_at: new Date().toISOString(), error: null })
+      .eq("id", webhookId);
+    if (error) console.error("⚠️  Kunne ikke markere webhook som behandlet:", webhookId, error);
+  }
+
+  async function markFailed(webhookId, message) {
+    const { error } = await supabase
+      .from("frisbii_webhook_events")
+      .update({ error: String(message).slice(0, 2000) })
+      .eq("id", webhookId);
+    if (error) console.error("⚠️  Kunne ikke gemme webhook-fejl:", webhookId, error);
   }
 
   // ─── Frisbii API (Basic auth: noegle som brugernavn, tom adgangskode) ───────
@@ -86,6 +127,8 @@ module.exports = (app, supabase) => {
   // forsinket "invoice_failed"-retry der dukker op efter en "invoice_settled"
   // der allerede har gjort kunden active igen). Uden dette tjek kan en gammel
   // retry skubbe en ellers sund kunde tilbage i past_due/cancelled.
+  // RETURNERER true hvis opdateringen blev ANVENDT (nyere end sidste), ellers
+  // false — saa kaldere kan gate sideeffekter (fx deprovisionering) paa guarden.
   async function setBillingStatus(subscriptionHandle, status, webhookTimestamp) {
     const { data: firm, error: findErr } = await supabase
       .from("firms")
@@ -95,13 +138,13 @@ module.exports = (app, supabase) => {
 
     if (findErr) {
       console.error("❌ Kunne ikke slå firma op for billing-opdatering:", findErr);
-      return;
+      return false;
     }
     if (!firm) {
       // Sker for et abonnement der endnu ikke er provisioneret (race med
       // invoice_settled), eller for testdata uden tilhørende firma.
       console.warn("⚠️  Intet firma for frisbii_subscription:", subscriptionHandle, "— ignorerer", status);
-      return;
+      return false;
     }
 
     if (firm.billing_status_updated_at && webhookTimestamp <= firm.billing_status_updated_at) {
@@ -109,7 +152,7 @@ module.exports = (app, supabase) => {
         `ℹ️  Ignorerer aeldre/lige-gammel billing-webhook for firma ${firm.id} ` +
         `(${status} @ ${webhookTimestamp} <= sidst anvendt ${firm.billing_status_updated_at})`
       );
-      return;
+      return false;
     }
 
     const { error: updateErr } = await supabase
@@ -118,9 +161,102 @@ module.exports = (app, supabase) => {
       .eq("id", firm.id);
     if (updateErr) {
       console.error("❌ billing_status-opdatering fejlede:", updateErr);
-      return;
+      return false;
     }
     console.log(`✅ billing_status -> ${status} for firma ${firm.id} (${subscriptionHandle})`);
+    return true;
+  }
+
+  // ─── Har abonnementet nogensinde haft en betalt faktura? ────────────────────
+  // Afgoer karantaeneperioden ved deprovisionering: proevekunder (aldrig betalt)
+  // faar kort karantaene, betalende kunder lang. Kilden er Frisbii (fakturaerne
+  // lyver ikke). FAIL-SAFE: kan sporgsmaalet ikke besvares (API-fejl, ukendt
+  // svarformat), antages BETALT -> lang karantaene. Hellere gemme et nummer for
+  // laenge end at genbruge en betalende kundes nummer for tidligt.
+  async function hasEverPaid(subscriptionHandle) {
+    try {
+      const res = await frisbiiGet(
+        `/list/invoice?subscription=${encodeURIComponent(subscriptionHandle)}&state=settled&size=20`
+      );
+      const invoices = res?.content || res || [];
+      if (!Array.isArray(invoices)) throw new Error("uventet svarformat fra /list/invoice");
+      return invoices.some((inv) => (inv.amount ?? 0) > 0);
+    } catch (err) {
+      console.warn("⚠️  Kunne ikke afgoere betalingshistorik (antager BETALT, lang karantaene):", err.message);
+      return true;
+    }
+  }
+
+  // ─── Deprovisionering: her lukkes udgiftsdriveren ────────────────────────────
+  // Kaldes ved subscription_expired (og expired_dunning): kunden har ikke
+  // laengere et betalt abonnement. Firmaet saettes inaktivt (rutning stopper),
+  // og nummeret haandteres efter betalingshistorik:
+  //   - proevekunde (aldrig betalt):  frigives STRAKS til puljen (ingen karantaene)
+  //   - betalende kunde:              KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
+  //     — en vundet-tilbage kunde skal kunne faa SIT nummer igen (det staar paa bilen!)
+  // last_firm_id gemmes, saa win-back kan genforene kunde og nummer med ét opslag.
+  // Pool-udvaelgelsen springer karantaene-numre over, til perioden er udloebet.
+  // Idempotent: koeres den to gange, goer anden koersel intet.
+  // VIGTIGT: rydder BEGGE nummer-registreringer — pool-raekkens firm_id OG
+  // firms.phone_number (ellers ville et genbrugt nummer pege paa to firmaer,
+  // og rutnings-opslaget i /opkald ville knaekke paa .single()).
+  // Twilio-nummeret beholdes i (sub)kontoen — kun den interne tildeling ryddes.
+  async function deprovisionFirm(subscriptionHandle) {
+    const { data: firm, error: findErr } = await supabase
+      .from("firms")
+      .select("id, name, phone_number, status")
+      .eq("frisbii_subscription", subscriptionHandle)
+      .maybeSingle();
+
+    if (findErr) {
+      console.error("❌ Deprovisionering: kunne ikke slaa firma op:", findErr);
+      throw findErr; // -> markFailed: genbehandles ved naeste retry
+    }
+    if (!firm) {
+      console.warn("⚠️  Deprovisionering: intet firma for", subscriptionHandle, "— ignorerer");
+      return;
+    }
+    if (firm.status === "inactive" && !firm.phone_number) {
+      console.log("ℹ️  Firma allerede deprovisioneret:", firm.id);
+      return;
+    }
+
+    // Karantaeneperiode efter betalingshistorik:
+    //   - proevekunde (aldrig betalt en krone): INGEN karantaene — nummeret
+    //     frigives straks (svag binding: nummeret naaede naeppe bilen paa en proeve)
+    //   - betalende kunde: QUARANTINE_DAYS_PAID (default 30) — win-back-vindue
+    const paid = await hasEverPaid(subscriptionHandle);
+    const days = paid ? (Number(process.env.QUARANTINE_DAYS_PAID) || 30) : 0;
+    const quarantinedUntil = days > 0
+      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    // 1) Frigiv nummeret — med karantaene hvis kunden var betalende.
+    //    last_firm_id gemmes i BEGGE tilfaelde (billigt historisk spor).
+    const { error: poolErr } = await supabase
+      .from("phone_numbers")
+      .update({ firm_id: null, quarantined_until: quarantinedUntil, last_firm_id: firm.id })
+      .eq("firm_id", firm.id);
+    if (poolErr) {
+      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr);
+      throw poolErr;
+    }
+
+    // 2) Ryd firmaets nummer-kolonne + saet inaktiv (rutning stopper)
+    const { error: firmErr } = await supabase
+      .from("firms")
+      .update({ status: "inactive", phone_number: null })
+      .eq("id", firm.id);
+    if (firmErr) {
+      console.error("❌ Deprovisionering: kunne ikke saette firma inaktivt:", firmErr);
+      throw firmErr;
+    }
+
+    console.log(
+      paid
+        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} i karantaene til ${quarantinedUntil} (betalt kunde: ${days} dage)`
+        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} frigivet STRAKS (proevekunde, ingen karantaene)`
+    );
   }
 
   // ─── Provisionering (spejler Shopify-flowet i onboarding.js) ────────────────
@@ -147,11 +283,14 @@ module.exports = (app, supabase) => {
       return;
     }
 
-    // Find ledigt nummer i puljen (samme som Shopify: firm_id IS NULL)
+    // Find ledigt nummer i puljen (firm_id IS NULL) — og spring numre i
+    // KARANTAENE over (reserveret til evt. vundet-tilbage kunder).
+    const nowIso = new Date().toISOString();
     const { data: phoneRow, error: phoneErr } = await supabase
       .from("phone_numbers")
       .select("id, number")
       .is("firm_id", null)
+      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`)
       .limit(1)
       .single();
     if (phoneErr || !phoneRow) {
@@ -203,12 +342,14 @@ module.exports = (app, supabase) => {
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
 
-    // Advar hvis puljen er ved at loebe toer (taeller ledige numre TILBAGE)
+    // Advar hvis puljen er ved at loebe toer (taeller kun REELT ledige numre
+    // — karantaene-numre er ikke tilgaengelige for nye kunder)
     const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
     const { count: ledige } = await supabase
       .from("phone_numbers")
       .select("*", { count: "exact", head: true })
-      .is("firm_id", null);
+      .is("firm_id", null)
+      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`);
     if (typeof ledige === "number" && ledige <= LOW_POOL) {
       console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
       await sendAdminAlert({
@@ -285,16 +426,18 @@ module.exports = (app, supabase) => {
     // Replay/dublet-tjek FOER vi svarer. Dette er stadig hurtigt (ét insert),
     // og er den officielt anbefalede idempotens-mekanisme — se kommentar ved
     // claimWebhookEvent(). Et duplikeret webhook faar stadig 200 (Frisbii skal
-    // ikke se det som en fejl og begynde at retry'e), men udløser ingen
-    // sideeffekter anden gang.
-    const isNew = await claimWebhookEvent(body);
+    // ikke se det som en fejl og begynde at retry'e), men udløser kun
+    // sideeffekter, hvis det foerste forsoeg aldrig kom i maal ("unprocessed").
+    const claim = await claimWebhookEvent(body);
 
     // Kvittér STRAKS med 200, FØR vi provisionerer. Saa kan en fejl i oprettelsen
     // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
-    // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot.
+    // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot —
+    // OG bogfoeres i frisbii_webhook_events (processed_at/error), saa et fejlet
+    // event kan genbehandles ved Frisbiis naeste retry i stedet for at gaa tabt.
     res.status(200).send("ok");
 
-    if (!isNew) return; // allerede behandlet — intet mere at gøre
+    if (claim === "processed") return; // faerdigbehandlet tidligere — intet mere at goere
 
     try {
       switch (body.event_type) {
@@ -322,20 +465,43 @@ module.exports = (app, supabase) => {
           break;
 
         case "subscription_cancelled":
-        case "subscription_expired":
+          // OPSIGELSE ≠ UDLØB (korrekthedsregel 1): kunden har betalt til
+          // periodeslut — service FORTSAETTER, nummeret beholdes. Statussen er
+          // et retention-signal (kontakt kunden!). Deprovisionering sker foerst
+          // ved subscription_expired.
           await setBillingStatus(body.subscription, "cancelled", body.timestamp);
           break;
 
-        case "subscription_on_hold_dunning":
-        case "subscription_expired_dunning":
-          // Adskilt fra invoice_failed: her er hele ABONNEMENTET sat paa hold
-          // / udloebet pga. mislykket dunning-proces, ikke kun en enkelt faktura.
-          await setBillingStatus(
-            body.subscription,
-            body.event_type === "subscription_expired_dunning" ? "cancelled" : "past_due",
-            body.timestamp
-          );
+        case "subscription_uncancelled":
+          // Kunden (eller admin) har fortrudt opsigelsen foer periodeslut.
+          // NB: en cancel-retry kan ankomme EFTER uncancel — timestamp-guarden
+          // i setBillingStatus haandterer raekkefoelgen.
+          await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
+
+        case "subscription_expired": {
+          // UDLØB: abonnementet er reelt slut (periodeslut efter opsigelse,
+          // eller udloeb af anden aarsag). Her lukkes udgiftsdriveren.
+          // Deprovisionering gates paa guarden: en gammel expired-retry, der
+          // ankommer efter fx en genoptegning, maa ikke rive firmaet ned.
+          const applied = await setBillingStatus(body.subscription, "expired", body.timestamp);
+          if (applied) await deprovisionFirm(body.subscription);
+          break;
+        }
+
+        case "subscription_on_hold_dunning":
+          // Hele abonnementet er sat PAA HOLD pga. mislykket dunning — endnu
+          // ikke udloebet. Kunden kan stadig redde det (ny betalingsmetode).
+          await setBillingStatus(body.subscription, "past_due", body.timestamp);
+          break;
+
+        case "subscription_expired_dunning": {
+          // Dunning-processen er opgivet -> abonnementet ER udloebet.
+          // Samme slutstatus og deprovisionering som subscription_expired.
+          const applied = await setBillingStatus(body.subscription, "expired", body.timestamp);
+          if (applied) await deprovisionFirm(body.subscription);
+          break;
+        }
 
         case "subscription_reactivated":
           // Et tidligere "on hold"-abonnement er saet aktivt igen (admin eller
@@ -343,12 +509,48 @@ module.exports = (app, supabase) => {
           await setBillingStatus(body.subscription, "active", body.timestamp);
           break;
 
+        case "invoice_refund": {
+          // REFUNDERING (korrekthedsregel: bogfoer/flag — ingen automatik).
+          // En refund kan betyde mange ting (fejlopkraevning, kulance, tvist),
+          // saa systemet skal IKKE selv aendre kundens status eller deprovisionere
+          // — det er en MENNESKE-beslutning. Vi goer to ting:
+          //  1) Henter fakturaen og logger beloeb + kunde synligt.
+          //  2) Alarmerer admin via mail (sendAdminAlert), saa sagen vurderes.
+          // Frisbii er selv kilden til refund-historikken; vi behoever ikke
+          // duplikere den i egne kolonner.
+          let detaljer = `Faktura: ${body.invoice}, abonnement: ${body.subscription || "?"}`;
+          try {
+            const invoice = await frisbiiGet(`/invoice/${body.invoice}`);
+            const beloeb = ((invoice.refunded_amount ?? invoice.amount ?? 0) / 100).toFixed(2);
+            detaljer = `Faktura ${body.invoice}: ${beloeb} ${invoice.currency || "DKK"} refunderet` +
+                       ` — kunde ${invoice.customer || body.customer || "?"}, abonnement ${body.subscription || "?"}`;
+          } catch (err) {
+            console.warn("⚠️  Kunne ikke hente refund-detaljer (alarmerer med det vi har):", err.message);
+          }
+          console.warn(`💸 REFUND registreret: ${detaljer}`);
+          await sendAdminAlert({
+            subject: "Refundering registreret — kraever vurdering",
+            text:
+              `Frisbii har registreret en refundering:\n\n${detaljer}\n\n` +
+              `Systemet har IKKE aendret kundens status eller nummer — vurder sagen manuelt:\n` +
+              `- Fejlopkraevning/kulance: formentlig ingen handling.\n` +
+              `- Reel fortrydelse/tvist: overvej opsigelse i Frisbii (expired-flowet deprovisionerer saa selv).`,
+          });
+          break;
+        }
+
         default:
-          break; // oevrige events ignoreres bevidst
+          break; // oevrige events ignoreres bevidst — men markeres behandlet nedenfor
       }
+
+      // Alt gik godt (eller eventet var bevidst ignoreret): bogfoer succes,
+      // saa fremtidige dubletter/retries afvises som "processed".
+      await markProcessed(body.id);
     } catch (err) {
-      // Svaret er allerede sendt (200) — vi logger bare, saa webhooket forbliver enabled.
-      console.error("❌ Frisbii efterbehandling fejlede (webhook forbliver enabled):", err);
+      // Svaret er allerede sendt (200) — vi logger og bogfoerer fejlen.
+      // processed_at forbliver NULL -> Frisbiis naeste retry genbehandler.
+      console.error("❌ Frisbii efterbehandling fejlede (genbehandles ved naeste retry):", err);
+      await markFailed(body.id, err.message || err);
     }
   });
 

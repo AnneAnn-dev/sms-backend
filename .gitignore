@@ -8,3 +8,5 @@ data.sql
 auth-users.sql
 *.dump
 auth-users.sql
+
+supabase/.temp/
