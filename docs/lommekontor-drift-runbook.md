@@ -138,6 +138,7 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 - Tilføj et simpelt **health-check-endpoint** (fx `GET /health` → 200).
 - Sæt en gratis **uptime-monitor** til at pinge det og **alarmere til din telefon**.
 - Log + alarmér på de tre sømme der fejler tavst: **Twilio-webhook · Frisbii-webhook · Scaleway-mail.**
+- 📌 **TODO (fra byggetrin 6, 6/7-26): dead-letter-alarm på `frisbii_webhook_events`.** Tabellen bogfører nu udfald (`processed_at`/`error`); et event med `processed_at IS NULL` ældre end ~1 time er et tabt/fejlet event, der venter på Frisbii-retry — eller er løbet tør for retries (3 dage). Cron/dagligt tjek: `select id, event_type, received_at, error from frisbii_webhook_events where processed_at is null and received_at < now() - interval '1 hour';` → mail via `sendAdminAlert` hvis ikke tom. Byg sammen med drifts-overvågningen (trin 7).
 - Evt. en daglig digest-mail: "X nye leads, Y fejlede SMS'er."
 
 ---
@@ -184,7 +185,22 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
 *Frisbii Billing & Pay (Reepay-arven). Bygges + testes i staging mod sandbox, med skemaændringer som migrationer.*
 
-**Event → handling:**
+**STATUS 8/7-26: Skridt A-C FÆRDIGE og testet end-to-end i staging. Tilbage: D (refund-flag), E (dunning-/cancel-varsling — produktbeslutning), F (evt. IP-lås), og PROD-DEPLOY (migrationer 2+3 + kode, via push-prod.ps1 + PR i deploy-vindue).**
+
+✅ **A. Idempotens-skema** (migration `webhook_events_processed`): `processed_at` + `error` på `frisbii_webhook_events` — skelner "set" fra "behandlet".
+✅ **B. Dead-letter-arkitektur:** claim er nu tre-tilstands (new/unprocessed/processed); events claimes FØR 200, bogføres efter udfald (markProcessed/markFailed). Et claimet-men-fejlet event genbehandles ved Frisbiis retry i stedet for at blive tabt. **Dead-letter-listen** = `select * from frisbii_webhook_events where processed_at is null;` — SKAL overvåges (cron-alarm: TODO i Del 0.F; behovet demonstreret 8/7 med to ægte dead-letters på ti minutter).
+✅ **C. Cancelled ≠ expired + deprovisionering + karantæne:**
+- `subscription_cancelled` → status `cancelled`, service/nummer BEHOLDES (retention-vindue!) · `subscription_uncancelled` → `active` · `subscription_expired`/`expired_dunning` → `expired` + **deprovisionering**, gated på timestamp-guarden (setBillingStatus returnerer nu applied-bool).
+- **Deprovisionering:** firma inaktivt + `firms.phone_number` ryddes (rutning stopper; et genbrugt nummer må aldrig pege på to firmaer) + pool-rækken frigives — med **karantæne efter kundetype**: *prøvekunde (aldrig betalt) → frigives STRAKS; betalende kunde → 30 dages karantæne* (`QUARANTINE_DAYS_PAID`, env-var, default 30). Betalingshistorik dømmes af Frisbiis fakturaer (`hasEverPaid` via `/list/invoice?state=settled` — verificeret virkende 8/7); fail-safe mod LANG karantæne. `last_firm_id` gemmes til win-back-genforening. Migration `phone_number_quarantine`: `quarantined_until` + `last_firm_id` (bevidst uden FK).
+- **Pool-udvælgelse** (webhook + onboarding.js Shopify-flow) og lav-pulje-tælling springer karantæne-numre over.
+- **Testet 8/7 (sub-0003 + gensendte events):** cancel→cancelled ✓ · uncancel→active ✓ · expire→deprovisionering m. "betalt kunde: 30 dage" ✓ · idempotens afviser gensendte dubletter ✓ · karantæne-filter afviser ny provisionering ("Ingen ledige numre" som dead-letter m. fejltekst!) ✓ · **cirkel lukket:** karantæne ophævet → dead-letter gensendt → 🔁 genbehandlet → kunde provisioneret ✓.
+- 📌 **Win-back-hjørne til senere:** i karensen svarer nummeret med "intet firma"-stilhed — en venlig TwiML-besked ("nummeret er ikke aktivt") ville være pænere for slutkunder. + retention-alarm til OS ved cancel (hører til E).
+- 📌 **Skridt E's scope (udvidet 8/7 efter karantæne-testen):** (1) dunning-varsling til kunden (grace-periode), (2) retention-alarm til OS ved cancel, og — **vigtigst, fundet i test:** (3) **kundevendt besked når provisionering strander** ("Ingen ledige numre"-dead-letter): kunden HAR betalt og får i dag TAVSHED. Skal have en mail med det samme: "Tak for din bestilling — vi gør dit nummer klar og vender tilbage hurtigst muligt." Sendes fra provisioneringens fejlgren (kundens email kendes fra Frisbii-opslaget). Uden den er hvert pulje-tomt-tilfælde en supportsag eller en fortrydelse.
+- ✅ **AFKLARET 8/7 (eksperiment i staging): en 0-kr-trial udløser IKKE `invoice_settled`** — kun customer_created/subscription_created m.fl. Konsekvens: **provisioneringen kører aldrig for trial-kunder** (intet firma, intet nummer, ingen velkomst/magic link — kunden får kun Frisbiis egen bekræftelsesmail og ellers TAVSHED; demonstreret end-to-end inkl. "ukendt email" ved nyt-link-forsøg). **KODEOPGAVE FØR TRIAL-LANCERING:** provisionér også ved `subscription_created` når planen har trial-periode (samme provisionFirm, andet startskud) + verificér at idempotensen på `frisbii_subscription` forhindrer dobbelt-provisionering, når `invoice_settled` ankommer ved trialens udløb. Husk også: trial-kunder ER "prøvekunder" i karantæne-logikken (ingen fakturaer > 0) → nummer frigives straks ved udløb uden betaling — præcis som besluttet.
+
+🔑 **PowerShell-lærdomme (7/7-26):** (1) `.ps1`-scripts skal være **REN ASCII** — Windows PowerShell 5.1 læser UTF-8 uden BOM som ANSI, og flerbyte-tegn (—, emojis) kan parse som anførselstegn → kryptiske "Missing closing brace"-fejl. (2) **Engangsopsætning pr. maskine:** `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (+ evt. `Unblock-File` på hentede scripts) — ellers "not digitally signed"-afvisning. (3) Ingen PS7-syntaks (`? :`-ternary) — maskinerne kører PS 5.1. *Alle tre ville have bidt partneren på dag ét.*
+
+**Event → handling:** *(oprindelig plan — nu implementeret som beskrevet under C ovenfor)*
 - `invoice_settled` → provisionér (claim nummer, opret firma + Auth-bruger, aktivér). Også ved fornyelse: bekræft `billing_status = paid`.
 - Betalingsfejl/dunning *(verificér event-navn i dashboardet)* → `billing_status = past_due`, start grace-periode, varsl kunden. **Frigiv IKKE nummeret endnu.**
 - Opsigelse (`subscription_cancelled`) → markér opsagt, **behold service til periodeslut**, brug som retention-signal. Ingen deprovisionering.
