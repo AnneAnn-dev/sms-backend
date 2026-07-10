@@ -13,18 +13,19 @@
 // men KUN naar abonnementet er/bliver trial (afgjort via Frisbii-API'et, ikke
 // webhook-payloaden). Betalte planer provisioneres uaendret af invoice_settled.
 // Begge startskud gaar gennem SAMME provisionFirm; dobbelt-provisionering
-// stoppes af (1) app-tjekket paa frisbii_subscription og (2) det race-sikre
-// unique index i databasen (migration trial_provisioning_guard).
+// stoppes af (1) app-tjekket paa frisbii_subscription og (2) den race-sikre
+// MEDFOEDTE unique-constraint firms_frisbii_subscription_key (fra
+// frisbii-webhook-migration.sql — kolonnen blev foedt med "unique").
 //
 // Provisioneringen spejler 1:1 din Shopify-flow i onboarding.js (samme kolonner,
 // samme status-felter, samme mail). Eneste forskel er triggeren + idempotens-noeglen.
 // Kraever Node 18+ (global fetch).
 //
 // FORUDSAETNINGER (migrationer, i raekkefoelge):
-//   1. frisbii-webhook-migration.sql  (frisbii_webhook_events + firms.billing_status_updated_at)
+//   1. frisbii-webhook-migration.sql  (frisbii_webhook_events + firms.billing_status_updated_at
+//                                      + unique paa firms.frisbii_subscription)
 //   2. webhook_events_processed       (processed_at + error — dead-letter)
 //   3. phone_number_quarantine        (quarantined_until + last_firm_id)
-//   4. trial_provisioning_guard       (unique index paa firms.frisbii_subscription)
 // -----------------------------------------------------------------------------
 
 const crypto = require("crypto");
@@ -361,16 +362,16 @@ module.exports = (app, supabase) => {
       .select()
       .single();
     if (firmErr) {
-      // Race-vaernet (migration trial_provisioning_guard): to samtidige events
-      // for SAMME abonnement (fx subscription_created + invoice_settled ved en
-      // trial-plan med oprettelsesgebyr) kan begge naa forbi idempotens-tjekket
-      // oeverst, foer nogen af dem har indsat firmaet. Databasens unique index
-      // paa frisbii_subscription koarer da vinderen; taberen lander her med
-      // 23505. Det er IKKE en fejl: firmaet ER provisioneret (af den anden
+      // Race-vaernet: to samtidige events for SAMME abonnement (fx
+      // subscription_created + invoice_settled ved en trial-plan med
+      // oprettelsesgebyr) kan begge naa forbi idempotens-tjekket oeverst,
+      // foer nogen af dem har indsat firmaet. Den medfoedte unique-constraint
+      // firms_frisbii_subscription_key koarer da vinderen; taberen lander her
+      // med 23505. Det er IKKE en fejl: firmaet ER provisioneret (af den anden
       // handler), saa eventet behandles som no-op og markeres processed —
       // i stedet for at gaa i dead-letter og vente unoedigt paa en retry.
-      // Regex-gaten sikrer at KUN netop dette index behandles saadan; en
-      // 23505 fra en anden constraint (fx et fremtidigt unique paa
+      // Regex-gaten sikrer at KUN frisbii_subscription-vaernet behandles
+      // saadan; en 23505 fra en anden constraint (fx et fremtidigt unique paa
       // phone_number) skal stadig i dead-letter og undersoeges.
       if (firmErr.code === "23505" && /frisbii_subscription/i.test(firmErr.message || "")) {
         console.log("ℹ️  Race tabt — abonnementet blev netop provisioneret af et parallelt event:", subHandle);
