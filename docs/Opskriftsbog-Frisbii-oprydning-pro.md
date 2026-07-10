@@ -166,3 +166,104 @@ git push    # → lille PR-tur til main ved lejlighed, eller med naeste tog
 synk, staging er rent, og pilot-sporet kan aabnes. Naeste kapitler: trin 6 E
 (varslinger, med Anne) · trial-provisionering (kodeopgave) · dublet-email-
 haandtering (foer go-live) · subkonto-nummer 2 · Frisbii-branding + oevelser.
+
+
+Uddybning af skridt 2b
+
+Selvfølgelig! Lad mig folde det ud til noget du faktisk kan følge trin for trin. Det er en helt normal proces, så bare rolig.
+Trin 1: Opret pull request'en
+
+Gå ind på jeres repo på GitHub.com
+Klik på fanen "Pull requests" øverst
+Klik på den grønne knap "New pull request"
+Du får nu to dropdown-menuer der siger noget i stil med "base: main" og "compare: staging":
+
+base skal stå på main (det er den gren I merger ind i — altså produktion)
+compare skal stå på staging (det er den gren I merger fra — jeres nye ændringer)
+
+
+GitHub viser nu automatisk en diff (en oversigt over alle ændringer)
+
+Trin 2: Tjek filerne i diffen — det vigtige sikkerhedstjek
+Scroll ned til fanen der hedder "Files changed". Her ser du en liste over alle filer der bliver ændret.
+Skal være med (det er forventet og fint):
+
+frisbii-webhook.js
+onboarding.js
+mail.js
+onboarding-link.js
+2 filer under supabase/migrations/
+filer under scripts
+filer under docs
+
+Må IKKE være med — hvis du ser nogen af disse, så STOP og spørg nogen, merge ikke:
+
+.env
+auth-users.sql
+schema.sql
+data.sql
+noget under supabase/.temp/
+
+Grunden til at disse er farlige: de indeholder typisk hemmeligheder (.env) eller rå data/database-dumps som ikke skal ende i produktionskoden.
+Hvis listen matcher det forventede (og ingen af de farlige filer dukker op), går du videre.
+Trin 3: Opret selve pull requesten
+
+Øverst på siden (hvor du lavede diff'en) klikker du "Create pull request"
+Giv den evt. en titel (f.eks. "Staging → Prod deploy") — det er ikke kritisk
+Klik "Create pull request" igen for at bekræfte
+
+Trin 4: Merge den
+
+Du lander nu på selve PR-siden. Scroll ned til bunden
+Der er en grøn knap der hedder "Merge pull request" — klik på den
+GitHub beder dig bekræfte — klik "Confirm merge"
+VIGTIGT: Efter merge tilbyder GitHub ofte en knap der hedder "Delete branch".
+Klik IKKE på den. Lad staging-branchen blive liggende.
+
+Det var det! 🎉
+Når merge'et er gennemført, er ændringerne nu i main, og afhængig af jeres opsætning starter en deployment til produktion enten automatisk eller ved et separat skridt (det ved jeg ikke om I har — sig til hvis du er i tvivl om det næste led).
+Er der noget bestemt trin du er nervøs for, eller vil du gerne vide hvad der sker efter merge'et (f.eks. om der kører en deployment automatisk)?
+
+
+
+
+Prodversionen af oprydning. 
+
+Prod-oprydning: ja, men IKKE opskriften uændret
+Princippet holder (testdata, engangsoprydning før ægte kunder — DML i editoren er legitimt), men tre trin skal vendes om, fordi prod er en anden verden:
+
+Trin 3 (slet +4591309229) må ALDRIG køres i prod — logikken er spejlvendt: i staging var nummeret en artefakt; i prod er det et ægte aktiv (fysisk Twilio-nummer, jeres udgift, pilot-puljens indhold). Ingen delete from phone_numbers i prod overhovedet — numrene skal frigøres, ikke slettes.
+Backup først — prods egen regel (Del 0.E): kør pg_dump-treklangen inden større DML. Fem minutter, og du har fortrydelsesret.
+Firma-sletningen skal ske pr. eksplicit id, ikke pr. navn — prods indhold er ældre og mere blandet end stagings; kør overbliks-forespørgslerne, kig på hver række, og slet med id-liste.
+
+Prod-tilpasset version (kør i prod-editoren, ref glymux... i URL):
+
+-- 0) FØRST: pg_dump-treklangen fra PowerShell (Del 0.E-opskriften)
+$env:PGPASSWORD = 'prod-databasepassword'   # enkelte anførselstegn!
+pg_dump "postgresql://postgres.glymuxqtrbpeyzmflilf@aws-0-eu-west-1.pooler.supabase.com:5432/postgres" --schema=public --schema-only -f schema.sql
+pg_dump "postgresql://postgres.glymuxqtrbpeyzmflilf@aws-0-eu-west-1.pooler.supabase.com:5432/postgres" --schema=public --data-only -f data.sql
+pg_dump "postgresql://postgres.glymuxqtrbpeyzmflilf@aws-0-eu-west-1.pooler.supabase.com:5432/postgres" --data-only --table=auth.users --table=auth.identities -f auth-users.sql
+
+Finder du ikke afsnittet i din lokale kopi, har du muligvis en ældre version af runbooken liggende — den nyeste er den fra vores seneste bogføring (med 🏁 Del 0-markeringen og hele byggetrin 6-statussen). Den bør være den, der ligger i docs/ og ryger med toget.nu er jeg med, jeg har glemt hvad er $env:PGPASSWORD = 'prod-databasepassword'$env:PGPASSWORD er den midlertidige PowerShell-variabel, som pg_dump automatisk læser passwordet fra — så det ikke skal stå i selve kommandoen. Det, du skal sætte ind mellem de enkelte anførselstegn, er prod-databasens Postgres-adgangskode — den, du resettede og gemte i din password manager tilbage ved gendannelses-øvelsen (3/7). Det er ikke en API-nøgle (eyJ...) og ikke dit Supabase-login — det er det "rå" databasepassword, som kun bruges til direkte Postgres-forbindelser som pg_dump.
+
+De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader PowerShell fortolke $ og ` i passwordet), samme vindue som pg_dump-kommandoerne, og passwordet lander i PowerShell-historikken — kør evt. Clear-History bagefter for hygiejnen.De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader PowerShell fortolke $ og ` i passwordet), samme vindue som pg_dump-kommandoerne, og passwordet lander i PowerShell-historikken — kør evt. Clear-History bagefter for hygiejnen.
+
+-- 1) Overblik — beslut pr. række hvad der er testaffald:
+select id, name, email, phone_number, billing_status, created_at from firms order by created_at;
+select number, firm_id, quarantined_until from phone_numbers;
+select id, event_type, received_at, processed_at from frisbii_webhook_events order by received_at;
+
+-- 2) Slet testfirmaer med EKSPLICIT id-liste (indsæt de id'er, du dømmer ude):
+delete from firm_users where firm_id in ('<id1>', '<id2>');
+delete from leads where call_id in (select id from calls where firm_id in ('<id1>', '<id2>'));
+delete from calls where firm_id in ('<id1>', '<id2>');
+delete from firms where id in ('<id1>', '<id2>');
+
+-- 3) FRIGØR numrene (slet IKKE rækkerne!) — klar til piloterne:
+update phone_numbers set firm_id = null, quarantined_until = null, last_firm_id = null;
+
+-- 4) Stempl gamle webhook-events (samme som staging):
+update frisbii_webhook_events set processed_at = received_at where processed_at is null;
+Plus auth-brugere (Authentication → Users: slet test-adresserne, behold din egen admin-bruger, hvis dashboardet bruger den) — og bagefter pilot-drejebogens forudsætningstjek: voice-webhooks på begge numre mod prod-URL'en. Bemærk at trin 3 forudsætter, at prod-toget er kørt (kolonnerne findes ellers ikke i prod — endnu en grund til togets rækkefølge). Beslutningen om jeres eget demo-firma (vil I beholde ét "Dit Digitale Kontor"-firma i prod til egne tests, bundet til +4591309423?) er din — men træf den bevidst i trin 1-gennemgangen frem for at slette i flæng.
+
+
