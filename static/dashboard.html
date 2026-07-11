@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#1A3A5C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Dit Kontor">
+  <script src="/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -622,8 +623,10 @@
 </div>
 
 <script>
-  const SUPABASE_URL = 'https://glymuxqtrbpeyzmflilf.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdseW11eHF0cmJwZXl6bWZsaWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjYyOTEsImV4cCI6MjA5MzIwMjI5MX0.ShrA33kAQyhA1csFWyr8f2-f8uAqldkFySALKSsywso';
+  // Vaerdier kommer fra /config.js (app-config.js paa serveren), saa siden
+  // ALTID taler med det miljoe, den blev serveret fra — aldrig hardcodet.
+  const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
+  const SUPABASE_ANON_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
  // const { createClient } = supabase;
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -934,8 +937,8 @@ function renderLeads() {
   // stemme. BEMÆRK: det er en standardsætning, ikke firmaets egen tekst — den
   // egne tekst renderes først når man trykker Gem (backend kalder ElevenLabs).
   const GREETING_SAMPLE_URL = {
-    female: 'https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/female.mp3?v=2',
-    male:   'https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/male.mp3?v=2',
+    female: `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/female.mp3?v=2`,
+    male:   `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/male.mp3?v=2`,
   };
 
   function previewGreetingVoice() {
