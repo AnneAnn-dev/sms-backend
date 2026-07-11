@@ -192,7 +192,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 
 *Frisbii Billing & Pay (Reepay-arven). Bygges + testes i staging mod sandbox, med skemaændringer som migrationer.*
 
-**STATUS 8/7-26: Skridt A-C FÆRDIGE og testet end-to-end i staging. Tilbage: D (refund-flag), E (dunning-/cancel-varsling — produktbeslutning), F (evt. IP-lås), og PROD-DEPLOY (migrationer 2+3 + kode, via push-prod.ps1 + PR i deploy-vindue).**
+**STATUS 10/7-26 (opdateret): Skridt A-D FÆRDIGE + TRIAL-PROVISIONERING bygget og røgtestet i staging (D-F bestået).** Prod-toget for trin 6-koden + migrationer 2+3 er kørt; staging- og prod-dataoprydning gennemført. Trial-startskuddet (`subscription_created` → trial-tjek via API → samme provisionFirm) virker end-to-end: dead-letter ved tom pulje → nummer tilføjet → gensend → provisioneret ✓ · no-op-værn ved gensend af behandlet abonnement ✓ · ikke-trial-gren ✓. **10/7 afslørede desuden en tværgående rodårsag:** de statiske sider (onboarding/dashboard) havde HARDCODET prod-Supabase-config → staging-magic-links blev afvist som "udløbet" af prod-projektet. Fix: `/config.js`-mønsteret (app-config.js) — se lærdomme nedenfor. **Tilbage: config-fixet deployes (opskrift i docs/), E (varslinger — produktbeslutning m. Anne, scope udvidet igen 10/7), F (evt. IP-lås, valgfri), prod-tog for trial+config-koden.** Se "Udeståender — samlet overblik" nederst.
 
 ✅ **A. Idempotens-skema** (migration `webhook_events_processed`): `processed_at` + `error` på `frisbii_webhook_events` — skelner "set" fra "behandlet".
 ✅ **B. Dead-letter-arkitektur:** claim er nu tre-tilstands (new/unprocessed/processed); events claimes FØR 200, bogføres efter udfald (markProcessed/markFailed). Et claimet-men-fejlet event genbehandles ved Frisbiis retry i stedet for at blive tabt. **Dead-letter-listen** = `select * from frisbii_webhook_events where processed_at is null;` — SKAL overvåges (cron-alarm: TODO i Del 0.F; behovet demonstreret 8/7 med to ægte dead-letters på ti minutter).
@@ -203,7 +203,17 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - **Testet 8/7 (sub-0003 + gensendte events):** cancel→cancelled ✓ · uncancel→active ✓ · expire→deprovisionering m. "betalt kunde: 30 dage" ✓ · idempotens afviser gensendte dubletter ✓ · karantæne-filter afviser ny provisionering ("Ingen ledige numre" som dead-letter m. fejltekst!) ✓ · **cirkel lukket:** karantæne ophævet → dead-letter gensendt → 🔁 genbehandlet → kunde provisioneret ✓.
 - 📌 **Win-back-hjørne til senere:** i karensen svarer nummeret med "intet firma"-stilhed — en venlig TwiML-besked ("nummeret er ikke aktivt") ville være pænere for slutkunder. + retention-alarm til OS ved cancel (hører til E).
 - 📌 **Skridt E's scope (udvidet 8/7 efter karantæne-testen):** (1) dunning-varsling til kunden (grace-periode), (2) retention-alarm til OS ved cancel, og — **vigtigst, fundet i test:** (3) **kundevendt besked når provisionering strander** ("Ingen ledige numre"-dead-letter): kunden HAR betalt og får i dag TAVSHED. Skal have en mail med det samme: "Tak for din bestilling — vi gør dit nummer klar og vender tilbage hurtigst muligt." Sendes fra provisioneringens fejlgren (kundens email kendes fra Frisbii-opslaget). Uden den er hvert pulje-tomt-tilfælde en supportsag eller en fortrydelse.
-- ✅ **AFKLARET 8/7 (eksperiment i staging): en 0-kr-trial udløser IKKE `invoice_settled`** — kun customer_created/subscription_created m.fl. Konsekvens: **provisioneringen kører aldrig for trial-kunder** (intet firma, intet nummer, ingen velkomst/magic link — kunden får kun Frisbiis egen bekræftelsesmail og ellers TAVSHED; demonstreret end-to-end inkl. "ukendt email" ved nyt-link-forsøg). **KODEOPGAVE FØR TRIAL-LANCERING:** provisionér også ved `subscription_created` når planen har trial-periode (samme provisionFirm, andet startskud) + verificér at idempotensen på `frisbii_subscription` forhindrer dobbelt-provisionering, når `invoice_settled` ankommer ved trialens udløb. Husk også: trial-kunder ER "prøvekunder" i karantæne-logikken (ingen fakturaer > 0) → nummer frigives straks ved udløb uden betaling — præcis som besluttet.
+- ✅ **AFKLARET 8/7 (eksperiment i staging): en 0-kr-trial udløser IKKE `invoice_settled`** — kun customer_created/subscription_created m.fl. Konsekvens: **provisioneringen kører aldrig for trial-kunder** (intet firma, intet nummer, ingen velkomst/magic link — kunden får kun Frisbiis egen bekræftelsesmail og ellers TAVSHED; demonstreret end-to-end inkl. "ukendt email" ved nyt-link-forsøg). ✅ **LØST 10/7 (trial-provisionering, røgtestet D-F):** `subscription_created`-case i frisbii-webhook.js → henter abonnementet via API (korrekthedsregel 2) → `isTrialSubscription()` (`is_in_trial` / `trial_end` i fremtiden, fail-closed på feltlæsning, fail-loud/dead-letter på API-fejl) → trial: samme `provisionFirm`; ikke-trial: no-op-log (invoice_settled ejer stadig betalte planer). **Dobbelt-provisionerings-værn i to lag:** app-tjekket på `frisbii_subscription` + den **medfødte** unique-constraint `firms_frisbii_subscription_key` (kolonnen blev født `unique` i frisbii-webhook-migration.sql — separat migration viste sig overflødig og blev droppet). Race-taberen (23505 fra netop dén constraint) behandles som no-op/processed i stedet for dead-letter. Trial-kunder ER "prøvekunder" i karantæne-logikken → nummer frigives straks ved udløb uden betaling.
+- ⚠️ **KENDT BEGRÆNSNING (fundet 8/7): dublet-emails knækker email-opslag.** Provisioneringen tillader samme email på flere firmaer (testdata beviste det: to firmaer med `ann@ditdigitalekontor.dk`), og `maybeSingle()`-opslag på email (fx nyt-link-endpointet) fejler så og svarer "ukendt email" — teknisk forkert, men sikkert (intet lækkes/sendes). **Kodeopgave:** `invoice_settled`-provisioneringen skal ved eksisterende email enten GENBRUGE firmaet/brugeren eller afvise med alarm — beslutning + implementering før go-live (en rigtig kunde med to abonnementer/gen-tilmelding rammer det ellers). Indtil da: pilot-drejebogens manuelle dublet-tjek før hver provisionering. *(NB 10/7: en formodet forekomst viste sig at være en tastefejls-email — rescue-flowet virkede korrekt. Opgaven består, men den blokerer ikke test-loopet.)*
+
+🔑 **Lærdomme 10/7-26 (trial-dagen):**
+- **⚠️ VIGTIGST — hardcodet frontend-config (rodårsagen til "udløbet link"):** `onboarding.html`/`dashboard.html` havde prod-Supabase-URL + anon-nøgle HARDCODET → alle statiske sider talte med PROD-projektet fra browseren, uanset serverende miljø. Staging-tokens blev afvist af prod som "udløbet" — usynligt indtil første ægte magic-link-login i staging (trial-arbejdet tvang stien frem). **Fix: `/config.js`-mønsteret** (`app-config.js`-rute: serveren udstiller `window.APP_CONFIG` fra SINE env-vars, fail-closed + `Cache-Control: no-store`; HTML læser derfra). **Princip: filer må ikke kende miljøer — kun miljøet ejer sine adresser.** Kræver ny env-var `SUPABASE_ANON_KEY` i BEGGE Railway-miljøer + lokale .env'er, FØR koden deployes (ellers 500 på /config.js). Sample-lyd-URL'er bygges nu også af `SUPABASE_URL` → staging-Storage skal have `greetings/_samples/*.mp3` uploadet (pg_dump-restore tager IKKE Storage med).
+- **Migrations-hovedbogen:** `supabase\migrations` skal stemme 1:1 med `supabase_migrations.schema_migrations` i hver database. **En migrationsfil, der har været kørt mod nogen database, må ALDRIG omdøbes eller slettes** — manuel "oprydning" i mappen orphanede en anvendt migration og blokerede alle push ("Remote migration versions not found"). Reparation: gør reverten SAND først (drop det, migrationen skabte), dernæst `npx supabase migration repair --status reverted <version>`. Og arbejdsgangen er: opret fil → indsæt indhold → gem → push (ALDRIG push imellem — en tom fil bogføres også).
+- **CLI-kaldeform:** `supabase` er devDependency (npm) → kaldes `npx supabase …`. `migration new` er ren fil-oprettelse med timestamp-navn — kan gøres manuelt i PowerShell.
+- **Fallback-fjernelse i nummer-scripts:** `VOICE_URL` havde hardcodet prod-fallback → et staging-nummer ville i tavshed få prod-webhook. Nu krævet env-var (fail-closed). Samme princip som config-fixet.
+- **Env-var-navnedrift:** lokal `.env` sagde `TWILIO_PHONE_NUMBER`, Railway/koden siger `TWILIO_SYSTEM_NUMBER` → scriptenes systemnummer-vagt kørte stumt slået fra. Omdøbt lokalt; overvej check-env.js-validering af nøglen.
+- **`reset-test-data.js` opdateret** til trin 6-skemaet: `messages` + `frisbii_webhook_events` i sletterækkefølgen, frigørelse nulstiller også `quarantined_until`/`last_firm_id`.
+- **Skridt E's scope udvidet IGEN (10/7, punkt 4):** tastefejl i kunde-email → velkomstmail/magic link når aldrig frem (i prod findes ingen MAIL_OVERRIDE_TO til at maskere det); kunden har nummer og service, men ingen adgang. Hører under "strandet onboarding"-varsling: detektér uleveret velkomstmail / aldrig-logget-ind og reager.
 
 🔑 **PowerShell-lærdomme (7/7-26):** (1) `.ps1`-scripts skal være **REN ASCII** — Windows PowerShell 5.1 læser UTF-8 uden BOM som ANSI, og flerbyte-tegn (—, emojis) kan parse som anførselstegn → kryptiske "Missing closing brace"-fejl. (2) **Engangsopsætning pr. maskine:** `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (+ evt. `Unblock-File` på hentede scripts) — ellers "not digitally signed"-afvisning. (3) Ingen PS7-syntaks (`? :`-ternary) — maskinerne kører PS 5.1. *Alle tre ville have bidt partneren på dag ét.*
 
@@ -307,3 +317,45 @@ Resten kan lægges ovenpå, når I har luft.
 5. **Ryd op:** slet dump-filerne, eller flyt dem til sikker off-site-placering — de må **ikke** committes til git.
 
 **Note:** dette dækker `public`-tabellerne + auth-brugere. Til en ægte katastrofe-gendannelse skal **Storage**-filer (greeting-lyd + lead-billeder) også med — de ligger uden for Postgres og eksporteres for sig. Øv dét, når der er ægte kundedata at beskytte.
+
+---
+
+## Udeståender — samlet overblik (pr. 10/7-26)
+
+*Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
+
+### 🚂 Klar til at køre NU (opskrift: `opskrift-config-fix-og-prodtog.md` i docs/)
+1. **Config-fixet til staging:** `SUPABASE_ANON_KEY` i staging-Railway + lokal .env → `app-config.js` + require i server.js → nye onboarding.html/dashboard.html → sw.js-bump v14→v15 → sample-mp3'er til staging-Storage → merge feat-gren → staging → verificér /config.js + frisk trial-gennemløb m. magic-link-LOGIN (den sidste ubestrøgne sti).
+2. **Prod-tog for trial+config-koden:** `SUPABASE_ANON_KEY` i prod-Railway FØRST (ellers knækker dashboardet ved deploy!) → merge main → deploy → sw-bump verificeret → ét ægte login i prod. INGEN migrationer denne gang.
+3. **Navne-sweep 1/3:** runbook omdøbes (`git mv` → ditdigitalekontor-drift-runbook.md) + interne referencer. De to andre filer (opskriftsbog-numre, config-fortegnelse) ved næste upload.
+
+### 🔧 Kodeopgaver (prioriteret)
+1. **Dublet-emails** (FØR go-live, blokerer ikke test): genbrug-eller-afvis ved eksisterende email i provisioneringen — produktbeslutning m. Anne. Indtil da: manuelt tjek jf. pilot-drejebog. *(Byg-trin 6, fundet 8/7; falsk alarm 10/7 var en tastefejls-email.)*
+2. **Trin 6 E — varslinger** (produktbeslutning m. Anne, scope udvidet 10/7): (a) "vi er på sagen"-mail ved strandet provisionering (VIGTIGST — kunden har betalt og hører i dag INTET), (b) dunning-varsling/grace, (c) retention-alarm til os ved cancel, (d) **NY 10/7:** detektion af uleveret velkomstmail/aldrig-logget-ind (tastefejls-email → kunde med service men uden adgang).
+3. **Checkout-vars** (go-live-gate): `FRISBII_PLAN_HANDLE` + `SIMPLY_BASE_URL` i BEGGE miljøer + accept_url/cancel_url → onboarding i stedet for `GET /` 404. *(Delvis genvej: sæt trial-planens handle i staging som led i checkout-test.)*
+4. **Dead-letter-cron** (m. trin 7 overvågning): dagligt tjek af `processed_at is null` ældre end 1 time → sendAdminAlert. *(Del 0.F TODO.)*
+5. `firms.phone_number` **unique-constraint** (kendt udskudt skema-skævhed — dagens medfødte `frisbii_subscription`-constraint dækker KUN samme-abonnement-racet, ikke to forskellige abonnementer der vælger samme pulje-nummer) + `created_at` på firms. *(Bonus-oprydning ved lejlighed: redundant `idx_firms_frisbii_sub` + legacy `firms_shopify_order_id_key`.)*
+6. **check-env.js:** validér også `TWILIO_SYSTEM_NUMBER` + `VOICE_URL` + `SUPABASE_ANON_KEY` (navnedrift/manglende nøgler fanget 10/7).
+7. **Trin 6 F** (valgfri hærdning): IP-lås/Basic Auth på webhook-endpointet.
+8. Win-back-polish: venlig TwiML-besked på karantæne-numre + reset-/login-link-flowets UX (bevar rate-limit/anti-enumeration).
+
+### 🏗️ Infrastruktur/indkøb
+1. **Staging-systemnummer (subkonto-nummer nr. 3):** onboarding-verifikationsopkaldet kan IKKE testes i staging, før subkontoen har sit eget systemnummer (prod-nummeret kan ikke ringe fra subkontoen). Sæt `TWILIO_SYSTEM_NUMBER` i staging-Railway + lokal .env til det. *(Nr. 2 til puljen: ✅ købt + konfigureret 10/7 via configure-number.js.)*
+2. **Prod-numre til pilot-ambitionen:** tjek puljen, køb evt. flere i HOVEDKONTOEN via buy-numbers.js (kræver nu eksplicit `VOICE_URL` = prod!), verificér voice-webhooks — pilot-drejebogens forudsætningsliste
+3. Frisbii-branding (logo/farver/mails, dansk) i begge konti + øvelser: dunning-testkort, kuponer, planskift
+
+### 🚦 Go-live-gates (master-punkt 8 — før første betalende kunde)
+1. Supabase Pro + PITR på prod
+2. Frisbii live-nøgler i PROD (kræver indløsningsaftale + MobilePay MSN → kræver bankkonto; staging beholder testkonto)
+3. Checkout-vars + checkout-flow røgtestet fra partnersitet (kodeopgave 3)
+4. Dublet-email-håndtering løst (kodeopgave 1)
+5. Config-fixet deployet + verificeret i BEGGE miljøer (🚂-punkt 1+2)
+
+### ⏸️ Bevidst udskudt (re-triggere dokumenteret i Del 0.B)
+- Railway RBAC (tredje person/planopgradering) · Legacy→nye Supabase-nøgler (Supabase-deadline/refaktorering) · Twilio voice-region US1→IE1-vurdering (EU-princippet; før/kort efter go-live) · AppSignal expressErrorHandler-optimering
+
+### 👥 Med Anne
+- Pilot-formularen + forventningstekst + personlig velkomst (pilot-drejebog) — **rekruttering af testvirksomheder kan starte NU** (piloterne provisioneres manuelt uden om Frisbii)
+- Dublet-email-beslutningen: genbrug eller afvis? (kodeopgave 1 — produktvinkel)
+- Trin 6 E-varslingernes tekster/timing (kodeopgave 2)
+- Onboarding af Anne i staging som udvikler (separat chat-oplæg findes)
