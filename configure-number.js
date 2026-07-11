@@ -18,13 +18,16 @@ const twilio = require("twilio");
 const { createClient } = require("@supabase/supabase-js");
 
 const SID       = process.argv[2];
-const VOICE_URL = process.env.VOICE_URL || "https://sms-backend-production-5ee1.up.railway.app/opkald";
+// VOICE_URL er BEVIDST uden fallback: en hardcodet default ville i tavshed
+// pege nummeret paa det forkerte miljoe, hvis .env mangler variablen. Scriptet
+// naegter i stedet at koere (fail-closed, samme princip som MAIL_OVERRIDE_TO).
+const VOICE_URL = process.env.VOICE_URL;
 
 if (!SID || !SID.startsWith("PN")) {
   console.error("Angiv nummerets PN-SID, fx:\n  node configure-number.js PN83d9ffceaa...");
   process.exit(1);
 }
-for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
+for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VOICE_URL"]) {
   if (!process.env[k]) { console.error(`Mangler ${k} i miljøet.`); process.exit(1); }
 }
 
@@ -41,7 +44,7 @@ const SYSTEM_NUMBER = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
   const num = await client.incomingPhoneNumbers(SID).update({
     voiceUrl:     VOICE_URL,
     voiceMethod:  "POST",
-    friendlyName: `LommeKontor pool ${SID}`,
+    friendlyName: `DDK pool ${SID}`,
   });
   console.log(`✅ Voice-webhook sat på ${num.phoneNumber} → ${VOICE_URL}`);
 

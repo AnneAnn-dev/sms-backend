@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="shortcut icon" href="/favicon.ico">
+  <script src="/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
@@ -975,8 +976,12 @@
   };
 
   // ── Supabase klient ─────────────────────────────────────────────
-  const SUPABASE_URL = 'https://glymuxqtrbpeyzmflilf.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdseW11eHF0cmJwZXl6bWZsaWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjYyOTEsImV4cCI6MjA5MzIwMjI5MX0.ShrA33kAQyhA1csFWyr8f2-f8uAqldkFySALKSsywso';
+  // Vaerdier kommer fra /config.js (app-config.js paa serveren), saa siden
+  // ALTID taler med det miljoe, den blev serveret fra. Hardcodede vaerdier
+  // her var rodaarsagen til "udloebet link"-fejlen 10/7-26: staging-siden
+  // talte med prod-projektet, som ikke kendte stagings tokens.
+  const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
+  const SUPABASE_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
   // ── Init — etablér session og hent firmadata ─────────────────────
@@ -1252,8 +1257,8 @@
   // Bemærk: dette er en standard-demosætning, IKKE firmaets egen tekst.
   // Deres egen tekst renderes først når de gemmer (/api/firma/opdater).
   const SAMPLE_URL = {
-    female: "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/female.mp3?v=2",
-    male:   "https://glymuxqtrbpeyzmflilf.supabase.co/storage/v1/object/public/greetings/_samples/male.mp3?v=2",
+    female: `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/female.mp3?v=2`,
+    male:   `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/male.mp3?v=2`,
   };
 
   function previewVoice() {

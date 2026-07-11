@@ -44,6 +44,15 @@ function escapeHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
+// ─── Frontend-config: /config.js (miljoeets Supabase-adresse til browseren) ─
+// Serverer window.APP_CONFIG (SUPABASE_URL + SUPABASE_ANON_KEY fra DENNE
+// servers env-vars), saa onboarding/dashboard ALTID taler med det miljoe, de
+// blev serveret fra. Erstatter de hardcodede prod-vaerdier i HTML-filerne,
+// som var rodaarsagen til "udloebet link"-fejlen i staging (10/7-26).
+// UDEN denne linje findes /config.js ikke -> siderne faar 404 paa configen
+// og kan ikke oprette Supabase-klienten.
+require("./app-config")(app);
+
 // ─── Onboarding: Shopify webhook + Twilio opkaldshandler ────────────────────
 require("./onboarding")(app, supabase);
 

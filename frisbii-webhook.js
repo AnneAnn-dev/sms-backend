@@ -7,12 +7,25 @@
 //        -> Frisbii sender webhook "invoice_settled"
 //        -> opret firma -> tildel nummer -> opret auth-bruger -> magic link
 //
+// TRIAL-STARTSKUD (tilfoejet juli-26): en 0-kr-trial udloeser ALDRIG
+// invoice_settled (afklaret ved eksperiment i staging 8/7-26) — kun bl.a.
+// subscription_created. Derfor provisionerer subscription_created NU OGSAA,
+// men KUN naar abonnementet er/bliver trial (afgjort via Frisbii-API'et, ikke
+// webhook-payloaden). Betalte planer provisioneres uaendret af invoice_settled.
+// Begge startskud gaar gennem SAMME provisionFirm; dobbelt-provisionering
+// stoppes af (1) app-tjekket paa frisbii_subscription og (2) den race-sikre
+// MEDFOEDTE unique-constraint firms_frisbii_subscription_key (fra
+// frisbii-webhook-migration.sql — kolonnen blev foedt med "unique").
+//
 // Provisioneringen spejler 1:1 din Shopify-flow i onboarding.js (samme kolonner,
 // samme status-felter, samme mail). Eneste forskel er triggeren + idempotens-noeglen.
 // Kraever Node 18+ (global fetch).
 //
-// FORUDSAETNING: koer frisbii-webhook-migration.sql i Supabase foerst (tilfoejer
-// tabellen frisbii_webhook_events + kolonnen firms.billing_status_updated_at).
+// FORUDSAETNINGER (migrationer, i raekkefoelge):
+//   1. frisbii-webhook-migration.sql  (frisbii_webhook_events + firms.billing_status_updated_at
+//                                      + unique paa firms.frisbii_subscription)
+//   2. webhook_events_processed       (processed_at + error — dead-letter)
+//   3. phone_number_quarantine        (quarantined_until + last_firm_id)
 // -----------------------------------------------------------------------------
 
 const crypto = require("crypto");
@@ -119,6 +132,23 @@ module.exports = (app, supabase) => {
     });
     if (!r.ok) throw new Error(`Frisbii GET ${path} -> ${r.status}: ${await r.text()}`);
     return r.json();
+  }
+
+  // ─── Er abonnementet i (eller paa vej ind i) en trial-periode? ──────────────
+  // Frisbii/Reepay-subscription-objektet har felterne til det: is_in_trial er
+  // sandt i selve trial-perioden; er abonnementet endnu ikke startet, siger
+  // trial_start/trial_end om det FAAR en trial-periode.
+  // FAIL-CLOSED: kan sporgsmaalet ikke besvares (manglende felter), svares
+  // false — saa provisionerer subscription_created ikke, og en almindelig
+  // betalt plan haandteres stadig korrekt af invoice_settled. Bemaerk at
+  // fail-closed her kun gaelder FELT-laesningen; fejler selve API-KALDET
+  // (frisbiiGet kaster), ryger eventet i dead-letter og genbehandles ved
+  // Frisbiis retry — vi gaetter aldrig.
+  function isTrialSubscription(sub) {
+    if (!sub || typeof sub !== "object") return false;
+    if (sub.is_in_trial === true) return true;
+    if (sub.trial_end && new Date(sub.trial_end).getTime() > Date.now()) return true;
+    return false;
   }
 
   // ─── Saet billing_status, men kun hvis dette webhook er NYERE end det ───────
@@ -332,6 +362,21 @@ module.exports = (app, supabase) => {
       .select()
       .single();
     if (firmErr) {
+      // Race-vaernet: to samtidige events for SAMME abonnement (fx
+      // subscription_created + invoice_settled ved en trial-plan med
+      // oprettelsesgebyr) kan begge naa forbi idempotens-tjekket oeverst,
+      // foer nogen af dem har indsat firmaet. Den medfoedte unique-constraint
+      // firms_frisbii_subscription_key koarer da vinderen; taberen lander her
+      // med 23505. Det er IKKE en fejl: firmaet ER provisioneret (af den anden
+      // handler), saa eventet behandles som no-op og markeres processed —
+      // i stedet for at gaa i dead-letter og vente unoedigt paa en retry.
+      // Regex-gaten sikrer at KUN frisbii_subscription-vaernet behandles
+      // saadan; en 23505 fra en anden constraint (fx et fremtidigt unique paa
+      // phone_number) skal stadig i dead-letter og undersoeges.
+      if (firmErr.code === "23505" && /frisbii_subscription/i.test(firmErr.message || "")) {
+        console.log("ℹ️  Race tabt — abonnementet blev netop provisioneret af et parallelt event:", subHandle);
+        return;
+      }
       console.error("❌ Firma-oprettelse fejlede:", firmErr);
       throw firmErr;
     }
@@ -451,6 +496,38 @@ module.exports = (app, supabase) => {
           // En settled invoice betyder ogsaa at abonnementet er (tilbage i)
           // god stand — vigtigt efter en tidligere invoice_failed/dunning.
           await setBillingStatus(body.subscription, "active", body.timestamp);
+          break;
+        }
+
+        case "subscription_created": {
+          // TRIAL-STARTSKUDDET: en 0-kr-trial udloeser aldrig invoice_settled,
+          // saa uden denne gren provisioneres trial-kunder ALDRIG (intet firma,
+          // intet nummer, ingen velkomstmail — kun tavshed efter Frisbiis egen
+          // kvittering). Afklaret ved eksperiment i staging 8/7-26.
+          //
+          // Korrekthedsregel 2: webhooket baerer ingen tilstand — om planen har
+          // trial afgoeres via API'et, aldrig via antagelser om plan-handles.
+          const subscription = await frisbiiGet(`/subscription/${body.subscription}`);
+
+          if (!isTrialSubscription(subscription)) {
+            // Almindelig betalt plan: invoice_settled ejer provisioneringen,
+            // praecis som i dag. Dette event er blot stoej og markeres
+            // processed nedenfor — den testede betalings-sti roeres ikke.
+            console.log("ℹ️  subscription_created uden trial — invoice_settled provisionerer:", body.subscription);
+            break;
+          }
+
+          console.log("🎁 Trial-abonnement oprettet — provisionerer:", body.subscription);
+          const customer = await frisbiiGet(`/customer/${body.customer}`);
+          await provisionFirm({ customer, subscription });
+          // Bevidst INGEN setBillingStatus her: provisionFirm saetter selv
+          // billing_status "active" ved oprettelsen, og subscription_created
+          // signalerer aldrig "tilbage i god stand" (modsat invoice_settled).
+          // Ved trialens udloeb ankommer invoice_settled saa: provisionFirms
+          // idempotens-tjek goer provisioneringen til en no-op, og settled-
+          // casens setBillingStatus bekraefter blot active. Betaler kunden
+          // ALDRIG, koerer dunning -> expired -> deprovisionering, hvor
+          // hasEverPaid doemmer "proevekunde" -> nummeret frigives straks.
           break;
         }
 
