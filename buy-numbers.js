@@ -23,12 +23,17 @@ const { createClient } = require("@supabase/supabase-js");
 
 const COUNT       = Number(process.argv[2] || 5);
 const DRY_RUN     = process.env.DRY_RUN === "1";
-const VOICE_URL   = process.env.VOICE_URL || "https://sms-backend-production-5ee1.up.railway.app/opkald";
+// VOICE_URL er BEVIDST uden fallback: en hardcodet default ville i tavshed
+// pege numre paa det forkerte miljoe, hvis .env mangler variablen. Scriptet
+// naegter i stedet at koere (fail-closed, samme princip som MAIL_OVERRIDE_TO).
+// Saet i miljoeprofilen: staging -> .../sms-backend-staging-908c.up.railway.app/opkald
+//                        prod    -> .../sms-backend-production-5ee1.up.railway.app/opkald
+const VOICE_URL   = process.env.VOICE_URL;
 const SMS_URL     = process.env.SMS_URL || "";            // sæt kun hvis du har en indgående SMS-handler
 const BUNDLE_SID  = process.env.TWILIO_BUNDLE_SID || undefined;   // BUxxxx — IKKE nødvendig for DK-mobil
 const ADDRESS_SID = process.env.TWILIO_ADDRESS_SID || undefined;  // ADxxxx — PÅKRÆVET for DK-mobil
 
-for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
+for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VOICE_URL"]) {
   if (!process.env[k]) { console.error(`Mangler ${k} i miljøet.`); process.exit(1); }
 }
 
@@ -79,7 +84,7 @@ const SYSTEM_NUMBER = normalizePhone(process.env.TWILIO_SYSTEM_NUMBER);
         ...(SMS_URL     ? { smsUrl: SMS_URL, smsMethod: "POST" } : {}),
         ...(BUNDLE_SID  ? { bundleSid:  BUNDLE_SID }  : {}),
         addressSid:   ADDRESS_SID,
-        friendlyName: `LommeKontor pool ${cand.phoneNumber}`,
+        friendlyName: `DDK pool ${cand.phoneNumber}`,
       });
 
       // 3) Vagt: læg ALDRIG systemnummeret i puljen

@@ -4,10 +4,16 @@
  * Rydder ALLE testdata i Supabase, så databasen er ren før en ny testkørsel.
  *
  * Sletter i korrekt FK-rækkefølge:
- *   lead_images → leads → calls → firm_whitelist → firm_users → firms
- * Frigør derefter ALLE pulje-numre (phone_numbers.firm_id = null) — men BEHOLDER
- * selve pulje-rækkerne, så numrene kan genbruges. Sletter til sidst de Auth-brugere,
- * der var koblet til firmaerne (firm_users.user_id).
+ *   messages → lead_images → leads → calls → firm_whitelist → firm_users
+ *   → frisbii_webhook_events → firms
+ * Frigør derefter ALLE pulje-numre (phone_numbers: firm_id = null, og nulstiller
+ * karantæne-kolonnerne quarantined_until + last_firm_id fra Byggetrin 6) — men
+ * BEHOLDER selve pulje-rækkerne, så numrene kan genbruges. Sletter til sidst de
+ * Auth-brugere, der var koblet til firmaerne (firm_users.user_id).
+ *
+ * Rydder IKKE: hilsen-lydfiler i Storage (forældreløse filer er ufarlige) og
+ * abonnementer i Frisbii — de lever videre dér, og deres fremtidige events
+ * logges som "Intet firma ... ignorerer" (korrekt opførsel).
  *
  * Systemnummeret røres ALDRIG: det ligger ikke i phone_numbers-puljen, og scriptet
  * rører kun puljen + firma-tabellerne.
@@ -37,11 +43,13 @@ const { createClient } = require('@supabase/supabase-js');
 // Sletterækkefølge: børn før forældre (så fremmednøgler ikke spænder ben).
 // Hvert trin har en kolonne, der altid findes på tabellen, til "match alle rækker".
 const DELETE_STEPS = [
+  { table: 'messages',      col: 'id' },  // SMS-historik — FK mod calls/firms, saa foerst
   { table: 'lead_images',   col: 'id' },
   { table: 'leads',         col: 'id' },
   { table: 'calls',         col: 'id' },
   { table: 'firm_whitelist',col: 'firm_id' },
   { table: 'firm_users',    col: 'firm_id' },
+  { table: 'frisbii_webhook_events', col: 'id' },  // Byggetrin 6 — event-bogholderiet nulstilles ogsaa
 ];
 
 function parseArgs(argv) {
@@ -165,10 +173,15 @@ async function main() {
   }
 
   // ── 3) Frigør alle pulje-numre (behold rækkerne) ────────────────────────────
-  process.stdout.write('Frigør pulje-numre … ');
+  // Nulstiller ogsaa karantaene-kolonnerne (Byggetrin 6): et nummer i 30-dages
+  // karantaene ville ellers FORBLIVE utilgaengeligt efter en "fuld" oprydning,
+  // og last_firm_id ville pege paa firmaer, der slettes om et oejeblik.
+  process.stdout.write('Frigør pulje-numre (inkl. karantæne) … ');
   {
     const { error } = await supabase
-      .from('phone_numbers').update({ firm_id: null }).not('firm_id', 'is', null);
+      .from('phone_numbers')
+      .update({ firm_id: null, quarantined_until: null, last_firm_id: null })
+      .or('firm_id.not.is.null,quarantined_until.not.is.null,last_firm_id.not.is.null');
     if (error) { console.log('❌'); console.error(`\nFejl: ${error.message}\n`); process.exit(1); }
     console.log('✓');
   }
