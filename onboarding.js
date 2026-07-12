@@ -33,6 +33,40 @@ module.exports = function registerOnboarding(app, supabase) {
   // så `${FORM_BASE}/${slug}/${token}` aldrig bliver til et dobbelt-slash-link.
   const FORM_BASE = (process.env.BASE_URL || "").replace(/\/$/, "");
 
+  // ── Kunde-SMS-skabelonen (ét sted, saa demo og aegte ALTID er identiske) ──
+  // HOLDES UNDER 160 GSM-TEGN inkl. link (laert 11/7-26: efter rebrandingen
+  // blev domaenet 8 tegn laengere, alle kunde-SMS'er gled over 160 og blev
+  // delt i 2 segmenter — MIDT i linket, saa modtagerens telefon kun gjorde
+  // foerste halvdel klikbar -> "Cannot GET"). Budget: fast tekst+link-basen
+  // koster ~114 tegn -> firmanavn + slug maa TILSAMMEN fylde maks. 46 tegn.
+  // AEndres ordlyden: koer tegn-regnskabet igen (gsmSegments nedenfor vogter).
+  function kundeSmsBody(firmName, url) {
+    return `Du har ringet til ${firmName}. Beskriv din opgave her, så kontakter vi dig:\n${url}`;
+  }
+
+  // GSM 03.38-segmentvagt: taeller som telefonnettet goer (basis=1, udvidelse=2,
+  // alt udenfor alfabetet tvinger UCS-2 hvor graensen er 70/67!). Logger hoejt
+  // hvis en SMS ikke laengere er ett segment — saa opdages regression i loggen,
+  // ikke hos kunden.
+  const GSM_BASIS = new Set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà");
+  const GSM_UDVIDELSE = new Set("^{}\\[~]|€");
+  function gsmSegments(body) {
+    let n = 0;
+    for (const c of body) {
+      if (GSM_BASIS.has(c)) n += 1;
+      else if (GSM_UDVIDELSE.has(c)) n += 2;
+      else return { segments: Math.ceil(body.length / 67), ucs2: true };
+    }
+    return { segments: n <= 160 ? 1 : Math.ceil(n / 153), ucs2: false, tegn: n };
+  }
+  function advarHvisFlereSegmenter(body, kontekst) {
+    const r = gsmSegments(body);
+    if (r.segments > 1 || r.ucs2) {
+      console.warn(`⚠️  SMS (${kontekst}) fylder ${r.segments} segmenter${r.ucs2 ? " (UCS-2! ikke-GSM-tegn i teksten)" : ` (${r.tegn} GSM-tegn)`} — link risikerer at knaekke ved deling.`);
+    }
+    return body;
+  }
+
   // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
   // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
@@ -251,11 +285,21 @@ module.exports = function registerOnboarding(app, supabase) {
           raw_payload: req.body,
         });
         const demoUrl = `${FORM_BASE}/${firm.slug}/${demoToken}`;
+        // Demo sendes som TO beskeder (11/7-26): en samlet besked oversteg 160
+        // GSM-tegn og blev delt MIDT i linket. Nu: (1) kort forklaring,
+        // (2) en NOEJAGTIG kopi af kunde-SMS'en (samme skabelon!) med intakt
+        // link — haandvaerkeren ser praecis det, kunden ser.
+        const demoModtager = firm.owner_phone || fromNumber;
         sendSms({
-          to:   firm.owner_phone || fromNumber,
+          to:   demoModtager,
           from: toNumber,
-          body: `Sådan ser den SMS ud, som dine kunder modtager, når de ringer og du ikke svarer:\n\nHej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${demoUrl}`,
-        }).catch(err => console.error("❌ Demo-SMS fejl:", err));
+          body: `Sådan ser den SMS ud, dine kunder får, når de ringer, og du ikke svarer:`,
+        }).catch(err => console.error("❌ Demo-SMS (forklaring) fejl:", err));
+        sendSms({
+          to:   demoModtager,
+          from: toNumber,
+          body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
+        }).catch(err => console.error("❌ Demo-SMS (kopi) fejl:", err));
         console.log("📨 Demo-SMS sendt til håndværker:", firm.owner_phone || fromNumber);
       } catch (e) {
         console.error("⚠️  Kunne ikke sende demo-SMS (verifikation fortsætter):", e.message);
@@ -327,7 +371,7 @@ module.exports = function registerOnboarding(app, supabase) {
     sendSms({
       to:   fromNumber,
       from: toNumber,
-      body: `Hej! Du har ringet til ${firm.name}. Udfyld din opgave her, så vender vi tilbage hurtigst muligt:\n${formUrl}`,
+      body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, formUrl), "kunde"),
     }).catch(err => console.error("❌ SMS fejl:", err));
     
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
