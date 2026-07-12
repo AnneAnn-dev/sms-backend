@@ -1,4 +1,7 @@
+.env.prod
+.env.staging
 .env
+.ENV-ER-PROD
 ngrok
 ngrok.exe
 node_modules
