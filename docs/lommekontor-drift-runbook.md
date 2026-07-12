@@ -192,7 +192,9 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 
 *Frisbii Billing & Pay (Reepay-arven). Bygges + testes i staging mod sandbox, med skemaændringer som migrationer.*
 
-**STATUS 10/7-26 (opdateret): Skridt A-D FÆRDIGE + TRIAL-PROVISIONERING bygget og røgtestet i staging (D-F bestået).** Prod-toget for trin 6-koden + migrationer 2+3 er kørt; staging- og prod-dataoprydning gennemført. Trial-startskuddet (`subscription_created` → trial-tjek via API → samme provisionFirm) virker end-to-end: dead-letter ved tom pulje → nummer tilføjet → gensend → provisioneret ✓ · no-op-værn ved gensend af behandlet abonnement ✓ · ikke-trial-gren ✓. **10/7 afslørede desuden en tværgående rodårsag:** de statiske sider (onboarding/dashboard) havde HARDCODET prod-Supabase-config → staging-magic-links blev afvist som "udløbet" af prod-projektet. Fix: `/config.js`-mønsteret (app-config.js) — se lærdomme nedenfor. **Tilbage: config-fixet deployes (opskrift i docs/), E (varslinger — produktbeslutning m. Anne, scope udvidet igen 10/7), F (evt. IP-lås, valgfri), prod-tog for trial+config-koden.** Se "Udeståender — samlet overblik" nederst.
+**STATUS 11/7-26 (opdateret): TRIAL-PROVISIONERING + CONFIG-FIX I PROD — prod-toget kørt via PR og verificeret.** Config-fixet er deployet og bevist i BEGGE miljøer: staging-magic-link-login virker ende-til-ende (login → onboarding trin 4; trin 4-verifikationsopkaldet fejler som forventet indtil staging-systemnummer findes — Twilio bekræftede ordret at subkontoen kun må ringe fra egne numre), rescue-stien virker, og prods `/config.js` svarer med prods egen ref. Ikke-trial-grenen + timestamp-guarden er bevist live (sub-0013: `subscription_created uden trial` → `invoice_settled` provisionerede → guard afviste gen-anvendelse). **Byggetrin 6-status: A-D ✓ · trial-provisionering ✓ · tilbage: E (varslinger, produktbeslutning m. Anne), F (valgfri IP-lås), checkout-vars (kodeopgave 3). PILOT-SPORET ER ÅBENT** — manuel provisionering på prod via drejebogen. Se "Udeståender" nederst.
+
+*(Tidligere status 10/7: Skridt A-D FÆRDIGE + trial-provisionering bygget og røgtestet i staging, D-F bestået.)* Prod-toget for trin 6-koden + migrationer 2+3 er kørt; staging- og prod-dataoprydning gennemført. Trial-startskuddet (`subscription_created` → trial-tjek via API → samme provisionFirm) virker end-to-end: dead-letter ved tom pulje → nummer tilføjet → gensend → provisioneret ✓ · no-op-værn ved gensend af behandlet abonnement ✓ · ikke-trial-gren ✓. **10/7 afslørede desuden en tværgående rodårsag:** de statiske sider (onboarding/dashboard) havde HARDCODET prod-Supabase-config → staging-magic-links blev afvist som "udløbet" af prod-projektet. Fix: `/config.js`-mønsteret (app-config.js) — se lærdomme nedenfor. **Tilbage: config-fixet deployes (opskrift i docs/), E (varslinger — produktbeslutning m. Anne, scope udvidet igen 10/7), F (evt. IP-lås, valgfri), prod-tog for trial+config-koden.** Se "Udeståender — samlet overblik" nederst.
 
 ✅ **A. Idempotens-skema** (migration `webhook_events_processed`): `processed_at` + `error` på `frisbii_webhook_events` — skelner "set" fra "behandlet".
 ✅ **B. Dead-letter-arkitektur:** claim er nu tre-tilstands (new/unprocessed/processed); events claimes FØR 200, bogføres efter udfald (markProcessed/markFailed). Et claimet-men-fejlet event genbehandles ved Frisbiis retry i stedet for at blive tabt. **Dead-letter-listen** = `select * from frisbii_webhook_events where processed_at is null;` — SKAL overvåges (cron-alarm: TODO i Del 0.F; behovet demonstreret 8/7 med to ægte dead-letters på ti minutter).
@@ -214,6 +216,13 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - **Env-var-navnedrift:** lokal `.env` sagde `TWILIO_PHONE_NUMBER`, Railway/koden siger `TWILIO_SYSTEM_NUMBER` → scriptenes systemnummer-vagt kørte stumt slået fra. Omdøbt lokalt; overvej check-env.js-validering af nøglen.
 - **`reset-test-data.js` opdateret** til trin 6-skemaet: `messages` + `frisbii_webhook_events` i sletterækkefølgen, frigørelse nulstiller også `quarantined_until`/`last_firm_id`.
 - **Skridt E's scope udvidet IGEN (10/7, punkt 4):** tastefejl i kunde-email → velkomstmail/magic link når aldrig frem (i prod findes ingen MAIL_OVERRIDE_TO til at maskere det); kunden har nummer og service, men ingen adgang. Hører under "strandet onboarding"-varsling: detektér uleveret velkomstmail / aldrig-logget-ind og reager.
+
+🔑 **Lærdomme 11/7-26 (prod-togsdagen):**
+- **Prod-tog = PR på GitHub, ALDRIG lokalt merge+push:** `main` er PR-beskyttet (Del 0.A) — et lokalt `git merge staging` + `git push` afvises med GH013 "Changes must be made through a pull request". Køreplan: PR fra `staging` → `main` på GitHub → self-review af commit-listen → Merge → Railway deployer prod. Blev dit lokale merge afvist: `git reset --hard origin/main` (ufarligt — indholdet lever på staging). Samme klasse regel som "kun push-prod.ps1 må røre prod-migrationer": de farlige veje er spærret med vilje.
+- **Navngiv Frisbii-planer efter egenskab** (fx `trial-14-dage` / `standard-uden-trial`): sub-0013 blev oprettet på en plan UDEN prøveperiode → detektionen sagde korrekt "uden trial", men det kostede detektivarbejde at se, at det var testopsætningen (ikke koden), der afveg. En rigtig kunde-trial SKAL ramme 🎁-grenen — planens handle er samtidig den, `FRISBII_PLAN_HANDLE` skal pege på (kodeopgave 3).
+- **Git-merge åbner en editor** (MERGE_MSG) ved ikke-fast-forward: gem+luk (VS Code: Ctrl+S, Ctrl+W / Vim: `:wq`) — eller giv beskeden direkte: `git merge X -m "..."`. Sæt evt. `git config --global core.editor "code --wait"`.
+- **Untracked filer "bor" ikke på en gren:** de følger med ved checkout og vises ikke i checkout-outputtet (kun kendte M-filer gør). Først `git add` + commit binder dem til grenen.
+- **M-listen er en statusrapport, ikke en indkøbsliste:** commits opdeles efter emne (config/scripts/docs), og en M-fil man ikke kan forklare, addes ikke før `git diff` er læst.
 
 🔑 **PowerShell-lærdomme (7/7-26):** (1) `.ps1`-scripts skal være **REN ASCII** — Windows PowerShell 5.1 læser UTF-8 uden BOM som ANSI, og flerbyte-tegn (—, emojis) kan parse som anførselstegn → kryptiske "Missing closing brace"-fejl. (2) **Engangsopsætning pr. maskine:** `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (+ evt. `Unblock-File` på hentede scripts) — ellers "not digitally signed"-afvisning. (3) Ingen PS7-syntaks (`? :`-ternary) — maskinerne kører PS 5.1. *Alle tre ville have bidt partneren på dag ét.*
 
@@ -320,19 +329,21 @@ Resten kan lægges ovenpå, når I har luft.
 
 ---
 
-## Udeståender — samlet overblik (pr. 10/7-26)
+## Udeståender — samlet overblik (pr. 11/7-26)
 
 *Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
 
-### 🚂 Klar til at køre NU (opskrift: `opskrift-config-fix-og-prodtog.md` i docs/)
-1. **Config-fixet til staging:** `SUPABASE_ANON_KEY` i staging-Railway + lokal .env → `app-config.js` + require i server.js → nye onboarding.html/dashboard.html → sw.js-bump v14→v15 → sample-mp3'er til staging-Storage → merge feat-gren → staging → verificér /config.js + frisk trial-gennemløb m. magic-link-LOGIN (den sidste ubestrøgne sti).
-2. **Prod-tog for trial+config-koden:** `SUPABASE_ANON_KEY` i prod-Railway FØRST (ellers knækker dashboardet ved deploy!) → merge main → deploy → sw-bump verificeret → ét ægte login i prod. INGEN migrationer denne gang.
-3. **Navne-sweep 1/3:** runbook omdøbes (`git mv` → ditdigitalekontor-drift-runbook.md) + interne referencer. De to andre filer (opskriftsbog-numre, config-fortegnelse) ved næste upload.
+### 🚂 Klar til at køre NU
+1. **Pilot #0 = Anne på prod:** manuel provisionering via `provision-test-firm.js` mod PROD (drejebogen i docs/ er køreplanen — .env-skiftet til prod er det farlige øjeblik: gør det bevidst, kør, skift TILBAGE til staging). Forudsætning: ledigt nummer i PROD-puljen (tjek `select number, firm_id, quarantined_until from phone_numbers;` i prod — køb evt. via buy-numbers.js m. prod-.env + `VOICE_URL`=prod). Verifikationsopkaldet VIRKER i prod (systemnummeret bor i hovedkontoen). Generalprøve på hele pilot-oplevelsen.
+2. **Navne-sweep 1/3:** runbook omdøbes (`git mv` → ditdigitalekontor-drift-runbook.md) + interne referencer. De to andre filer (opskriftsbog-numre, config-fortegnelse) ved næste upload.
+3. Frisbii staging-oprydning: expire trial-testabonnementerne (sub-0009/0011/0013 …), så deres fremtidige events ikke støjer ("Intet firma … ignorerer" er harmløst, men støj). Omdøb samtidig planerne efter egenskab (se lærdomme 11/7).
+
+*(✅ Kørt 11/7: config-fixet til staging + prod-toget via PR — begge verificeret: staging-login til trin 4 + rescue-sti; prod /config.js = prods ref + login.)*
 
 ### 🔧 Kodeopgaver (prioriteret)
 1. **Dublet-emails** (FØR go-live, blokerer ikke test): genbrug-eller-afvis ved eksisterende email i provisioneringen — produktbeslutning m. Anne. Indtil da: manuelt tjek jf. pilot-drejebog. *(Byg-trin 6, fundet 8/7; falsk alarm 10/7 var en tastefejls-email.)*
 2. **Trin 6 E — varslinger** (produktbeslutning m. Anne, scope udvidet 10/7): (a) "vi er på sagen"-mail ved strandet provisionering (VIGTIGST — kunden har betalt og hører i dag INTET), (b) dunning-varsling/grace, (c) retention-alarm til os ved cancel, (d) **NY 10/7:** detektion af uleveret velkomstmail/aldrig-logget-ind (tastefejls-email → kunde med service men uden adgang).
-3. **Checkout-vars** (go-live-gate): `FRISBII_PLAN_HANDLE` + `SIMPLY_BASE_URL` i BEGGE miljøer + accept_url/cancel_url → onboarding i stedet for `GET /` 404. *(Delvis genvej: sæt trial-planens handle i staging som led i checkout-test.)*
+3. **Checkout-vars + kunde-broen** (go-live-gate): `FRISBII_PLAN_HANDLE` (= trial-planens handle!) + `SIMPLY_BASE_URL` i BEGGE miljøer. **Broen (fundet m. kundeøjne 11/7):** efter betaling lander kunden i dag i "Cannot GET /" — accept_url skal pege på en designet "Tak — tjek din mail for dit login-link"-side (Anne laver siden), og backend-roden skal have en venlig rod-rute (redirect til ditdigitalekontor.dk) — rå 404 må aldrig vises et menneske. *(Delvis genvej: sæt trial-planens handle i staging som led i checkout-test.)*. Der skal laves en side med tak for du har valgt Dit Digitale kontor. Vi glæder os til at hjælpe dig. Vihar sendt en mail med et link. Find mailen i din indbakke og tryk på linket. 
 4. **Dead-letter-cron** (m. trin 7 overvågning): dagligt tjek af `processed_at is null` ældre end 1 time → sendAdminAlert. *(Del 0.F TODO.)*
 5. `firms.phone_number` **unique-constraint** (kendt udskudt skema-skævhed — dagens medfødte `frisbii_subscription`-constraint dækker KUN samme-abonnement-racet, ikke to forskellige abonnementer der vælger samme pulje-nummer) + `created_at` på firms. *(Bonus-oprydning ved lejlighed: redundant `idx_firms_frisbii_sub` + legacy `firms_shopify_order_id_key`.)*
 6. **check-env.js:** validér også `TWILIO_SYSTEM_NUMBER` + `VOICE_URL` + `SUPABASE_ANON_KEY` (navnedrift/manglende nøgler fanget 10/7).
@@ -349,7 +360,7 @@ Resten kan lægges ovenpå, når I har luft.
 2. Frisbii live-nøgler i PROD (kræver indløsningsaftale + MobilePay MSN → kræver bankkonto; staging beholder testkonto)
 3. Checkout-vars + checkout-flow røgtestet fra partnersitet (kodeopgave 3)
 4. Dublet-email-håndtering løst (kodeopgave 1)
-5. Config-fixet deployet + verificeret i BEGGE miljøer (🚂-punkt 1+2)
+5. ✅ Config-fixet deployet + verificeret i BEGGE miljøer (11/7)
 
 ### ⏸️ Bevidst udskudt (re-triggere dokumenteret i Del 0.B)
 - Railway RBAC (tredje person/planopgradering) · Legacy→nye Supabase-nøgler (Supabase-deadline/refaktorering) · Twilio voice-region US1→IE1-vurdering (EU-princippet; før/kort efter go-live) · AppSignal expressErrorHandler-optimering
