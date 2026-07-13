@@ -992,6 +992,7 @@
       // Prefetch-sikkert login: token_hash i URL'en verificeres FØRST her, i
       // browseren. En mail-scanner der blot laver et GET på linket kalder ikke
       // verifyOtp og forbruger derfor ikke tokenet — kun den rigtige bruger gør.
+      let viaLoginLink = false;   // sat ved AEGTE link-verifikation — styrer #nyt-login-puffet
       if (!session) {
         const params    = new URLSearchParams(location.search);
         const tokenHash = params.get('token_hash');
@@ -1000,6 +1001,7 @@
           const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type });
           if (!error && data?.session) {
             session = data.session;
+            viaLoginLink = true;
             // Fjern token_hash fra URL'en (så den ikke ligger i historik/genindlæsning)
             history.replaceState(null, '', location.pathname);
           } else if (error) {
@@ -1037,7 +1039,9 @@
         // send dem direkte til dashboardet i stedet for at vise opsætningen forfra.
         // (Kræver at /api/mig returnerer firm.status; ellers springes dette bare over.)
         if (data.firm.status === 'active') {
-          window.location.replace('/dashboard');
+          // #nyt-login (kun ved link-login) faar dashboardet til at foreslaa
+          // en ny adgangskode. Hash sendes aldrig til serveren og caches ikke.
+          window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
           return;
         }
 
