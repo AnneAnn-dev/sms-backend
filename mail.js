@@ -124,6 +124,42 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
   });
 }
 
+// ─── Send login-link-mail (rescue) ──────────────────────────────────────────
+// Bruges af "Send mig et login-link"-endpointet (onboarding-link.js) til en
+// EKSISTERENDE kunde, der er laast ude. Bevidst adskilt fra velkomstmailen:
+// intet "velkommen"/"konto klar", ingen opsaetningsinstruks, ingen nummer-boks
+// — og en tryghedslinje i bunden, hvis mailen skulle komme uopfordret.
+// Gaar gennem samme sendViaScaleway-chokepoint, saa staging-gate/fail-closed
+// gaelder automatisk. Returnerer ligeledes { blocked: true } ved blokering.
+async function sendLoginLinkMail({ to, loginUrl }) {
+  return await sendViaScaleway({
+    to,
+    fromEmail: process.env.SMTP_FROM,
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
+    subject:   "Dit login-link til Dit Digitale Kontor",
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
+        <h1 style="font-size:22px;margin-bottom:8px">Hej!</h1>
+        <p style="color:#555;margin-bottom:24px">
+          Du har bedt om et nyt login-link. Klik på knappen for at logge ind:
+        </p>
+        <a href="${loginUrl}"
+           style="display:inline-block;background:#2563eb;color:#fff;padding:14px 28px;
+                  border-radius:8px;text-decoration:none;font-weight:500;font-size:16px">
+          Log ind
+        </a>
+        <p style="color:#555;font-size:14px;margin-top:24px">
+          Linket er gyldigt i 24 timer og kan bruges én gang.
+        </p>
+        <p style="color:#aaa;font-size:13px;margin-top:32px">
+          Har du ikke selv bedt om det, kan du roligt ignorere denne mail —
+          der er ikke ændret noget på din konto.
+        </p>
+      </div>
+    `,
+  });
+}
+
 // ─── Send intern alarm til admin ────────────────────────────────────────────
 // Bruges fx naar nummerpuljen er ved at loebe toer. Sendes til ADMIN_EMAIL
 // (falder tilbage til SMTP_FROM, saa den virker selvom ADMIN_EMAIL ikke er sat).
@@ -143,4 +179,4 @@ async function sendAdminAlert({ subject, text }) {
   });
 }
 
-module.exports = { sendWelcomeMail, sendAdminAlert };
+module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert };
