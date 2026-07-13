@@ -12,8 +12,29 @@
   <meta name="theme-color" content="#1A3A5C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Dit Kontor">
-  <script src="/config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // MIDLERTIDIGT fejl-overlay (pilotfasen): viser uventede JS-fejl direkte
+    // på skærmen, så mobilfejl kan ses uden Mac/remote inspection.
+    // Fjernes igen, når piloten er stabil.
+    function visFejlOverlay(besked) {
+      var el = document.getElementById('js-fejl-overlay');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'js-fejl-overlay';
+        el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;' +
+          'background:#991b1b;color:#fff;font:13px/1.4 system-ui,sans-serif;' +
+          'padding:10px 14px;word-break:break-word';
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.textContent = '\u26a0 Teknisk fejl: ' + besked;
+    }
+    window.addEventListener('error', function (e) {
+      visFejlOverlay(e.message || 'Ukendt fejl');
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      visFejlOverlay((e.reason && e.reason.message) || 'Ukendt fejl (promise)');
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
@@ -622,12 +643,27 @@
   </div>
 </div>
 
+<!-- Scripts hentes her — EFTER al HTML — så siden altid kan tegnes, selv hvis
+     et script hænger eller fejler. Ingen "lydløs hvid skærm" er mulig igen. -->
+<script src="/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
   // Vaerdier kommer fra /config.js (app-config.js paa serveren), saa siden
   // ALTID taler med det miljoe, den blev serveret fra — aldrig hardcodet.
   const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
   const SUPABASE_ANON_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
- // const { createClient } = supabase;
+
+  // Fail-SYNLIGT i stedet for hvid skærm: mangler config eller biblioteket,
+  // vises en fejl via overlayet, og resten af scriptet stoppes bevidst.
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    visFejlOverlay('Kunne ikke hente appens konfiguration (/config.js). Prøv at genindlæse siden.');
+    throw new Error('APP_CONFIG mangler — /config.js ikke indlæst?');
+  }
+  if (!window.supabase) {
+    visFejlOverlay('Kunne ikke hente Supabase-biblioteket. Tjek forbindelsen og genindlæs siden.');
+    throw new Error('supabase-js mangler — cdn.jsdelivr.net ikke indlæst?');
+  }
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // Returnerer Authorization-headeren med brugerens session-token, så
@@ -700,7 +736,10 @@
   if (session) {
     document.getElementById('login-screen').style.display = 'none';
     // App vises først når loadData har bekræftet onboarding er gennemført
-    Notification.requestPermission();
+    // Notification-API'et findes IKKE i iPhone Safari-faner (kun i
+    // installerede PWA'er, iOS 16.4+). Ukapslet kald var årsagen til hvid
+    // skærm på mobil: login skjult, exception her, loadData() aldrig nået.
+    if ('Notification' in window) Notification.requestPermission();
     loadData();
   }
 });
