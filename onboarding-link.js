@@ -1,11 +1,13 @@
 // onboarding-link.js
 // -----------------------------------------------------------------------------
-// "Send mig et nyt link"-endpoint for LommeKontor.
+// "Send mig et nyt link"-endpoint for Dit Digitale Kontor.
 //
 // Lader en haandvaerker faa et frisk login-link hvis velkomstlinket er udloebet
 // eller forsvundet — uden at skulle kontakte support. Linket genereres serverside
-// og sendes via DIN egen Scaleway TEM (samme mail som velkomstmailen), saa intet
-// gaar via Supabases egen mailtjeneste (EU-sovereignty + ensartet afsender).
+// og sendes via DIN egen Scaleway TEM med en SEPARAT rescue-skabelon
+// (sendLoginLinkMail i mail.js) — IKKE velkomstmailen, som er forbeholdt nye
+// kunder. Intet gaar via Supabases egen mailtjeneste (EU-sovereignty +
+// ensartet afsender).
 //
 // Indlaeses fra server.js med:  require("./onboarding-link")(app, supabase);
 // (express.json() er allerede sat globalt, praecis som for Frisbii-webhooken.)
@@ -15,7 +17,7 @@
 // den — en mail-scanner der blot GET'er linket forbruger derfor IKKE tokenet.
 // -----------------------------------------------------------------------------
 
-const { sendWelcomeMail } = require("./mail");
+const { sendLoginLinkMail } = require("./mail");
 
 module.exports = (app, supabase) => {
   const BASE_URL = process.env.BASE_URL;
@@ -77,21 +79,17 @@ module.exports = (app, supabase) => {
     }
 
     try {
-      // Findes firmaet? Vi henter navn + nummer til mailen.
+      // Findes firmaet? Vi skal kun bruge eksistensen — rescue-mailen
+      // indeholder bevidst hverken firmanavn eller telefonnummer.
       const { data: firm } = await supabase
         .from("firms")
-        .select("name, phone_number")
+        .select("id")
         .eq("email", email)
         .maybeSingle();
 
       if (firm) {
         const loginUrl = await buildMagicLink(email);
-        const mailResult = await sendWelcomeMail({
-          to:          email,
-          firmName:    firm.name,
-          loginUrl,
-          phoneNumber: firm.phone_number,
-        });
+        const mailResult = await sendLoginLinkMail({ to: email, loginUrl });
         if (mailResult?.blocked) {
           console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", email);
         } else {
