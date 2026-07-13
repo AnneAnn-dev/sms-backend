@@ -773,15 +773,31 @@
     // skærm på mobil: login skjult, exception her, loadData() aldrig nået.
     if ('Notification' in window) Notification.requestPermission();
     loadData();
+  } else if (event === 'SIGNED_OUT') {
+    // Logud — også når loadData rydder en død session — viser login igen.
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
   }
 });
 
   // ── Data ──────────────────────────────────────────────────────────────────
   async function loadData() {
+    // Valider sessionen hos SERVEREN først. En lokalt gemt session kan være
+    // død — fx trækker et kodeskifte alle andre sessioner tilbage (Supabase-
+    // sikkerhed). Før dette tjek gav en død session et crash på ".id" (null);
+    // nu ryddes den, og login vises roligt i stedet.
+    const { data: { user } } = await db.auth.getUser();
+    if (!user) {
+      try { await db.auth.signOut(); } catch (_) {}
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      return;
+    }
+
     const { data: firmUser } = await db
     .from("firm_users")
     .select("firms(id, name, status, greeting_text, voice_gender)")
-    .eq("user_id", (await db.auth.getUser()).data.user.id)
+    .eq("user_id", user.id)
     .single();
 
   // Redirect til onboarding hvis opsætning ikke er gennemført
@@ -797,7 +813,6 @@
 
   const firm = firmUser?.firms;
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
-  const { data: { user } } = await db.auth.getUser();
   populateProfile(user, firm?.name);
   populateGreeting(firm);
   loadWhitelist();
@@ -1567,10 +1582,15 @@ document.getElementById('login-btn').addEventListener('click', login);
 
 // Tjek for nye leads hvert 30. sekund
 setInterval(async () => {
+  // Samme forsvar som i loadData: er sessionen død (fx efter kodeskifte i
+  // en anden fane), springes tjekket bare over — intet crash hvert 30. sek.
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return;
+
   const { data: firmUser } = await db
     .from("firm_users")
     .select("firms(id)")
-    .eq("user_id", (await db.auth.getUser()).data.user.id)
+    .eq("user_id", user.id)
     .single();
 
   const firm = firmUser?.firms;
