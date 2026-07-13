@@ -308,14 +308,15 @@
 <div class="main">
 
   <!-- Puf efter login-link: vises kun når /onboarding har sendt #nyt-login med -->
-  <div id="pw-nudge" style="display:none;background:var(--steel-light);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px">
+  <div id="pw-nudge" style="display:none;background:var(--steel);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;color:var(--white)">
     <div style="font-weight:600;margin-bottom:4px">Du er logget ind med et login-link</div>
-    <div style="color:var(--ink-muted);font-size:14px;margin-bottom:10px">
+    <div style="font-size:14px;margin-bottom:10px;opacity:.9">
       Vil du sætte en ny adgangskode, så du kan logge ind uden link næste gang?
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn-sm" onclick="gaaTilNyAdgangskode()">Sæt ny adgangskode</button>
-      <button class="btn-sm" style="background:transparent;color:var(--ink-muted);border:1px solid var(--border)"
+      <button class="btn-sm" style="background:var(--navy);color:var(--white)"
+              onclick="gaaTilNyAdgangskode()">Sæt ny adgangskode</button>
+      <button class="btn-sm" style="background:transparent;color:var(--white);border:1px solid rgba(255,255,255,.45)"
               onclick="document.getElementById('pw-nudge').style.display='none'">Ikke nu</button>
     </div>
   </div>
