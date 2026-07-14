@@ -385,6 +385,30 @@
       <div class="greeting-saved" id="g-saved"></div>
     </div>
 
+    <!-- Viderestilling: firmaets nummer + koder til/fra (efterspurgt: Anne
+         mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
+    <div class="greeting-card">
+      <div class="greeting-title">Din viderestilling</div>
+      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor. Her er dit nummer og koderne — så du altid kan finde dem igen.</p>
+
+      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px">VIDERESTIL TIL DETTE NUMMER</div>
+      <div id="vs-nummer" style="background:var(--smoke);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:20px;font-weight:800;letter-spacing:0.04em;text-align:center;margin-bottom:16px">—</div>
+
+      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling til:</strong> tast koden på din telefon og tryk ring op.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <code id="vs-kode-til" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;overflow-x:auto;white-space:nowrap">—</code>
+        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-til')">Kopiér</button>
+      </div>
+
+      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling fra:</strong> fx ved ferie, eller hvis du selv vil tage alle opkald.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <code id="vs-kode-fra" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;white-space:nowrap">##61#</code>
+        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-fra')">Kopiér</button>
+      </div>
+
+      <p class="greeting-help" style="margin-bottom:0">Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+    </div>
+
     <!-- Hvidliste: numre der ikke skal have opgaveformular -->
     <div class="wl-card">
       <div class="wl-title">Numre uden opgaveformular <span class="wl-count" id="wl-count"></span></div>
@@ -414,30 +438,6 @@
         <span class="spinner" id="pw-save-spinner" style="display:none"></span>
       </button>
       <div class="pw-msg" id="pw-msg"></div>
-    </div>
-
-    <!-- Viderestilling: firmaets nummer + koder til/fra (efterspurgt: Anne
-         mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
-    <div class="greeting-card">
-      <div class="greeting-title">Din viderestilling</div>
-      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor. Her er dit nummer og koderne — så du altid kan finde dem igen.</p>
-
-      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px">VIDERESTIL TIL DETTE NUMMER</div>
-      <div id="vs-nummer" style="background:var(--smoke);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:20px;font-weight:800;letter-spacing:0.04em;text-align:center;margin-bottom:16px">—</div>
-
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling til:</strong> tast koden på din telefon og tryk ring op.</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
-        <code id="vs-kode-til" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;overflow-x:auto;white-space:nowrap">—</code>
-        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-til')">Kopiér</button>
-      </div>
-
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling fra:</strong> fx ved ferie, eller hvis du selv vil tage alle opkald.</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
-        <code id="vs-kode-fra" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;white-space:nowrap">##61#</code>
-        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-fra')">Kopiér</button>
-      </div>
-
-      <p class="greeting-help" style="margin-bottom:0">Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
     </div>
 
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
@@ -897,14 +897,8 @@ function renderLeads() {
   filtered.sort((a, b) => {
     if (currentSort === 'created') return new Date(b.created_at) - new Date(a.created_at);
     if (currentSort === 'name') return a.name.localeCompare(b.name, 'da');
-    if (currentSort === 'street') return (a.address || '').localeCompare(b.address || '', 'da');
-    if (currentSort === 'city') {
-      const extractCity = addr => {
-        const part = (addr || '').split(',')[1]?.trim() || '';
-        return part.replace(/^\d{4}\s*/, '');
-      };
-      return extractCity(a.address).localeCompare(extractCity(b.address), 'da');
-    }
+    if (currentSort === 'street') return parseAddress(a.address).street.localeCompare(parseAddress(b.address).street, 'da');
+    if (currentSort === 'city') return parseAddress(a.address).city.localeCompare(parseAddress(b.address).city, 'da');
     return 0;
   });
 
@@ -920,7 +914,7 @@ function renderLeads() {
       <div class="lead-top">
         <div class="lead-name">${lead.name}</div>
       </div>
-      <div class="lead-address">${lead.address}</div>
+      <div class="lead-address">${formatAddress(lead.address)}</div>
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
         <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
           ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
@@ -1286,6 +1280,29 @@ function renderLeads() {
 
   // ── Modal ─────────────────────────────────────────────────────────────────
   let currentLead = null;
+  let modalOriginal = null; // snapshot af modal-felterne ved åbning — skriv kun til DB ved ÆNDRING
+
+  // ── Robust adresse-parsning ──────────────────────────────────────────────
+  // Historisk data kan indeholde dubletter ("…, 3400 By, 3400 By"), tomme
+  // segmenter ("…, , 3400 By") og supplerende bynavne ("…, Ny Hammersholt,
+  // 3400 By"). Vi finder postnr+by BAGFRA og bevarer resten som gadedel —
+  // den gamle ét-komma-antagelse smed alt efter andet komma væk.
+  function parseAddress(addr) {
+    const parts = (addr || '').split(',')
+      .map(p => p.trim())
+      .filter(Boolean)
+      .filter((p, i, arr) => arr.indexOf(p) === i); // fjern dubletter
+    let zip = '', city = '';
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const m = parts[i].match(/^(\d{4})\s+(.+)$/);
+      if (m) { zip = m[1]; city = m[2]; parts.splice(i, 1); break; }
+    }
+    return { street: parts.join(', '), zip, city };
+  }
+  function formatAddress(addr) {
+    const { street, zip, city } = parseAddress(addr);
+    return [street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', ');
+  }
   let afslutOpen = false;
 
   const smsTpls = [
@@ -1320,15 +1337,19 @@ function renderLeads() {
     document.getElementById('modal-name').textContent = lead.name;
     document.getElementById('modal-phone').textContent = lead.calls?.from_number || '—';
     document.getElementById('modal-name-input').value = lead.name;
-    // Split adresse i dele: "Vejnavn Nummer, By" → street, number, city
-    const addrParts = (lead.address || '').split(',');
-    const streetAndNum = (addrParts[0] || '').trim();
-    const zipAndCity = (addrParts[1] || '').trim();
-    const zipMatch = zipAndCity.match(/^(\d{4})\s+(.+)$/);
-    document.getElementById('modal-address-street').value = streetAndNum;
-    document.getElementById('modal-address-zip').value = zipMatch ? zipMatch[1] : '';
-    document.getElementById('modal-address-city').value = zipMatch ? zipMatch[2] : zipAndCity;
+    // Robust adresse-parsning (bagfra): tåler dubletter, tomme segmenter og
+    // supplerende bynavne — den gamle ét-komma-split SLETTEDE postnr/by ved luk.
+    const parsed = parseAddress(lead.address);
+    document.getElementById('modal-address-street').value = parsed.street;
+    document.getElementById('modal-address-zip').value = parsed.zip;
+    document.getElementById('modal-address-city').value = parsed.city;
     document.getElementById('modal-address-mail').value = lead.address_mail || '';
+    // Snapshot til closeModal: "kig på lead" må ALDRIG være en skriveoperation.
+    modalOriginal = {
+      address: buildModalAddress(),
+      address_mail: document.getElementById('modal-address-mail').value.trim() || null,
+      notes: lead.notes || null,
+    };
     document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
     document.getElementById('modal-task').value = lead.task;
     document.getElementById('modal-time').value = lead.desired_time || 'Ikke angivet';
@@ -1370,22 +1391,38 @@ function renderLeads() {
   }
 
 
+  function buildModalAddress() {
+    const street = document.getElementById('modal-address-street').value.trim();
+    const zip = document.getElementById('modal-address-zip').value.trim();
+    const city = document.getElementById('modal-address-city').value.trim();
+    return [street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', ');
+  }
+
   async function closeModal() {
     if (currentLead) {
-      const street = document.getElementById('modal-address-street').value.trim();
-      const zip = document.getElementById('modal-address-zip').value.trim();
-      const city = document.getElementById('modal-address-city').value.trim();
-      const address = [street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', ');
-      const { error } = await db.from('leads').update({
-        address: address || null,
-        address_mail: document.getElementById('modal-address-mail').value.trim() || null,
-        notes: document.getElementById('modal-notes').value || null,
-      }).eq('id', currentLead.id);
-      if (error) console.error('❌ Gem fejl:', error);
-      else console.log('✅ Gemt OK');
+      const address = buildModalAddress();
+      const address_mail = document.getElementById('modal-address-mail').value.trim() || null;
+      const notes = document.getElementById('modal-notes').value || null;
+      // Skriv KUN når noget er ændret ift. snapshot fra åbningen — før
+      // genskrev vi adressen ved hver lukning (også klik på baggrunden),
+      // hvilket permanent slettede postnr/by på flerkomma-adresser.
+      const changed = !modalOriginal
+        || address !== modalOriginal.address
+        || address_mail !== modalOriginal.address_mail
+        || notes !== modalOriginal.notes;
+      if (changed) {
+        const { error } = await db.from('leads').update({
+          address: address || null,
+          address_mail,
+          notes,
+        }).eq('id', currentLead.id);
+        if (error) console.error('❌ Gem fejl:', error);
+        else console.log('✅ Gemt OK');
+      }
     }
     document.getElementById('modal-bg').classList.remove('open');
     currentLead = null;
+    modalOriginal = null;
     loadData();
   }
 
