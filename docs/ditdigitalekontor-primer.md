@@ -142,10 +142,11 @@ Scripts køres **lokalt fra PowerShell 5.1** i `sms-backend`-mappen (Windows/VS 
 
 ## Profilside (dashboard.html) — funktioner
 
-Rækkefølge: profilkort → **Din telefonbesked** → hvidliste → **Skift adgangskode** → Log ud.
+Rækkefølge (ændret 13/7, Anns valg): profilkort → **Din telefonbesked** → hvidliste → **Skift adgangskode** → **Din viderestilling** → Log ud.
 
 - **Din telefonbesked:** redigér stemme (Kvinde/Mand) + besked efter onboarding. Forhåndsvis afspiller en fast ElevenLabs-sample (`…/greetings/_samples/{female|male}.mp3?v=2`). Gem → `POST /api/firma/opdater` (spinner-knap; ruten re-renderer lyd, så det tager et par sek.). Nuværende værdier loades ved at hente `greeting_text, voice_gender` med i `loadData`'s select.
 - **Skift adgangskode:** ny + gentag (mindst 8 tegn), `updateUser({ password })`, spinner-knap.
+- **Din viderestilling (nyt 13/7):** viser firmaets dedikerede nummer (`phone_number` er føjet til loadData's firms-select — vises nu også i profilkortet, feltet var før tomt) + til-koden `**61*<nr>#` og fra-koden `##61#` med Kopiér-knapper (Clipboard-API guarded), samt `*61*`-fallback og teleselskabs-note — samme indhold som onboarding trin 3. Baggrund: Anne mistede sit nummer; det stod før KUN i onboardingen og velkomstmailen.
 
 ## Onboarding-flow (onboarding.html)
 
@@ -312,6 +313,7 @@ CommonJS (ingen ESM); flad filstruktur; **komplette kørende filer, ikke diffs**
 - **Kodeskifte-puf (✅ prod):** efter link-login foreslår dashboardet en ny adgangskode. Mekanik: /onboarding sætter `viaLoginLink` KUN ved ægte verifyOtp → redirect `/dashboard#nyt-login` (hash: aldrig til server, ingen cache-nøgle) → lukbar bjælke (stålblå, navy-knap, hvid tekst) med genvej der åbner profilsiden og fokuserer pw-feltet; hash fjernes straks, så puffet kun vises én gang.
 - **Session-hærdning (✅ prod):** kodeskifte trækker alle ANDRE Supabase-sessioner tilbage (bevidst sikkerhed) → gammel kode crashede på `.data.user.id` (null). Nu: loadData validerer via getUser og falder roligt tilbage til login; onAuthStateChange håndterer SIGNED_OUT; 30-sekunders-lead-polleren springer over uden gyldig bruger (før: stille crash hvert 30. sek. — også på login-skærmen, hvor polleren altid har kørt).
 - **Nye ikoner (✅ prod):** hele sættet udskiftet + `?v=2`-cache-buster på ikon-links i dashboard/onboarding (browserens favicon-cache er separat og stædig; buster = den eneste kundevenlige vej — bump til ?v=3 ved næste skifte) + `crossorigin="anonymous"` på supabase-CDN-tagget, så fejl-overlayet får ÆGTE fejltekst i stedet for maskeret "Script error.". Verificeret hos Anne (hendes faner skiftede af sig selv). Rest: PWA slet+geninstallér på begge iPhones (hjemmeskærms-ikon = installations-øjebliksbillede).
+- **Viderestillings-kort på profilsiden (✅ prod, 13/7 aften):** se *Profilside — funktioner*. Profilsidens rækkefølge samtidig ændret (viderestilling nederst, før Log ud).
 - **Uafklaret (lav prioritet):** sporadisk "Script error." på iPhone — dashboardet virker, bjælken kommer og går; formentlig godartet baggrundsfejl i supabase-js (tokenfornyelse). Afventer gentagelse NU med crossorigin aktiv → ægte fejltekst → dom.
 
 **NYESTE (12/7): SMS-segmentfejlen fundet og rettet — kerneproduktet bevist ende-til-ende i prod.** Rebrandingen gjorde domænet 8 tegn længere → alle kunde-SMS'er over 160 GSM-tegn → delt midt i linket → "Cannot GET" hos kunden. Fix live i begge miljøer: `kundeSmsBody()`-skabelon (154 tegn, ét sted), demo som to beskeder (forklaring + nøjagtig kopi), `gsmSegments`-vagt. Ny produktregel: firmanavn+slug ≤ 46 tegn (m. Anne). Miljøskifte er nu tooling: `skift-prod.ps1`/`skift-staging.ps1` m. `check-env-prod.js`-verifikation og synlig `.ENV-ER-PROD`-markør. Prod nulstillet 11/7 (SIDSTE gang — fremover kun kirurgisk sletning) og gen-etableret: testfirma + pilot #0 (Anne). Staging-systemnummer: +4591309928. **Åbne fund overdraget til ny chat: hvid skærm på mobil-dashboard (begge telefoner, server-200, SW-mistanke) + rescue-mail genbruger velkomstskabelon (kodeopgave 8).** Oplæg i docs/.
