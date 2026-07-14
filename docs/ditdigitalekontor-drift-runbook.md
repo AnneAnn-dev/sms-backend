@@ -1,4 +1,4 @@
-# LommeKontor — runbook: drift & udvikling
+# Dit Digitale Kontor — runbook: drift & udvikling
 
 *Opsætning og opskrift for et team på højst tre personer. Princippet: **én kodebase, to verdener.** Alt kan testes i staging. Kun det, der er testet, slipper gennem "muren" til kunderne.*
 
@@ -163,7 +163,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 6. **Promote til prod — i deploy-vinduet** (se Del 2):
    - Railway: promote / deploy `main`.
    - Kør samme migration på **prod**: `.\push-prod.ps1` (kræver PROD-bekræftelse, linker selv om, og skifter tilbage til staging bagefter).
-   - **Bump `sw.js` cache-version** — ellers serveres den gamle frontend.
+   - **Bump `sw.js` cache-version** ved ændringer i sw.js selv eller cachede aktiver. *(Fra v17, 13/7: /dashboard-HTML hentes network-first, så rene HTML-ændringer slår igennem UDEN bump; kundeformular/onboarding/config.js røres slet ikke af SW'en.)*
 7. Verificér i prod: health-check grøn + én ægte handling (fx et testopkald fra egen telefon). Hold øje i ~10 min.
 8. Går det galt: **rollback koden** i Railway (hurtigst). DB: kør kun frem-migrationer; ingen destruktive ændringer uden frisk backup.
 
@@ -176,6 +176,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - **Aldrig** håndredigeret SQL på prod — kun migrationer.
 - **Aldrig** live-creds i staging.
 - `service_role`-nøglen kun server-side (den omgår RLS).
+- **PWA-ikon og app-navn ændres ALDRIG efter kundelancering:** iOS kan ikke opdatere en installeret PWA's skal (ikon/navn/splash = installations-øjebliksbillede; kun slet+geninstallér hjælper). Android self-healer via manifest-gentjek. Alt INDE i appen opdaterer derimod automatisk. (Princip fastlagt 13/7 — detaljer i primerens faldgruber.)
 
 ---
 
@@ -339,17 +340,16 @@ Resten kan lægges ovenpå, når I har luft.
 
 ---
 
-## Udeståender — samlet overblik (pr. 12/7-26)
+## Udeståender — samlet overblik (pr. 13/7-26)
 
 *Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
 
-### 🚂 Klar til at køre NU (overdragelses-oplæg: `oplaeg-ny-chat-mobil-og-rescuemail.md` i docs/)
-1. **HVID SKÆRM på mobil-dashboard (ÅBEN FEJL, høj prioritet):** både Ann og Anne rammer hvid side på telefonen; server svarer 200 på /dashboard, /config.js, /sw.js (HTTP-log 12/7). Klient-fejl — SW/PWA-hovedmistanke, men UBEKRÆFTET. Blokkerer piloternes mobiloplevelse (produktet ER mobilt!). Diagnoseplan i oplægget; kræver sw.js + dashboard.html (aktuelle versioner).
-2. **Rescue-mail-skabelon (kodeopgave 8):** separat login-link-mail i stedet for genbrugt velkomstmail. Tekstforslag klar (Anne polerer); kræver onboarding-link.js + mail.js. Lille, afgrænset — god første opgave i ny chat.
-3. **Annes pilot-gennemløb rundes af:** hun er gen-provisioneret 12/7 (efter prod-nulstillingen) — afvent hendes fund: onboarding, ægte opkald→lead i HENDES dashboard, rescue-sti, mobil (hænger sammen med punkt 1).
-4. **Navne-sweep 1/3:** runbook omdøbes (`git mv` → ditdigitalekontor-drift-runbook.md) + interne referencer.
-5. Frisbii staging-oprydning: expire trial-testabonnementerne + omdøb planerne efter egenskab (lærdomme 11/7).
+### 🚂 Klar til at køre NU
+1. **Annes pilot-gennemløb rundes af:** mobil-blokeringen er væk (hvid skærm løst 13/7) — indhent/afvent hendes fund: onboarding, ægte opkald→lead i HENDES dashboard, rescue-sti, mobil.
+2. Frisbii staging-oprydning: expire trial-testabonnementerne + omdøb planerne efter egenskab (lærdomme 11/7).
+3. **PWA slet+geninstallér på begge iPhones** (hjemmeskærms-ikonet er et installations-øjebliksbillede — fane-ikoner klaret via ?v=2).
 
+*(✅ Kørt 13/7: HVID SKÆRM LØST — rodårsag: ukapslet `Notification.requestPermission()` på iOS Safari + SW-navigation-kapring/cache-forgiftning; fix: guard, script-flyt, fail-synligt boot m. fejl-overlay, sw v17 allowlist/network-first. Rescue-mail m. egen skabelon i prod (kodeopgave 8 ✅). Kodeskifte-puf (#nyt-login → banner → profilens pw-felt) i prod. Session-hærdning: død session → login i stedet for crash, SIGNED_OUT håndteret, 30-sek-poller sikret. Nye ikoner + ?v=2-buster + crossorigin på CDN-tag. Alt røgtestet i prod, inkl. Anne. Navne-sweep 1/3: runbook omdøbt til `ditdigitalekontor-drift-runbook.md` + primerens henvisninger opdateret — Frisbii-handles og historiske omtaler bevidst urørt, jf. APPSIGNAL-princippet.)*
 *(✅ Kørt 12/7: SMS-fixet deployet + røgtestet i begge miljøer; staging-systemnummer etableret; prod gen-etableret m. testfirma + pilot #0.)*
 
 ### 🔧 Kodeopgaver (prioriteret)
@@ -360,8 +360,9 @@ Resten kan lægges ovenpå, når I har luft.
 5. `firms.phone_number` **unique-constraint** (kendt udskudt skema-skævhed — dagens medfødte `frisbii_subscription`-constraint dækker KUN samme-abonnement-racet, ikke to forskellige abonnementer der vælger samme pulje-nummer) + `created_at` på firms. *(Bonus-oprydning ved lejlighed: redundant `idx_firms_frisbii_sub` + legacy `firms_shopify_order_id_key`.)*
 6. **check-env.js:** validér også `TWILIO_SYSTEM_NUMBER` + `VOICE_URL` + `SUPABASE_ANON_KEY` (navnedrift/manglende nøgler fanget 10/7).
 7. **Trin 6 F** (valgfri hærdning): IP-lås/Basic Auth på webhook-endpointet.
-8. **Rescue-mail-skabelon** (OPPRIORITERET 12/7, evidens fra generalprøven — se 🚂-punkt 2): separat `sendLoginLinkMail` i stedet for genbrugt velkomstmail; bevar rate-limit/anti-enumeration. + øvrig win-back-polish: venlig TwiML-besked på karantæne-numre.
+8. **Win-back-polish:** venlig TwiML-besked på karantæne-numre. *(Rescue-mail-delen ✅ 13/7: egen `sendLoginLinkMail`, rate-limit/anti-enumeration bevaret.)*
 9. **SMS-navnebudget** (m. Anne): firmanavn + slug ≤ 46 tegn tilsammen — håndhæves i onboarding trin 1 (navnegrænse) eller via kortere slugs. Vagten logger ⚠️ indtil da.
+10. **Fejl-overlayet (dashboard.html) dæmpes/afmonteres, når piloten er stabil** (indført 13/7 som diagnoseværktøj — viser ALLE ufangede fejl, også godartede; muligt mellemtrin: ignorér kendte godartede supabase-baggrundsfejl). Hertil UAFKLARET, lav prioritet: sporadisk "Script error." på iPhone (dashboard virker; kommer og går) — afventer gentagelse med crossorigin aktiv → ægte fejltekst → dom.
 
 ### 🏗️ Infrastruktur/indkøb
 1. ✅ **Staging-systemnummer etableret 12/7:** +4591309928 ophøjet fra puljen (slettet fra phone_numbers, sat som `TWILIO_SYSTEM_NUMBER` i staging-Railway + .env.staging). Staging-puljen har nu 1 ledigt nummer (+4593702605) — reset-test-data frigør det mellem kørsler. Verifikationsopkald virker nu i BEGGE miljøer.
