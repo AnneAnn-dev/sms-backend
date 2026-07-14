@@ -385,6 +385,30 @@
       <div class="greeting-saved" id="g-saved"></div>
     </div>
 
+    <!-- Viderestilling: firmaets nummer + koder til/fra (efterspurgt: Anne
+         mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
+    <div class="greeting-card">
+      <div class="greeting-title">Din viderestilling</div>
+      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor. Her er dit nummer og koderne — så du altid kan finde dem igen.</p>
+
+      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px">VIDERESTIL TIL DETTE NUMMER</div>
+      <div id="vs-nummer" style="background:var(--smoke);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:20px;font-weight:800;letter-spacing:0.04em;text-align:center;margin-bottom:16px">—</div>
+
+      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling til:</strong> tast koden på din telefon og tryk ring op.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <code id="vs-kode-til" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;overflow-x:auto;white-space:nowrap">—</code>
+        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-til')">Kopiér</button>
+      </div>
+
+      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling fra:</strong> fx ved ferie, eller hvis du selv vil tage alle opkald.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <code id="vs-kode-fra" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;white-space:nowrap">##61#</code>
+        <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-fra')">Kopiér</button>
+      </div>
+
+      <p class="greeting-help" style="margin-bottom:0">Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+    </div>
+
     <!-- Hvidliste: numre der ikke skal have opgaveformular -->
     <div class="wl-card">
       <div class="wl-title">Numre uden opgaveformular <span class="wl-count" id="wl-count"></span></div>
@@ -690,6 +714,19 @@
     document.getElementById('pw-nudge').style.display = 'block';
   }
 
+  async function kopierKode(btn, elId) {
+    // Clipboard-API'et guardes (kraever secure context; kan mangle/afvises).
+    // Fejler det, kan koden stadig markeres og kopieres manuelt.
+    const tekst = document.getElementById(elId).textContent;
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) return;
+    try {
+      await navigator.clipboard.writeText(tekst);
+      const foer = btn.textContent;
+      btn.textContent = 'Kopieret ✓';
+      setTimeout(() => { btn.textContent = foer; }, 1600);
+    } catch (_) {}
+  }
+
   function gaaTilNyAdgangskode() {
     document.getElementById('pw-nudge').style.display = 'none';
     setPage('profil');
@@ -796,7 +833,7 @@
 
     const { data: firmUser } = await db
     .from("firm_users")
-    .select("firms(id, name, status, greeting_text, voice_gender)")
+    .select("firms(id, name, status, greeting_text, voice_gender, phone_number)")
     .eq("user_id", user.id)
     .single();
 
@@ -813,6 +850,15 @@
 
   const firm = firmUser?.firms;
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
+  // Viderestilling: vis firmaets nummer og byg koderne (profilsiden)
+  const vsNr = firm?.phone_number || '';
+  if (vsNr) {
+    document.getElementById('vs-nummer').textContent = vsNr;
+    document.getElementById('vs-kode-til').textContent = `**61*${vsNr}#`;
+    document.getElementById('vs-kode-fallback').textContent = `*61*${vsNr}#`;
+    document.getElementById('profile-phone').textContent = vsNr;
+  }
+
   populateProfile(user, firm?.name);
   populateGreeting(firm);
   loadWhitelist();
@@ -982,7 +1028,6 @@ function renderLeads() {
     document.getElementById('profile-avatar').textContent = initials;
     document.getElementById('profile-name').textContent = email;
     document.getElementById('profile-firm').textContent = firmName || '—';
-    document.getElementById('profile-phone').textContent = '';
   }
 
   // ── Telefonbesked: stemme + tekst ──────────────────────────────────────────
