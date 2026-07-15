@@ -653,10 +653,6 @@
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
       </div>
       <div class="mfield">
-        <label>Hvornår passer det dig?</label>
-        <input type="text" id="new-time" placeholder="Hverdage efter kl. 16">
-      </div>
-      <div class="mfield">
         <label>Billeder</label>
         <div class="upload-area" onclick="document.getElementById('new-file-in').click()">
           <svg class="ti" style="font-size:20px;color:#8FA3B5" aria-hidden="true"><use href="#i-photo-plus"/></svg>
@@ -936,7 +932,6 @@ function renderLeads() {
     document.getElementById('new-street').value = '';
     document.getElementById('new-city').value = '';
     document.getElementById('new-task').value = '';
-    document.getElementById('new-time').value = '';
     document.getElementById('new-mail').value = '';
     document.getElementById('new-urgent-cb').checked = false;
     document.getElementById('new-urgent-row').classList.remove('checked');
@@ -990,7 +985,7 @@ function renderLeads() {
           phone,
           address,
           task,
-          desired_time: document.getElementById('new-time').value.trim() || null,
+          desired_time: null,
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
@@ -1567,10 +1562,13 @@ function updateBadge(count) {
 }
 // ── DAWA Autocomplete ─────────────────────────────────────────────────────
  
-function initDawa({ inputId, suggestionsId, onSelect, onType }) {
+function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt }) {
   const inp = document.getElementById(inputId);
   const boks = document.getElementById(suggestionsId);
   let debounce = null, aktive = -1, forslag = [];
+  // DAWA's trædesten-tekst har et tomt "hul" til etage/dør: "Vej 4, , 2970 By".
+  // rens() fjerner tomme segmenter, så feltet aldrig viser ", ,".
+  const rens = t => String(t || '').split(',').map(x => x.trim()).filter(Boolean).join(', ');
  
   inp.addEventListener('input', () => {
     if (onType) onType();
@@ -1623,15 +1621,17 @@ function initDawa({ inputId, suggestionsId, onSelect, onType }) {
     // gyldig NU — så registrér valget med det samme og lad listen stå åben
     // til evt. finpudsning (etage/dør). Kun rene vejnavne er stadig ugyldige.
     if (s.type !== 'adresse') {
-      inp.value = s.tekst;
       if (s.data && s.data.postnr && onSelect) onSelect(s);
+      inp.value = rens(s.tekst);
       inp.focus();
       hent(inp.value.trim());
       return;
     }
-    // DAWA's tekst slutter på "postnr by" — postnr/by har egne felter (via
-    // onSelect), så gadefeltet får KUN gadedelen. Ellers gemmes dubletter.
-    inp.value = parseAddress(s.tekst).street;
+    // Endeligt valg: modaler med SYNLIGE postnr/by-felter får kun gadedelen i
+    // gadefeltet (ellers dubletter); modaler med skjulte felter (Ny opgave)
+    // viser hele adressen — et felt med "Barakstien 4" uden by skaber tvivl,
+    // og tvivl fører til redigering, som nulstiller valget.
+    inp.value = fuldTekstIFelt ? rens(s.tekst) : parseAddress(s.tekst).street;
     skjul();
     if (onSelect) onSelect(s);
   }
@@ -1644,6 +1644,7 @@ let newDawaValgt = false;
 initDawa({
   inputId: 'new-street',
   suggestionsId: 'new-dawa-suggestions',
+  fuldTekstIFelt: true, // ingen synlige postnr/by-felter her — vis hele adressen
   onType: () => {
     newDawaValgt = false;
     document.getElementById('new-dawa-error').style.display = 'none';

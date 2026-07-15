@@ -217,13 +217,19 @@ app.get("/formular/:token", async (req, res) => {
     });
   }
 
+  function rens(t) {
+    // DAWA's traedesten-tekst har et tomt "hul" til etage/doer: "Vej 4, , 2970 By".
+    // Fjern tomme segmenter, saa feltet aldrig viser ", ,".
+    return String(t || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean).join(', ');
+  }
+
   function vaelg(s) {
     // Mellemtrins-forslag: fortsaet indtastningen. MEN har forslaget allerede
     // postnr/by i sine data (adgangsadresse = selve huset), er adressen
     // gyldig NU - saa taeller valget med det samme, og listen bliver staaende
     // til evt. finpudsning (etage/doer). Kun rene vejnavne er stadig ugyldige.
     if (s.type !== 'adresse') {
-      inp.value = s.tekst;
+      inp.value = rens(s.tekst);
       if (s.data && s.data.postnr) {
         dawaValgt = true;
         fejl.style.display = 'none';
@@ -238,7 +244,7 @@ app.get("/formular/:token", async (req, res) => {
       hentForslag(inp.value.trim());
       return;
     }
-    inp.value = s.tekst;
+    inp.value = rens(s.tekst);
     dawaValgt = true;
     skjul();
     fejl.style.display = 'none';
