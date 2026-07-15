@@ -529,25 +529,11 @@
         <textarea id="modal-task"></textarea>
       </div>
 
-      <div class="row2">
-        <div class="mfield">
-          <label>Deadline</label>
-          <div class="date-wrap">
-            <input type="date" id="modal-deadline">
-            <svg class="ti date-icon" aria-hidden="true"><use href="#i-calendar"/></svg>
-          </div>
-        </div>
-        <div class="mfield" style="display:flex;flex-direction:column;justify-content:flex-end">
-          <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
-            <input type="checkbox" id="modal-urgent-cb">
-            <label for="modal-urgent-cb"><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
-          </div>
-        </div>
-      </div>
-
       <div class="mfield">
-        <label>Ønsket tidspunkt fra kunde</label>
-        <input type="text" id="modal-time" readonly style="color:var(--ink-muted)">
+        <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
+          <input type="checkbox" id="modal-urgent-cb">
+          <label for="modal-urgent-cb"><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
+        </div>
       </div>
 
       <div class="mfield">
@@ -1349,9 +1335,7 @@ function renderLeads() {
     };
     document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
     document.getElementById('modal-task').value = lead.task;
-    document.getElementById('modal-time').value = lead.desired_time || 'Ikke angivet';
     document.getElementById('modal-notes').value = lead.notes || '';
-    document.getElementById('modal-deadline').value = lead.deadline || '';
 
     const urgentCb = document.getElementById('modal-urgent-cb');
     const urgentRow = document.getElementById('modal-urgent-row');
