@@ -531,8 +531,8 @@
 
       <div class="mfield">
         <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
-          <input type="checkbox" id="modal-urgent-cb">
-          <label for="modal-urgent-cb"><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
+          <input type="checkbox" id="modal-urgent-cb" style="pointer-events:none" tabindex="-1">
+          <label><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
         </div>
       </div>
 
@@ -647,7 +647,7 @@
         </div>
       </div>
       <div class="urgent-row" id="new-urgent-row" onclick="toggleNewUrgent()">
-        <input type="checkbox" id="new-urgent-cb">
+        <input type="checkbox" id="new-urgent-cb" style="pointer-events:none" tabindex="-1">
         <span><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</span>
       </div>
       <div class="mfield">
