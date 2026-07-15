@@ -340,15 +340,16 @@ Resten kan lægges ovenpå, når I har luft.
 
 ---
 
-## Udeståender — samlet overblik (pr. 13/7-26)
+## Udeståender — samlet overblik (pr. 15/7-26)
 
 *Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
 
 ### 🚂 Klar til at køre NU
-1. **Annes pilot-gennemløb rundes af:** mobil-blokeringen er væk (hvid skærm løst 13/7) — indhent/afvent hendes fund: onboarding, ægte opkald→lead i HENDES dashboard, rescue-sti, mobil.
+1. **Pilot-rekruttering af rigtige håndværkere** — exit-kriteriet (Annes fulde gennemløb) er opfyldt 14-15/7. Anne ejer formular/kommunikation (drejebog i docs/); teknisk forudsætning: tjek prod-nummerpuljen (infrastruktur-punkt 2) FØR første pilot provisioneres.
 2. Frisbii staging-oprydning: expire trial-testabonnementerne + omdøb planerne efter egenskab (lærdomme 11/7).
 3. **PWA slet+geninstallér på begge iPhones** (hjemmeskærms-ikonet er et installations-øjebliksbillede — fane-ikoner klaret via ?v=2).
 
+*(✅ Kørt 14-15/7: ADRESSE-SPORET LUKKET i prod (gren `fix/adrees-postnummer-by`, flere commits) — postnr/by forsvandt pga. (1) dobbelt-påklistring + accepterede DAWA-trædesten ved kilden og (2) modalens ét-komma-parse + genskrivning ved HVER lukning. Fix: `bygAdresse()`-chokepoint i server.js, `parseAddress()` (bagfra, dedupe) i dashboard, closeModal skriver kun ved ændring, DAWA-overhaul begge steder (resultat-baseret validering: adgangsadresse m. postnr = gyldig straks; `rens()` fjerner ", ,"; Ny opgave viser fuld adresse i feltet). Felter fjernet: "Hvornår passer det dig" (opret), Deadline + "Ønsket tidspunkt fra kunde" (rediger); mailfelt omdøbt "Mailadresse". Haster-persist-fixet 15/7 (`is_urgent` manglede i closeModal trods primer-påstand). Detaljer: primerens NYESTE (14-15/7). **ANNES PILOT-GENNEMLØB GRØNT: alle 4 punkter** (ægte opkald→lead, rescue-sti+puf, mobil+viderestillings-kort, onboarding på mobil) → pilot-rekruttering ublokeret.)*
 *(✅ Kørt 13/7: HVID SKÆRM LØST — rodårsag: ukapslet `Notification.requestPermission()` på iOS Safari + SW-navigation-kapring/cache-forgiftning; fix: guard, script-flyt, fail-synligt boot m. fejl-overlay, sw v17 allowlist/network-first. Rescue-mail m. egen skabelon i prod (kodeopgave 8 ✅). Kodeskifte-puf (#nyt-login → banner → profilens pw-felt) i prod. Session-hærdning: død session → login i stedet for crash, SIGNED_OUT håndteret, 30-sek-poller sikret. Nye ikoner + ?v=2-buster + crossorigin på CDN-tag. Alt røgtestet i prod, inkl. Anne. Navne-sweep 1/3: runbook omdøbt til `ditdigitalekontor-drift-runbook.md` + primerens henvisninger opdateret — Frisbii-handles og historiske omtaler bevidst urørt, jf. APPSIGNAL-princippet. Aften: viderestillings-kort på profilsiden i prod — firmaets nummer + til/fra-koder m. Kopiér; løser "Anne mistede sit nummer". Profilsidens rækkefølge ændret: viderestilling nederst før Log ud.)*
 *(✅ Kørt 12/7: SMS-fixet deployet + røgtestet i begge miljøer; staging-systemnummer etableret; prod gen-etableret m. testfirma + pilot #0.)*
 

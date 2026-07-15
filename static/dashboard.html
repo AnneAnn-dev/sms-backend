@@ -531,8 +531,8 @@
 
       <div class="mfield">
         <div class="urgent-row" id="modal-urgent-row" onclick="toggleUrgent()">
-          <input type="checkbox" id="modal-urgent-cb">
-          <label for="modal-urgent-cb"><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
+          <input type="checkbox" id="modal-urgent-cb" style="pointer-events:none" tabindex="-1">
+          <label><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</label>
         </div>
       </div>
 
@@ -647,7 +647,7 @@
         </div>
       </div>
       <div class="urgent-row" id="new-urgent-row" onclick="toggleNewUrgent()">
-        <input type="checkbox" id="new-urgent-cb">
+        <input type="checkbox" id="new-urgent-cb" style="pointer-events:none" tabindex="-1">
         <span><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</span>
       </div>
       <div class="mfield">
@@ -1332,6 +1332,7 @@ function renderLeads() {
       address: buildModalAddress(),
       address_mail: document.getElementById('modal-address-mail').value.trim() || null,
       notes: lead.notes || null,
+      is_urgent: !!lead.is_urgent,
     };
     document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
     document.getElementById('modal-task').value = lead.task;
@@ -1386,18 +1387,21 @@ function renderLeads() {
       const address = buildModalAddress();
       const address_mail = document.getElementById('modal-address-mail').value.trim() || null;
       const notes = document.getElementById('modal-notes').value || null;
+      const is_urgent = document.getElementById('modal-urgent-cb').checked;
       // Skriv KUN når noget er ændret ift. snapshot fra åbningen — før
       // genskrev vi adressen ved hver lukning (også klik på baggrunden),
       // hvilket permanent slettede postnr/by på flerkomma-adresser.
       const changed = !modalOriginal
         || address !== modalOriginal.address
         || address_mail !== modalOriginal.address_mail
-        || notes !== modalOriginal.notes;
+        || notes !== modalOriginal.notes
+        || is_urgent !== modalOriginal.is_urgent;
       if (changed) {
         const { error } = await db.from('leads').update({
           address: address || null,
           address_mail,
           notes,
+          is_urgent,
         }).eq('id', currentLead.id);
         if (error) console.error('❌ Gem fejl:', error);
         else console.log('✅ Gemt OK');
