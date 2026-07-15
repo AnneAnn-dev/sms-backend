@@ -977,7 +977,9 @@ function renderLeads() {
         return;
       }
 
-      const address = [street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', ');
+      // formatAddress-normalisering: gadefeltet kunne før indeholde DAWA's
+      // FULDE tekst (inkl. "1234 By") → postnr+by blev gemt dobbelt.
+      const address = formatAddress([street, (postnr ? postnr + ' ' : '') + city].filter(Boolean).join(', '));
 
       // Opret via server (undgår RLS). Firmaet udledes server-side fra token'et.
       const res = await fetch('/opret-opgave', {
@@ -1395,7 +1397,9 @@ function renderLeads() {
     const street = document.getElementById('modal-address-street').value.trim();
     const zip = document.getElementById('modal-address-zip').value.trim();
     const city = document.getElementById('modal-address-city').value.trim();
-    return [street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', ');
+    // formatAddress = sele og livrem: skulle gadefeltet indeholde postnr/by
+    // (fx indsat manuelt), fjernes dubletter og postnr+by ender præcis én gang.
+    return formatAddress([street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', '));
   }
 
   async function closeModal() {
@@ -1614,7 +1618,17 @@ function initDawa({ inputId, suggestionsId, onSelect, onType }) {
   }
  
   function vaelg(s) {
-    inp.value = s.tekst;
+    // Mellemtrins-forslag (vejnavn/adgangsadresse) er ment til at FORTSÆTTE
+    // indtastningen — ikke som endeligt valg (samme fix som i kundeformularen).
+    if (s.type !== 'adresse') {
+      inp.value = s.tekst;
+      inp.focus();
+      hent(inp.value.trim());
+      return;
+    }
+    // DAWA's tekst slutter på "postnr by" — postnr/by har egne felter (via
+    // onSelect), så gadefeltet får KUN gadedelen. Ellers gemmes dubletter.
+    inp.value = parseAddress(s.tekst).street;
     skjul();
     if (onSelect) onSelect(s);
   }
@@ -1647,10 +1661,9 @@ initDawa({
 initDawa({
   inputId: 'modal-address-street',
   suggestionsId: 'modal-dawa-suggestions',
-  onType: () => {
-    document.getElementById('modal-address-zip').value = '';
-    document.getElementById('modal-address-city').value = '';
-  },
+  // BEVIDST ingen onType: postnr/by har egne synlige felter, og at rette en
+  // tastefejl i gaden må ALDRIG tømme dem (det smed byen væk ved gem).
+  // Vælges et DAWA-forslag, overskrives felterne korrekt her:
   onSelect: (s) => {
     if (s.data) {
       document.getElementById('modal-address-zip').value = s.data.postnr || '';
