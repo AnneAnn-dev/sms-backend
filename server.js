@@ -67,6 +67,24 @@ require("./frisbii-webhook")(app, supabase);
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
 
+// ─── ADRESSE-NORMALISERING ──────────────────────────────────────────────────
+// DAWA's forslagstekst slutter typisk allerede på "postnr by", og kan
+// indeholde tomme segmenter (", ,") fra mellemtrins-forslag. Vi normaliserer
+// derfor ALTID her (ét chokepoint), uanset hvad klienten sender: split på
+// komma, trim, fjern tomme dele og dubletter, og sørg for at postnr+by står
+// præcis én gang — bagerst. Resultat: "Gade 12[, Supplerende Bynavn], 1234 By".
+function bygAdresse(vej, postnr, by) {
+  const dele = String(vej || "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .filter((d, i, arr) => arr.indexOf(d) === i); // fjern dubletter
+  const postnrBy = [postnr, by].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  if (!postnrBy) return dele.join(", ");
+  const rest = dele.filter((d) => d !== postnrBy);
+  return [...rest, postnrBy].join(", ");
+}
+
 // ─── 2. VIS FORMULAR ────────────────────────────────────────────────────────
 app.get("/formular/:token", async (req, res) => {
   const { data: call } = await supabase
@@ -199,8 +217,34 @@ app.get("/formular/:token", async (req, res) => {
     });
   }
 
+  function rens(t) {
+    // DAWA's traedesten-tekst har et tomt "hul" til etage/doer: "Vej 4, , 2970 By".
+    // Fjern tomme segmenter, saa feltet aldrig viser ", ,".
+    return String(t || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean).join(', ');
+  }
+
   function vaelg(s) {
-    inp.value = s.tekst;
+    // Mellemtrins-forslag: fortsaet indtastningen. MEN har forslaget allerede
+    // postnr/by i sine data (adgangsadresse = selve huset), er adressen
+    // gyldig NU - saa taeller valget med det samme, og listen bliver staaende
+    // til evt. finpudsning (etage/doer). Kun rene vejnavne er stadig ugyldige.
+    if (s.type !== 'adresse') {
+      inp.value = rens(s.tekst);
+      if (s.data && s.data.postnr) {
+        dawaValgt = true;
+        fejl.style.display = 'none';
+        document.getElementById('dawa-by').value = s.data.postnrnavn || '';
+        document.getElementById('dawa-postnr').value = s.data.postnr || '';
+      } else {
+        dawaValgt = false;
+        document.getElementById('dawa-by').value = '';
+        document.getElementById('dawa-postnr').value = '';
+      }
+      inp.focus();
+      hentForslag(inp.value.trim());
+      return;
+    }
+    inp.value = rens(s.tekst);
     dawaValgt = true;
     skjul();
     fejl.style.display = 'none';
@@ -213,7 +257,9 @@ app.get("/formular/:token", async (req, res) => {
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
 
   document.querySelector('form').addEventListener('submit', e => {
-    if (!dawaValgt) {
+    // dawaValgt alene er ikke nok - kraev at postnr/by faktisk blev fanget,
+    // saa et lead aldrig kan indsendes uden postnummer og by.
+    if (!dawaValgt || !document.getElementById('dawa-postnr').value) {
       e.preventDefault();
       fejl.style.display = 'block';
       inp.focus();
@@ -241,7 +287,7 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
     .insert({
       call_id:      call.id,
       name:         req.body.navn,
-      address:      [req.body.vej, req.body.postnr && req.body.by ? req.body.postnr + ' ' + req.body.by : req.body.by].filter(Boolean).join(", "),
+      address:      bygAdresse(req.body.vej, req.body.postnr, req.body.by),
       address_mail: req.body.email || null,
       task:         req.body.opgave,
       is_urgent:    req.body.urgent === "on",
