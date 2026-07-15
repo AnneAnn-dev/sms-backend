@@ -971,7 +971,7 @@ function renderLeads() {
 
       if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
 
-      if (street && !newDawaValgt) {
+      if (street && (!newDawaValgt || !postnr)) {
         document.getElementById('new-dawa-error').style.display = 'block';
         document.getElementById('new-street').focus();
         return;
@@ -1618,10 +1618,13 @@ function initDawa({ inputId, suggestionsId, onSelect, onType }) {
   }
  
   function vaelg(s) {
-    // Mellemtrins-forslag (vejnavn/adgangsadresse) er ment til at FORTSÆTTE
-    // indtastningen — ikke som endeligt valg (samme fix som i kundeformularen).
+    // Mellemtrins-forslag: fortsæt indtastningen. MEN har forslaget allerede
+    // postnr/by i sine data (adgangsadresse = selve huset), er adressen
+    // gyldig NU — så registrér valget med det samme og lad listen stå åben
+    // til evt. finpudsning (etage/dør). Kun rene vejnavne er stadig ugyldige.
     if (s.type !== 'adresse') {
       inp.value = s.tekst;
+      if (s.data && s.data.postnr && onSelect) onSelect(s);
       inp.focus();
       hent(inp.value.trim());
       return;

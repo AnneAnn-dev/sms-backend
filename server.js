@@ -218,14 +218,22 @@ app.get("/formular/:token", async (req, res) => {
   }
 
   function vaelg(s) {
-    // DAWA sender også MELLEMTRINS-forslag (type 'vejnavn'/'adgangsadresse'),
-    // som er ment til at fortsaette indtastningen - ikke som endeligt valg.
-    // Accepterede vi dem, fik vi adresser uden postnr/by (set i praksis).
+    // Mellemtrins-forslag: fortsaet indtastningen. MEN har forslaget allerede
+    // postnr/by i sine data (adgangsadresse = selve huset), er adressen
+    // gyldig NU - saa taeller valget med det samme, og listen bliver staaende
+    // til evt. finpudsning (etage/doer). Kun rene vejnavne er stadig ugyldige.
     if (s.type !== 'adresse') {
       inp.value = s.tekst;
-      dawaValgt = false;
-      document.getElementById('dawa-by').value = '';
-      document.getElementById('dawa-postnr').value = '';
+      if (s.data && s.data.postnr) {
+        dawaValgt = true;
+        fejl.style.display = 'none';
+        document.getElementById('dawa-by').value = s.data.postnrnavn || '';
+        document.getElementById('dawa-postnr').value = s.data.postnr || '';
+      } else {
+        dawaValgt = false;
+        document.getElementById('dawa-by').value = '';
+        document.getElementById('dawa-postnr').value = '';
+      }
       inp.focus();
       hentForslag(inp.value.trim());
       return;
