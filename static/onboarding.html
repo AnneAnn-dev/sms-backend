@@ -297,7 +297,7 @@
       align-items: center;
       gap: 16px;
       text-align: left;
-      padding: 20px 0;
+      padding: 30px 0;   /* rigelig luft mellem punkterne */
     }
     .step + .step { border-top: 1px solid var(--line); }
     .step-n {
@@ -330,6 +330,37 @@
       flex-shrink: 0;
     }
     .copy-btn.copied { background: var(--success); color: #fff; }
+
+    /* ── Besked-sektionen glider ind under stemmevalget ── */
+    .reveal {
+      width: 100%;
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height .35s ease, opacity .3s ease .05s;
+    }
+    .reveal.open { max-height: 620px; opacity: 1; }
+    @media (prefers-reduced-motion: reduce) { .reveal { transition: none; } }
+
+    /* Lysere og mindre blå knap (side 11) */
+    .btn.btn-soft {
+      background: #7FA6C8;
+      min-height: 44px;
+      width: auto;
+      padding: 0 24px;
+      font-size: 15px;
+      margin-top: 22px;
+    }
+    /* Næsten usynligt link (side 8) */
+    .linklike.ghost {
+      color: #C4CDD6;
+      font-size: 13px;
+      margin-top: 56px;
+      text-decoration: none;
+    }
+
+    /* Kort ✓-tilstand på knapper */
+    .btn.ok { background: var(--success); }
 
     details.quiet { width: 100%; margin-top: 22px; text-align: left; }
     details.quiet summary {
@@ -445,38 +476,39 @@
     <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
     <section class="screen" id="s-1">
       <h1 class="h-xl">Velkommen 👋</h1>
+      <p class="sub">Lad os sætte Dit Digitale Kontor op.</p>
 
       <!-- Variant A: nummeret kendes allerede — bekræft det -->
       <div id="phone-confirm" style="display:none;width:100%">
-        <p class="question">📞 Hvilket nummer skal Dit Digitale Kontor besvare?</p>
+        <p class="question">Hvilket nummer skal vi passe på?</p>
         <div class="big-number" id="owner-number-display">+45 12 34 56 78</div>
-        <p class="sub">Det er de opkald, der bliver sendt videre, når du ikke selv svarer.</p>
+        <p class="sub">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
         <button class="btn" onclick="confirmOwnerPhone()">
-          <span id="confirm-label">Forbind dette nummer</span><span class="spinner" id="confirm-spin"></span>
+          <span id="confirm-label">Forbind nummeret</span><span class="spinner" id="confirm-spin"></span>
         </button>
         <button class="linklike" onclick="showPhoneInput()">Skift nummer</button>
       </div>
 
       <!-- Variant B: intet nummer endnu — indtast det -->
       <div id="phone-entry" style="display:none;width:100%">
-        <p class="question">📞 Hvilket nummer skal Dit Digitale Kontor besvare?</p>
+        <p class="question">Hvilket nummer skal vi passe på?</p>
         <div class="field" id="owner-field">
           <span class="prefix">+45</span>
           <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
                  placeholder="12 34 56 78" aria-label="Dit mobilnummer"
                  onkeydown="if(event.key==='Enter')submitOwnerPhone()">
         </div>
-        <p class="hint">Det er de opkald, der bliver sendt videre, når du ikke selv svarer.</p>
+        <p class="hint">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
         <p class="error" id="owner-error"></p>
         <button class="btn" onclick="submitOwnerPhone()">
-          <span id="owner-label">Forbind dette nummer</span><span class="spinner" id="owner-spin"></span>
+          <span id="owner-label">Forbind nummeret</span><span class="spinner" id="owner-spin"></span>
         </button>
       </div>
     </section>
 
     <!-- ── SIDE 2: ADGANGSKODE ────────────────────────────── -->
     <section class="screen" id="s-2">
-      <h1>Vælg en adgangskode</h1>
+      <h1>Adgangskode</h1>
       <p class="sub">Den bruger du næste gang du logger ind.</p>
       <div class="field" id="pw-field">
         <input id="pw-input" type="password" autocomplete="new-password"
@@ -486,13 +518,13 @@
       </div>
       <p class="error" id="pw-error"></p>
       <button class="btn" onclick="savePassword()">
-        <span id="pw-label">Næste</span><span class="spinner" id="pw-spin"></span>
+        <span id="pw-label">Gem adgangskode</span><span class="spinner" id="pw-spin"></span>
       </button>
     </section>
 
-    <!-- ── SIDE 3: STEMME ─────────────────────────────────── -->
+    <!-- ── SIDE 3: STEMME + BESKED ────────────────────────── -->
     <section class="screen" id="s-3">
-      <h1>Hvem skal kunderne møde?</h1>
+      <h1>Hvordan skal dine kunder mødes?</h1>
 
       <button class="voice-card" id="voice-female" onclick="selectVoice('female')">
         <span class="voice-avatar">N</span>
@@ -512,26 +544,25 @@
         <span class="voice-play" onclick="playSample('male', event)">▶ Lyt</span>
       </button>
 
-      <button class="btn" onclick="goTo('s-4')">Næste</button>
-    </section>
+      <p class="hint" id="voice-confirm" style="font-weight:600;color:var(--success)"></p>
 
-    <!-- ── SIDE 4: BESKED ─────────────────────────────────── -->
-    <section class="screen" id="s-4">
-      <h1>Godt valg.</h1>
-      <p class="sub">Hvad skal kunden høre?</p>
-      <textarea id="greeting" maxlength="300" aria-label="Din telefonsvarerbesked"
-                oninput="state.greeting = this.value"></textarea>
-      <p class="hint" id="greet-hint"></p>
-      <button class="linklike" id="listen-btn" onclick="listenGreeting()">▶ Lyt til beskeden</button>
-      <audio id="player" preload="none"></audio>
-      <button class="btn" onclick="saveGreetingContinue()">
-        <span id="greet-label">Næste</span><span class="spinner" id="greet-spin"></span>
-      </button>
+      <!-- Glider ind, når en stemme er valgt -->
+      <div class="reveal" id="besked-sektion">
+        <p class="question" style="margin-top:8px;text-align:left">Besked</p>
+        <textarea id="greeting" maxlength="300" aria-label="Din telefonsvarerbesked"
+                  oninput="state.greeting = this.value"></textarea>
+        <p class="hint" id="greet-hint"></p>
+        <button class="linklike" id="listen-btn" onclick="listenGreeting()">▶ Lyt til beskeden</button>
+        <audio id="player" preload="none"></audio>
+        <button class="btn" onclick="saveGreetingContinue()">
+          <span id="greet-label">Næste</span><span class="spinner" id="greet-spin"></span>
+        </button>
+      </div>
     </section>
 
     <!-- ── SIDE 5: VIDERESTILLING ─────────────────────────── -->
     <section class="screen" id="s-5">
-      <h1>Aktivér viderestilling</h1>
+      <h1>Viderestilling</h1>
 
       <div class="steps">
         <div class="step">
@@ -567,37 +598,37 @@
 
     <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
     <section class="screen" id="s-6">
-      <h1>Nu tester vi.</h1>
+      <h1>Test</h1>
       <div class="phone-emoji">📱</div>
       <p class="sub" id="verify-sub">Om lidt ringer vi.<br>Lad telefonen ringe — svar ikke.</p>
       <p class="status" id="verify-status"></p>
       <button class="btn" id="verify-btn" onclick="startVerification()">
-        <span id="verify-label">Ring til mig</span><span class="spinner" id="verify-spin"></span>
+        <span id="verify-label">Start testen</span><span class="spinner" id="verify-spin"></span>
       </button>
     </section>
 
     <!-- ── SIDE 7: DET VIRKER ─────────────────────────────── -->
     <section class="screen" id="s-7">
       <div class="check">✓</div>
-      <h1 class="h-xl">Det virker.</h1>
-      <p class="sub">Fra nu af bliver ubesvarede opkald sendt videre til Dit Digitale Kontor.</p>
+      <h1 class="h-xl">Perfekt.</h1>
+      <p class="sub">Dit Digitale Kontor er nu klar.<br>Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
       <div class="number-box">
         <div class="label">Dit nummer</div>
         <div class="value" id="success-number">+45 12 34 56 78</div>
       </div>
-      <button class="btn" onclick="goTo('s-8')">Næste</button>
+      <button class="btn" onclick="goTo('s-8')">Videre</button>
     </section>
 
     <!-- ── SIDE 8: INSTALLER APP (intro) ──────────────────── -->
     <section class="screen" id="s-8">
       <div class="check">✓</div>
       <h1>Dit Digitale Kontor er klar.</h1>
-      <p class="sub">Nu mangler vi kun én ting.<br>Læg appen på din startskærm, så er den altid ét tryk væk.</p>
+      <p class="sub">Læg appen på din startskærm,<br>så er den altid ét tryk væk.</p>
       <div class="phone-emoji">📱</div>
 
       <button class="btn" id="install-btn" onclick="startInstall()">Installer app</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
-      <button class="linklike" onclick="location.href='/dashboard'">Åbn Dit Digitale Kontor i browseren</button>
+      <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
 
     <!-- ── SIDE 9: INSTALLATION, TRIN 1 AF 2 ──────────────── -->
@@ -606,13 +637,37 @@
       <h1 id="inst1-title">Tryk på Del-ikonet</h1>
       <p class="sub" id="inst1-sub">Du finder det nederst i Safari.</p>
       <div class="inst-icon" id="inst1-icon" aria-hidden="true">
-        <!-- iOS: Del (firkant med pil op) -->
-        <svg id="icon-share" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><rect x="4" y="11" width="16" height="10" rx="2"/>
+        <!-- iOS: Safaris bundlinje med Del-ikonet markeret -->
+        <svg id="mock-ios" width="270" height="128" viewBox="0 0 270 128" fill="none">
+          <text x="135" y="14" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M135 20v26" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M130 41l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="8" y="56" width="254" height="64" rx="14" fill="#F0F3F7"/>
+          <rect x="24" y="64" width="222" height="18" rx="9" fill="#FFFFFF"/>
+          <text x="135" y="77" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <g stroke="#9AA6B2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M48 96l-6 6 6 6" transform="translate(0,-4)"/>
+            <path d="M86 92l6 6-6 6"/>
+            <path d="M196 92h14v14h-14z"/>
+            <circle cx="228" cy="99" r="7"/>
+          </g>
+          <g stroke="#2C6B9E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M135 90v10"/><path d="M131 93l4-4 4 4"/><rect x="128" y="96" width="14" height="11" rx="2.5"/>
+          </g>
+          <circle cx="135" cy="99" r="17" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
         </svg>
-        <!-- Android: ⋮-menu -->
-        <svg id="icon-dots" width="56" height="56" viewBox="0 0 24 24" fill="currentColor" style="display:none">
-          <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+        <!-- Android: Chromes toplinje med ⋮-menuen markeret -->
+        <svg id="mock-android" width="270" height="128" viewBox="0 0 270 128" fill="none" style="display:none">
+          <text x="238" y="14" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M238 20v22" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M233 37l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="8" y="52" width="254" height="50" rx="14" fill="#F0F3F7"/>
+          <rect x="22" y="64" width="196" height="26" rx="13" fill="#FFFFFF"/>
+          <text x="120" y="81" text-anchor="middle" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <g fill="#2C6B9E">
+            <circle cx="238" cy="70" r="2"/><circle cx="238" cy="77" r="2"/><circle cx="238" cy="84" r="2"/>
+          </g>
+          <circle cx="238" cy="77" r="14" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
         </svg>
       </div>
       <button class="btn" onclick="goTo('s-10')">Næste</button>
@@ -628,22 +683,14 @@
           <rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/>
         </svg>
       </div>
-      <button class="btn" onclick="goTo('s-11')">Jeg er færdig</button>
+      <button class="btn" onclick="goTo('s-11')">Jeg har installeret appen</button>
     </section>
 
-    <!-- ── SIDE 11: INSTALLERET ───────────────────────────── -->
+    <!-- ── SIDE 11: ÅBN FRA IKONET (vi venter) ────────────── -->
     <section class="screen" id="s-11">
       <div class="phone-emoji">🎉</div>
-      <h1>Perfekt.</h1>
-      <p class="sub">Nu ligger Dit Digitale Kontor<br>på din telefon.</p>
-      <button class="btn" onclick="goTo('s-12')">Åbn app</button>
-    </section>
-
-    <!-- ── SIDE 12: ÅBN FRA IKONET (vi venter) ────────────── -->
-    <section class="screen" id="s-12">
-      <div class="phone-emoji">🎉</div>
-      <h1>Super.</h1>
-      <p class="sub">Prøv lige én ting.<br><br>Luk <span id="browser-name">Safari</span>.<br>Åbn nu Dit Digitale Kontor<br>fra ikonet på din telefon.</p>
+      <h1>Nu ligger Dit Digitale Kontor<br>på din telefon.</h1>
+      <p class="sub">Luk <span id="browser-name">Safari</span>.<br>Åbn appen fra ikonet.</p>
       <div class="home-icon" id="home-icon">
         <img src="/apple-touch-icon.png?v=2" alt=""
              onload="this.parentElement.classList.add('show')">
@@ -651,7 +698,7 @@
       </div>
       <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
       <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
-      <button class="linklike" onclick="location.href='/dashboard'" style="margin-top:10px">Fortsæt i browseren i stedet</button>
+      <button class="btn btn-soft" onclick="location.href='/dashboard'">Fortsæt i browseren i stedet</button>
     </section>
 
   </div>
@@ -670,14 +717,14 @@
     rendered:    { voice: null, text: null, url: null },
   };
 
-  // Prikker: hvilken af de fem opgaver hører hver side til (0 = ingen fyldt endnu)
-  const DOT_INDEX = { 's-1': 0, 's-2': 1, 's-3': 2, 's-4': 3, 's-5': 4, 's-6': 5 };
+  // Prikker: nummer, kode, stemme+besked, viderestilling, test (0 = ingen fyldt endnu)
+  const DOT_INDEX = { 's-1': 0, 's-2': 1, 's-3': 2, 's-5': 3, 's-6': 4 };
 
   // Tilbage-pil: hvor hver side fører hen. Side 1 har intet før sig, og på
   // ✓-siderne (7-8) er der ikke længere valg at ændre — dér skjules pilen.
   const BACK_TARGET = {
-    's-2': 's-1', 's-3': 's-2', 's-4': 's-3', 's-5': 's-4', 's-6': 's-5',
-    's-9': 's-8', 's-10': 's-9', 's-11': 's-10', 's-12': 's-11',
+    's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
+    's-9': 's-8', 's-10': 's-9', 's-11': 's-10',
   };
   function goBack() {
     const target = BACK_TARGET[currentScreen];
@@ -875,6 +922,13 @@
         if (!res.ok) throw new Error('Kunne ikke gemme');
       }
       state.ownerPhone = phone;
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓ Nummer forbundet';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
       goTo('s-2');
     } catch (e) {
       if (errEl) errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
@@ -922,11 +976,18 @@
           return;
         }
       }
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓ Gemt';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
       goTo('s-3');
     } catch (e) {
       errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
     } finally {
-      label.textContent = 'Næste';
+      label.textContent = 'Gem adgangskode';
       spin.style.display = 'none';
     }
   }
@@ -936,7 +997,12 @@
     state.voice = gender;
     document.getElementById('voice-female').classList.toggle('selected', gender === 'female');
     document.getElementById('voice-male').classList.toggle('selected', gender === 'male');
-    if (!silent) stopAudio();
+    if (!silent) {
+      stopAudio();
+      document.getElementById('voice-confirm').textContent =
+        gender === 'female' ? '✓ Naja valgt' : '✓ Mads valgt';
+      document.getElementById('besked-sektion').classList.add('open');
+    }
   }
 
   // Faste demoklip (rigtige ElevenLabs-stemmer) fra Storage — IKKE firmaets egen tekst.
@@ -946,8 +1012,8 @@
   };
 
   function playSample(gender, ev) {
-    ev.stopPropagation();               // kortets klik må ikke også skifte valg
-    selectVoice(gender, true);
+    ev.stopPropagation();               // undgå dobbelt håndtering fra kortets klik
+    selectVoice(gender);                // at lytte ER et valg — besked-sektionen åbner med
     playUrl(SAMPLE_URL[gender]);
   }
 
@@ -1087,7 +1153,7 @@
       if (data?.verification_status === 'verified') {
         const status = document.getElementById('verify-status');
         status.className = 'status ok';
-        status.textContent = 'Bekræftet.';
+        status.textContent = 'Klar.';
         document.getElementById('verify-spin').style.display = 'none';
         setTimeout(() => goTo('s-7'), 1200);
         return;
@@ -1115,8 +1181,8 @@
                   (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
     document.getElementById('inst1-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på menuen';
     document.getElementById('inst1-sub').textContent   = isIOS ? 'Du finder det nederst i Safari.' : 'De tre prikker øverst i Chrome.';
-    document.getElementById('icon-share').style.display = isIOS ? '' : 'none';
-    document.getElementById('icon-dots').style.display  = isIOS ? 'none' : '';
+    document.getElementById('mock-ios').style.display     = isIOS ? '' : 'none';
+    document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
     document.getElementById('inst2-name').textContent   = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
     document.getElementById('inst2-sub').innerHTML      = isIOS
       ? 'Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.'
