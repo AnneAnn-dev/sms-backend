@@ -382,6 +382,23 @@
       color: var(--accent);
     }
 
+    /* ── Hjemmeskærms-ikonet, som det ser ud på telefonen ── */
+    .home-icon { margin: 24px auto 0; display: none; }
+    .home-icon.show { display: block; }
+    .home-icon img {
+      width: 76px; height: 76px;
+      border-radius: 17px;              /* ~22 % — samme runding som iOS */
+      box-shadow: 0 6px 18px rgba(22,35,47,.16);
+      display: block;
+      margin: 0 auto;
+    }
+    .home-icon .icon-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      letter-spacing: .01em;
+    }
+
     /* ── App-installation ── */
     .step-eyebrow {
       font-size: 13px;
@@ -627,6 +644,11 @@
       <div class="phone-emoji">🎉</div>
       <h1>Super.</h1>
       <p class="sub">Prøv lige én ting.<br><br>Luk <span id="browser-name">Safari</span>.<br>Åbn nu Dit Digitale Kontor<br>fra ikonet på din telefon.</p>
+      <div class="home-icon" id="home-icon">
+        <img src="/apple-touch-icon.png?v=2" alt=""
+             onload="this.parentElement.classList.add('show')">
+        <div class="icon-label">Dit Digitale Kontor</div>
+      </div>
       <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
       <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
       <button class="linklike" onclick="location.href='/dashboard'" style="margin-top:10px">Fortsæt i browseren i stedet</button>
