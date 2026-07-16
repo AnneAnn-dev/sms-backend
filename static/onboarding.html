@@ -59,6 +59,25 @@
     }
     .dot.on { background: var(--accent); }
 
+    /* ── Tilbage-pil: bitte lille, øverste venstre hjørne ── */
+    .back-btn {
+      position: fixed;
+      top: 14px;
+      left: 12px;
+      width: 44px;              /* rummeligt trykfelt, diskret udtryk */
+      height: 44px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      z-index: 10;
+    }
+    .back-btn.show { display: flex; }
+    .back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
+
     /* ── Skærme + 150 ms crossfade ── */
     .stage {
       width: 100%;
@@ -92,21 +111,28 @@
       line-height: 1.25;
       margin-bottom: 12px;
     }
+    h1.h-xl { font-size: 36px; }
     .sub {
       color: var(--muted);
       max-width: 32ch;
       margin: 0 auto 8px;
     }
+    .question {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 24px;
+    }
 
-    /* ── Nummeret er heltebilledet ── */
+    /* ── Nummeret — roligt, ikke råbende ── */
     .big-number {
       font-family: 'Nunito', sans-serif;
       font-weight: 800;
-      font-size: 32px;
+      font-size: 24px;
       letter-spacing: .02em;
       font-variant-numeric: tabular-nums;
       color: var(--accent);
-      margin: 28px 0 8px;
+      margin: 16px 0 8px;
     }
 
     /* ── Handlinger ── */
@@ -351,7 +377,7 @@
     .number-box .value {
       font-family: 'Nunito', sans-serif;
       font-weight: 800;
-      font-size: 24px;
+      font-size: 18px;
       font-variant-numeric: tabular-nums;
       color: var(--accent);
     }
@@ -379,6 +405,10 @@
     <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div>
   </div>
 
+  <button class="back-btn" id="back-btn" aria-label="Tilbage" onclick="goBack()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+
   <div class="stage">
 
     <!-- ── LINKET VIRKER IKKE ─────────────────────────────── -->
@@ -395,33 +425,34 @@
       <p class="status" id="relink-status"></p>
     </section>
 
-    <!-- ── SIDE 1: VELKOMMEN + MOBILNUMMER ────────────────── -->
+    <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
     <section class="screen" id="s-1">
-      <h1>Velkommen 👋</h1>
-      <p class="sub">Lad os gøre dit nummer klar.<br>Det tager ca. 2 minutter.</p>
+      <h1 class="h-xl">Velkommen 👋</h1>
 
       <!-- Variant A: nummeret kendes allerede — bekræft det -->
       <div id="phone-confirm" style="display:none;width:100%">
+        <p class="question">📞 Hvilket nummer skal Dit Digitale Kontor besvare?</p>
         <div class="big-number" id="owner-number-display">+45 12 34 56 78</div>
-        <p class="sub">Er det dit mobilnummer?</p>
+        <p class="sub">Det er de opkald, der bliver sendt videre, når du ikke selv svarer.</p>
         <button class="btn" onclick="confirmOwnerPhone()">
-          <span id="confirm-label">Ja, det er korrekt</span><span class="spinner" id="confirm-spin"></span>
+          <span id="confirm-label">Forbind dette nummer</span><span class="spinner" id="confirm-spin"></span>
         </button>
         <button class="linklike" onclick="showPhoneInput()">Skift nummer</button>
       </div>
 
       <!-- Variant B: intet nummer endnu — indtast det -->
       <div id="phone-entry" style="display:none;width:100%">
+        <p class="question">📞 Hvilket nummer skal Dit Digitale Kontor besvare?</p>
         <div class="field" id="owner-field">
           <span class="prefix">+45</span>
           <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
                  placeholder="12 34 56 78" aria-label="Dit mobilnummer"
                  onkeydown="if(event.key==='Enter')submitOwnerPhone()">
         </div>
-        <p class="hint">Nummeret vi ringer til, når vi tester viderestillingen.</p>
+        <p class="hint">Det er de opkald, der bliver sendt videre, når du ikke selv svarer.</p>
         <p class="error" id="owner-error"></p>
         <button class="btn" onclick="submitOwnerPhone()">
-          <span id="owner-label">Fortsæt</span><span class="spinner" id="owner-spin"></span>
+          <span id="owner-label">Forbind dette nummer</span><span class="spinner" id="owner-spin"></span>
         </button>
       </div>
     </section>
@@ -438,7 +469,7 @@
       </div>
       <p class="error" id="pw-error"></p>
       <button class="btn" onclick="savePassword()">
-        <span id="pw-label">Fortsæt</span><span class="spinner" id="pw-spin"></span>
+        <span id="pw-label">Næste</span><span class="spinner" id="pw-spin"></span>
       </button>
     </section>
 
@@ -464,7 +495,7 @@
         <span class="voice-play" onclick="playSample('male', event)">▶ Lyt</span>
       </button>
 
-      <button class="btn" onclick="goTo('s-4')">Fortsæt</button>
+      <button class="btn" onclick="goTo('s-4')">Næste</button>
     </section>
 
     <!-- ── SIDE 4: BESKED ─────────────────────────────────── -->
@@ -477,7 +508,7 @@
       <button class="linklike" id="listen-btn" onclick="listenGreeting()">▶ Lyt til beskeden</button>
       <audio id="player" preload="none"></audio>
       <button class="btn" onclick="saveGreetingContinue()">
-        <span id="greet-label">Fortsæt</span><span class="spinner" id="greet-spin"></span>
+        <span id="greet-label">Næste</span><span class="spinner" id="greet-spin"></span>
       </button>
     </section>
 
@@ -531,13 +562,13 @@
     <!-- ── SIDE 7: DET VIRKER ─────────────────────────────── -->
     <section class="screen" id="s-7">
       <div class="check">✓</div>
-      <h1>Det virker.</h1>
+      <h1 class="h-xl">Det virker.</h1>
       <p class="sub">Fra nu af bliver ubesvarede opkald sendt videre til Dit Digitale Kontor.</p>
       <div class="number-box">
         <div class="label">Dit nummer</div>
         <div class="value" id="success-number">+45 12 34 56 78</div>
       </div>
-      <button class="btn" onclick="goTo('s-8')">Fortsæt</button>
+      <button class="btn" onclick="goTo('s-8')">Næste</button>
     </section>
 
     <!-- ── SIDE 8: INSTALLER APP (intro) ──────────────────── -->
@@ -619,6 +650,17 @@
 
   // Prikker: hvilken af de fem opgaver hører hver side til (0 = ingen fyldt endnu)
   const DOT_INDEX = { 's-1': 0, 's-2': 1, 's-3': 2, 's-4': 3, 's-5': 4, 's-6': 5 };
+
+  // Tilbage-pil: hvor hver side fører hen. Side 1 har intet før sig, og på
+  // ✓-siderne (7-8) er der ikke længere valg at ændre — dér skjules pilen.
+  const BACK_TARGET = {
+    's-2': 's-1', 's-3': 's-2', 's-4': 's-3', 's-5': 's-4', 's-6': 's-5',
+    's-9': 's-8', 's-10': 's-9', 's-11': 's-10', 's-12': 's-11',
+  };
+  function goBack() {
+    const target = BACK_TARGET[currentScreen];
+    if (target) goTo(target);
+  }
 
   // ── Supabase-klient (miljøet kommer ALTID fra /config.js) ─────────
   const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
@@ -735,6 +777,7 @@
   function goTo(id) {
     if (switching || id === currentScreen) return;
     switching = true;
+    stopAudio();   // demo-/beskedlyd maa aldrig spille med over paa naeste side
     const from = document.getElementById(currentScreen);
     const to   = document.getElementById(id);
     from.classList.remove('visible');                 // fade ud: 150 ms
@@ -753,6 +796,7 @@
   }
 
   function updateDots(id) {
+    document.getElementById('back-btn').classList.toggle('show', id in BACK_TARGET);
     const dots = document.getElementById('dots');
     if (!(id in DOT_INDEX)) { dots.classList.add('hidden'); return; }
     dots.classList.remove('hidden');
@@ -860,7 +904,7 @@
     } catch (e) {
       errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
     } finally {
-      label.textContent = 'Fortsæt';
+      label.textContent = 'Næste';
       spin.style.display = 'none';
     }
   }
@@ -958,7 +1002,7 @@
     } catch (e) {
       hint.textContent = 'Kunne ikke gemme. Tjek din forbindelse og prøv igen.';
     } finally {
-      label.textContent = 'Fortsæt';
+      label.textContent = 'Næste';
       spin.style.display = 'none';
     }
   }
