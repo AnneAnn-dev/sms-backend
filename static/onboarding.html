@@ -10,1346 +10,1103 @@
   <script src="/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
   <style>
+    /* ── Grundtoner: ro og plads. Hvid flade, ingen kort-rammer, én kolonne. ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #F4F7FA;
-      --surface:  #FFFFFF;
-      --border:   #DDE4EC;
-      --accent:   #2C6B9E;
-      --text:     #1C2A38;
-      --muted:    #4A5D6E;
-      --success:  #2E7D52;
-      --radius:   12px;
+      --ink:     #16232F;   /* tekst */
+      --muted:   #5B6B7A;   /* sekundær tekst */
+      --accent:  #2C6B9E;   /* brandblå — kun til handling og nummeret */
+      --line:    #E4E9EF;   /* hårfine skillelinjer og feltkanter */
+      --tint:    #F0F5FA;   /* svag flade bag valgte elementer */
+      --success: #2E7D52;
+      --error:   #C24444;
     }
+
+    html, body { height: 100%; }
 
     body {
       font-family: 'Source Sans 3', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
+      font-size: 16px;
+      line-height: 1.55;
+      background: #FFFFFF;
+      color: var(--ink);
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px 16px 80px;
+      min-height: 100dvh;
+      padding: 28px 24px 48px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Progress bar */
-    .progress-wrap {
-      width: 100%;
-      max-width: 560px;
-      margin-bottom: 48px;
-    }
-
-    .progress-steps {
+    /* ── Fremdrift: fem stille prikker ── */
+    .dots {
       display: flex;
-      align-items: center;
-      gap: 0;
-    }
-
-    .step-dot {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 1.5px solid var(--border);
-      background: var(--surface);
-      display: flex;
-      align-items: center;
+      gap: 10px;
       justify-content: center;
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 11px;
-      color: var(--muted);
-      flex-shrink: 0;
-      transition: all .3s ease;
-      position: relative;
-      z-index: 1;
+      min-height: 8px;
+      margin-bottom: 8px;
+      transition: opacity .15s ease;
     }
-
-    .step-dot.active {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .step-dot.done {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    .step-dot.done::after {
-      content: '✓';
-      font-size: 12px;
-      font-family: sans-serif;
-    }
-
-    .step-dot.done span { display: none; }
-
-    .step-line {
-      flex: 1;
-      height: 1.5px;
-      background: var(--border);
+    .dots.hidden { opacity: 0; pointer-events: none; }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--line);
       transition: background .3s ease;
     }
+    .dot.on { background: var(--accent); }
 
-    .step-line.done { background: var(--accent); }
-
-    /* Cards */
-    .card {
-      width: 100%;
-      max-width: 560px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 40px;
+    /* ── Tilbage-pil: bitte lille, øverste venstre hjørne ── */
+    .back-btn {
+      position: fixed;
+      top: 14px;
+      left: 12px;
+      width: 44px;              /* rummeligt trykfelt, diskret udtryk */
+      height: 44px;
       display: none;
-      animation: fadeUp .35s ease forwards;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      z-index: 10;
     }
+    .back-btn.show { display: flex; }
+    .back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
 
-    .card.active { display: block; }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
+    /* ── Skærme + 150 ms crossfade ── */
+    .stage {
+      width: 100%;
+      max-width: 420px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
     }
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      flex: 1;
+      justify-content: center;
+      padding: 24px 0 40px;
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+    .screen.on { display: flex; }
+    .screen.visible { opacity: 1; }
 
-    .step-label {
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
+    @media (prefers-reduced-motion: reduce) {
+      .screen, .dots, .dot { transition: none; }
     }
 
     h1 {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
       font-size: 26px;
-      font-weight: 500;
-      line-height: 1.2;
-      margin-bottom: 8px;
-    }
-
-    .subtitle {
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.6;
-      margin-bottom: 32px;
-    }
-
-    /* Number display */
-    .number-display {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px 24px;
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 24px;
-      letter-spacing: .08em;
-      color: var(--accent);
-      margin-bottom: 32px;
-      text-align: center;
-    }
-
-    /* Voice picker */
-    .voice-options {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 32px;
-    }
-
-    .voice-option {
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      cursor: pointer;
-      transition: all .2s ease;
-      text-align: center;
-      background: var(--bg);
-    }
-
-    .voice-option:hover {
-      border-color: var(--muted);
-    }
-
-    .voice-option.selected {
-      border-color: var(--accent);
-      background: rgba(44,107,158,.06);
-    }
-
-    .voice-icon {
-      font-size: 28px;
-      margin-bottom: 8px;
-    }
-
-    .voice-name {
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 2px;
-    }
-
-    .voice-desc {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    /* Textarea */
-    .field-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--muted);
-      margin-bottom: 8px;
-      display: block;
-    }
-
-    /* Tekstfelt brugt til adgangskode i trin 1 */
-    .onb-input {
-      width: 100%;
-      box-sizing: border-box;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 16px;
-      font-size: 16px;
-      color: var(--text);
-      font-family: 'Source Sans 3', sans-serif;
-      margin-bottom: 16px;
-      transition: border-color .2s;
-    }
-    .onb-input:focus { outline: none; border-color: var(--accent); }
-
-    /* Telefonfelt med fast +45-prefiks (så brugeren kun taster de 8 cifre) */
-    .phone-field { display: flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 24px; transition: border-color .2s; background: var(--bg); }
-    .phone-field.focus { border-color: var(--accent); }
-    .phone-prefix { display: flex; align-items: center; padding: 0 14px; background: rgba(0,0,0,.04); color: var(--muted); font-size: 16px; font-weight: 600; border-right: 1.5px solid var(--border); user-select: none; }
-    .phone-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 14px 16px; font-size: 16px; color: var(--text); font-family: 'Source Sans 3', sans-serif; }
-
-    textarea {
-      width: 100%;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      font-family: 'Source Sans 3', sans-serif;
-      font-size: 15px;
-      color: var(--text);
-      resize: vertical;
-      min-height: 120px;
-      line-height: 1.6;
-      transition: border-color .2s;
-      margin-bottom: 8px;
-    }
-
-    textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .char-count {
-      font-size: 12px;
-      color: var(--muted);
-      text-align: right;
-      margin-bottom: 24px;
-    }
-
-    .preview-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 16px;
-      color: var(--muted);
-      font-size: 13px;
-      cursor: pointer;
-      font-family: 'Source Sans 3', sans-serif;
-      margin-bottom: 32px;
-      transition: all .2s;
-    }
-
-    .preview-btn:hover {
-      border-color: var(--muted);
-      color: var(--text);
-    }
-
-    /* Viderestilling guide */
-    .os-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 24px;
-    }
-
-    .os-tab {
-      padding: 8px 20px;
-      border-radius: 8px;
-      border: 1.5px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      font-size: 14px;
-      font-family: 'Source Sans 3', sans-serif;
-      cursor: pointer;
-      transition: all .2s;
-    }
-
-    .os-tab.active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(44,107,158,.06);
-    }
-
-    .os-guide { display: none; }
-    .os-guide.active { display: block; }
-
-    .guide-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      margin-bottom: 28px;
-    }
-
-    .guide-step {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-      padding: 16px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .guide-step:last-child { border-bottom: none; }
-
-    .guide-num {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #fff;
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 11px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .guide-text {
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--text);
-    }
-
-    .guide-code {
-      display: inline-block;
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 13px;
-      color: var(--accent);
-      margin: 4px 0;
-    }
-
-    .copy-wrap {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 8px 0 24px;
-    }
-
-    /* "Virker koden ikke?"-foldeudgave (native <details>) */
-    .cf-alt { margin: 4px 0 8px; }
-    .cf-alt summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); list-style: none; padding: 4px 0; }
-    .cf-alt summary::-webkit-details-marker { display: none; }
-    .cf-alt summary::before { content: '＋ '; }
-    .cf-alt[open] summary::before { content: '－ '; }
-    .cf-alt .copy-wrap { margin-bottom: 8px; }
-
-    .copy-code {
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 16px;
-      color: var(--accent);
-      letter-spacing: .05em;
-    }
-
-    .copy-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 12px;
-      color: var(--muted);
-      font-size: 12px;
-      cursor: pointer;
-      font-family: 'Source Sans 3', sans-serif;
-      transition: all .2s;
-    }
-
-    .copy-btn:hover { color: var(--text); border-color: var(--muted); }
-    .copy-btn.copied { color: var(--success); border-color: var(--success); }
-
-    /* Verifikation */
-    .verify-box {
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      text-align: center;
-      margin-bottom: 28px;
-      background: var(--bg);
-    }
-
-    .verify-icon {
-      font-size: 40px;
+      line-height: 1.25;
       margin-bottom: 12px;
     }
-
-    .verify-title {
-      font-size: 16px;
-      font-weight: 500;
-      margin-bottom: 6px;
-    }
-
-    .verify-desc {
-      font-size: 14px;
+    h1.h-xl { font-size: 36px; }
+    .sub {
       color: var(--muted);
-      line-height: 1.6;
+      max-width: 32ch;
+      margin: 0 auto 8px;
+    }
+    .question {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 24px;
     }
 
-    .verify-status {
-      margin-top: 20px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      display: none;
-    }
-
-    .verify-status.waiting {
-      display: block;
-      background: rgba(44,107,158,.08);
+    /* ── Nummeret — roligt, ikke råbende ── */
+    .big-number {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: 24px;
+      letter-spacing: .02em;
+      font-variant-numeric: tabular-nums;
       color: var(--accent);
+      margin: 16px 0 8px;
     }
 
-    .verify-status.success {
-      display: block;
-      background: rgba(46,125,82,.08);
-      color: var(--success);
-    }
-
-    .verify-status.error {
-      display: block;
-      background: rgba(239,68,68,.08);
-      color: #f87171;
-    }
-
-    /* Buttons */
-    .btn-primary {
-      width: 100%;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 16px;
-      font-size: 15px;
-      font-weight: 500;
-      font-family: 'Source Sans 3', sans-serif;
-      cursor: pointer;
-      transition: all .2s;
+    /* ── Handlinger ── */
+    .btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-    }
-
-    .btn-primary:hover { background: #3579b0; }
-    .btn-primary:disabled {
-      opacity: .4;
-      cursor: not-allowed;
-    }
-
-    .btn-secondary {
+      gap: 10px;
       width: 100%;
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 14px;
+      min-height: 54px;
+      margin-top: 28px;
+      border: none;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
       font-family: 'Source Sans 3', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
       cursor: pointer;
-      transition: all .2s;
-      margin-top: 10px;
+      transition: transform .1s ease, opacity .15s ease;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .55; cursor: default; }
+    .btn:focus-visible, .linklike:focus-visible, .voice-card:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
-    .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+    .linklike {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 15px;
+      margin-top: 18px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
 
-    /* Spinner */
     .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid var(--bg);
-      border-top-color: transparent;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
       border-radius: 50%;
       animation: spin .7s linear infinite;
       display: none;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Success screen */
-    .success-screen {
-      text-align: center;
-      padding: 20px 0;
-    }
-
-    .success-check {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      background: rgba(46,125,82,.12);
-      border: 1.5px solid var(--success);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      margin: 0 auto 24px;
-      animation: popIn .4s cubic-bezier(.175,.885,.32,1.275) forwards;
-    }
-
-    @keyframes popIn {
-      from { transform: scale(.5); opacity: 0; }
-      to   { transform: scale(1);  opacity: 1; }
-    }
-    h1, h2, h3 { font-family: 'Nunito', sans-serif; font-weight: 800; }
-    .btn-primary { font-family: 'Nunito', sans-serif; font-weight: 700; }
-    .step-label { font-weight: 700; }
-
-    /* ── Hvidliste (trin 5) ─────────────────────────────────── */
-    .wl-add-btn {
+    /* ── Felter ── */
+    .field {
       width: 100%;
-      background: transparent;
-      color: var(--accent);
-      border: 1.5px solid var(--accent);
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 14px;
-      font-weight: 700;
-      font-family: 'Nunito', sans-serif;
-      cursor: pointer;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all .2s;
-    }
-    .wl-add-btn:hover { background: rgba(44,107,158,.06); }
-    .wl-add-btn:disabled { opacity: .4; cursor: not-allowed; }
-
-    .wl-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 8px; }
-    .wl-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
-    }
-    .wl-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .wl-item-number {
-      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-      font-size: 14px;
-      color: var(--accent);
-    }
-    .wl-item-label {
-      font-size: 12px;
-      color: var(--muted);
+      align-items: stretch;
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .wl-remove {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      font-size: 18px;
-      line-height: 1;
-      cursor: pointer;
-      transition: all .2s;
-    }
-    .wl-remove:hover { border-color: #f87171; color: #f87171; }
-    .wl-empty {
-      font-size: 13px;
-      color: var(--muted);
-      text-align: center;
-      padding: 18px;
-      background: var(--bg);
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      margin: 12px 0 8px;
-    }
-    .wl-count-row { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 0; }
-
-    /* ── Gem som app (PWA) på success-skærmen ───────────────── */
-    .pwa-block {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin: 8px 0 24px;
-      background: var(--surface);
+      background: #fff;
+      margin-top: 24px;
+      transition: border-color .15s ease;
       text-align: left;
     }
-    .pwa-heading {
+    .field:focus-within { border-color: var(--accent); }
+    .field.invalid { border-color: var(--error); }
+    .prefix {
+      display: flex; align-items: center;
+      padding: 0 14px;
+      color: var(--muted);
+      font-weight: 600;
+      border-right: 1.5px solid var(--line);
+      background: var(--tint);
+      user-select: none;
+    }
+    .field input {
+      flex: 1; min-width: 0;
+      border: none; outline: none;
+      padding: 15px 16px;
+      font-size: 17px;
+      font-family: 'Source Sans 3', sans-serif;
+      color: var(--ink);
+      background: transparent;
+    }
+    .toggle-eye {
+      background: none; border: none;
+      padding: 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 132px;
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--ink);
+      resize: vertical;
+      margin-top: 24px;
+      outline: none;
+      transition: border-color .15s ease;
+      text-align: left;
+    }
+    textarea:focus { border-color: var(--accent); }
+
+    .hint  { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+    .error { font-size: 14px; color: var(--error); margin-top: 10px; min-height: 20px; }
+
+    /* ── Stemmekort ── */
+    .voice-card {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-align: left;
+      background: #fff;
+      border: 1.5px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-top: 14px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .voice-card.selected { border-color: var(--accent); background: var(--tint); }
+    .voice-avatar {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--tint);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .voice-card.selected .voice-avatar { background: var(--accent); color: #fff; }
+    .voice-meta { flex: 1; }
+    .voice-name { font-weight: 600; font-size: 17px; }
+    .voice-desc { font-size: 14px; color: var(--muted); }
+    .voice-play {
+      background: none;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      flex-shrink: 0;
+    }
+
+    /* ── Viderestilling: tre stille trin ── */
+    .steps { width: 100%; margin-top: 8px; }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-align: left;
+      padding: 30px 0;   /* rigelig luft mellem punkterne */
+    }
+    .step + .step { border-top: 1px solid var(--line); }
+    .step-n {
       font-family: 'Nunito', sans-serif;
       font-weight: 800;
       font-size: 15px;
-      margin-bottom: 8px;
+      color: var(--muted);
+      width: 22px;
+      flex-shrink: 0;
     }
-    .pwa-block .guide-steps { margin-bottom: 0; }
-    .pwa-installed {
-      background: rgba(46,125,82,.08);
-      color: var(--success);
-      border-radius: 8px;
-      padding: 12px 16px;
+    .step-body { flex: 1; font-size: 17px; }
+    .code {
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 15px;
+      color: var(--ink);
+      word-break: break-all;
+      display: block;
+      margin-top: 4px;
+    }
+    .copy-btn {
+      background: var(--tint);
+      border: none;
+      border-radius: 999px;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 15px;
+      padding: 10px 18px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      flex-shrink: 0;
+    }
+    .copy-btn.copied { background: var(--success); color: #fff; }
+
+    /* ── Besked-sektionen glider ind under stemmevalget ── */
+    .reveal {
+      width: 100%;
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height .35s ease, opacity .3s ease .05s;
+    }
+    .reveal.open { max-height: 620px; opacity: 1; }
+    @media (prefers-reduced-motion: reduce) { .reveal { transition: none; } }
+
+    /* Næsten usynligt link (side 8 og 11) */
+    .linklike.ghost {
+      color: #C4CDD6;
       font-size: 13px;
-      margin: 8px 0 24px;
+      margin-top: 56px;
+      text-decoration: none;
+    }
+
+    /* Kort ✓-tilstand på knapper */
+    .btn.ok { background: var(--success); }
+
+    details.quiet { width: 100%; margin-top: 22px; text-align: left; }
+    details.quiet summary {
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      list-style: none;
       text-align: center;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    details.quiet summary::-webkit-details-marker { display: none; }
+    details.quiet .inner { margin-top: 14px; font-size: 14px; color: var(--muted); }
+
+    /* ── Status ved test ── */
+    .phone-emoji { font-size: 52px; margin: 20px 0 6px; }
+    .status { font-size: 15px; margin-top: 18px; min-height: 22px; color: var(--muted); }
+    .status.ok  { color: var(--success); font-weight: 600; }
+    .status.err { color: var(--error); }
+
+    /* ── Succes ── */
+    .check {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--success);
+      color: #fff;
+      font-size: 30px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .number-box {
+      width: 100%;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 20px 0;
+      margin: 28px 0 0;
+    }
+    .number-box .label {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+    .number-box .value {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+    }
+
+    /* ── Hjemmeskærms-ikonet, som det ser ud på telefonen ── */
+    .home-icon { margin: 24px auto 0; display: none; }
+    .home-icon.show { display: block; }
+    .home-icon img {
+      width: 76px; height: 76px;
+      border-radius: 17px;              /* ~22 % — samme runding som iOS */
+      box-shadow: 0 6px 18px rgba(22,35,47,.16);
+      display: block;
+      margin: 0 auto;
+    }
+    .home-icon .icon-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      letter-spacing: .01em;
+    }
+
+    /* ── App-installation ── */
+    .step-eyebrow {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+    .inst-icon {
+      color: var(--accent);
+      margin: 28px 0 8px;
+      display: flex;
+      justify-content: center;
     }
   </style>
 </head>
 <body>
 
-  <!-- Progress -->
-  <div class="progress-wrap" id="progress">
-    <div class="progress-steps">
-      <div class="step-dot active" id="dot-1"><span>1</span></div>
-      <div class="step-line" id="line-1"></div>
-      <div class="step-dot" id="dot-2"><span>2</span></div>
-      <div class="step-line" id="line-2"></div>
-      <div class="step-dot" id="dot-3"><span>3</span></div>
-      <div class="step-line" id="line-3"></div>
-      <div class="step-dot" id="dot-4"><span>4</span></div>
-      <div class="step-line" id="line-4"></div>
-      <div class="step-dot" id="dot-5"><span>5</span></div>
-    </div>
+  <!-- Fem prikker = de fem opgaver efter velkomst. Skjules på ✓-siderne. -->
+  <div class="dots" id="dots" aria-hidden="true">
+    <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div>
   </div>
 
-  <!-- ── Udløbet/ugyldigt link: send et nyt ────────────────── -->
-  <div class="card" id="step-expired">
-    <h1>Linket virker ikke længere</h1>
-    <p class="subtitle">Dit login-link er enten allerede brugt eller udløbet. Skriv din e-mail, så sender vi dig et nyt.</p>
+  <button class="back-btn" id="back-btn" aria-label="Tilbage" onclick="goBack()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
 
-    <label class="field-label" for="relink-email">Din e-mail</label>
-    <input
-      id="relink-email"
-      type="email"
-      autocomplete="email"
-      placeholder="dig@firma.dk"
-      style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;font-size:16px;color:var(--text);font-family:'Source Sans 3',sans-serif;margin-bottom:20px;transition:border-color .2s"
-      onfocus="this.style.borderColor='var(--accent)'"
-      onblur="this.style.borderColor='var(--border)'"
-      onkeydown="if(event.key==='Enter')requestNewLink()"
-    >
+  <div class="stage">
 
-    <button class="btn-primary" id="relink-btn" onclick="requestNewLink()">
-      <span id="relink-label">Send nyt link</span>
-      <div class="spinner" id="relink-spinner"></div>
-    </button>
-
-    <div class="verify-status" id="relink-status" style="margin-top:16px"></div>
-  </div>
-
-  <!-- ── TRIN 1: Velkommen ─────────────────────────────────── -->
-  <div class="card active" id="step-1">
-    <div class="step-label">Trin 1 af 5</div>
-    <h1>Velkommen!</h1>
-    <p class="subtitle">Din konto er klar. Dit dedikerede nummer er reserveret til dig — kunder der ringer her, ender hos dig.</p>
-
-    <div class="number-display" id="display-number">+45 31 23 45 67</div>
-
-    <p class="subtitle" style="margin-bottom:0">
-      I de næste trin sætter vi din telefonsvarer op og sikrer at viderestillingen virker. Det tager under 5 minutter.
-    </p>
-
-    <br>
-    <label class="field-label" for="owner-phone">Dit eget mobilnummer</label>
-    <div class="phone-field" id="owner-phone-field">
-      <span class="phone-prefix">+45</span>
-      <input
-        id="owner-phone"
-        class="phone-input"
-        type="tel"
-        inputmode="numeric"
-        autocomplete="tel-national"
-        placeholder="12 34 56 78"
-        oninput="state.ownerPhone = this.value"
-        onfocus="document.getElementById('owner-phone-field').classList.add('focus')"
-        onblur="document.getElementById('owner-phone-field').classList.remove('focus')"
-      >
-    </div>
-    <p style="font-size:12px;color:var(--muted);margin-top:-20px;margin-bottom:24px">
-      Du skal kun taste de 8 cifre — +45 sætter vi på. Vi ringer til nummeret i trin 4 for at teste viderestillingen.
-    </p>
-
-    <label class="field-label" for="onb-pw">Vælg en adgangskode</label>
-    <input id="onb-pw" class="onb-input" type="password" autocomplete="new-password" placeholder="Mindst 8 tegn">
-
-    <label class="field-label" for="onb-pw2">Gentag adgangskode</label>
-    <input id="onb-pw2" class="onb-input" type="password" autocomplete="new-password" placeholder="Skriv den samme igen">
-
-    <p style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:8px">
-      Den bruger du til at logge ind på dit dashboard fremover.
-    </p>
-    <div id="onb-pw-error" style="color:#f87171;font-size:13px;min-height:0;margin-bottom:16px"></div>
-
-    <button class="btn-primary" id="step1-btn" onclick="validateStep1()">
-      <span id="step1-label">Kom i gang →</span>
-      <div class="spinner" id="step1-spinner"></div>
-    </button>
-  </div>
-
-  <!-- ── TRIN 2: Stemme + besked ───────────────────────────── -->
-  <div class="card" id="step-2">
-    <div class="step-label">Trin 2 af 5</div>
-    <h1>Din telefonsvarer</h1>
-    <p class="subtitle">Vælg en stemme og tilpas beskeden — den læses op når en kunde ringer.</p>
-
-    <div class="voice-options">
-      <div class="voice-option selected" id="voice-female" onclick="selectVoice('female')">
-        <div class="voice-icon">👩</div>
-        <div class="voice-name">Kvinde</div>
-        <div class="voice-desc">Naja — dansk</div>
+    <!-- ── LINKET VIRKER IKKE ─────────────────────────────── -->
+    <section class="screen" id="s-expired">
+      <h1>Linket er udløbet</h1>
+      <p class="sub" id="expired-msg">Skriv din e-mail, så sender vi et nyt med det samme.</p>
+      <div class="field">
+        <input id="relink-email" type="email" autocomplete="email" placeholder="din@mail.dk"
+               onkeydown="if(event.key==='Enter')requestNewLink()">
       </div>
-      <div class="voice-option" id="voice-male" onclick="selectVoice('male')">
-        <div class="voice-icon">👨</div>
-        <div class="voice-name">Mand</div>
-        <div class="voice-desc">Mads — dansk</div>
+      <button class="btn" id="relink-btn" onclick="requestNewLink()">
+        <span id="relink-label">Send nyt link</span><span class="spinner" id="relink-spin"></span>
+      </button>
+      <p class="status" id="relink-status"></p>
+    </section>
+
+    <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
+    <section class="screen" id="s-1">
+      <h1 class="h-xl">Velkommen 👋</h1>
+      <p class="sub">Lad os sætte Dit Digitale Kontor op.</p>
+
+      <!-- Variant A: nummeret kendes allerede — bekræft det -->
+      <div id="phone-confirm" style="display:none;width:100%">
+        <p class="question">Hvilket nummer skal vi passe på?</p>
+        <div class="big-number" id="owner-number-display">+45 12 34 56 78</div>
+        <p class="sub">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
+        <button class="btn" onclick="confirmOwnerPhone()">
+          <span id="confirm-label">Forbind nummeret</span><span class="spinner" id="confirm-spin"></span>
+        </button>
+        <button class="linklike" onclick="showPhoneInput()">Skift nummer</button>
       </div>
-    </div>
 
-    <label class="field-label" for="greeting">Din besked</label>
-    <textarea id="greeting" oninput="updateCount()" maxlength="300"></textarea>
-    <div class="char-count"><span id="char-count">0</span> / 300 tegn</div>
-
-    <button class="preview-btn" id="preview-btn" onclick="previewVoice()">
-      ▶ Afspil stemme
-    </button>
-    <audio id="voice-preview" preload="none"></audio>
-
-    <button class="btn-primary" onclick="saveAndContinue()">
-      <span id="save-label">Gem og fortsæt</span>
-      <div class="spinner" id="save-spinner"></div>
-    </button>
-    <button class="btn-secondary" onclick="goTo(1)">← Tilbage</button>
-  </div>
-
-  <!-- ── TRIN 3: Viderestilling ────────────────────────────── -->
-  <div class="card" id="step-3">
-    <div class="step-label">Trin 3 af 5</div>
-    <h1>Sæt viderestilling op</h1>
-    <p class="subtitle">Når en kunde ringer til dit nuværende nummer og du ikke svarer, skal opkaldet viderestilles til dit nye nummer.</p>
-
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-      Tast denne kode i din telefons opkaldsapp — den sætter viderestilling op, så opkald du ikke svarer på, sendes videre til dit nye nummer:
-    </p>
-
-    <div class="copy-wrap">
-      <span class="copy-code" id="cf-code">**61*+4531234567#</span>
-      <button class="copy-btn" onclick="copyCode('cf-code', this)">Kopiér</button>
-    </div>
-
-    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin:-14px 0 22px">
-      💡 Telefonen ringer typisk <strong>20-30 sekunder</strong> uden svar, før opkaldet sendes videre. Den præcise tid bestemmer dit teleselskab.
-    </p>
-
-    <div class="guide-steps">
-      <div class="guide-step">
-        <div class="guide-num">1</div>
-        <div class="guide-text">Tryk på <strong>Kopiér</strong> i feltet ovenfor</div>
-      </div>
-      <div class="guide-step">
-        <div class="guide-num">2</div>
-        <div class="guide-text">Åbn din <strong>Telefon</strong>-app og gå til tastaturet</div>
-      </div>
-      <div class="guide-step">
-        <div class="guide-num">3</div>
-        <div class="guide-text">Indsæt koden og tryk på <strong>ring</strong>-knappen</div>
-      </div>
-      <div class="guide-step">
-        <div class="guide-num">4</div>
-        <div class="guide-text">Du får en bekræftelse fra din operatør om at viderestilling er aktiveret</div>
-      </div>
-    </div>
-
-    <details class="cf-alt">
-      <summary>Virker koden ikke?</summary>
-      <p style="font-size:13px;color:var(--muted);margin:12px 0 10px">
-        Nogle telefoner vil kun have <strong>én</strong> stjerne foran 61. Prøv denne i stedet:
-      </p>
-      <div class="copy-wrap">
-        <span class="copy-code" id="cf-code-alt">*61*+4531234567#</span>
-        <button class="copy-btn" onclick="copyCode('cf-code-alt', this)">Kopiér</button>
-      </div>
-      <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:12px">
-        Virker ingen af dem? Kontakt din operatør (TDC, Telenor, Yousee osv.) og bed dem aktivere "viderestilling ved intet svar" til dit nye nummer.
-      </p>
-    </details>
-
-    <button class="btn-primary" onclick="goTo(4)">Jeg har sat det op →</button>
-    <button class="btn-secondary" onclick="goTo(2)">← Tilbage</button>
-  </div>
-
-  <!-- ── TRIN 4: Verifikation ──────────────────────────────── -->
-  <div class="card" id="step-4">
-    <div class="step-label">Trin 4 af 5</div>
-    <h1>Test viderestillingen</h1>
-    <p class="subtitle">Vi ringer til dit eget nummer fra <strong>+45 52 51 60 63</strong>. Svarer du ikke, bliver opkaldet viderestillet til os — og det bekræfter at viderestillingen virker.</p>
-
-    <div class="verify-box">
-      <div class="verify-icon" id="verify-icon">📞</div>
-      <div class="verify-title" id="verify-title">Klar til test</div>
-      <div class="verify-desc" id="verify-desc">
-        Om lidt ringer <strong>+45 52 51 60 63</strong> til dig. Hav telefonen klar og <strong>lad være med at svare</strong> — lad den ringe i 20-30 sekunder, så bliver opkaldet sendt videre til os.
-      </div>
-      <div class="verify-status" id="verify-status"></div>
-    </div>
-
-    <button class="btn-primary" id="verify-btn" onclick="startVerification()">
-      <span id="verify-label">Ring til mig nu</span>
-      <div class="spinner" id="verify-spinner"></div>
-    </button>
-    <button class="btn-secondary" onclick="goTo(3)">← Tilbage</button>
-  </div>
-
-  <!-- ── TRIN 5: Hvidliste (valgfrit) ──────────────────────── -->
-  <div class="card" id="step-5">
-    <div class="step-label">Trin 5 af 5</div>
-    <h1>Hvem skal ikke have en opgave-SMS?</h1>
-    <p class="subtitle">
-      Når nogen ringer forgæves, sender Dit Digitale Kontor dem normalt en SMS med din opgaveformular. Men nogle skal ikke have den — fx dit eget andet nummer, kolleger, faste leverandører eller sælgere. Numre på listen her hører i stedet en kort besked og bliver lagt på, uden at ende som en opgave. Helt valgfrit, og du kan altid redigere listen senere under Indstillinger.
-    </p>
-
-    <label class="field-label" for="wl-number">Mobilnummer</label>
-    <div class="phone-field" id="wl-number-field">
-      <span class="phone-prefix">+45</span>
-      <input
-        id="wl-number"
-        class="phone-input"
-        type="tel"
-        inputmode="numeric"
-        autocomplete="off"
-        placeholder="12 34 56 78"
-        onfocus="document.getElementById('wl-number-field').classList.add('focus')"
-        onblur="document.getElementById('wl-number-field').classList.remove('focus')"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();addWhitelist();}"
-      >
-    </div>
-
-    <label class="field-label" for="wl-label">Navn (valgfrit)</label>
-    <input
-      id="wl-label"
-      class="onb-input"
-      type="text"
-      maxlength="60"
-      placeholder="fx Kollega Jens eller Stærk VVS"
-      onkeydown="if(event.key==='Enter'){event.preventDefault();addWhitelist();}"
-    >
-
-    <div id="wl-error" style="color:#f87171;font-size:13px;margin:-8px 0 12px;min-height:0"></div>
-
-    <button class="wl-add-btn" id="wl-add-btn" onclick="addWhitelist()">
-      <span id="wl-add-label">+ Tilføj til listen</span>
-      <div class="spinner" id="wl-add-spinner" style="border-color:rgba(44,107,158,.25);border-top-color:transparent"></div>
-    </button>
-    <p id="wl-max-note" style="display:none;font-size:12px;color:#f87171;margin:8px 0 0">Du har nået grænsen på 20 numre.</p>
-
-    <div class="wl-count-row">
-      <span class="field-label" style="margin:0">På listen (<span id="wl-count">0</span>/20)</span>
-    </div>
-    <div class="wl-list" id="wl-list"></div>
-    <div class="wl-empty" id="wl-empty">Ingen numre endnu. Du kan springe det over og tilføje dem senere.</div>
-
-    <button class="btn-primary" onclick="goTo('success')" style="margin-top:20px">Fortsæt →</button>
-    <button class="btn-secondary" onclick="goTo('success')">Spring over</button>
-  </div>
-
-  <!-- ── SUCCESS ────────────────────────────────────────────── -->
-  <div class="card" id="step-success">
-    <div class="success-screen">
-      <div class="success-check">✓</div>
-      <h1 style="margin-bottom:12px">Alt virker!</h1>
-      <p class="subtitle">
-        Viderestillingen er bekræftet. Kunder der ringer til dig og ikke får svar, bliver nu guidet til at beskrive deres opgave.
-      </p>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;margin:28px 0;text-align:left">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.08em">Dit nummer</div>
-        <div style="font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:18px;color:var(--accent)" id="success-number">+45 31 23 45 67</div>
-      </div>
-      <!-- ── Gem Dit Digitale Kontor som en app (PWA) ── det allersidste skridt ── -->
-      <div class="pwa-block" id="pwa-block">
-        <div class="pwa-heading">📱 Sidste skridt: gem Dit Digitale Kontor som en app</div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">
-          Læg Dit Digitale Kontor på din hjemmeskærm, så du åbner dine opgaver med ét tryk — ligesom en rigtig app, uden at skulle finde browseren frem hver gang.
-        </p>
-
-        <div class="os-tabs" id="pwa-tabs">
-          <button class="os-tab" type="button" id="pwa-tab-ios" onclick="selectPwaOS('ios')">iPhone</button>
-          <button class="os-tab" type="button" id="pwa-tab-android" onclick="selectPwaOS('android')">Android</button>
+      <!-- Variant B: intet nummer endnu — indtast det -->
+      <div id="phone-entry" style="display:none;width:100%">
+        <p class="question">Hvilket nummer skal vi passe på?</p>
+        <div class="field" id="owner-field">
+          <span class="prefix">+45</span>
+          <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
+                 placeholder="12 34 56 78" aria-label="Dit mobilnummer"
+                 onkeydown="if(event.key==='Enter')submitOwnerPhone()">
         </div>
+        <p class="hint">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
+        <p class="error" id="owner-error"></p>
+        <button class="btn" onclick="submitOwnerPhone()">
+          <span id="owner-label">Forbind nummeret</span><span class="spinner" id="owner-spin"></span>
+        </button>
+      </div>
+    </section>
 
-        <div class="os-guide" id="pwa-guide-ios">
-          <div class="guide-steps">
-            <div class="guide-step">
-              <div class="guide-num">1</div>
-              <div class="guide-text">Tryk på <strong>Åbn mit dashboard</strong> nedenfor — og bliv i <strong>Safari</strong>.</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">2</div>
-              <div class="guide-text">Tryk på <strong>Del</strong>-ikonet (firkanten med pilen op) nederst på skærmen.</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">3</div>
-              <div class="guide-text">Rul ned og vælg <strong>Føj til hjemmeskærm</strong>.</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">4</div>
-              <div class="guide-text">Tryk <strong>Tilføj</strong> — nu ligger Dit Digitale Kontor som et ikon på din telefon.</div>
-            </div>
-          </div>
+    <!-- ── SIDE 2: ADGANGSKODE ────────────────────────────── -->
+    <section class="screen" id="s-2">
+      <h1>Adgangskode</h1>
+      <p class="sub">Den bruger du næste gang du logger ind.</p>
+      <div class="field" id="pw-field">
+        <input id="pw-input" type="password" autocomplete="new-password"
+               placeholder="Mindst 8 tegn" aria-label="Adgangskode"
+               onkeydown="if(event.key==='Enter')savePassword()">
+        <button class="toggle-eye" type="button" onclick="togglePw()" id="pw-eye">Vis</button>
+      </div>
+      <p class="error" id="pw-error"></p>
+      <button class="btn" onclick="savePassword()">
+        <span id="pw-label">Gem adgangskode</span><span class="spinner" id="pw-spin"></span>
+      </button>
+    </section>
+
+    <!-- ── SIDE 3: STEMME + BESKED ────────────────────────── -->
+    <section class="screen" id="s-3">
+      <h1>Hvordan skal dine kunder mødes?</h1>
+
+      <button class="voice-card" id="voice-female" onclick="selectVoice('female')">
+        <span class="voice-avatar">N</span>
+        <span class="voice-meta">
+          <span class="voice-name">Naja</span><br>
+          <span class="voice-desc">Naturlig dansk stemme</span>
+        </span>
+        <span class="voice-play" onclick="playSample('female', event)">▶ Lyt</span>
+      </button>
+
+      <button class="voice-card" id="voice-male" onclick="selectVoice('male')">
+        <span class="voice-avatar">M</span>
+        <span class="voice-meta">
+          <span class="voice-name">Mads</span><br>
+          <span class="voice-desc">Rolig dansk stemme</span>
+        </span>
+        <span class="voice-play" onclick="playSample('male', event)">▶ Lyt</span>
+      </button>
+
+      <p class="hint" id="voice-confirm" style="font-weight:600;color:var(--success)"></p>
+
+      <!-- Glider ind, når en stemme er valgt -->
+      <div class="reveal" id="besked-sektion">
+        <p class="question" style="margin-top:8px;text-align:left">Besked</p>
+        <textarea id="greeting" maxlength="300" aria-label="Din telefonsvarerbesked"
+                  oninput="state.greeting = this.value"></textarea>
+        <p class="hint" id="greet-hint"></p>
+        <button class="linklike" id="listen-btn" onclick="listenGreeting()">▶ Lyt til beskeden</button>
+        <audio id="player" preload="none"></audio>
+        <button class="btn" onclick="saveGreetingContinue()">
+          <span id="greet-label">Næste</span><span class="spinner" id="greet-spin"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── SIDE 5: VIDERESTILLING ─────────────────────────── -->
+    <section class="screen" id="s-5">
+      <h1>Viderestilling</h1>
+
+      <div class="steps">
+        <div class="step">
+          <span class="step-n">1</span>
+          <span class="step-body">Kopiér koden
+            <span class="code" id="cf-code">**61*+4512345678#</span>
+          </span>
+          <button class="copy-btn" onclick="copyCode('cf-code', this)">Kopiér</button>
         </div>
-
-        <div class="os-guide" id="pwa-guide-android">
-          <div class="guide-steps">
-            <div class="guide-step">
-              <div class="guide-num">1</div>
-              <div class="guide-text">Tryk på <strong>Åbn mit dashboard</strong> nedenfor — og bliv i <strong>Chrome</strong>.</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">2</div>
-              <div class="guide-text">Tryk på menuen <strong>⋮</strong> øverst til højre.</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">3</div>
-              <div class="guide-text">Vælg <strong>Føj til startskærm</strong> (eller <strong>Installér app</strong>).</div>
-            </div>
-            <div class="guide-step">
-              <div class="guide-num">4</div>
-              <div class="guide-text">Bekræft — nu ligger Dit Digitale Kontor som et ikon på din telefon.</div>
-            </div>
-          </div>
+        <div class="step">
+          <span class="step-n">2</span>
+          <span class="step-body">Åbn <strong>Telefon</strong> og sæt koden ind på tastaturet</span>
+        </div>
+        <div class="step">
+          <span class="step-n">3</span>
+          <span class="step-body">Tryk <strong>Ring</strong> — din operatør bekræfter på skærmen</span>
         </div>
       </div>
 
-      <!-- Vises kun hvis siden allerede kører som installeret app -->
-      <div class="pwa-installed" id="pwa-installed" style="display:none">
-        ✓ Du kører allerede Dit Digitale Kontor som app — perfekt.
-      </div>
+      <details class="quiet">
+        <summary>Virker koden ikke?</summary>
+        <div class="inner">
+          Nogle telefoner vil kun have én stjerne foran 61:
+          <span class="code" id="cf-code-alt" style="margin:8px 0">*61*+4512345678#</span>
+          <button class="copy-btn" onclick="copyCode('cf-code-alt', this)" style="margin-top:4px">Kopiér</button>
+          <p style="margin-top:12px">Virker ingen af dem, så ring til dit teleselskab og bed om
+          "viderestilling ved intet svar" til dit nye nummer.</p>
+        </div>
+      </details>
 
-      <a href="/dashboard">
-        <button class="btn-primary" style="text-decoration:none">Åbn mit dashboard →</button>
-      </a>
-      <p style="margin-top:16px;font-size:13px;color:var(--muted)">
-        Du kan altid ændre din besked, stemme og dine numre under Indstillinger.
-      </p>
-    </div>
+      <button class="btn" onclick="goTo('s-6')">Jeg har gjort det</button>
+    </section>
+
+    <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
+    <section class="screen" id="s-6">
+      <h1>Test</h1>
+      <div class="phone-emoji">📱</div>
+      <p class="sub" id="verify-sub">Om lidt ringer vi.<br>Lad telefonen ringe — svar ikke.</p>
+      <p class="status" id="verify-status"></p>
+      <button class="btn" id="verify-btn" onclick="startVerification()">
+        <span id="verify-label">Start testen</span><span class="spinner" id="verify-spin"></span>
+      </button>
+    </section>
+
+    <!-- ── SIDE 7: DET VIRKER ─────────────────────────────── -->
+    <section class="screen" id="s-7">
+      <div class="check">✓</div>
+      <h1 class="h-xl">Perfekt.</h1>
+      <p class="sub">Dit Digitale Kontor er nu klar.<br>Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
+      <div class="number-box">
+        <div class="label">Dit nummer</div>
+        <div class="value" id="success-number">+45 12 34 56 78</div>
+      </div>
+      <button class="btn" onclick="goTo('s-8')">Videre</button>
+    </section>
+
+    <!-- ── SIDE 8: INSTALLER APP (intro) ──────────────────── -->
+    <section class="screen" id="s-8">
+      <div class="check">✓</div>
+      <h1>Dit Digitale Kontor er klar.</h1>
+      <p class="sub">Læg appen på din startskærm,<br>så er den altid ét tryk væk.</p>
+      <div class="phone-emoji">📱</div>
+
+      <button class="btn" id="install-btn" onclick="startInstall()">Installer app</button>
+      <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
+      <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
+    </section>
+
+    <!-- ── SIDE 9: INSTALLATION, TRIN 1 AF 2 ──────────────── -->
+    <section class="screen" id="s-9">
+      <p class="step-eyebrow">Trin 1 af 2</p>
+      <h1 id="inst1-title">Tryk på Del-ikonet</h1>
+      <p class="sub" id="inst1-sub">Du finder det nederst i Safari.</p>
+      <div class="inst-icon" id="inst1-icon" aria-hidden="true">
+        <!-- iOS: Safaris bundlinje med Del-ikonet markeret -->
+        <svg id="mock-ios" width="270" height="128" viewBox="0 0 270 128" fill="none">
+          <text x="135" y="14" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M135 20v26" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M130 41l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="8" y="56" width="254" height="64" rx="14" fill="#F0F3F7"/>
+          <rect x="24" y="64" width="222" height="18" rx="9" fill="#FFFFFF"/>
+          <text x="135" y="77" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <g stroke="#9AA6B2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M48 96l-6 6 6 6" transform="translate(0,-4)"/>
+            <path d="M86 92l6 6-6 6"/>
+            <path d="M196 92h14v14h-14z"/>
+            <circle cx="228" cy="99" r="7"/>
+          </g>
+          <g stroke="#2C6B9E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M135 90v10"/><path d="M131 93l4-4 4 4"/><rect x="128" y="96" width="14" height="11" rx="2.5"/>
+          </g>
+          <circle cx="135" cy="99" r="17" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+        </svg>
+        <!-- Android: Chromes toplinje med ⋮-menuen markeret -->
+        <svg id="mock-android" width="270" height="128" viewBox="0 0 270 128" fill="none" style="display:none">
+          <text x="238" y="14" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M238 20v22" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M233 37l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="8" y="52" width="254" height="50" rx="14" fill="#F0F3F7"/>
+          <rect x="22" y="64" width="196" height="26" rx="13" fill="#FFFFFF"/>
+          <text x="120" y="81" text-anchor="middle" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <g fill="#2C6B9E">
+            <circle cx="238" cy="70" r="2"/><circle cx="238" cy="77" r="2"/><circle cx="238" cy="84" r="2"/>
+          </g>
+          <circle cx="238" cy="77" r="14" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+        </svg>
+      </div>
+      <button class="btn" onclick="goTo('s-10')">Næste</button>
+    </section>
+
+    <!-- ── SIDE 10: INSTALLATION, TRIN 2 AF 2 ─────────────── -->
+    <section class="screen" id="s-10">
+      <p class="step-eyebrow">Trin 2 af 2</p>
+      <h1>Vælg<br>"<span id="inst2-name">Føj til hjemmeskærm</span>"</h1>
+      <p class="sub" id="inst2-sub">Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.</p>
+      <div class="inst-icon" aria-hidden="true">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/>
+        </svg>
+      </div>
+      <button class="btn" onclick="goTo('s-11')">Jeg har installeret appen</button>
+    </section>
+
+    <!-- ── SIDE 11: ÅBN FRA IKONET (vi venter) ────────────── -->
+    <section class="screen" id="s-11">
+      <div class="phone-emoji">🎉</div>
+      <h1>Nu ligger Dit Digitale Kontor<br>på din telefon.</h1>
+      <p class="sub">Luk <span id="browser-name">Safari</span>.<br>Åbn appen fra ikonet.</p>
+      <div class="home-icon" id="home-icon">
+        <img src="/apple-touch-icon.png?v=2" alt=""
+             onload="this.parentElement.classList.add('show')">
+        <div class="icon-label">Dit Digitale Kontor</div>
+      </div>
+      <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
+      <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
+      <button class="linklike ghost" onclick="location.href='/dashboard'" style="margin-top:28px">Fortsæt i browseren i stedet</button>
+    </section>
+
   </div>
 
 <script>
-  // ── State ────────────────────────────────────────────────────────
+  // ── State ──────────────────────────────────────────────────────────
   const state = {
     firmId:      null,
+    token:       null,
     firmName:    '',
-    phoneNumber: '',
-    ownerPhone:  '',
+    phoneNumber: '',   // firmaets tildelte nummer
+    ownerPhone:  '',   // håndværkerens eget mobilnummer
     voice:       'female',
     greeting:    '',
-    verified:    false,
+    // "Lyt": vi renderer kun igen, hvis tekst/stemme er ændret siden sidst
+    rendered:    { voice: null, text: null, url: null },
   };
 
-  // ── Supabase klient ─────────────────────────────────────────────
-  // Vaerdier kommer fra /config.js (app-config.js paa serveren), saa siden
-  // ALTID taler med det miljoe, den blev serveret fra. Hardcodede vaerdier
-  // her var rodaarsagen til "udloebet link"-fejlen 10/7-26: staging-siden
-  // talte med prod-projektet, som ikke kendte stagings tokens.
+  // Prikker: nummer, kode, stemme+besked, viderestilling, test (0 = ingen fyldt endnu)
+  const DOT_INDEX = { 's-1': 0, 's-2': 1, 's-3': 2, 's-5': 3, 's-6': 4 };
+
+  // Tilbage-pil: hvor hver side fører hen. Side 1 har intet før sig, og på
+  // ✓-siderne (7-8) er der ikke længere valg at ændre — dér skjules pilen.
+  const BACK_TARGET = {
+    's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
+    's-9': 's-8', 's-10': 's-9', 's-11': 's-10',
+  };
+  function goBack() {
+    const target = BACK_TARGET[currentScreen];
+    if (target) goTo(target);
+  }
+
+  // ── Supabase-klient (miljøet kommer ALTID fra /config.js) ─────────
   const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
   const SUPABASE_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-  // ── Init — etablér session og hent firmadata ─────────────────────
+  // ── Init ───────────────────────────────────────────────────────────
+  // Rettelse efter "usynligt nummer"-fejlen: et token_hash i URL'en vinder
+  // ALTID over en gammel session i localStorage. Ellers logges man ind som
+  // den forkerte (gamle) bruger og ser det forkerte — eller intet — firma.
   async function init() {
+    let viaLoginLink = false;
     try {
-      let session = (await db.auth.getSession()).data.session;
+      const params    = new URLSearchParams(location.search);
+      const tokenHash = params.get('token_hash');
+      const type      = params.get('type') || 'email';
+      let   session   = null;
 
-      // Prefetch-sikkert login: token_hash i URL'en verificeres FØRST her, i
-      // browseren. En mail-scanner der blot laver et GET på linket kalder ikke
-      // verifyOtp og forbruger derfor ikke tokenet — kun den rigtige bruger gør.
-      let viaLoginLink = false;   // sat ved AEGTE link-verifikation — styrer #nyt-login-puffet
-      if (!session) {
-        const params    = new URLSearchParams(location.search);
-        const tokenHash = params.get('token_hash');
-        const type      = params.get('type') || 'email';
-        if (tokenHash) {
-          const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type });
-          if (!error && data?.session) {
-            session = data.session;
-            viaLoginLink = true;
-            // Fjern token_hash fra URL'en (så den ikke ligger i historik/genindlæsning)
-            history.replaceState(null, '', location.pathname);
-          } else if (error) {
-            console.warn('verifyOtp fejlede:', error.message);
-          }
+      // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
+      if (tokenHash) {
+        const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type });
+        if (!error && data?.session) {
+          session = data.session;
+          viaLoginLink = true;
+          history.replaceState(null, '', location.pathname);
+        } else if (error) {
+          // Linket er brugt/udløbet — fald tilbage til en evt. eksisterende session.
+          console.warn('verifyOtp fejlede:', error.message);
         }
       }
 
-      // Bagudkompatibelt: gamle action_link-mails lander med #access_token i
-      // hashen, som supabase-js selv parser ved load — så tjek én gang til.
+      // 2) Ellers (eller hvis linket var dødt): brug eksisterende session.
       if (!session) session = (await db.auth.getSession()).data.session;
 
-      // Intet gyldigt login? Vis "nyt link"-skærmen — ALDRIG en tom side.
+      // 3) Bagudkompatibelt: gamle action_link-mails lander med #access_token,
+      //    som supabase-js selv parser ved load — tjek én gang til.
+      if (!session) session = (await db.auth.getSession()).data.session;
+
       if (!session?.access_token) {
         if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-          // Lokal udvikling uden session: demo-værdier, så siden kan testes.
+          // Lokal udvikling uden session: demoværdier, så UI'et kan testes.
           state.firmName    = 'Mogens Maler';
           state.phoneNumber = '+4531234567';
           state.greeting    = defaultGreeting(state.firmName);
-          return loadUI();
+          return startFlow();
         }
-        return showExpired();
+        return showScreen('s-expired');
       }
 
-      // Vi har en session — hent firmaet.
       state.token = session.access_token;
-      const res   = await fetch('/api/mig', {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      const data  = await res.json();
+      const res  = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => null);
 
-      if (data?.firm) {
-        // Allerede onboardet? Så er /onboarding ikke rette sted. Det sker fx når
-        // en eksisterende bruger klikker et login-link for at komme ind igen —
-        // send dem direkte til dashboardet i stedet for at vise opsætningen forfra.
-        // (Kræver at /api/mig returnerer firm.status; ellers springes dette bare over.)
-        if (data.firm.status === 'active') {
-          // #nyt-login (kun ved link-login) faar dashboardet til at foreslaa
-          // en ny adgangskode. Hash sendes aldrig til serveren og caches ikke.
-          window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
-          return;
-        }
-
-        state.firmId      = data.firm.id;
-        state.firmName    = data.firm.name;
-        state.phoneNumber = data.firm.phone_number;
-        state.voice       = data.firm.voice_gender || 'female';
-        state.greeting    = data.firm.greeting_text || defaultGreeting(data.firm.name);
+      // Rettelse: intet firma må ALDRIG give et tomt UI — vis en klar besked.
+      if (!res.ok || !data?.firm) {
+        document.getElementById('expired-msg').textContent =
+          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
+        return showScreen('s-expired');
       }
+
+      // Allerede onboardet? Så hører man til i dashboardet.
+      if (data.firm.status === 'active') {
+        window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
+        return;
+      }
+
+      state.firmId      = data.firm.id;
+      state.firmName    = data.firm.name || '';
+      state.phoneNumber = data.firm.phone_number || '';
+      state.ownerPhone  = data.firm.owner_phone || '';
+      state.voice       = data.firm.voice_gender || 'female';
+      state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
+      startFlow();
     } catch (e) {
-      console.warn('Auth fejl:', e);
-      // Ægte fejl (netværk e.l.) — vis nyt-link-skærmen frem for en tom side.
-      return showExpired();
+      console.warn('Init fejlede:', e);
+      showScreen('s-expired');
+    }
+  }
+
+  // ── Udfyld UI og vis side 1 ────────────────────────────────────────
+  function startFlow() {
+    // Nummeret kan mangle (provisioneringsfejl) — siden skal stadig kunne åbne.
+    const fmt = formatDK(state.phoneNumber) || '(nummer på vej)';
+    document.getElementById('success-number').textContent = fmt;
+    document.getElementById('cf-code').textContent     = `**61*${state.phoneNumber || ''}#`;
+    document.getElementById('cf-code-alt').textContent = `*61*${state.phoneNumber || ''}#`;
+
+    document.getElementById('greeting').value = state.greeting;
+    selectVoice(state.voice, true);
+
+    // Side 1: bekræft kendt mobilnummer — eller indtast det
+    if (state.ownerPhone) {
+      document.getElementById('owner-number-display').textContent = formatDK(state.ownerPhone);
+      document.getElementById('phone-confirm').style.display = 'block';
+    } else {
+      document.getElementById('phone-entry').style.display = 'block';
     }
 
-    loadUI();
+    showScreen('s-1');
   }
 
-  // ── Udfyld UI med firmaets data ──────────────────────────────────
-  function loadUI() {
-    const fmt = state.phoneNumber.replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-    document.getElementById('display-number').textContent   = fmt;
-    document.getElementById('success-number').textContent   = fmt;
-    document.getElementById('cf-code').textContent          = `**61*${state.phoneNumber}#`;
-    document.getElementById('cf-code-alt').textContent       = `*61*${state.phoneNumber}#`;
-    document.getElementById('greeting').value               = state.greeting;
-    if (state.ownerPhone) document.getElementById('owner-phone').value = state.ownerPhone.replace(/^\+?45\s*/, '');
-    updateCount();
-    selectVoice(state.voice);
+  // ── Navigation med 150 ms crossfade ────────────────────────────────
+  let currentScreen = null;
+  let switching = false;
+
+  function showScreen(id) {           // første visning — uden udfasning
+    const el = document.getElementById(id);
+    el.classList.add('on');
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
+    currentScreen = id;
+    updateDots(id);
   }
 
-  // ── "Linket virker ikke"-skærm ───────────────────────────────────
-  function showExpired() {
-    const progress = document.getElementById('progress');
-    if (progress) progress.style.display = 'none';
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
-    document.getElementById('step-expired').classList.add('active');
+  function goTo(id) {
+    if (switching || id === currentScreen) return;
+    switching = true;
+    stopAudio();   // demo-/beskedlyd maa aldrig spille med over paa naeste side
+    const from = document.getElementById(currentScreen);
+    const to   = document.getElementById(id);
+    from.classList.remove('visible');                 // fade ud: 150 ms
+    updateDots(id);
+    setTimeout(() => {
+      from.classList.remove('on');
+      to.classList.add('on');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        to.classList.add('visible');                  // fade ind: 150 ms
+        switching = false;
+      }));
+      currentScreen = id;
+      window.scrollTo({ top: 0 });
+      if (id === 's-8') setupPwa();
+    }, 150);
   }
 
-  // ── Bed om et nyt login-link (sendes via din egen backend + Scaleway) ──
-  async function requestNewLink() {
-    const input   = document.getElementById('relink-email');
-    const btn     = document.getElementById('relink-btn');
-    const label   = document.getElementById('relink-label');
-    const spinner = document.getElementById('relink-spinner');
-    const status  = document.getElementById('relink-status');
-    const email   = input.value.trim();
-
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      input.style.borderColor = '#f87171';
-      input.focus();
-      return;
+  function updateDots(id) {
+    document.getElementById('back-btn').classList.toggle('show', id in BACK_TARGET);
+    const dots = document.getElementById('dots');
+    if (!(id in DOT_INDEX)) { dots.classList.add('hidden'); return; }
+    dots.classList.remove('hidden');
+    const filled = DOT_INDEX[id];
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById('d' + i).classList.toggle('on', i <= filled);
     }
-    input.style.borderColor = 'var(--border)';
-
-    btn.disabled         = true;
-    label.textContent    = 'Sender...';
-    spinner.style.display = 'block';
-    status.style.display = 'none';
-
-    try {
-      await fetch('/onboarding/nyt-link', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email }),
-      });
-    } catch (e) {
-      console.warn('Kunne ikke anmode om nyt link:', e);
-    }
-
-    // Samme svar uanset om e-mailen findes (ingen email-enumeration).
-    status.textContent    = 'Hvis der findes en konto med den e-mail, har vi sendt et nyt login-link. Tjek din indbakke (og evt. spam).';
-    status.className      = 'verify-status success';
-    status.style.display  = 'block';
-    label.textContent     = 'Send nyt link';
-    spinner.style.display = 'none';
-    btn.disabled          = false;
   }
 
-  function defaultGreeting(name) {
-    return `Hej. Du har ringet til ${name}. Jeg kan desværre ikke tage telefonen. Jeg sender dig en SMS, hvor du beskriver din opgave. Jeg vender tilbage så hurtigt som muligt. Tak for din henvendelse.`;
+  // ── Side 1: mobilnummer ────────────────────────────────────────────
+  function showPhoneInput() {
+    document.getElementById('phone-confirm').style.display = 'none';
+    document.getElementById('phone-entry').style.display = 'block';
+    const input = document.getElementById('owner-input');
+    input.value = (state.ownerPhone || '').replace(/^\+?45\s*/, '');
+    input.focus();
   }
 
-  // ── Validér trin 1 (telefon + vælg adgangskode) ─────────────────────────────
-  // Her sættes adgangskoden FØRSTE gang, mens brugeren stadig har en gyldig
-  // session fra login-linket. Det er det, der lukker hullet: uden dette trin får
-  // brugeren aldrig en kode og kan ikke logge ind igen, når sessionen udløber.
-  async function validateStep1() {
-    const rawPhone = document.getElementById('owner-phone').value;
-    const pw      = document.getElementById('onb-pw').value;
-    const pw2     = document.getElementById('onb-pw2').value;
-    const errEl   = document.getElementById('onb-pw-error');
-    const phoneField = document.getElementById('owner-phone-field');
-    const btn     = document.getElementById('step1-btn');
-    const label   = document.getElementById('step1-label');
-    const spinner = document.getElementById('step1-spinner');
+  async function confirmOwnerPhone() {
+    await saveOwnerPhone(state.ownerPhone, 'confirm-label', 'confirm-spin', null);
+  }
 
+  async function submitOwnerPhone() {
+    const raw   = document.getElementById('owner-input').value;
+    const errEl = document.getElementById('owner-error');
+    const field = document.getElementById('owner-field');
     errEl.textContent = '';
+    field.classList.remove('invalid');
 
-    // 1) Telefon: brugeren taster kun de 8 lokale cifre — vi sætter +45 på selv.
-    //    Skrev de alligevel +45 eller 45 foran, fjerner vi det.
-    let digits = (rawPhone || '').replace(/\D/g, '');
+    let digits = (raw || '').replace(/\D/g, '');
     if (digits.length > 8 && digits.startsWith('45')) digits = digits.slice(2);
     if (digits.length !== 8) {
-      phoneField.style.borderColor = '#f87171';
-      errEl.textContent = 'Indtast dit 8-cifrede mobilnummer.';
-      document.getElementById('owner-phone').focus();
+      field.classList.add('invalid');
+      errEl.textContent = 'Skriv de 8 cifre i dit mobilnummer.';
+      document.getElementById('owner-input').focus();
       return;
     }
-    phoneField.style.borderColor = 'var(--border)';
-    const phone = '+45' + digits;
-    state.ownerPhone = phone;
+    await saveOwnerPhone('+45' + digits, 'owner-label', 'owner-spin', errEl);
+  }
 
-    // 2) Adgangskode: mindst 8 tegn, og de to felter skal være ens
-    if (pw.length < 8) {
-      errEl.textContent = 'Adgangskoden skal være mindst 8 tegn.';
-      document.getElementById('onb-pw').focus();
-      return;
-    }
-    if (pw !== pw2) {
-      errEl.textContent = 'De to adgangskoder er ikke ens.';
-      document.getElementById('onb-pw2').focus();
-      return;
-    }
-
-    // ── Spinner til ──────────────────────────────────────────────
-    btn.disabled = true;
-    label.textContent = 'Gemmer...';
-    spinner.style.display = 'block';
-
+  async function saveOwnerPhone(phone, labelId, spinId, errEl) {
+    const label = document.getElementById(labelId);
+    const spin  = document.getElementById(spinId);
+    const orig  = label.textContent;
+    label.textContent = 'Gemmer …';
+    spin.style.display = 'block';
     try {
-      // Lokal udvikling uden session: spring server-kaldene over, men lad
-      // flowet køre videre, så UI'et kan testes.
       if (state.firmId) {
-        // a) Gem ejerens telefonnummer (bruges til verifikation i trin 4)
-        await fetch('/api/firma/opdater-telefon', {
+        const res = await fetch('/api/firma/opdater-telefon', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
           body:    JSON.stringify({ owner_phone: phone }),
         });
+        if (!res.ok) throw new Error('Kunne ikke gemme');
+      }
+      state.ownerPhone = phone;
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓ Nummer forbundet';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
+      goTo('s-2');
+    } catch (e) {
+      if (errEl) errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
+      else alert('Noget gik galt. Tjek din forbindelse og prøv igen.');
+    } finally {
+      label.textContent = orig;
+      spin.style.display = 'none';
+    }
+  }
 
-        // b) SÆT adgangskoden på den indloggede bruger (Supabase, i browseren)
+  // ── Side 2: adgangskode ────────────────────────────────────────────
+  function togglePw() {
+    const input = document.getElementById('pw-input');
+    const eye   = document.getElementById('pw-eye');
+    const show  = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    eye.textContent = show ? 'Skjul' : 'Vis';
+  }
+
+  async function savePassword() {
+    const pw    = document.getElementById('pw-input').value;
+    const errEl = document.getElementById('pw-error');
+    const field = document.getElementById('pw-field');
+    const label = document.getElementById('pw-label');
+    const spin  = document.getElementById('pw-spin');
+    errEl.textContent = '';
+    field.classList.remove('invalid');
+
+    if (pw.length < 8) {
+      field.classList.add('invalid');
+      errEl.textContent = 'Minimum 8 tegn.';
+      document.getElementById('pw-input').focus();
+      return;
+    }
+
+    label.textContent = 'Gemmer …';
+    spin.style.display = 'block';
+    try {
+      if (state.firmId) {
         const { error } = await db.auth.updateUser({ password: pw });
-        // Hvis koden er den SAMME som før (fx man er gået et trin tilbage og frem
-        // igen), svarer Supabase "skal være anderledes". Den ignorerer vi — koden
-        // er allerede sat, så vi går bare videre. Alle andre fejl stopper os.
+        // Samme kode som før (fx efter et hop tilbage) giver "skal være anderledes"
+        // fra Supabase — den er allerede sat, så vi går bare videre.
         if (error && !/different|samme|same/i.test(error.message || '')) {
-          errEl.textContent = error.message || 'Kunne ikke gemme adgangskoden. Prøv igen.';
-          return;   // bliv på trin 1 — finally rydder spinneren
+          errEl.textContent = 'Kunne ikke gemme adgangskoden. Prøv igen.';
+          return;
         }
       }
-      goTo(2);
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓ Gemt';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
+      goTo('s-3');
     } catch (e) {
-      console.warn('Trin 1 fejlede:', e);
       errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
     } finally {
-      // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
-      btn.disabled = false;
-      label.textContent = 'Kom i gang →';
-      spinner.style.display = 'none';
+      label.textContent = 'Gem adgangskode';
+      spin.style.display = 'none';
     }
   }
 
-  // ── Navigation ───────────────────────────────────────────────────
-  function goTo(n) {
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
-    const target = n === 'success' ? 'step-success' : `step-${n}`;
-    document.getElementById(target).classList.add('active');
-    updateProgress(n);
-    if (n === 5)          loadWhitelist();    // hent firmaets hvidliste når trinnet vises
-    if (n === 'success')  setupPwaInstall();  // vælg rigtig app-vejledning til enheden
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function updateProgress(current) {
-    const total = 5;
-    // 'success' = alt er færdigt → marker alle prikker som done
-    const cur = current === 'success' ? total + 1 : current;
-    for (let i = 1; i <= total; i++) {
-      const dot  = document.getElementById(`dot-${i}`);
-      const line = document.getElementById(`line-${i}`);
-
-      dot.classList.remove('active', 'done');
-      if (line) line.classList.remove('done');
-
-      if (i < cur)       { dot.classList.add('done'); if (line) line.classList.add('done'); }
-      else if (i === cur)  dot.classList.add('active');
-    }
-  }
-
-  // ── Stemmevalg ───────────────────────────────────────────────────
-  function selectVoice(gender) {
+  // ── Side 3: stemme ─────────────────────────────────────────────────
+  function selectVoice(gender, silent) {
     state.voice = gender;
     document.getElementById('voice-female').classList.toggle('selected', gender === 'female');
     document.getElementById('voice-male').classList.toggle('selected', gender === 'male');
-
-    // Stop en evt. igangværende forhåndsvisning, så man ikke hører den gamle stemme
-    const audio = document.getElementById('voice-preview');
-    const btn   = document.getElementById('preview-btn');
-    if (audio && !audio.paused) {
-      audio.pause();
-      audio.currentTime = 0;
-      if (btn) btn.textContent = '▶ Afspil stemmevalg';
+    if (!silent) {
+      stopAudio();
+      document.getElementById('voice-confirm').textContent =
+        gender === 'female' ? '✓ Naja valgt' : '✓ Mads valgt';
+      document.getElementById('besked-sektion').classList.add('open');
     }
   }
 
-  // ── Tegntæller ───────────────────────────────────────────────────
-  function updateCount() {
-    const val = document.getElementById('greeting').value;
-    state.greeting = val;
-    document.getElementById('char-count').textContent = val.length;
-  }
-
-  // ── Forhåndsvis stemme (ægte ElevenLabs-sample fra Storage) ──────
-  // Afspiller en fast demosætning i den valgte stemme, så håndværkeren
-  // hører den RIGTIGE ElevenLabs-stemme — ikke browserens robotstemme.
-  // Bemærk: dette er en standard-demosætning, IKKE firmaets egen tekst.
-  // Deres egen tekst renderes først når de gemmer (/api/firma/opdater).
+  // Faste demoklip (rigtige ElevenLabs-stemmer) fra Storage — IKKE firmaets egen tekst.
   const SAMPLE_URL = {
     female: `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/female.mp3?v=2`,
     male:   `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/male.mp3?v=2`,
   };
 
-  function previewVoice() {
-    const audio = document.getElementById('voice-preview');
-    const btn   = document.getElementById('preview-btn');
-
-    // Klik igen mens den spiller = stop
-    if (!audio.paused && audio.src) {
-      audio.pause();
-      audio.currentTime = 0;
-      btn.textContent = '▶ Afspil stemmevalg';
-      return;
-    }
-
-    audio.src = SAMPLE_URL[state.voice] || SAMPLE_URL.female;
-    audio.onended = () => { btn.textContent = '▶ Afspil stemme'; };
-    audio.play()
-      .then(() => { btn.textContent = '⏸ Afspiller…'; })
-      .catch(() => { btn.textContent = '▶ Afspil stemme'; });
+  function playSample(gender, ev) {
+    ev.stopPropagation();               // undgå dobbelt håndtering fra kortets klik
+    selectVoice(gender);                // at lytte ER et valg — besked-sektionen åbner med
+    playUrl(SAMPLE_URL[gender]);
   }
 
-  // ── Gem stemme + besked ──────────────────────────────────────────
-  async function saveAndContinue() {
-    const btn     = document.querySelector('#step-2 .btn-primary');
-    const label   = document.getElementById('save-label');
-    const spinner = document.getElementById('save-spinner');
+  const player = () => document.getElementById('player');
+  function stopAudio() { const a = player(); if (!a.paused) { a.pause(); a.currentTime = 0; } }
+  function playUrl(url) {
+    const a = player();
+    stopAudio();
+    a.src = url;
+    a.play().catch(() => {});
+  }
 
-    if (!state.greeting.trim()) {
+  // ── Side 4: besked + "Lyt" ─────────────────────────────────────────
+  // Gemmer via /api/firma/opdater, som renderer hilsenen og returnerer lyd-URL'en.
+  // Vi renderer KUN igen, når tekst eller stemme er ændret — ellers genafspilles
+  // den seneste fil (sparer ElevenLabs-kald).
+  async function ensureRendered() {
+    const text = (document.getElementById('greeting').value || '').trim();
+    if (!text) return null;
+    state.greeting = text;
+
+    if (state.rendered.url && state.rendered.text === text && state.rendered.voice === state.voice) {
+      return state.rendered.url;
+    }
+    if (!state.firmId) return null;     // lokal demo uden backend
+
+    const res = await fetch('/api/firma/opdater', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+      body:    JSON.stringify({ voice_gender: state.voice, greeting_text: text }),
+    });
+    if (!res.ok) throw new Error('Gem fejlede');
+    const data = await res.json().catch(() => ({}));
+    state.rendered = { voice: state.voice, text, url: data.greeting_audio_url || null };
+    return state.rendered.url;
+  }
+
+  async function listenGreeting() {
+    const btn  = document.getElementById('listen-btn');
+    const hint = document.getElementById('greet-hint');
+    if (!(document.getElementById('greeting').value || '').trim()) {
+      hint.textContent = 'Skriv en besked først.';
+      return;
+    }
+    hint.textContent = '';
+    btn.textContent = 'Gør klar …';
+    try {
+      const url = await ensureRendered();
+      if (url) playUrl(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+      else hint.textContent = 'Beskeden er gemt — lyden kunne ikke afspilles lige nu.';
+    } catch (e) {
+      hint.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      btn.textContent = '▶ Lyt til beskeden';
+    }
+  }
+
+  async function saveGreetingContinue() {
+    const hint  = document.getElementById('greet-hint');
+    const label = document.getElementById('greet-label');
+    const spin  = document.getElementById('greet-spin');
+    if (!(document.getElementById('greeting').value || '').trim()) {
+      hint.textContent = 'Skriv en besked først.';
       document.getElementById('greeting').focus();
       return;
     }
-
-    btn.disabled    = true;
-    label.textContent = 'Gemmer...';
-    spinner.style.display = 'block';
-
+    hint.textContent = '';
+    label.textContent = 'Gemmer …';
+    spin.style.display = 'block';
     try {
-      if (state.firmId) {
-        await fetch('/api/firma/opdater', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-          body:    JSON.stringify({
-            voice_gender: state.voice,
-            greeting_text: state.greeting,
-          }),
-        });
-      }
-      goTo(3);
+      await ensureRendered();
+      stopAudio();
+      goTo('s-5');
     } catch (e) {
-      console.error(e);
+      hint.textContent = 'Kunne ikke gemme. Tjek din forbindelse og prøv igen.';
     } finally {
-      btn.disabled          = false;
-      label.textContent     = 'Gem og fortsæt';
-      spinner.style.display = 'none';
+      label.textContent = 'Næste';
+      spin.style.display = 'none';
     }
   }
 
-  // ── Kopiér kode ──────────────────────────────────────────────────
-  function copyCode(elementId, btn) {
-    const text = document.getElementById(elementId).textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      btn.textContent = 'Kopieret!';
+  // ── Side 5: kopiér kode ────────────────────────────────────────────
+  function copyCode(id, btn) {
+    navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+      btn.textContent = 'Kopieret';
       btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = 'Kopiér';
-        btn.classList.remove('copied');
-      }, 2000);
+      setTimeout(() => { btn.textContent = 'Kopiér'; btn.classList.remove('copied'); }, 2000);
     });
   }
 
-  // ── Verifikationsopkald ──────────────────────────────────────────
+  // ── Side 6: testopkald ─────────────────────────────────────────────
   async function startVerification() {
-    const btn     = document.getElementById('verify-btn');
-    const label   = document.getElementById('verify-label');
-    const spinner = document.getElementById('verify-spinner');
-    const status  = document.getElementById('verify-status');
-    const icon    = document.getElementById('verify-icon');
-    const title   = document.getElementById('verify-title');
-    const desc    = document.getElementById('verify-desc');
+    const btn    = document.getElementById('verify-btn');
+    const label  = document.getElementById('verify-label');
+    const spin   = document.getElementById('verify-spin');
+    const status = document.getElementById('verify-status');
 
-    btn.disabled          = true;
-    label.textContent     = 'Ringer...';
-    spinner.style.display = 'block';
-    status.className      = 'verify-status waiting';
-    status.textContent    = 'Vi ringer til dit nummer nu — lad den ringe i 20-30 sek. uden at svare...';
-    icon.textContent      = '📲';
-    title.textContent     = 'Ringer til dig...';
+    btn.disabled = true;
+    label.textContent = 'Ringer …';
+    spin.style.display = 'block';
+    status.className = 'status';
+    status.textContent = 'Telefonen ringer om få sekunder. Lad den ringe ud.';
 
     try {
       const res = await fetch('/onboarding/verificer', {
@@ -1357,234 +1114,118 @@
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
         body:    JSON.stringify({ owner_phone: state.ownerPhone }),
       });
-
       if (!res.ok) throw new Error('Opkald fejlede');
-
-      // Poll efter verifikation (max 30 sek)
       await pollVerification();
-
     } catch (e) {
-      status.className   = 'verify-status error';
-      status.textContent = 'Opkaldet fejlede. Tjek at viderestillingen er sat op og prøv igen.';
-      icon.textContent   = '⚠️';
-      title.textContent  = 'Noget gik galt';
-      btn.disabled       = false;
-      label.textContent  = 'Prøv igen';
-      spinner.style.display = 'none';
+      status.className = 'status err';
+      status.textContent = 'Opkaldet fejlede. Tjek at viderestillingen er sat op, og prøv igen.';
+      btn.disabled = false;
+      label.textContent = 'Prøv igen';
+      spin.style.display = 'none';
     }
   }
 
   async function pollVerification(attempts = 0) {
+    // ~70 sek. i alt: telefonen ringer 20-30 sek., før operatøren viderestiller,
+    // så det forwardede opkald når typisk først frem efter 30-40 sek.
     if (attempts > 28) {
-      // Timeout efter ~70 sek. Sat højt med vilje: uden en kort GSM-timer ringer
-      // telefonen 20-30 sek., før den viderestiller — så det forwardede opkald når
-      // typisk først frem efter ~30-40 sek. En kortere timeout ville give op for tidligt.
       const status = document.getElementById('verify-status');
-      status.className   = 'verify-status error';
-      status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, og tryk Ring igen — og lad den så ringe ud uden at svare. (Tjek også at koden er tastet korrekt ind.)';
+      status.className = 'status err';
+      status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, tryk Ring igen — og lad den ringe ud.';
       document.getElementById('verify-btn').disabled = false;
       document.getElementById('verify-label').textContent = 'Ring igen';
-      document.getElementById('verify-spinner').style.display = 'none';
-      document.getElementById('verify-icon').textContent  = '⚠️';
-      document.getElementById('verify-title').textContent = 'Ikke bekræftet endnu';
+      document.getElementById('verify-spin').style.display = 'none';
       return;
     }
-
     await new Promise(r => setTimeout(r, 2500));
-
     try {
-      const res  = await fetch('/api/firma/status', {
-        headers: { Authorization: `Bearer ${state.token}` }
-      });
+      const res  = await fetch('/api/firma/status', { headers: { Authorization: `Bearer ${state.token}` } });
       const data = await res.json();
-
       if (data?.verification_status === 'verified') {
-        // Succes!
-        document.getElementById('verify-icon').textContent  = '✓';
-        document.getElementById('verify-title').textContent = 'Bekræftet!';
-        document.getElementById('verify-status').className      = 'verify-status success';
-        document.getElementById('verify-status').textContent    = 'Viderestillingen virker — du er klar!';
-        document.getElementById('verify-spinner').style.display = 'none';
-        setTimeout(() => goTo(5), 1800);
+        const status = document.getElementById('verify-status');
+        status.className = 'status ok';
+        status.textContent = 'Klar.';
+        document.getElementById('verify-spin').style.display = 'none';
+        setTimeout(() => goTo('s-7'), 1200);
         return;
       }
     } catch (e) { /* fortsæt polling */ }
-
     await pollVerification(attempts + 1);
   }
 
-  // ── Hjælpere ─────────────────────────────────────────────────────
-  function formatPhone(e164) {
-    return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-  }
-  function escapeHtml(s) {
-    return (s || '').replace(/[&<>"']/g, c => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
-
-  // ── Hvidliste (trin 5) ───────────────────────────────────────────
-  // Numre der IKKE skal have opgave-SMS (eget andet nummer, kolleger,
-  // leverandører …). Backend: GET/POST/DELETE /api/firma/hvidliste (max 20).
-  const WL_MAX = 20;
-  let wlNumbers = [];   // [{ id, number, label }]
-
-  async function loadWhitelist() {
-    if (!state.firmId) { renderWhitelist(); return; }   // lokal udvikling: tom liste
-    try {
-      const res  = await fetch('/api/firma/hvidliste', {
-        headers: { Authorization: `Bearer ${state.token}` }
-      });
-      const data = await res.json();
-      wlNumbers  = data.numbers || [];
-    } catch (e) {
-      console.warn('Kunne ikke hente hvidliste:', e);
-    }
-    renderWhitelist();
-  }
-
-  function renderWhitelist() {
-    const list   = document.getElementById('wl-list');
-    const empty  = document.getElementById('wl-empty');
-    document.getElementById('wl-count').textContent = wlNumbers.length;
-
-    if (!wlNumbers.length) {
-      list.innerHTML = '';
-      empty.style.display = 'block';
-    } else {
-      empty.style.display = 'none';
-      list.innerHTML = wlNumbers.map(n => `
-        <div class="wl-item">
-          <div class="wl-item-main">
-            <span class="wl-item-number">${formatPhone(n.number)}</span>
-            ${n.label ? `<span class="wl-item-label">${escapeHtml(n.label)}</span>` : ''}
-          </div>
-          <button class="wl-remove" type="button" aria-label="Fjern nummer"
-                  onclick="removeWhitelist('${n.id}')">×</button>
-        </div>
-      `).join('');
-    }
-
-    const atMax = wlNumbers.length >= WL_MAX;
-    document.getElementById('wl-add-btn').disabled  = atMax;
-    document.getElementById('wl-max-note').style.display = atMax ? 'block' : 'none';
-  }
-
-  async function addWhitelist() {
-    const rawNum   = document.getElementById('wl-number').value;
-    const label    = document.getElementById('wl-label').value.trim();
-    const errEl    = document.getElementById('wl-error');
-    const numField = document.getElementById('wl-number-field');
-    const btn      = document.getElementById('wl-add-btn');
-    const lbl      = document.getElementById('wl-add-label');
-    const spin     = document.getElementById('wl-add-spinner');
-    errEl.textContent = '';
-
-    // Brugeren taster kun de 8 cifre — vi sætter +45 på (skrev de selv +45/45, fjernes det)
-    let digits = (rawNum || '').replace(/\D/g, '');
-    if (digits.length > 8 && digits.startsWith('45')) digits = digits.slice(2);
-    if (digits.length !== 8) {
-      numField.style.borderColor = '#f87171';
-      errEl.textContent = 'Indtast et 8-cifret mobilnummer.';
-      document.getElementById('wl-number').focus();
-      return;
-    }
-    numField.style.borderColor = 'var(--border)';
-    const number = '+45' + digits;
-
-    if (wlNumbers.length >= WL_MAX) {
-      errEl.textContent = `Du kan højst tilføje ${WL_MAX} numre.`;
-      return;
-    }
-    if (wlNumbers.some(n => n.number === number)) {
-      errEl.textContent = 'Nummeret er allerede på listen.';
-      return;
-    }
-
-    btn.disabled = true;
-    lbl.textContent = 'Tilføjer...';
-    spin.style.display = 'block';
-
-    try {
-      if (state.firmId) {
-        const res  = await fetch('/api/firma/hvidliste', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-          body:    JSON.stringify({ number, label }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          errEl.textContent = data.error || 'Kunne ikke tilføje nummeret. Prøv igen.';
-          return;
-        }
-        wlNumbers.push(data.number);
-      } else {
-        // Lokal udvikling uden session: vis bare i UI'et
-        wlNumbers.push({ id: 'local-' + Date.now(), number, label: label || null });
-      }
-      document.getElementById('wl-number').value = '';
-      document.getElementById('wl-label').value  = '';
-      renderWhitelist();
-      document.getElementById('wl-number').focus();
-    } catch (e) {
-      console.warn('Hvidliste-tilføjelse fejlede:', e);
-      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
-    } finally {
-      lbl.textContent = '+ Tilføj til listen';
-      spin.style.display = 'none';
-      btn.disabled = wlNumbers.length >= WL_MAX;
-    }
-  }
-
-  async function removeWhitelist(id) {
-    const prev = wlNumbers;
-    // Optimistisk: fjern straks i UI'et, rul tilbage hvis serveren fejler
-    wlNumbers = wlNumbers.filter(n => String(n.id) !== String(id));
-    renderWhitelist();
-    if (!state.firmId) return;
-    try {
-      const res = await fetch('/api/firma/hvidliste/' + encodeURIComponent(id), {
-        method:  'DELETE',
-        headers: { Authorization: `Bearer ${state.token}` },
-      });
-      if (!res.ok) throw new Error('delete failed');
-    } catch (e) {
-      console.warn('Kunne ikke slette nummer:', e);
-      wlNumbers = prev;
-      renderWhitelist();
-    }
-  }
-
-  // ── Gem som app (PWA) — vises på success-skærmen ─────────────────
-  function selectPwaOS(os) {
-    document.getElementById('pwa-tab-ios').classList.toggle('active', os === 'ios');
-    document.getElementById('pwa-tab-android').classList.toggle('active', os === 'android');
-    document.getElementById('pwa-guide-ios').classList.toggle('active', os === 'ios');
-    document.getElementById('pwa-guide-android').classList.toggle('active', os === 'android');
-  }
-
-  function setupPwaInstall() {
-    // Kører siden allerede som installeret app? Så er vejledningen unødig.
+  // ── Side 8: installer som app ──────────────────────────────────────
+  function setupPwa() {
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.navigator.standalone === true;
-
     if (standalone) {
-      const block = document.getElementById('pwa-block');
-      const done  = document.getElementById('pwa-installed');
-      if (block) block.style.display = 'none';
-      if (done)  done.style.display  = 'block';
-      return;
+      // Kører allerede som app — vejledningen er unødig.
+      document.getElementById('install-btn').style.display = 'none';
+      document.getElementById('install-hint').textContent = 'Du kører allerede Dit Digitale Kontor som app — perfekt.';
     }
-
-    // Vælg den rigtige vejledning ud fra enheden (kan altid skiftes manuelt).
-    const ua    = navigator.userAgent || '';
-    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
-                  (/Macintosh/.test(ua) && 'ontouchend' in document); // iPad på iPadOS
-    selectPwaOS(isIOS ? 'ios' : 'android');
   }
 
-  // ── Start ────────────────────────────────────────────────────────
+  // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
+  function startInstall() {
+    const ua    = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+                  (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
+    document.getElementById('inst1-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på menuen';
+    document.getElementById('inst1-sub').textContent   = isIOS ? 'Du finder det nederst i Safari.' : 'De tre prikker øverst i Chrome.';
+    document.getElementById('mock-ios').style.display     = isIOS ? '' : 'none';
+    document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
+    document.getElementById('inst2-name').textContent   = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
+    document.getElementById('inst2-sub').innerHTML      = isIOS
+      ? 'Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.'
+      : 'Bekræft med <strong>Tilføj</strong>.';
+    document.getElementById('browser-name').textContent = isIOS ? 'Safari' : 'Chrome';
+    goTo('s-9');
+  }
+
+  // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
+  async function requestNewLink() {
+    const input  = document.getElementById('relink-email');
+    const btn    = document.getElementById('relink-btn');
+    const label  = document.getElementById('relink-label');
+    const spin   = document.getElementById('relink-spin');
+    const status = document.getElementById('relink-status');
+    const email  = input.value.trim();
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      input.parentElement.classList.add('invalid');
+      input.focus();
+      return;
+    }
+    input.parentElement.classList.remove('invalid');
+    btn.disabled = true;
+    label.textContent = 'Sender …';
+    spin.style.display = 'block';
+    status.textContent = '';
+
+    try {
+      await fetch('/onboarding/nyt-link', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      });
+    } catch (e) { /* samme svar uanset — se nedenfor */ }
+
+    // Samme besked uanset om e-mailen findes (ingen email-enumeration).
+    status.className = 'status ok';
+    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt et nyt link. Tjek din indbakke.';
+    btn.disabled = false;
+    label.textContent = 'Send nyt link';
+    spin.style.display = 'none';
+  }
+
+  // ── Hjælpere ───────────────────────────────────────────────────────
+  function formatDK(e164) {
+    return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+  }
+  function defaultGreeting(name) {
+    return `Hej. Du har ringet til ${name}. Jeg kan desværre ikke tage telefonen. Jeg sender dig en SMS, hvor du beskriver din opgave. Jeg vender tilbage så hurtigt som muligt. Tak for din henvendelse.`;
+  }
+
   init();
 </script>
 </body>

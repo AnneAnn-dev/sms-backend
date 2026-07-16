@@ -515,6 +515,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // gemmer vi bare ingen URL — så falder /opkald tilbage til live-TTS, og
     // onboarding fortsætter uhindret. Hver gem re-renderer, så ny tekst/stemme
     // altid afspejles i lydfilen.
+    let greeting_audio_url = null;
     if (voice_gender && greeting_text) {
       try {
         const { url } = await renderGreeting(supabase, {
@@ -526,13 +527,14 @@ module.exports = function registerOnboarding(app, supabase) {
           .from('firms')
           .update({ greeting_audio_url: url })
           .eq('id', firm_id);
+        greeting_audio_url = url;
         console.log("🔊 Hilsen renderet for firma:", firm_id);
       } catch (e) {
         console.error("❌ TTS-render fejlede (falder tilbage til live-TTS):", e.message);
       }
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, greeting_audio_url });
   });
 
   // ─── API: Hent verifikationsstatus ───────────────────────────────────────
