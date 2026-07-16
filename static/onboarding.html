@@ -822,6 +822,37 @@
     showScreen('s-1');
   }
 
+  // ── Tidsmåling: hvor længe er kunden på hver side? ─────────────────
+  // Sender (side, sekunder) til vores egen backend, hver gang en side
+  // forlades — via fetch med keepalive, så målingen også når frem, når
+  // kunden til sidst forlader Safari for at åbne den installerede app.
+  // Fejler alt, sker der ingenting: analyse må aldrig genere kunden.
+  const maaling = { enteredAt: Date.now() };
+
+  function sendSidevisning(side, ms) {
+    if (!state.token || !side) return;          // lokal demo: intet sendes
+    const sekunder = Math.min(Math.round(ms / 100) / 10, 3600);
+    if (!(sekunder >= 0)) return;
+    try {
+      fetch('/onboarding/sidevisning', {
+        method:    'POST',
+        keepalive: true,
+        headers:   { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body:      JSON.stringify({ side, sekunder }),
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
+  // Fanger også dem, der forlader flowet midt i det (eller lægger appen i
+  // baggrunden): opholdet sendes som en bid, og uret nulstilles — vender de
+  // tilbage, tæller næste bid ovenpå. Summér pr. side i analysen.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      sendSidevisning(currentScreen, Date.now() - maaling.enteredAt);
+      maaling.enteredAt = Date.now();
+    }
+  });
+
   // ── Navigation med 150 ms crossfade ────────────────────────────────
   let currentScreen = null;
   let switching = false;
@@ -831,12 +862,15 @@
     el.classList.add('on');
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
     currentScreen = id;
+    maaling.enteredAt = Date.now();
     updateDots(id);
   }
 
   function goTo(id) {
     if (switching || id === currentScreen) return;
     switching = true;
+    sendSidevisning(currentScreen, Date.now() - maaling.enteredAt);
+    maaling.enteredAt = Date.now();
     stopAudio();   // demo-/beskedlyd maa aldrig spille med over paa naeste side
     const from = document.getElementById(currentScreen);
     const to   = document.getElementById(id);

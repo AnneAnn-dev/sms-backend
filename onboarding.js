@@ -673,4 +673,47 @@ module.exports = function registerOnboarding(app, supabase) {
     }
   });
 
+
+  // ─── ANALYSE: Tidsmåling på onboarding-siderne ─────────────────────────────
+  // Frontenden sender (side, sekunder) hver gang brugeren forlader en side —
+  // via fetch med keepalive, saa maalingen ogsaa naar frem, naar kunden til
+  // sidst forlader Safari for at aabne den installerede app. Der kan komme
+  // flere raekker pr. side pr. kunde (fx hvis appen laegges i baggrunden og
+  // tages frem igen) — det er med vilje: summér pr. side i analysen.
+  //
+  //   SELECT side,
+  //          count(DISTINCT firm_id)                          AS kunder,
+  //          round(avg(sum_sek), 1)                           AS gns_sekunder,
+  //          round(percentile_cont(0.5) WITHIN GROUP (ORDER BY sum_sek)::numeric, 1) AS median_sekunder
+  //   FROM (SELECT firm_id, side, sum(sekunder) AS sum_sek
+  //         FROM onboarding_sidevisninger GROUP BY firm_id, side) t
+  //   GROUP BY side ORDER BY side;
+  //
+  // Kun kendte side-navne accepteres, og sekunder klippes til 0-3600 —
+  // saa kan hverken fejl eller fusk forurene tallene.
+  const GYLDIGE_SIDER = new Set([
+    's-1', 's-2', 's-3', 's-5', 's-6', 's-7', 's-8', 's-9', 's-10', 's-11', 's-expired',
+  ]);
+
+  app.post('/onboarding/sidevisning', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const side     = String(req.body?.side || '');
+    let   sekunder = Number(req.body?.sekunder);
+
+    if (!GYLDIGE_SIDER.has(side) || !Number.isFinite(sekunder)) {
+      return res.status(400).json({ error: 'Ugyldige data' });
+    }
+    sekunder = Math.max(0, Math.min(sekunder, 3600));
+
+    const { error } = await supabase
+      .from('onboarding_sidevisninger')
+      .insert({ firm_id, side, sekunder });
+
+    // Analyse maa aldrig genere kunden: fejl logges blot, svaret er altid ok.
+    if (error) console.error('⏱️  Sidevisning kunne ikke gemmes:', error.message);
+    return res.status(204).end();
+  });
+
 };
