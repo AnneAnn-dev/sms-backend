@@ -342,16 +342,7 @@
     .reveal.open { max-height: 620px; opacity: 1; }
     @media (prefers-reduced-motion: reduce) { .reveal { transition: none; } }
 
-    /* Lysere og mindre blå knap (side 11) */
-    .btn.btn-soft {
-      background: #7FA6C8;
-      min-height: 44px;
-      width: auto;
-      padding: 0 24px;
-      font-size: 15px;
-      margin-top: 22px;
-    }
-    /* Næsten usynligt link (side 8) */
+    /* Næsten usynligt link (side 8 og 11) */
     .linklike.ghost {
       color: #C4CDD6;
       font-size: 13px;
@@ -698,7 +689,7 @@
       </div>
       <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
       <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
-      <button class="btn btn-soft" onclick="location.href='/dashboard'">Fortsæt i browseren i stedet</button>
+      <button class="linklike ghost" onclick="location.href='/dashboard'" style="margin-top:28px">Fortsæt i browseren i stedet</button>
     </section>
 
   </div>
