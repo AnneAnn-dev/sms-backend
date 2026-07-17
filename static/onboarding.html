@@ -823,19 +823,24 @@
   }
 
   // ── Udfyld UI og vis side 1 ────────────────────────────────────────
+  // Skriv kun, hvis elementet findes — designet ændrer sig hurtigere end
+  // scriptet, og et manglende element må ALDRIG vælte hele flowet (det gjorde
+  // det 17/7: slettet nummer-boks -> TypeError -> alle så udløbet-skærmen).
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
   function startFlow() {
-    // Nummeret kan mangle (provisioneringsfejl) — siden skal stadig kunne åbne.
-    const fmt = formatDK(state.phoneNumber) || '(nummer på vej)';
-    document.getElementById('success-number').textContent = fmt;
-    document.getElementById('cf-code').textContent     = `**61*${state.phoneNumber || ''}#`;
-    document.getElementById('cf-code-alt').textContent = `*61*${state.phoneNumber || ''}#`;
+    setText('cf-code',     `**61*${state.phoneNumber || ''}#`);
+    setText('cf-code-alt', `*61*${state.phoneNumber || ''}#`);
 
     document.getElementById('greeting').value = state.greeting;
     selectVoice(state.voice, true);
 
     // Side 1: bekræft kendt mobilnummer — eller indtast det
     if (state.ownerPhone) {
-      document.getElementById('owner-number-display').textContent = formatDK(state.ownerPhone);
+      setText('owner-number-display', formatDK(state.ownerPhone));
       document.getElementById('phone-confirm').style.display = 'block';
     } else {
       document.getElementById('phone-entry').style.display = 'block';
