@@ -584,7 +584,7 @@
         </div>
       </details>
 
-      <button class="btn" onclick="goTo('s-6')">Jeg har gjort det</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-6')">Jeg har gjort det</button>
     </section>
 
     <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
@@ -610,14 +610,13 @@
       <button class="btn" onclick="goTo('s-8')">Videre</button>
     </section>
 
-    <!-- ── SIDE 8: INSTALLER APP (intro) ──────────────────── -->
+    <!-- ── SIDE 8: ALT VIRKER — SIDSTE TRIN ───────────────── -->
     <section class="screen" id="s-8">
       <div class="check">✓</div>
-      <h1>Dit Digitale Kontor er klar.</h1>
-      <p class="sub">Læg appen på din startskærm,<br>så er den altid ét tryk væk.</p>
-      <div class="phone-emoji">📱</div>
-
-      <button class="btn" id="install-btn" onclick="startInstall()">Installer app</button>
+      <h1 class="h-xl">Alt virker.</h1>
+      <p class="question">Sidste trin</p>
+      <p class="sub">Læg Dit Digitale Kontor på din telefon,<br>så er Dit Digitale Kontor altid lige ved hånden.</p>
+      <button class="btn" id="install-btn" onclick="startInstall(this)">Kom videre</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
@@ -661,7 +660,7 @@
           <circle cx="238" cy="77" r="14" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
         </svg>
       </div>
-      <button class="btn" onclick="goTo('s-10')">Næste</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-10')">Næste</button>
     </section>
 
     <!-- ── SIDE 10: INSTALLATION, TRIN 2 AF 2 ─────────────── -->
@@ -674,20 +673,20 @@
           <rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/>
         </svg>
       </div>
-      <button class="btn" onclick="goTo('s-11')">Jeg har installeret appen</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-11')">Jeg har lagt den på min telefon</button>
     </section>
 
-    <!-- ── SIDE 11: ÅBN FRA IKONET (vi venter) ────────────── -->
+    <!-- ── SIDE 11: FÆRDIG — ÅBN FRA IKONET ───────────────── -->
     <section class="screen" id="s-11">
-      <div class="phone-emoji">🎉</div>
-      <h1>Nu ligger Dit Digitale Kontor<br>på din telefon.</h1>
-      <p class="sub">Luk <span id="browser-name">Safari</span>.<br>Åbn appen fra ikonet.</p>
+      <div class="check">✓</div>
+      <h1 class="h-xl">Færdig.</h1>
+      <p class="sub">Dit Digitale Kontor ligger nu på din telefon.</p>
       <div class="home-icon" id="home-icon">
         <img src="/apple-touch-icon.png?v=2" alt=""
              onload="this.parentElement.classList.add('show')">
         <div class="icon-label">Dit Kontor</div>
       </div>
-      <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
+      <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Åbn Dit Digitale Kontor fra ikonet.</p>
       <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
       <button class="linklike ghost" onclick="location.href='/dashboard'" style="margin-top:28px">Fortsæt i browseren i stedet</button>
     </section>
@@ -720,6 +719,24 @@
   function goBack() {
     const target = BACK_TARGET[currentScreen];
     if (target) goTo(target);
+  }
+
+  // Kort grønt ✓ på knappen, før siden glider videre — samme rytme som
+  // "✓ Nummer forbundet" og "✓ Gemt", bare for knapper uden serverarbejde.
+  function bekraeftOgVidere(btn, target) {
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const orig = btn.innerHTML;
+    btn.textContent = '✓';
+    btn.classList.add('ok');
+    setTimeout(() => {
+      goTo(target);
+      setTimeout(() => {
+        btn.classList.remove('ok');
+        btn.innerHTML = orig;
+        delete btn.dataset.busy;
+      }, 400);
+    }, 800);
   }
 
   // ── Supabase-klient (miljøet kommer ALTID fra /config.js) ─────────
@@ -1111,6 +1128,13 @@
     try {
       await ensureRendered();
       stopAudio();
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
       goTo('s-5');
     } catch (e) {
       hint.textContent = 'Kunne ikke gemme. Tjek din forbindelse og prøv igen.';
@@ -1180,6 +1204,8 @@
         status.className = 'status ok';
         status.textContent = 'Klar.';
         document.getElementById('verify-spin').style.display = 'none';
+        document.getElementById('verify-label').textContent = '✓';
+        document.getElementById('verify-btn').classList.add('ok');
         setTimeout(() => goTo('s-7'), 1200);
         return;
       }
@@ -1200,7 +1226,7 @@
   }
 
   // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
-  function startInstall() {
+  function startInstall(btn) {
     const ua    = navigator.userAgent || '';
     const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
                   (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
@@ -1212,8 +1238,7 @@
     document.getElementById('inst2-sub').innerHTML      = isIOS
       ? 'Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.'
       : 'Bekræft med <strong>Tilføj</strong>.';
-    document.getElementById('browser-name').textContent = isIOS ? 'Safari' : 'Chrome';
-    goTo('s-9');
+    bekraeftOgVidere(btn, 's-9');
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
