@@ -350,6 +350,14 @@
       text-decoration: none;
     }
 
+    /* Grøn kvittering øverst: forrige trin er i hus */
+    .carry {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 14px;
+    }
+
     /* Kort ✓-tilstand på knapper */
     .btn.ok { background: var(--success); }
 
@@ -466,7 +474,7 @@
 
     <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
     <section class="screen" id="s-1">
-      <h1 class="h-xl">Velkommen 👋</h1>
+      <h1 class="h-xl">Velkommen</h1>
       <p class="sub">Lad os sætte Dit Digitale Kontor op.</p>
 
       <!-- Variant A: nummeret kendes allerede — bekræft det -->
@@ -553,6 +561,7 @@
 
     <!-- ── SIDE 5: VIDERESTILLING ─────────────────────────── -->
     <section class="screen" id="s-5">
+      <p class="carry">✓ Beskeden er klar.</p>
       <h1>Viderestilling</h1>
 
       <div class="steps">
@@ -589,6 +598,7 @@
 
     <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
     <section class="screen" id="s-6">
+      <p class="carry">✓ Viderestilling er aktiv.</p>
       <h1>Test</h1>
       <div class="phone-emoji">📱</div>
       <p class="sub" id="verify-sub">Om lidt ringer vi.<br>Lad telefonen ringe — svar ikke.</p>
@@ -598,25 +608,20 @@
       </button>
     </section>
 
-    <!-- ── SIDE 7: DET VIRKER ─────────────────────────────── -->
+    <!-- ── SIDE 7: ALT VIRKER ─────────────────────────────── -->
     <section class="screen" id="s-7">
       <div class="check">✓</div>
-      <h1 class="h-xl">Perfekt.</h1>
-      <p class="sub">Dit Digitale Kontor er nu klar.<br>Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
-      <div class="number-box">
-        <div class="label">Dit nummer</div>
-        <div class="value" id="success-number">+45 12 34 56 78</div>
-      </div>
-      <button class="btn" onclick="goTo('s-8')">Videre</button>
+      <h1 class="h-xl">Alt virker.</h1>
+      <p class="sub">Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-8')">Videre</button>
     </section>
 
-    <!-- ── SIDE 8: ALT VIRKER — SIDSTE TRIN ───────────────── -->
+    <!-- ── SIDE 8: SIDSTE TRIN ────────────────────────────── -->
     <section class="screen" id="s-8">
       <div class="check">✓</div>
-      <h1 class="h-xl">Alt virker.</h1>
-      <p class="question">Sidste trin</p>
-      <p class="sub">Læg Dit Digitale Kontor på din telefon,<br>så er Dit Digitale Kontor altid lige ved hånden.</p>
-      <button class="btn" id="install-btn" onclick="startInstall(this)">Kom videre</button>
+      <h1 class="h-xl">Sidste trin</h1>
+      <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
+      <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
@@ -965,7 +970,7 @@
       }
       state.ownerPhone = phone;
       // Kort ✓-bekræftelse, før vi glider videre
-      label.textContent = '✓ Nummer forbundet';
+      label.textContent = '✓';
       spin.style.display = 'none';
       const btnEl = label.closest('button');
       btnEl.classList.add('ok');
@@ -1019,7 +1024,7 @@
         }
       }
       // Kort ✓-bekræftelse, før vi glider videre
-      label.textContent = '✓ Gemt';
+      label.textContent = '✓';
       spin.style.display = 'none';
       const btnEl = label.closest('button');
       btnEl.classList.add('ok');
