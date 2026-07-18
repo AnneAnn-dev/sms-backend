@@ -50,8 +50,16 @@ module.exports = (app, supabase) => {
     });
     if (error) throw error;
     const tokenHash = data?.properties?.hashed_token;
+    // Samme token i to former: linket (hashed_token) OG en 6-cifret engangskode
+    // (email_otp). Koden er vejen ind i den INSTALLEREDE app, hvor mail-linket
+    // ellers ville aabne i Safari (delt-lager-faelden, kodeopgave 1 i runbook).
+    // Begge er engangsbrug — bruges den ene, doer den anden. Det er fint.
+    const otpCode   = data?.properties?.email_otp || null;
     if (!tokenHash) throw new Error("generateLink gav intet hashed_token");
-    return `${BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`;
+    return {
+      url: `${BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`,
+      otpCode,
+    };
   }
 
   // ─── Endpoint ────────────────────────────────────────────────────────────────
@@ -88,8 +96,8 @@ module.exports = (app, supabase) => {
         .maybeSingle();
 
       if (firm) {
-        const loginUrl = await buildMagicLink(email);
-        const mailResult = await sendLoginLinkMail({ to: email, loginUrl });
+        const { url: loginUrl, otpCode } = await buildMagicLink(email);
+        const mailResult = await sendLoginLinkMail({ to: email, loginUrl, otpCode });
         if (mailResult?.blocked) {
           console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", email);
         } else {

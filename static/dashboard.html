@@ -312,9 +312,9 @@
     <h1>Log ind</h1>
     <p>Din opgaveoversigt</p>
     <label>Email</label>
-    <input type="email" id="email" placeholder="jens@vvs.dk">
+    <input type="email" id="email" name="email" autocomplete="email" placeholder="jens@vvs.dk">
     <label>Adgangskode</label>
-    <input type="password" id="password" placeholder="••••••••">
+    <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••">
     <button class="btn" id="login-btn">Log ind</button>
     <div class="error" id="login-error"></div>
 
@@ -323,6 +323,18 @@
       Kan du ikke logge ind? Send mig et login-link
     </button>
     <div class="login-note" id="magic-link-status"></div>
+
+    <!-- Engangskode fra rescue-mailen: vejen ind i den INSTALLEREDE app, hvor
+         mail-linket ellers aabner i Safari (delt-lager-faelden). Vises foerst
+         naar der er bestilt en mail. autocomplete="one-time-code" faar iOS til
+         at foreslaa koden direkte fra Mail-appen over tastaturet. -->
+    <div id="otp-row" style="display:none;margin-top:14px">
+      <label>Engangskode fra mailen</label>
+      <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="6" placeholder="123456"
+             onkeydown="if(event.key==='Enter')loginWithOtp()">
+      <button class="btn" type="button" id="otp-btn" onclick="loginWithOtp()">Log ind med koden</button>
+    </div>
   </div>
 </div>
 
@@ -798,9 +810,54 @@
     }
 
     // Samme svar uanset om e-mailen findes (ingen email-enumeration)
-    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt et login-link. Tjek din indbakke (og evt. spam).';
+    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
     btn.disabled = false;
     btn.textContent = original;
+
+    // Kodefeltet frem: i den installerede app er koden den ENESTE glatte vej ind.
+    const otpRow = document.getElementById('otp-row');
+    otpRow.style.display = 'block';
+    document.getElementById('otp-code').focus();
+  }
+
+  // ── Log ind med engangskoden fra rescue-mailen ──────────────────────────
+  // verifyOtp forbruger samme underliggende token som mail-linket — engangsbrug.
+  // Fejler koden, er den typisk brugt (linket blev aabnet foerst) eller udloebet.
+  async function loginWithOtp() {
+    const email  = document.getElementById('email').value.trim();
+    const code   = document.getElementById('otp-code').value.trim();
+    const status = document.getElementById('magic-link-status');
+    const btn    = document.getElementById('otp-btn');
+
+    status.style.color = 'var(--ink-muted)';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Skriv din e-mail i feltet øverst først.';
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Koden er de 6 cifre fra mailen.';
+      return;
+    }
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Logger ind…';
+    try {
+      const { error } = await db.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error) {
+        status.style.color = 'var(--danger)';
+        status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
+      }
+      // Succes haandteres af onAuthStateChange: login skjules, appen loader.
+    } catch (e) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
   }
 
 
