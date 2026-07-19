@@ -906,9 +906,13 @@
     document.getElementById('login-error').textContent = '';
     const otpRow = document.getElementById('otp-row');
     otpRow.style.display = 'block';
-    // Teksten hoerer hjemme UNDER kodefeltet (Anns spec 19/7) — flyt selve
-    // elementet, saa baade vejledning og evt. fejl lander ved handlingen.
-    otpRow.after(document.getElementById('magic-link-status'));
+    // Tekst OG "send mig et link"-knappen hoerer hjemme UNDER kodefeltet i
+    // kodetilstand (Anns spec 19/7) — flyt selve elementerne, saa vejledning,
+    // evt. fejl og gensend-muligheden alle lander ved handlingen. Raekkefoelge:
+    // kodefelt -> status -> gensend-knap.
+    const statusEl = document.getElementById('magic-link-status');
+    otpRow.after(statusEl);
+    statusEl.after(document.getElementById('magic-link-btn'));
     document.getElementById('otp-code').focus();
   }
 
