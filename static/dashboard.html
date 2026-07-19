@@ -407,7 +407,7 @@
     <div id="otp-row" style="display:none;margin-top:14px">
       <label for="otp-code">Engangskode fra mailen</label>
       <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
-             maxlength="10" placeholder="12345678"
+             maxlength="10" placeholder="123456"
              onkeydown="if(event.key==='Enter')loginWithOtp()">
       <button class="btn" type="button" id="otp-btn" onclick="loginWithOtp()">Log ind med koden</button>
     </div>
@@ -849,6 +849,13 @@
     const { error } = await db.auth.signInWithPassword({ email, password });
     if (error) {
       document.getElementById('login-error').textContent = 'Forkert email eller adgangskode';
+    } else {
+      // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over.
+      const btn = document.getElementById('login-btn');
+      btn.textContent = '✓';
+      btn.style.background = 'var(--success)';
+      btn.disabled = true;
+      document.getElementById('login-error').textContent = '';
     }
   }
 
@@ -899,6 +906,9 @@
     document.getElementById('login-error').textContent = '';
     const otpRow = document.getElementById('otp-row');
     otpRow.style.display = 'block';
+    // Teksten hoerer hjemme UNDER kodefeltet (Anns spec 19/7) — flyt selve
+    // elementet, saa baade vejledning og evt. fejl lander ved handlingen.
+    otpRow.after(document.getElementById('magic-link-status'));
     document.getElementById('otp-code').focus();
   }
 
@@ -934,14 +944,22 @@
       if (error) {
         status.style.color = 'var(--danger)';
         status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
+      } else {
+        // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over
+        // (onAuthStateChange skjuler login og loader dashboardet).
+        btn.textContent = '✓';
+        btn.style.background = 'var(--success)';
+        status.textContent = '';
+        return;   // ingen nulstilling — skaermen forsvinder om et oejeblik
       }
-      // Succes haandteres af onAuthStateChange: login skjules, appen loader.
     } catch (e) {
       status.style.color = 'var(--danger)';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
     } finally {
-      btn.disabled = false;
-      btn.textContent = original;
+      if (btn.textContent !== '✓') {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
     }
   }
 
