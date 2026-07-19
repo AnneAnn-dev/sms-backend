@@ -890,7 +890,13 @@
     btn.disabled = false;
     btn.textContent = original;
 
-    // Kodefeltet frem: i den installerede app er koden den ENESTE glatte vej ind.
+    // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
+    // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
+    // E-mail-feltet BLIVER staaende: verifyOtp skal bruge det. Fortryder man,
+    // nulstiller et genindlaes af siden til normal login.
+    document.getElementById('password').closest('.lfield').style.display = 'none';
+    document.getElementById('login-btn').style.display = 'none';
+    document.getElementById('login-error').textContent = '';
     const otpRow = document.getElementById('otp-row');
     otpRow.style.display = 'block';
     document.getElementById('otp-code').focus();
