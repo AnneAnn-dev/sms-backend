@@ -57,11 +57,85 @@
     body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--smoke); color: var(--ink); }
     h1, h2, h3, h4 { font-family: 'Nunito', sans-serif; font-weight: 800; line-height: 1.2; }
 
-    /* Login */
-    #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
-    .login-card { background: var(--white); border-radius: var(--radius-lg); padding: 32px; width: 100%; max-width: 400px; border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(26,58,92,.10); }
-    .login-card h1 { font-size: 24px; color: var(--navy); margin-bottom: 8px; }
-    .login-card p { color: var(--ink-muted); font-size: 15px; margin-bottom: 24px; }
+    /* ── Login: onboardingens sprog — hvid flade, ingen kort-ramme (16-17/7-designet).
+       Alt er scoped under #login-screen, saa resten af dashboardet (inkl. den
+       globale .btn, som Log ud-knappen bruger) er uroert. Tokens er onboardingens
+       vaerdier, sat LOKALT her — trin 2 i restylingen goer dem globale. ── */
+    #login-screen {
+      --ink:    #16232F;   /* onboardingens ink (dashboardets er #1C2A38) */
+      --muted:  #5B6B7A;
+      --accent: #2C6B9E;   /* = --steel; samme farve, onboardingens navn */
+      --line:   #E4E9EF;   /* feltkanter (dashboardets --border er #DDE4EC) */
+      --tint:   #F0F5FA;
+      --success:#2E7D52;
+      /* JS saetter statusfarver inline via var(--danger)/var(--ink-muted) —
+         her peger de paa onboardingens toner, uden at JS roeres: */
+      --danger: #C24444;
+      --ink-muted: #5B6B7A;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 28px 24px 48px;
+      background: #FFFFFF; color: var(--ink); text-align: center;
+      font-size: 16px; line-height: 1.55;
+    }
+    #login-screen .login-card { width: 100%; max-width: 420px; background: none; border: none; box-shadow: none; padding: 0; }
+    #login-screen h1 { font-size: 26px; line-height: 1.25; color: var(--ink); margin-bottom: 12px; }
+    #login-screen .sub { color: var(--muted); font-size: 16px; max-width: 32ch; margin: 0 auto 8px; }
+    #login-screen .lfield {
+      width: 100%; display: flex; align-items: stretch;
+      border: 1.5px solid var(--line); border-radius: 14px;
+      background: #fff; overflow: hidden; text-align: left;
+      margin-top: 24px; transition: border-color .15s ease;
+    }
+    #login-screen .lfield + .lfield { margin-top: 14px; }
+    #login-screen .lfield:focus-within { border-color: var(--accent); }
+    #login-screen .lfield input {
+      flex: 1; min-width: 0; border: none; outline: none;
+      padding: 15px 16px; font-size: 17px;
+      font-family: 'Source Sans 3', sans-serif;
+      color: var(--ink); background: transparent; border-radius: 0;
+    }
+    #login-screen .lfield input:focus { box-shadow: none; border-color: transparent; background: transparent; }
+    #login-screen .btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; min-height: 54px; margin-top: 28px; padding: 0 16px;
+      border: none; border-radius: 14px;
+      background: var(--accent); color: #fff;
+      font-family: 'Source Sans 3', sans-serif; font-size: 17px; font-weight: 600;
+      cursor: pointer; transition: transform .1s ease, opacity .15s ease;
+    }
+    #login-screen .btn:hover { background: var(--accent); transform: none; } /* neutraliserer globalt hover-loeft (touch-foerst) */
+    #login-screen .btn:active { transform: scale(.98); }
+    #login-screen .btn:disabled { opacity: .55; cursor: default; }
+    #login-screen .error { color: var(--danger); font-size: 14px; margin-top: 10px; min-height: 20px; }
+    #login-screen .link-btn {
+      display: block; width: 100%; margin-top: 18px;
+      background: none; border: none; color: var(--muted);
+      font-family: 'Source Sans 3', sans-serif; font-size: 15px; font-weight: 400;
+      cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-align: center;
+    }
+    #login-screen .link-btn:disabled { opacity: .6; cursor: default; }
+    #login-screen .login-note { font-size: 15px; color: var(--muted); margin-top: 14px; min-height: 22px; line-height: 1.5; text-align: center; }
+    #login-screen label {
+      display: block; margin: 24px 0 0;
+      font-family: 'Source Sans 3', sans-serif; font-size: 14px; font-weight: 400;
+      color: var(--muted); text-transform: none; letter-spacing: 0; text-align: center;
+    }
+    #login-screen #otp-code {
+      width: 100%; margin-top: 10px; padding: 13px 16px;
+      border: 1.5px solid var(--line); border-radius: 14px;
+      font-family: 'Source Sans 3', sans-serif; font-size: 20px;
+      text-align: center; letter-spacing: .14em; font-variant-numeric: tabular-nums;
+      color: var(--ink); background: #fff; outline: none;
+      transition: border-color .15s ease;
+    }
+    #login-screen #otp-code:focus { border-color: var(--accent); box-shadow: none; }
+    #login-screen input:focus-visible, #login-screen .btn:focus-visible, #login-screen .link-btn:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #login-screen .lfield, #login-screen .btn, #login-screen #otp-code { transition: none; }
+      #login-screen .btn:active { transform: none; }
+    }
     label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-muted); margin-bottom: 8px; margin-top: 16px; font-family: 'Nunito', sans-serif; }
     input[type=email], input[type=password] { width: 100%; background: var(--steel-light); border: 2px solid var(--border); border-radius: 10px; padding: 13px 16px; font-size: 16px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; }
     input[type=email]:focus, input[type=password]:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.18); }
@@ -70,10 +144,6 @@
     .btn-sm { background: transparent; border: 1.5px solid rgba(255,255,255,.28); color: #fff; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; transition: all .2s; }
     .btn-sm:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
     .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
-    .link-btn { display: block; width: 100%; margin-top: 14px; background: none; border: none; color: var(--steel); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; text-align: center; }
-    .link-btn:hover { text-decoration: underline; }
-    .link-btn:disabled { opacity: .6; cursor: default; text-decoration: none; }
-    .login-note { font-size: 13px; color: var(--ink-muted); text-align: center; margin-top: 10px; line-height: 1.5; }
 
     /* App */
     #app { display: none; }
@@ -286,11 +356,11 @@
      Bevidst helt selvstændig (egen markup + eget script, ingen afhængigheder),
      så den aldrig kan vælte resten af dashboardet. -->
 <div id="app-hilsen" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
-  <div style="font-size:52px;margin-bottom:16px">👏</div>
-  <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Perfekt.</div>
-  <p style="color:#5B6B7A;font-size:16px;line-height:1.55;margin:0">Nu bruger du<br>Dit Digitale Kontor<br>som en rigtig app.</p>
+  <div style="width:64px;height:64px;border-radius:50%;background:#2E7D52;color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px">✓</div>
+  <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Dit Digitale Kontor er klar.</div>
+  
   <button onclick="document.getElementById('app-hilsen').style.display='none'"
-          style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Åbn dashboard</button>
+          style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Åbn</button>
 </div>
 <script>
   // Fejlsikker med vilje: localStorage kan kaste i visse private tilstande —
@@ -310,11 +380,17 @@
 <div id="login-screen">
   <div class="login-card">
     <h1>Log ind</h1>
-    <p>Din opgaveoversigt</p>
-    <label>Email</label>
-    <input type="email" id="email" placeholder="jens@vvs.dk">
-    <label>Adgangskode</label>
-    <input type="password" id="password" placeholder="••••••••">
+    <p class="sub">Din opgaveoversigt</p>
+    <!-- Felter i onboardingens .field-stil: placeholder + aria-label baerer
+         betydningen (som paa onboardingens skaerme), ingen VERSAL-labels.
+         autocomplete email/current-password er FREDET (runbook kodeopgave 1b:
+         iOS-noeglering paa tvaers af Safari og app). -->
+    <div class="lfield">
+      <input type="email" id="email" name="email" autocomplete="email" placeholder="din@mail.dk" aria-label="E-mail">
+    </div>
+    <div class="lfield">
+      <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Adgangskode" aria-label="Adgangskode">
+    </div>
     <button class="btn" id="login-btn">Log ind</button>
     <div class="error" id="login-error"></div>
 
@@ -323,6 +399,18 @@
       Kan du ikke logge ind? Send mig et login-link
     </button>
     <div class="login-note" id="magic-link-status"></div>
+
+    <!-- Engangskode fra rescue-mailen: vejen ind i den INSTALLEREDE app, hvor
+         mail-linket ellers aabner i Safari (delt-lager-faelden). Vises foerst
+         naar der er bestilt en mail. autocomplete="one-time-code" faar iOS til
+         at foreslaa koden direkte fra Mail-appen over tastaturet. -->
+    <div id="otp-row" style="display:none;margin-top:14px">
+      <label for="otp-code">Engangskode fra mailen</label>
+      <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="10" placeholder="123456"
+             onkeydown="if(event.key==='Enter')loginWithOtp()">
+      <button class="btn" type="button" id="otp-btn" onclick="loginWithOtp()">Log ind med koden</button>
+    </div>
   </div>
 </div>
 
@@ -761,6 +849,13 @@
     const { error } = await db.auth.signInWithPassword({ email, password });
     if (error) {
       document.getElementById('login-error').textContent = 'Forkert email eller adgangskode';
+    } else {
+      // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over.
+      const btn = document.getElementById('login-btn');
+      btn.textContent = '✓';
+      btn.style.background = 'var(--success)';
+      btn.disabled = true;
+      document.getElementById('login-error').textContent = '';
     }
   }
 
@@ -798,9 +893,78 @@
     }
 
     // Samme svar uanset om e-mailen findes (ingen email-enumeration)
-    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt et login-link. Tjek din indbakke (og evt. spam).';
+    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
     btn.disabled = false;
     btn.textContent = original;
+
+    // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
+    // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
+    // E-mail-feltet BLIVER staaende: verifyOtp skal bruge det. Fortryder man,
+    // nulstiller et genindlaes af siden til normal login.
+    document.getElementById('password').closest('.lfield').style.display = 'none';
+    document.getElementById('login-btn').style.display = 'none';
+    document.getElementById('login-error').textContent = '';
+    const otpRow = document.getElementById('otp-row');
+    otpRow.style.display = 'block';
+    // Tekst OG "send mig et link"-knappen hoerer hjemme UNDER kodefeltet i
+    // kodetilstand (Anns spec 19/7) — flyt selve elementerne, saa vejledning,
+    // evt. fejl og gensend-muligheden alle lander ved handlingen. Raekkefoelge:
+    // kodefelt -> status -> gensend-knap.
+    const statusEl = document.getElementById('magic-link-status');
+    otpRow.after(statusEl);
+    statusEl.after(document.getElementById('magic-link-btn'));
+    document.getElementById('otp-code').focus();
+  }
+
+  // ── Log ind med engangskoden fra rescue-mailen ──────────────────────────
+  // verifyOtp forbruger samme underliggende token som mail-linket — engangsbrug.
+  // Fejler koden, er den typisk brugt (linket blev aabnet foerst) eller udloebet.
+  async function loginWithOtp() {
+    const email  = document.getElementById('email').value.trim();
+    // Fjern mellemrum fra kopiering — og accepter 6-10 cifre: kodens laengde
+    // er en Supabase-PROJEKTINDSTILLING (Auth -> Email -> OTP length), ikke en
+    // konstant. 18/7-laerdom: feltet var haardkodet til 6, projektet sender 8.
+    const code   = document.getElementById('otp-code').value.replace(/\s+/g, '');
+    const status = document.getElementById('magic-link-status');
+    const btn    = document.getElementById('otp-btn');
+
+    status.style.color = 'var(--ink-muted)';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Skriv din e-mail i feltet øverst først.';
+      return;
+    }
+    if (!/^\d{6,10}$/.test(code)) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Koden er cifrene fra mailen — kun tal, ingen mellemrum.';
+      return;
+    }
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Logger ind…';
+    try {
+      const { error } = await db.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error) {
+        status.style.color = 'var(--danger)';
+        status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
+      } else {
+        // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over
+        // (onAuthStateChange skjuler login og loader dashboardet).
+        btn.textContent = '✓';
+        btn.style.background = 'var(--success)';
+        status.textContent = '';
+        return;   // ingen nulstilling — skaermen forsvinder om et oejeblik
+      }
+    } catch (e) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      if (btn.textContent !== '✓') {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
   }
 
 

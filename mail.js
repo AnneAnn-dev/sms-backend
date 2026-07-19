@@ -131,7 +131,20 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 // — og en tryghedslinje i bunden, hvis mailen skulle komme uopfordret.
 // Gaar gennem samme sendViaScaleway-chokepoint, saa staging-gate/fail-closed
 // gaelder automatisk. Returnerer ligeledes { blocked: true } ved blokering.
-async function sendLoginLinkMail({ to, loginUrl }) {
+async function sendLoginLinkMail({ to, loginUrl, otpCode }) {
+  // otpCode (6 cifre, valgfri) er samme engangstoken som linket, bare i
+  // tastbar form. Den er vejen ind i den INSTALLEREDE app, hvor linket ellers
+  // aabner i Safari (delt-lager-faelden — kodeopgave 1 i runbook). Mangler
+  // koden, sendes mailen som foer, blot uden kode-afsnittet.
+  const otpBlok = otpCode ? `
+        <p style="color:#555;font-size:14px;margin-top:28px;margin-bottom:8px">
+          Logger du ind i appen på din telefon? Skriv i stedet denne engangskode:
+        </p>
+        <div style="background:#f5f5f5;border-radius:8px;padding:14px 24px;font-size:26px;
+                    font-weight:700;letter-spacing:0.35em;text-align:center;margin-bottom:8px">
+          ${otpCode}
+        </div>` : "";
+
   return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
@@ -148,8 +161,10 @@ async function sendLoginLinkMail({ to, loginUrl }) {
                   border-radius:8px;text-decoration:none;font-weight:500;font-size:16px">
           Log ind
         </a>
+        ${otpBlok}
         <p style="color:#555;font-size:14px;margin-top:24px">
-          Linket er gyldigt i 24 timer og kan bruges én gang.
+          Link og kode er gyldige i 24 timer og kan bruges én gang — bruger du
+          den ene, gælder den anden ikke længere.
         </p>
         <p style="color:#aaa;font-size:13px;margin-top:32px">
           Har du ikke selv bedt om det, kan du roligt ignorere denne mail —

@@ -350,6 +350,14 @@
       text-decoration: none;
     }
 
+    /* Grøn kvittering øverst: forrige trin er i hus */
+    .carry {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 14px;
+    }
+
     /* Kort ✓-tilstand på knapper */
     .btn.ok { background: var(--success); }
 
@@ -466,12 +474,12 @@
 
     <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
     <section class="screen" id="s-1">
-      <h1 class="h-xl">Velkommen 👋</h1>
+      <h1 class="h-xl">Velkommen</h1>
       <p class="sub">Lad os sætte Dit Digitale Kontor op.</p>
 
       <!-- Variant A: nummeret kendes allerede — bekræft det -->
       <div id="phone-confirm" style="display:none;width:100%">
-        <p class="question">Hvilket nummer skal vi passe på?</p>
+        <p class="question">Er det dit nummer?</p>
         <div class="big-number" id="owner-number-display">+45 12 34 56 78</div>
         <p class="sub">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
         <button class="btn" onclick="confirmOwnerPhone()">
@@ -482,7 +490,7 @@
 
       <!-- Variant B: intet nummer endnu — indtast det -->
       <div id="phone-entry" style="display:none;width:100%">
-        <p class="question">Hvilket nummer skal vi passe på?</p>
+        <p class="question">Hvad er dit nummer?</p>
         <div class="field" id="owner-field">
           <span class="prefix">+45</span>
           <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
@@ -553,6 +561,7 @@
 
     <!-- ── SIDE 5: VIDERESTILLING ─────────────────────────── -->
     <section class="screen" id="s-5">
+      <p class="carry">✓ Beskeden er klar.</p>
       <h1>Viderestilling</h1>
 
       <div class="steps">
@@ -584,11 +593,12 @@
         </div>
       </details>
 
-      <button class="btn" onclick="goTo('s-6')">Jeg har gjort det</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-6')">Jeg har gjort det</button>
     </section>
 
     <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
     <section class="screen" id="s-6">
+      <p class="carry">✓ Viderestilling er aktiv.</p>
       <h1>Test</h1>
       <div class="phone-emoji">📱</div>
       <p class="sub" id="verify-sub">Om lidt ringer vi.<br>Lad telefonen ringe — svar ikke.</p>
@@ -598,26 +608,20 @@
       </button>
     </section>
 
-    <!-- ── SIDE 7: DET VIRKER ─────────────────────────────── -->
+    <!-- ── SIDE 7: ALT VIRKER ─────────────────────────────── -->
     <section class="screen" id="s-7">
       <div class="check">✓</div>
-      <h1 class="h-xl">Perfekt.</h1>
-      <p class="sub">Dit Digitale Kontor er nu klar.<br>Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
-      <div class="number-box">
-        <div class="label">Dit nummer</div>
-        <div class="value" id="success-number">+45 12 34 56 78</div>
-      </div>
-      <button class="btn" onclick="goTo('s-8')">Videre</button>
+      <h1 class="h-xl">Alt virker.</h1>
+      <p class="sub">Fra nu af bliver ubesvarede opkald sendt videre automatisk.</p>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-8')">Videre</button>
     </section>
 
-    <!-- ── SIDE 8: INSTALLER APP (intro) ──────────────────── -->
+    <!-- ── SIDE 8: SIDSTE TRIN ────────────────────────────── -->
     <section class="screen" id="s-8">
       <div class="check">✓</div>
-      <h1>Dit Digitale Kontor er klar.</h1>
-      <p class="sub">Læg appen på din startskærm,<br>så er den altid ét tryk væk.</p>
-      <div class="phone-emoji">📱</div>
-
-      <button class="btn" id="install-btn" onclick="startInstall()">Installer app</button>
+      <h1 class="h-xl">Sidste trin</h1>
+      <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
+      <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
@@ -661,7 +665,7 @@
           <circle cx="238" cy="77" r="14" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
         </svg>
       </div>
-      <button class="btn" onclick="goTo('s-10')">Næste</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-10')">Næste</button>
     </section>
 
     <!-- ── SIDE 10: INSTALLATION, TRIN 2 AF 2 ─────────────── -->
@@ -674,20 +678,20 @@
           <rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/>
         </svg>
       </div>
-      <button class="btn" onclick="goTo('s-11')">Jeg har installeret appen</button>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-11')">Jeg har lagt den på min telefon</button>
     </section>
 
-    <!-- ── SIDE 11: ÅBN FRA IKONET (vi venter) ────────────── -->
+    <!-- ── SIDE 11: FÆRDIG — ÅBN FRA IKONET ───────────────── -->
     <section class="screen" id="s-11">
-      <div class="phone-emoji">🎉</div>
-      <h1>Nu ligger Dit Digitale Kontor<br>på din telefon.</h1>
-      <p class="sub">Luk <span id="browser-name">Safari</span>.<br>Åbn appen fra ikonet.</p>
+      <div class="check">✓</div>
+      <h1 class="h-xl">Færdig.</h1>
+      <p class="sub">Dit Digitale Kontor ligger nu på din telefon.</p>
       <div class="home-icon" id="home-icon">
         <img src="/apple-touch-icon.png?v=2" alt=""
              onload="this.parentElement.classList.add('show')">
         <div class="icon-label">Dit Kontor</div>
       </div>
-      <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Vi venter på dig.</p>
+      <p class="sub" style="margin-top:20px;font-weight:600;color:var(--ink)">Åbn Dit Digitale Kontor fra ikonet.</p>
       <button class="linklike" onclick="goTo('s-9')">Kan du ikke finde ikonet? Prøv igen</button>
       <button class="linklike ghost" onclick="location.href='/dashboard'" style="margin-top:28px">Fortsæt i browseren i stedet</button>
     </section>
@@ -720,6 +724,24 @@
   function goBack() {
     const target = BACK_TARGET[currentScreen];
     if (target) goTo(target);
+  }
+
+  // Kort grønt ✓ på knappen, før siden glider videre — samme rytme som
+  // "✓ Nummer forbundet" og "✓ Gemt", bare for knapper uden serverarbejde.
+  function bekraeftOgVidere(btn, target) {
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const orig = btn.innerHTML;
+    btn.textContent = '✓';
+    btn.classList.add('ok');
+    setTimeout(() => {
+      goTo(target);
+      setTimeout(() => {
+        btn.classList.remove('ok');
+        btn.innerHTML = orig;
+        delete btn.dataset.busy;
+      }, 400);
+    }, 800);
   }
 
   // ── Supabase-klient (miljøet kommer ALTID fra /config.js) ─────────
@@ -801,19 +823,24 @@
   }
 
   // ── Udfyld UI og vis side 1 ────────────────────────────────────────
+  // Skriv kun, hvis elementet findes — designet ændrer sig hurtigere end
+  // scriptet, og et manglende element må ALDRIG vælte hele flowet (det gjorde
+  // det 17/7: slettet nummer-boks -> TypeError -> alle så udløbet-skærmen).
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
   function startFlow() {
-    // Nummeret kan mangle (provisioneringsfejl) — siden skal stadig kunne åbne.
-    const fmt = formatDK(state.phoneNumber) || '(nummer på vej)';
-    document.getElementById('success-number').textContent = fmt;
-    document.getElementById('cf-code').textContent     = `**61*${state.phoneNumber || ''}#`;
-    document.getElementById('cf-code-alt').textContent = `*61*${state.phoneNumber || ''}#`;
+    setText('cf-code',     `**61*${state.phoneNumber || ''}#`);
+    setText('cf-code-alt', `*61*${state.phoneNumber || ''}#`);
 
     document.getElementById('greeting').value = state.greeting;
     selectVoice(state.voice, true);
 
     // Side 1: bekræft kendt mobilnummer — eller indtast det
     if (state.ownerPhone) {
-      document.getElementById('owner-number-display').textContent = formatDK(state.ownerPhone);
+      setText('owner-number-display', formatDK(state.ownerPhone));
       document.getElementById('phone-confirm').style.display = 'block';
     } else {
       document.getElementById('phone-entry').style.display = 'block';
@@ -948,7 +975,7 @@
       }
       state.ownerPhone = phone;
       // Kort ✓-bekræftelse, før vi glider videre
-      label.textContent = '✓ Nummer forbundet';
+      label.textContent = '✓';
       spin.style.display = 'none';
       const btnEl = label.closest('button');
       btnEl.classList.add('ok');
@@ -1002,7 +1029,7 @@
         }
       }
       // Kort ✓-bekræftelse, før vi glider videre
-      label.textContent = '✓ Gemt';
+      label.textContent = '✓';
       spin.style.display = 'none';
       const btnEl = label.closest('button');
       btnEl.classList.add('ok');
@@ -1111,6 +1138,13 @@
     try {
       await ensureRendered();
       stopAudio();
+      // Kort ✓-bekræftelse, før vi glider videre
+      label.textContent = '✓';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
       goTo('s-5');
     } catch (e) {
       hint.textContent = 'Kunne ikke gemme. Tjek din forbindelse og prøv igen.';
@@ -1180,6 +1214,8 @@
         status.className = 'status ok';
         status.textContent = 'Klar.';
         document.getElementById('verify-spin').style.display = 'none';
+        document.getElementById('verify-label').textContent = '✓';
+        document.getElementById('verify-btn').classList.add('ok');
         setTimeout(() => goTo('s-7'), 1200);
         return;
       }
@@ -1200,7 +1236,7 @@
   }
 
   // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
-  function startInstall() {
+  function startInstall(btn) {
     const ua    = navigator.userAgent || '';
     const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
                   (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
@@ -1212,8 +1248,7 @@
     document.getElementById('inst2-sub').innerHTML      = isIOS
       ? 'Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.'
       : 'Bekræft med <strong>Tilføj</strong>.';
-    document.getElementById('browser-name').textContent = isIOS ? 'Safari' : 'Chrome';
-    goTo('s-9');
+    bekraeftOgVidere(btn, 's-9');
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
