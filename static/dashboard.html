@@ -407,7 +407,7 @@
     <div id="otp-row" style="display:none;margin-top:14px">
       <label for="otp-code">Engangskode fra mailen</label>
       <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
-             maxlength="6" placeholder="123456"
+             maxlength="10" placeholder="12345678"
              onkeydown="if(event.key==='Enter')loginWithOtp()">
       <button class="btn" type="button" id="otp-btn" onclick="loginWithOtp()">Log ind med koden</button>
     </div>
@@ -901,7 +901,10 @@
   // Fejler koden, er den typisk brugt (linket blev aabnet foerst) eller udloebet.
   async function loginWithOtp() {
     const email  = document.getElementById('email').value.trim();
-    const code   = document.getElementById('otp-code').value.trim();
+    // Fjern mellemrum fra kopiering — og accepter 6-10 cifre: kodens laengde
+    // er en Supabase-PROJEKTINDSTILLING (Auth -> Email -> OTP length), ikke en
+    // konstant. 18/7-laerdom: feltet var haardkodet til 6, projektet sender 8.
+    const code   = document.getElementById('otp-code').value.replace(/\s+/g, '');
     const status = document.getElementById('magic-link-status');
     const btn    = document.getElementById('otp-btn');
 
@@ -911,9 +914,9 @@
       status.textContent = 'Skriv din e-mail i feltet øverst først.';
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
+    if (!/^\d{6,10}$/.test(code)) {
       status.style.color = 'var(--danger)';
-      status.textContent = 'Koden er de 6 cifre fra mailen.';
+      status.textContent = 'Koden er cifrene fra mailen — kun tal, ingen mellemrum.';
       return;
     }
 
