@@ -424,7 +424,7 @@ module.exports = function registerOnboarding(app, supabase) {
       await twilioClient.calls.create({
         to:    callTo,
         from:  process.env.TWILIO_SYSTEM_NUMBER,
-        twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Hej. Det her er en automatisk test fra Lomme Kontor. Du har taget telefonen, men for at teste din viderestilling skal du lade være med at svare. Læg på nu, gå tilbage til appen, og tryk Ring til mig igen. Lad så telefonen ringe uden at svare.</Say></Response>`,
+        twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Hej. Det her er en automatisk test fra Dit Digitale Kontor. Du har taget telefonen, men for at teste din viderestilling skal du lade være med at svare. Læg på nu, gå tilbage til appen, og tryk Ring til mig igen. Lad så telefonen ringe uden at svare.</Say></Response>`,
       });
 
       await supabase
