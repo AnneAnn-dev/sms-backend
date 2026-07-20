@@ -252,6 +252,14 @@
     .greeting-textarea:focus { border-color: var(--accent); box-shadow: none; }
     .greeting-count { font-size: 12px; color: var(--ink-muted); text-align: right; margin: 6px 0 14px; }
 
+    /* Sammenfoldelig hjaelp (native details/summary — ingen JS) */
+    .vs-details { margin-top: 4px; }
+    .vs-details summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); list-style: none; }
+    .vs-details summary::-webkit-details-marker { display: none; }
+    .vs-details summary::before { content: '▸ '; }
+    .vs-details[open] summary::before { content: '▾ '; }
+    .vs-details p { margin-top: 10px; }
+
     .greeting-preview { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1.5px solid var(--line); border-radius: 999px; padding: 9px 16px; color: var(--muted); font-size: 14px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; margin-bottom: 16px; transition: border-color .15s ease, color .15s ease; }
     .greeting-preview:hover { border-color: var(--steel); color: var(--steel); }
 
@@ -487,7 +495,7 @@
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
     <div class="greeting-card">
       <div class="greeting-title">Din telefonbesked</div>
-      <p class="greeting-help">Det her hører kunden, når du ikke når telefonen. Vælg en stemme og skriv din besked — den bliver læst op automatisk ved opkald.</p>
+      <p class="greeting-help">Det her hører kunden, når du ikke tager telefonen.</p>
 
       <div class="voice-options">
         <div class="voice-option" id="g-voice-female" onclick="selectGreetingVoice('female')">
@@ -507,7 +515,7 @@
       </div>
 
       <label class="greeting-label" for="g-text">Besked</label>
-      <textarea class="greeting-textarea" id="g-text" maxlength="300" oninput="updateGreetingCount()" placeholder="Fx: Hej, du har ringet til Hansens VVS. Jeg kan ikke tage telefonen lige nu — du får straks en SMS med et link, hvor du kan beskrive din opgave."></textarea>
+      <textarea class="greeting-textarea" id="g-text" maxlength="300" oninput="updateGreetingCount()" placeholder="Fx: Hej, du har ringet til [Firmanavn]. Jeg kan desværre ikke tage telefonen lige nu. Om et øjeblik modtager du en SMS, hvor du nemt kan beskrive din opgave. Jeg vender tilbage hurtigst muligt."></textarea>
       <div class="greeting-count"><span id="g-count">0</span> / 300 tegn</div>
 
       <button class="greeting-preview" id="g-preview-btn" type="button" onclick="previewGreetingVoice()">▶ Afspil stemme</button>
@@ -524,30 +532,33 @@
          mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
     <div class="greeting-card">
       <div class="greeting-title">Din viderestilling</div>
-      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor. Her er dit nummer og koderne — så du altid kan finde dem igen.</p>
+      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor.</p>
 
-      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Viderestil til dette nummer</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Dit Digitale Kontor-nummer:</div>
       <div id="vs-nummer" style="background:var(--smoke);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:20px;font-weight:800;letter-spacing:0.04em;text-align:center;margin-bottom:16px">—</div>
 
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling til:</strong> tast koden på din telefon og tryk ring op.</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Aktiver viderestilling:</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <code id="vs-kode-til" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;overflow-x:auto;white-space:nowrap">—</code>
         <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-til')">Kopiér</button>
       </div>
 
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling fra:</strong> fx ved ferie, eller hvis du selv vil tage alle opkald.</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Deaktiver viderestilling:</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <code id="vs-kode-fra" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;white-space:nowrap">##61#</code>
         <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-fra')">Kopiér</button>
       </div>
 
-      <p class="greeting-help" style="margin-bottom:0">Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+      <details class="vs-details">
+        <summary>Har du problemer med viderestilling?</summary>
+        <p class="greeting-help" style="margin-bottom:0">Tast koden på din telefon og tryk ring op — som et almindeligt opkald. Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+      </details>
     </div>
 
     <!-- Hvidliste: numre der ikke skal have opgaveformular -->
     <div class="wl-card">
-      <div class="wl-title">Numre uden opgaveformular <span class="wl-count" id="wl-count"></span></div>
-      <p class="wl-help">Disse numre får <strong>ikke</strong> en SMS med opgaveformular, når de ringer. De hører i stedet en kort besked om, at du ikke kan tage telefonen. God til familie, leverandører og sælgere.</p>
+      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
       <div class="wl-add">
         <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
         <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
@@ -575,7 +586,7 @@
       <div class="pw-msg" id="pw-msg"></div>
     </div>
 
-    <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
+    <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:var(--white);border-color:var(--line);color:var(--muted)">Log ud</button>
   </div>
 
   <!-- Side: Tips og tricks -->
