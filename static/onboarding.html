@@ -379,6 +379,7 @@
     .status { font-size: 15px; margin-top: 18px; min-height: 22px; color: var(--muted); }
     .status.ok  { color: var(--success); font-weight: 600; }
     .status.err { color: var(--error); }
+    #ob-otp-code { text-align: center; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
 
     /* ── Succes ── */
     .check {
@@ -469,7 +470,22 @@
       <button class="btn" id="relink-btn" onclick="requestNewLink()">
         <span id="relink-label">Send nyt link</span><span class="spinner" id="relink-spin"></span>
       </button>
+      <!-- Kodesporet (20/7, kodeopgave 1d): mailen har siden 17/7 OGSAA en
+           engangskode — nu har skaermen et sted at taste den. Vises efter
+           bestilt mail, eller via linket nedenfor hvis man allerede HAR koden
+           (fx mail laest paa en anden enhed). -->
+      <div id="ob-otp-row" style="display:none;width:100%;margin-top:14px">
+        <div class="field">
+          <input id="ob-otp-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="12" placeholder="Engangskode fra mailen" aria-label="Engangskode fra mailen"
+                 onkeydown="if(event.key==='Enter')loginMedKode()">
+        </div>
+        <button class="btn" id="ob-otp-btn" onclick="loginMedKode()">
+          <span id="ob-otp-label">Log ind med koden</span><span class="spinner" id="ob-otp-spin"></span>
+        </button>
+      </div>
       <p class="status" id="relink-status"></p>
+      <button class="linklike" id="ob-otp-toggle" onclick="visKodefelt(true)">Har du allerede en engangskode fra mailen?</button>
     </section>
 
     <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
@@ -626,11 +642,66 @@
       <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
 
-    <!-- ── SIDE 9: INSTALLATION, TRIN 1 AF 2 ──────────────── -->
+    <!-- ── SIDE 9: INSTALLATION 1/4 — HVOR SKAL DU KIGGE ──── -->
+    <!-- Ombygget 20/7 (Anns pilotobservation: brugeren "fjumrede rundt" og
+         vidste ikke, HVOR paa skaermen han skulle kigge): guiden gaar fra
+         2 til 4 trin — orientering -> knappen -> menuen -> Tilfoej. -->
     <section class="screen" id="s-9">
-      <p class="step-eyebrow">Trin 1 af 2</p>
-      <h1 id="inst1-title">Tryk på Del-ikonet</h1>
-      <p class="sub" id="inst1-sub">Du finder det nederst i Safari.</p>
+      <p class="step-eyebrow">Trin 1 af 4</p>
+      <h1 id="inst1-title">Kig nederst på skærmen</h1>
+      <p class="sub" id="inst1-sub">I bunden af Safari sidder en række knapper.</p>
+      <div class="inst-icon" aria-hidden="true">
+        <!-- iOS: siden daempet, bundlinjen fremhaevet -->
+        <svg id="orient-ios" width="270" height="150" viewBox="0 0 270 150" fill="none">
+          <g opacity=".35">
+            <rect x="24" y="10" width="222" height="12" rx="6" fill="#DDE3EA"/>
+            <rect x="24" y="32" width="180" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
+          </g>
+          <text x="135" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <path d="M135 97v10" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M130 103l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="8" y="114" width="254" height="30" rx="10" fill="#F0F3F7"/>
+          <g stroke="#9AA6B2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M44 125l-5 5 5 5"/>
+            <path d="M86 125l5 5-5 5"/>
+            <path d="M199 124h12v12h-12z"/>
+            <circle cx="230" cy="130" r="6"/>
+          </g>
+          <g stroke="#2C6B9E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M135 122v9"/><path d="M131 125l4-4 4 4"/><rect x="129" y="127" width="12" height="10" rx="2.5"/>
+          </g>
+          <rect x="10" y="116" width="250" height="26" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+        </svg>
+        <!-- Android: siden daempet, toplinjen fremhaevet -->
+        <svg id="orient-android" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
+          <rect x="8" y="34" width="254" height="34" rx="10" fill="#F0F3F7"/>
+          <rect x="20" y="42" width="188" height="18" rx="9" fill="#FFFFFF"/>
+          <text x="114" y="55" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <g fill="#2C6B9E">
+            <circle cx="240" cy="45" r="2"/><circle cx="240" cy="51" r="2"/><circle cx="240" cy="57" r="2"/>
+          </g>
+          <rect x="10" y="36" width="250" height="30" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="135" y="16" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Kig heroppe</text>
+          <path d="M135 20v6" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M130 22l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <g opacity=".35">
+            <rect x="24" y="82" width="205" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="96" width="180" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="110" width="222" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="124" width="150" height="8" rx="4" fill="#E6EBF1"/>
+          </g>
+        </svg>
+      </div>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-9b')">Næste</button>
+    </section>
+
+    <!-- ── SIDE 9b: INSTALLATION 2/4 — TRYK PÅ KNAPPEN ────── -->
+    <section class="screen" id="s-9b">
+      <p class="step-eyebrow">Trin 2 af 4</p>
+      <h1 id="inst2-title">Tryk på Del-ikonet</h1>
+      <p class="sub" id="inst2-sub">Firkanten med pilen, der peger op.</p>
       <div class="inst-icon" id="inst1-icon" aria-hidden="true">
         <!-- iOS: Safaris bundlinje med Del-ikonet markeret -->
         <svg id="mock-ios" width="270" height="128" viewBox="0 0 270 128" fill="none">
@@ -668,14 +739,91 @@
       <button class="btn" onclick="bekraeftOgVidere(this, 's-10')">Næste</button>
     </section>
 
-    <!-- ── SIDE 10: INSTALLATION, TRIN 2 AF 2 ─────────────── -->
+    <!-- ── SIDE 10: INSTALLATION 3/4 — MENUEN FOLDER SIG UD ── -->
     <section class="screen" id="s-10">
-      <p class="step-eyebrow">Trin 2 af 2</p>
-      <h1>Vælg<br>"<span id="inst2-name">Føj til hjemmeskærm</span>"</h1>
-      <p class="sub" id="inst2-sub">Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.</p>
+      <p class="step-eyebrow">Trin 3 af 4</p>
+      <h1>Menuen folder sig ud</h1>
+      <p class="sub">Find "<span id="inst3-name">Føj til hjemmeskærm</span>" og tryk på den.<br>Rul ned i listen, hvis du ikke kan se den.</p>
       <div class="inst-icon" aria-hidden="true">
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/>
+        <!-- iOS: delark nedefra med raekken fremhaevet -->
+        <svg id="menu-ios" width="270" height="168" viewBox="0 0 270 168" fill="none">
+          <rect x="30" y="14" width="210" height="154" rx="14" fill="#F0F3F7"/>
+          <rect x="123" y="22" width="24" height="4" rx="2" fill="#C7CFD8"/>
+          <rect x="44" y="34" width="120" height="10" rx="5" fill="#DDE3EA"/>
+          <g fill="#FFFFFF">
+            <rect x="40" y="54" width="190" height="26" rx="8"/>
+            <rect x="40" y="84" width="190" height="26" rx="8"/>
+            <rect x="40" y="114" width="190" height="26" rx="8"/>
+          </g>
+          <text x="52" y="71" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Kopiér</text>
+          <text x="52" y="101" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Føj til bogmærker</text>
+          <text x="52" y="131" font-size="11" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Føj til hjemmeskærm</text>
+          <g stroke="#2C6B9E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <rect x="206" y="119" width="15" height="15" rx="3.5"/><path d="M213.5 123v7M210 126.5h7"/>
+          </g>
+          <rect x="38" y="112" width="194" height="30" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="14" y="120" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif" transform="rotate(-90 14 120)">Tryk her</text>
+        </svg>
+        <!-- Android: rullemenu fra ⋮ med raekken fremhaevet -->
+        <svg id="menu-android" width="270" height="168" viewBox="0 0 270 168" fill="none" style="display:none">
+          <g opacity=".35">
+            <rect x="12" y="14" width="110" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="12" y="30" width="90" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="12" y="46" width="104" height="8" rx="4" fill="#E6EBF1"/>
+          </g>
+          <rect x="96" y="8" width="166" height="152" rx="12" fill="#FFFFFF" stroke="#E4E9EF" stroke-width="1.5"/>
+          <text x="110" y="30" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Ny fane</text>
+          <text x="110" y="56" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Historik</text>
+          <text x="110" y="82" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Del</text>
+          <text x="110" y="108" font-size="11" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Føj til startskærm</text>
+          <g stroke="#2C6B9E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <rect x="232" y="96" width="15" height="15" rx="3.5"/><path d="M239.5 100v7M236 103.5h7"/>
+          </g>
+          <text x="110" y="134" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Indstillinger</text>
+          <rect x="102" y="92" width="154" height="24" rx="8" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="52" y="104" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M72 104h22" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M88 99l6 5-6 5" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <button class="btn" onclick="bekraeftOgVidere(this, 's-10b')">Næste</button>
+    </section>
+
+    <!-- ── SIDE 10b: INSTALLATION 4/4 — TRYK PÅ TILFØJ ─────── -->
+    <section class="screen" id="s-10b">
+      <p class="step-eyebrow">Trin 4 af 4</p>
+      <h1>Tryk på "Tilføj"</h1>
+      <p class="sub" id="inst4-sub">Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.</p>
+      <div class="inst-icon" aria-hidden="true">
+        <!-- iOS: Foej til hjemmeskaerm-dialogen — Tilfoej oeverst til hoejre -->
+        <svg id="add-ios" width="270" height="140" viewBox="0 0 270 140" fill="none">
+          <rect x="20" y="12" width="230" height="116" rx="14" fill="#F0F3F7"/>
+          <text x="36" y="36" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Annuller</text>
+          <text x="135" y="36" text-anchor="middle" font-size="11" font-weight="600" fill="#16232F" font-family="'Source Sans 3',sans-serif">Føj til hjemmeskærm</text>
+          <text x="216" y="36" font-size="12" font-weight="700" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tilføj</text>
+          <rect x="200" y="20" width="44" height="24" rx="8" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".6"/>
+          <text x="222" y="66" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M222 54v-6" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M217 52l5-6 5 6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="36" y="76" width="34" height="34" rx="8" fill="#2C6B9E"/>
+          <text x="53" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">D</text>
+          <rect x="80" y="82" width="96" height="9" rx="4.5" fill="#DDE3EA"/>
+          <rect x="80" y="97" width="130" height="7" rx="3.5" fill="#E6EBF1"/>
+        </svg>
+        <!-- Android: installations-dialogen — Tilfoej nederst til hoejre -->
+        <svg id="add-android" width="270" height="140" viewBox="0 0 270 140" fill="none" style="display:none">
+          <rect x="20" y="12" width="230" height="116" rx="14" fill="#F0F3F7"/>
+          <text x="36" y="40" font-size="12" font-weight="600" fill="#16232F" font-family="'Source Sans 3',sans-serif">Føj til startskærm?</text>
+          <rect x="36" y="54" width="30" height="30" rx="7" fill="#2C6B9E"/>
+          <text x="51" y="74" text-anchor="middle" font-size="13" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">D</text>
+          <rect x="76" y="58" width="96" height="8" rx="4" fill="#DDE3EA"/>
+          <rect x="76" y="71" width="120" height="7" rx="3.5" fill="#E6EBF1"/>
+          <text x="158" y="112" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Annuller</text>
+          <text x="216" y="112" font-size="12" font-weight="700" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tilføj</text>
+          <rect x="202" y="96" width="42" height="24" rx="8" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".6"/>
+          <text x="110" y="112" text-anchor="end" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M118 108h18" stroke="#2C6B9E" stroke-width="1.6"/>
+          <path d="M130 103l6 5-6 5" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <button class="btn" onclick="bekraeftOgVidere(this, 's-11')">Jeg har lagt den på min telefon</button>
@@ -719,7 +867,7 @@
   // ✓-siderne (7-8) er der ikke længere valg at ændre — dér skjules pilen.
   const BACK_TARGET = {
     's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
-    's-9': 's-8', 's-10': 's-9', 's-11': 's-10',
+    's-9': 's-8', 's-9b': 's-9', 's-10': 's-9b', 's-10b': 's-10', 's-11': 's-10b',
   };
   function goBack() {
     const target = BACK_TARGET[currentScreen];
@@ -1240,14 +1388,31 @@
     const ua    = navigator.userAgent || '';
     const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
                   (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
-    document.getElementById('inst1-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på menuen';
-    document.getElementById('inst1-sub').textContent   = isIOS ? 'Du finder det nederst i Safari.' : 'De tre prikker øverst i Chrome.';
+    // Trin 1: HVOR skal man kigge (20/7: piloten vidste ikke, hvor paa
+    // skaermen knappen sad — orienteringen kommer nu FOER knappen).
+    document.getElementById('inst1-title').textContent = isIOS ? 'Kig nederst på skærmen' : 'Kig øverst på skærmen';
+    document.getElementById('inst1-sub').textContent   = isIOS
+      ? 'I bunden af Safari sidder en række knapper.'
+      : 'Oppe ved adressefeltet sidder en lille menuknap.';
+    document.getElementById('orient-ios').style.display     = isIOS ? '' : 'none';
+    document.getElementById('orient-android').style.display = isIOS ? 'none' : '';
+    // Trin 2: KNAPPEN (de oprindelige mockups med "Tryk her"-pilen).
+    document.getElementById('inst2-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på de tre prikker';
+    document.getElementById('inst2-sub').textContent   = isIOS
+      ? 'Firkanten med pilen, der peger op — midt i bunden.'
+      : 'De sidder yderst til højre ved adressefeltet.';
     document.getElementById('mock-ios').style.display     = isIOS ? '' : 'none';
     document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
-    document.getElementById('inst2-name').textContent   = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
-    document.getElementById('inst2-sub').innerHTML      = isIOS
-      ? 'Rul ned i listen, hvis du ikke kan se den.<br>Tryk til sidst på <strong>Tilføj</strong>.'
-      : 'Bekræft med <strong>Tilføj</strong>.';
+    // Trin 3: MENUEN folder sig ud — find punktet.
+    document.getElementById('inst3-name').textContent = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
+    document.getElementById('menu-ios').style.display     = isIOS ? '' : 'none';
+    document.getElementById('menu-android').style.display = isIOS ? 'none' : '';
+    // Trin 4: TILFOEJ-dialogen.
+    document.getElementById('inst4-sub').textContent = isIOS
+      ? 'Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.'
+      : 'Telefonen spørger, om Dit Digitale Kontor må ligge på din startskærm.';
+    document.getElementById('add-ios').style.display     = isIOS ? '' : 'none';
+    document.getElementById('add-android').style.display = isIOS ? 'none' : '';
     bekraeftOgVidere(btn, 's-9');
   }
 
@@ -1281,10 +1446,104 @@
 
     // Samme besked uanset om e-mailen findes (ingen email-enumeration).
     status.className = 'status ok';
-    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt et nyt link. Tjek din indbakke.';
+    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode — koden kan du taste her.';
+    visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
     label.textContent = 'Send nyt link';
     spin.style.display = 'none';
+  }
+
+  // ── Kodesporet på udløbet-skærmen (20/7, kodeopgave 1d) ────────────
+  function visKodefelt(fokus) {
+    document.getElementById('ob-otp-row').style.display = 'block';
+    document.getElementById('ob-otp-toggle').style.display = 'none';
+    if (fokus) document.getElementById('ob-otp-code').focus();
+  }
+
+  // Log ind med engangskoden fra mailen. verifyOtp forbruger samme
+  // underliggende token som mail-linket (engangsbrug) — fejler koden, er
+  // linket typisk åbnet først, eller koden er udløbet.
+  // VIGTIGT (16/7-hærdningen): sessionen fra verifyOtp behandles som FRISK
+  // login — vi kører link-login-stien fra init() eksplicit (aktiv → dashboard,
+  // ellers startFlow) og rører ALDRIG en evt. gammel session i localStorage.
+  async function loginMedKode() {
+    const email  = document.getElementById('relink-email').value.trim();
+    // Mellemrum strippes (kopiering); 6-10 cifre accepteres — kodens længde er
+    // en Supabase-projektindstilling, ikke en konstant (18/7-lærdom).
+    const code   = document.getElementById('ob-otp-code').value.replace(/\s+/g, '');
+    const status = document.getElementById('relink-status');
+    const btn    = document.getElementById('ob-otp-btn');
+    const label  = document.getElementById('ob-otp-label');
+    const spin   = document.getElementById('ob-otp-spin');
+
+    status.className = 'status';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.className = 'status err';
+      status.textContent = 'Skriv din e-mail i feltet øverst først.';
+      return;
+    }
+    if (!/^\d{6,10}$/.test(code)) {
+      status.className = 'status err';
+      status.textContent = 'Koden er cifrene fra mailen — kun tal, ingen mellemrum.';
+      return;
+    }
+
+    btn.disabled = true;
+    label.textContent = 'Logger ind …';
+    spin.style.display = 'block';
+    status.textContent = '';
+    let succes = false;
+
+    try {
+      const { data, error } = await db.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error || !data?.session) {
+        status.className = 'status err';
+        status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
+        return;
+      }
+
+      // Frisk session i hånden — samme sti som link-login i init():
+      const session = data.session;
+      state.token = session.access_token;
+      const res  = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const mig  = await res.json().catch(() => null);
+
+      if (!res.ok || !mig?.firm) {
+        document.getElementById('expired-msg').textContent =
+          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
+        status.className = 'status err';
+        status.textContent = 'Koden virkede, men vi kunne ikke finde din konto. Prøv med et nyt link.';
+        return;
+      }
+
+      succes = true;
+      label.textContent = '✓';
+      btn.style.background = 'var(--success)';
+
+      // Allerede onboardet? Så hører man til i dashboardet — som frisk login.
+      if (mig.firm.status === 'active') {
+        window.location.replace('/dashboard#nyt-login');
+        return;
+      }
+
+      // Ellers: genoptag onboardingen præcis som init() ville.
+      state.firmId      = mig.firm.id;
+      state.firmName    = mig.firm.name || '';
+      state.phoneNumber = mig.firm.phone_number || '';
+      state.ownerPhone  = mig.firm.owner_phone || '';
+      state.voice       = mig.firm.voice_gender || 'female';
+      state.greeting    = mig.firm.greeting_text || defaultGreeting(state.firmName);
+      startFlow();
+    } catch (e) {
+      status.className = 'status err';
+      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      spin.style.display = 'none';
+      if (!succes) {
+        btn.disabled = false;
+        label.textContent = 'Log ind med koden';
+      }
+    }
   }
 
   // ── Hjælpere ───────────────────────────────────────────────────────
@@ -1292,7 +1551,7 @@
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
   }
   function defaultGreeting(name) {
-    return `Hej. Du har ringet til ${name}. Jeg kan desværre ikke tage telefonen. Jeg sender dig en SMS, hvor du beskriver din opgave. Jeg vender tilbage så hurtigt som muligt. Tak for din henvendelse.`;
+    return `Hej, du har ringet til ${name}. Jeg kan desværre ikke tage telefonen lige nu. Om et øjeblik modtager du en SMS, hvor du nemt kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`;
   }
 
   init();
