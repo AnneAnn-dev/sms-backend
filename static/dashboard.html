@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">
   <link rel="shortcut icon" href="/favicon.ico?v=2">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">
-  <meta name="theme-color" content="#1A3A5C">
+  <meta name="theme-color" content="#FFFFFF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Dit Kontor">
   <script>
@@ -46,32 +46,34 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy:#1A3A5C; --steel:#2C6B9E; --steel-hover:#3579b0; --smoke:#F4F7FA;
+      /* ── TRIN 2 (19/7): onboardingens designsprog som globalt fundament.
+         Gamle navne beholdes (al eksisterende CSS/JS virker uaendret),
+         men vaerdierne er nu onboardingens (16-17/7-designet, Annes spec):  */
+      --navy:#16232F;        /* PENSIONERET som flade — nu = ink (kun tekstbrug tilbage) */
+      --steel:#2C6B9E; --steel-hover:#3579b0;
+      --smoke:#F0F5FA;       /* indre flader (paneler/koder) = onboardingens tint; SIDEN er hvid */
       --forest:#2E7D52; --forest-dark:#25623F; --forest-text:#1B5E3A;
-      --ink:#1C2A38; --ink-muted:#4A5D6E;
-      --steel-light:#EAF2FB; --forest-light:#E8F5EE; --border:#DDE4EC; --white:#fff;
-      --danger:#dc2626; --danger-light:#fee2e2; --danger-dark:#991b1b;
-      --radius:12px; --radius-lg:16px;
+      --ink:#16232F; --ink-muted:#5B6B7A;
+      --steel-light:#F0F5FA; --forest-light:#E8F5EE; --border:#E4E9EF; --white:#fff;
+      --danger:#C24444;      /* onboardingens fejlroed (badge-toner --danger-light/-dark uroert) */
+      --danger-light:#fee2e2; --danger-dark:#991b1b;
+      --radius:12px; --radius-lg:16px;  /* radius-harmonisering (14) hoerer til trin 3-4 */
+      /* Onboardingens egne navne som aliaser — brug DISSE i nyt arbejde: */
+      --accent:var(--steel); --muted:var(--ink-muted); --line:var(--border);
+      --tint:var(--steel-light); --success:var(--forest); --error:var(--danger);
     }
 
-    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--smoke); color: var(--ink); }
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--white); color: var(--ink); }
     h1, h2, h3, h4 { font-family: 'Nunito', sans-serif; font-weight: 800; line-height: 1.2; }
 
     /* ── Login: onboardingens sprog — hvid flade, ingen kort-ramme (16-17/7-designet).
        Alt er scoped under #login-screen, saa resten af dashboardet (inkl. den
        globale .btn, som Log ud-knappen bruger) er uroert. Tokens er onboardingens
-       vaerdier, sat LOKALT her — trin 2 i restylingen goer dem globale. ── */
+       vaerdier — fra trin 2 baaret globalt af :root. ── */
     #login-screen {
-      --ink:    #16232F;   /* onboardingens ink (dashboardets er #1C2A38) */
-      --muted:  #5B6B7A;
-      --accent: #2C6B9E;   /* = --steel; samme farve, onboardingens navn */
-      --line:   #E4E9EF;   /* feltkanter (dashboardets --border er #DDE4EC) */
-      --tint:   #F0F5FA;
-      --success:#2E7D52;
-      /* JS saetter statusfarver inline via var(--danger)/var(--ink-muted) —
-         her peger de paa onboardingens toner, uden at JS roeres: */
-      --danger: #C24444;
-      --ink-muted: #5B6B7A;
+      /* (Trin 2: de lokale token-overrides fra trin 1 er fjernet —
+         :root baerer nu onboardingens vaerdier globalt, inkl. aliaserne
+         --accent/--muted/--line/--tint/--success som stilene her bruger.) */
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; padding: 28px 24px 48px;
       background: #FFFFFF; color: var(--ink); text-align: center;
@@ -141,39 +143,46 @@
     input[type=email]:focus, input[type=password]:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.18); }
     .btn { margin-top: 24px; width: 100%; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s, transform .15s; }
     .btn:hover { background: var(--steel-hover); transform: translateY(-1px); }
-    .btn-sm { background: transparent; border: 1.5px solid rgba(255,255,255,.28); color: #fff; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; transition: all .2s; }
-    .btn-sm:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
+    .btn-sm { background: var(--white); border: 1.5px solid var(--line); color: var(--accent); border-radius: 10px; padding: 8px 14px; font-size: 14px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; transition: border-color .15s ease; }
+    .btn-sm:hover { border-color: var(--accent); background: var(--white); }
     .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
 
     /* App */
     #app { display: none; }
-    .topbar { background: var(--navy); padding: 0 20px; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 16px rgba(0,0,0,.12); }
-    .topbar h1 { font-size: 19px; font-weight: 800; color: #fff; }
+    .topbar { background: var(--white); padding: 0 20px; height: 64px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; font-weight: 800; color: var(--ink); }
     .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 90px; }
 
     /* Leads */
     .section-title { font-size: 19px; font-weight: 800; color: var(--navy); margin-bottom: 12px; }
     .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-    .filter-btn { background: var(--white); border: 1.5px solid var(--border); border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 600; color: var(--ink-muted); cursor: pointer; transition: all .2s; }
+    .filter-btn { background: var(--white); border: 1.5px solid var(--line); border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; color: var(--muted); cursor: pointer; transition: border-color .15s ease, color .15s ease; }
     .filter-btn:hover { border-color: var(--steel); color: var(--steel); }
     .filter-btn.active { background: var(--steel); color: #fff; border-color: var(--steel); }
 
-    .lead-list { display: flex; flex-direction: column; gap: 10px; }
-    .lead-card { background: var(--white); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 16px 20px; cursor: pointer; transition: transform .15s, box-shadow .2s, border-color .15s; }
-    .lead-card:hover { border-color: var(--steel); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(26,58,92,.10); }
-    .lead-card.urgent { border-left: 3px solid var(--danger); }
+    /* TRIN 3 (onboardingens sprog): ingen bokse/skygger/hover-loeft — hvid
+       flade m. haarfine skillelinjer MELLEM opgaverne (ikke om dem), tint-blink
+       ved tryk. Hover kun paa rigtige mus (ingen sticky hover paa iPhone).
+       Haster-markoeren er inset-skygge (ikke border-left), saa haster- og
+       normale raekker har IDENTISK padding og navnene flugter ned gennem listen. */
+    .lead-list { display: flex; flex-direction: column; gap: 0; }
+    .lead-card { background: transparent; border: none; border-radius: 0; padding: 16px 6px; cursor: pointer; transition: background-color .15s ease; }
+    .lead-card + .lead-card { border-top: 1px solid var(--line); }
+    .lead-card:active { background: var(--tint); }
+    @media (hover: hover) { .lead-card:hover { background: var(--tint); } }
+    .lead-card.urgent { box-shadow: inset 3px 0 0 var(--danger); }
     .lead-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
     .lead-name { font-weight: 700; font-size: 16px; font-family: 'Nunito', sans-serif; color: var(--navy); }
     .lead-time { font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
     .lead-address { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
     .lead-task { font-size: 14px; color: var(--ink); margin-top: 8px; line-height: 1.5; }
     .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-    .badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-family: 'Nunito', sans-serif; }
+    .badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; }
     .badge-urgent { background: var(--danger-light); color: var(--danger-dark); }
     .badge-new { background: var(--steel-light); color: var(--navy); }
     .badge-completed { background: var(--forest-light); color: var(--forest-text); }
-    .badge-rejected { background: #EAF0F5; color: var(--ink-muted); }
-    .badge-images { background: #E6EEF6; color: var(--steel); }
+    .badge-rejected { background: var(--tint); color: var(--muted); }
+    .badge-images { background: var(--tint); color: var(--accent); }
 
     /* Bottom nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); display: flex; z-index: 90; padding-bottom: env(safe-area-inset-bottom); }
@@ -188,7 +197,10 @@
     .page.active { display: block; }
 
     /* Profil */
-    .profile-card { background: var(--white); border-radius: var(--radius-lg); padding: 28px; border: 1px solid var(--border); text-align: center; margin-bottom: 16px; }
+    /* TRIN 4: profilsiden er sektioner paa hvid flade (som onboardingen),
+       adskilt af haarfine linjer — ingen kort-rammer/skygger. */
+    .profile-card { background: none; border: none; border-radius: 0; padding: 8px 4px 24px; text-align: center; margin: 0; }
+    #page-profil > div + div { border-top: 1px solid var(--line); }
     .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: var(--steel-light); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--steel); margin: 0 auto 12px; }
     .profile-name { font-size: 20px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); }
     .profile-firm { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
@@ -200,15 +212,15 @@
     .tip-card p { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
 
     /* Hvidliste */
-    .wl-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .wl-card { background: none; border-left: none; border-right: none; border-bottom: none; border-radius: 0; padding: 24px 4px; margin: 0; }
     .wl-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
     .wl-count { font-size: 13px; font-weight: 700; color: var(--ink-muted); }
     .wl-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
     .wl-add { display: flex; flex-wrap: wrap; gap: 8px; }
-    .wl-input { flex: 1 1 140px; min-width: 0; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 11px 13px; font-size: 15px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; }
-    .wl-input:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
-    .wl-btn { flex: 0 0 auto; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
-    .wl-btn:hover { background: var(--steel-hover); }
+    .wl-input { flex: 1 1 140px; min-width: 0; background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 11px 13px; font-size: 16px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .15s ease; }
+    .wl-input:focus { border-color: var(--accent); box-shadow: none; }
+    .wl-btn { flex: 0 0 auto; background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 11px 18px; font-size: 15px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; transition: opacity .15s ease; }
+    .wl-btn:hover { background: var(--accent); }
     .wl-btn:disabled { opacity: .55; cursor: default; }
     .wl-error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 0; }
     .wl-error:empty { display: none; }
@@ -221,30 +233,40 @@
     .wl-row-del:hover { border-color: #fca5a5; background: var(--danger-light); color: var(--danger-dark); }
 
     /* Telefonbesked: stemmevalg + tekst */
-    .greeting-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .greeting-card { background: none; border-left: none; border-right: none; border-bottom: none; border-radius: 0; padding: 24px 4px; margin: 0; }
     .greeting-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
     .greeting-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
 
-    .voice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
-    .voice-option { border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all .2s ease; text-align: center; background: var(--white); }
-    .voice-option:hover { border-color: var(--steel); }
-    .voice-option.selected { border-color: var(--steel); background: var(--steel-light); }
-    .voice-icon { font-size: 26px; margin-bottom: 6px; }
-    .voice-name { font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 2px; }
-    .voice-desc { font-size: 12px; color: var(--ink-muted); }
+    /* Stemmevalg: onboardingens voice-card, kopieret 1:1 (16-17/7-designet) */
+    .voice-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+    .voice-option { width: 100%; display: flex; align-items: center; gap: 16px; text-align: left; background: #fff; border: 1.5px solid var(--line); border-radius: 16px; padding: 16px 18px; cursor: pointer; font-family: 'Source Sans 3', sans-serif; transition: border-color .15s ease, background .15s ease; }
+    .voice-option.selected { border-color: var(--accent); background: var(--tint); }
+    .voice-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--tint); color: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 18px; flex-shrink: 0; }
+    .voice-option.selected .voice-avatar { background: var(--accent); color: #fff; }
+    .voice-meta { flex: 1; }
+    .voice-name { font-weight: 600; font-size: 17px; color: var(--ink); }
+    .voice-desc { font-size: 14px; color: var(--muted); }
 
-    .greeting-label { font-size: 13px; font-weight: 700; color: var(--ink-muted); margin-bottom: 8px; display: block; }
-    .greeting-textarea { width: 100%; box-sizing: border-box; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 13px; font-family: inherit; font-size: 15px; color: var(--ink); resize: vertical; min-height: 110px; line-height: 1.6; outline: none; transition: border-color .2s, box-shadow .2s; }
-    .greeting-textarea:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
+    .greeting-label { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 8px; display: block; }
+    .greeting-textarea { width: 100%; box-sizing: border-box; background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 14px; font-family: inherit; font-size: 16px; color: var(--ink); resize: vertical; min-height: 110px; line-height: 1.6; outline: none; transition: border-color .15s ease; }
+    .greeting-textarea:focus { border-color: var(--accent); box-shadow: none; }
     .greeting-count { font-size: 12px; color: var(--ink-muted); text-align: right; margin: 6px 0 14px; }
 
-    .greeting-preview { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 14px; color: var(--ink-muted); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; margin-bottom: 16px; transition: all .2s; }
+    /* Sammenfoldelig hjaelp (native details/summary — ingen JS) */
+    .vs-details { margin-top: 4px; }
+    .vs-details summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); list-style: none; }
+    .vs-details summary::-webkit-details-marker { display: none; }
+    .vs-details summary::before { content: '▸ '; }
+    .vs-details[open] summary::before { content: '▾ '; }
+    .vs-details p { margin-top: 10px; }
+
+    .greeting-preview { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1.5px solid var(--line); border-radius: 999px; padding: 9px 16px; color: var(--muted); font-size: 14px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; margin-bottom: 16px; transition: border-color .15s ease, color .15s ease; }
     .greeting-preview:hover { border-color: var(--steel); color: var(--steel); }
 
     /* Gem-knap med spinner */
-    .greeting-save { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
-    .greeting-save:hover { background: var(--steel-hover); }
-    .greeting-save:disabled { opacity: .65; cursor: default; }
+    .greeting-save { width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--accent); color: #fff; border: none; border-radius: 14px; padding: 0 16px; font-size: 17px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; transition: transform .1s ease, opacity .15s ease; }
+    .greeting-save:active { transform: scale(.98); }
+    .greeting-save:disabled { opacity: .55; cursor: default; }
 
     .spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -252,15 +274,15 @@
     .greeting-saved { font-size: 13px; font-weight: 700; text-align: center; margin-top: 10px; min-height: 18px; }
 
     /* Skift adgangskode */
-    .pw-card { background: var(--white); border-radius: var(--radius-lg); padding: 22px 20px; border: 1px solid var(--border); margin-bottom: 16px; }
+    .pw-card { background: none; border-left: none; border-right: none; border-bottom: none; border-radius: 0; padding: 24px 4px; margin: 0; }
     .pw-title { font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); margin-bottom: 8px; }
     .pw-help { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px; }
-    .pw-label { font-size: 13px; font-weight: 700; color: var(--ink-muted); margin: 0 0 6px; display: block; }
-    .pw-input { width: 100%; box-sizing: border-box; background: var(--steel-light); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 13px; font-size: 15px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .2s, box-shadow .2s; margin-bottom: 14px; }
-    .pw-input:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.16); }
-    .pw-save { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s; }
-    .pw-save:hover { background: var(--steel-hover); }
-    .pw-save:disabled { opacity: .65; cursor: default; }
+    .pw-label { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 6px; display: block; }
+    .pw-input { width: 100%; box-sizing: border-box; background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: 16px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .15s ease; margin-bottom: 14px; }
+    .pw-input:focus { border-color: var(--accent); box-shadow: none; }
+    .pw-save { width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--accent); color: #fff; border: none; border-radius: 14px; padding: 0 16px; font-size: 17px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; transition: transform .1s ease, opacity .15s ease; }
+    .pw-save:active { transform: scale(.98); }
+    .pw-save:disabled { opacity: .55; cursor: default; }
     .pw-msg { font-size: 13px; font-weight: 700; text-align: center; margin-top: 10px; min-height: 18px; }
 
     /* Modal */
@@ -337,10 +359,12 @@
     .btn-confirm-afslut:hover { background: #b91c1c; }
 
     .modal-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+    /* Upload skjult (kodeopgave 14): uden kundebilleder skjules hele feltet */
+    .mfield:has(> #modal-images:empty) { display: none; }
     .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
 
     .empty { text-align: center; color: var(--ink-muted); padding: 48px 0; font-size: 14px; }
-    .sort-btn { background: var(--white); border: 1.5px solid var(--border); border-radius: 20px; padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--ink-muted); font-family: 'Nunito', sans-serif; font-weight: 600; }
+    .sort-btn { background: var(--white); border: 1.5px solid var(--line); border-radius: 20px; padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--muted); font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
     .sort-btn.active { background: var(--steel); color: white; border-color: var(--steel); }
     .sort-btn:hover:not(.active) { background: var(--smoke); }
   </style>
@@ -423,15 +447,15 @@
 <div class="main">
 
   <!-- Puf efter login-link: vises kun når /onboarding har sendt #nyt-login med -->
-  <div id="pw-nudge" style="display:none;background:var(--steel);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;color:var(--white)">
+  <div id="pw-nudge" style="display:none;background:var(--tint);border-radius:14px;padding:16px;margin-bottom:14px;color:var(--ink)">
     <div style="font-weight:600;margin-bottom:4px">Du er logget ind med et login-link</div>
-    <div style="font-size:14px;margin-bottom:10px;opacity:.9">
+    <div style="font-size:14px;color:var(--muted);margin-bottom:12px">
       Vil du sætte en ny adgangskode, så du kan logge ind uden link næste gang?
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn-sm" style="background:var(--navy);color:var(--white)"
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-sm" style="background:var(--accent);border-color:var(--accent);color:#fff"
               onclick="gaaTilNyAdgangskode()">Sæt ny adgangskode</button>
-      <button class="btn-sm" style="background:transparent;color:var(--white);border:1px solid rgba(255,255,255,.45)"
+      <button class="btn-sm" style="background:transparent;border:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px"
               onclick="document.getElementById('pw-nudge').style.display='none'">Ikke nu</button>
     </div>
   </div>
@@ -471,23 +495,27 @@
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
     <div class="greeting-card">
       <div class="greeting-title">Din telefonbesked</div>
-      <p class="greeting-help">Det her hører kunden, når du ikke når telefonen. Vælg en stemme og skriv din besked — den bliver læst op automatisk ved opkald.</p>
+      <p class="greeting-help">Det her hører kunden, når du ikke tager telefonen.</p>
 
       <div class="voice-options">
         <div class="voice-option" id="g-voice-female" onclick="selectGreetingVoice('female')">
-          <div class="voice-icon">👩</div>
-          <div class="voice-name">Kvinde</div>
-          <div class="voice-desc">Naturlig dansk stemme</div>
+          <span class="voice-avatar">N</span>
+          <span class="voice-meta">
+            <span class="voice-name">Naja</span><br>
+            <span class="voice-desc">Naturlig dansk stemme</span>
+          </span>
         </div>
         <div class="voice-option" id="g-voice-male" onclick="selectGreetingVoice('male')">
-          <div class="voice-icon">👨</div>
-          <div class="voice-name">Mand</div>
-          <div class="voice-desc">Naturlig dansk stemme</div>
+          <span class="voice-avatar">M</span>
+          <span class="voice-meta">
+            <span class="voice-name">Mads</span><br>
+            <span class="voice-desc">Rolig dansk stemme</span>
+          </span>
         </div>
       </div>
 
       <label class="greeting-label" for="g-text">Besked</label>
-      <textarea class="greeting-textarea" id="g-text" maxlength="300" oninput="updateGreetingCount()" placeholder="Fx: Hej, du har ringet til Hansens VVS. Jeg kan ikke tage telefonen lige nu — du får straks en SMS med et link, hvor du kan beskrive din opgave."></textarea>
+      <textarea class="greeting-textarea" id="g-text" maxlength="300" oninput="updateGreetingCount()" placeholder="Fx: Hej, du har ringet til [Firmanavn]. Jeg kan desværre ikke tage telefonen lige nu. Om et øjeblik modtager du en SMS, hvor du nemt kan beskrive din opgave. Jeg vender tilbage hurtigst muligt."></textarea>
       <div class="greeting-count"><span id="g-count">0</span> / 300 tegn</div>
 
       <button class="greeting-preview" id="g-preview-btn" type="button" onclick="previewGreetingVoice()">▶ Afspil stemme</button>
@@ -504,30 +532,33 @@
          mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
     <div class="greeting-card">
       <div class="greeting-title">Din viderestilling</div>
-      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor. Her er dit nummer og koderne — så du altid kan finde dem igen.</p>
+      <p class="greeting-help">Ubesvarede opkald bliver kun til opgaver, hvis din telefon viderestiller til dit nummer hos Dit Digitale Kontor.</p>
 
-      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px">VIDERESTIL TIL DETTE NUMMER</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Dit Digitale Kontor-nummer:</div>
       <div id="vs-nummer" style="background:var(--smoke);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:20px;font-weight:800;letter-spacing:0.04em;text-align:center;margin-bottom:16px">—</div>
 
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling til:</strong> tast koden på din telefon og tryk ring op.</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Aktiver viderestilling:</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <code id="vs-kode-til" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;overflow-x:auto;white-space:nowrap">—</code>
         <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-til')">Kopiér</button>
       </div>
 
-      <div style="font-size:13px;color:var(--ink);margin-bottom:6px"><strong>Slå viderestilling fra:</strong> fx ved ferie, eller hvis du selv vil tage alle opkald.</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">Deaktiver viderestilling:</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <code id="vs-kode-fra" style="flex:1;background:var(--smoke);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:15px;white-space:nowrap">##61#</code>
         <button class="wl-btn" type="button" onclick="kopierKode(this,'vs-kode-fra')">Kopiér</button>
       </div>
 
-      <p class="greeting-help" style="margin-bottom:0">Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+      <details class="vs-details">
+        <summary>Har du problemer med viderestilling?</summary>
+        <p class="greeting-help" style="margin-bottom:0">Tast koden på din telefon og tryk ring op — som et almindeligt opkald. Virker til-koden ikke? Prøv varianten <code id="vs-kode-fallback">—</code> (slå fra med <code>#61#</code>). Hjælper det heller ikke, kan dit teleselskab slå &quot;viderestilling ved ubesvaret opkald&quot; til for dig. Telefonen ringer ca. 20-30 sekunder hos dig, før viderestillingen tager over.</p>
+      </details>
     </div>
 
     <!-- Hvidliste: numre der ikke skal have opgaveformular -->
     <div class="wl-card">
-      <div class="wl-title">Numre uden opgaveformular <span class="wl-count" id="wl-count"></span></div>
-      <p class="wl-help">Disse numre får <strong>ikke</strong> en SMS med opgaveformular, når de ringer. De hører i stedet en kort besked om, at du ikke kan tage telefonen. God til familie, leverandører og sælgere.</p>
+      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
       <div class="wl-add">
         <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
         <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
@@ -555,7 +586,7 @@
       <div class="pw-msg" id="pw-msg"></div>
     </div>
 
-    <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:#fee2e2;border-color:#fca5a5;color:#991b1b">Log ud</button>
+    <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:var(--white);border-color:var(--line);color:var(--muted)">Log ud</button>
   </div>
 
   <!-- Side: Tips og tricks -->
@@ -659,7 +690,12 @@
       <div class="mfield">
         <label>Billeder</label>
         <div class="modal-images" id="modal-images"></div>
-        <div class="upload-area" onclick="document.getElementById('modal-file-in').click()" style="margin-top:8px">
+        <!-- SKJULT 20/7 (kodeopgave 14): upload fra dashboardet blev aldrig
+             wiret til storage — UI'et lovede noget, produktet ikke kan.
+             Elementerne SKAL blive i DOM'en (openModal rydder #modal-previews
+             betingelsesloest — sletning = TypeError for alle, 17/7-fejlklassen).
+             Fjern display:none igen, naar upload-endpointet er bygget. -->
+        <div class="upload-area" onclick="document.getElementById('modal-file-in').click()" style="margin-top:8px;display:none">
           <svg class="ti" aria-hidden="true"><use href="#i-photo-plus"/></svg>
           <p>Tryk for at tilføje billeder</p>
           <input type="file" id="modal-file-in" accept="image/*" multiple style="display:none" onchange="addPreviews(this)">
@@ -753,7 +789,8 @@
         <label>Beskriv opgaven</label>
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
       </div>
-      <div class="mfield">
+      <!-- SKJULT 20/7 (kodeopgave 14): se kommentaren i opgave-modalen. -->
+      <div class="mfield" style="display:none">
         <label>Billeder</label>
         <div class="upload-area" onclick="document.getElementById('new-file-in').click()">
           <svg class="ti" style="font-size:20px;color:#8FA3B5" aria-hidden="true"><use href="#i-photo-plus"/></svg>
@@ -1091,7 +1128,6 @@ function renderLeads() {
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
         <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
           ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
-        ${lead.is_urgent && lead.status === 'open' ? '<span class="badge badge-urgent">Haster</span>' : ''}
         ${lead.lead_images?.length ? `<span class="badge badge-images">${lead.lead_images.length} billede${lead.lead_images.length > 1 ? 'r' : ''}</span>` : ''}
         ${!lead.seen_at && lead.status === 'open' ? '<span class="badge badge-new">Ny</span>' : ''}
       </div>
@@ -1271,6 +1307,7 @@ function renderLeads() {
     const spinner = document.getElementById('g-save-spinner');
     const saved   = document.getElementById('g-saved');
     const text    = document.getElementById('g-text').value.trim();
+    let gemtOk = false;                       // styrer ✓-rytmen i finally
 
     saved.textContent = '';
 
@@ -1300,14 +1337,27 @@ function renderLeads() {
 
       saved.style.color = 'var(--forest-text)';
       saved.textContent = '✓ Gemt — den nye besked bruges ved næste opkald.';
+      gemtOk = true;
     } catch (e) {
       saved.style.color = 'var(--danger)';
       saved.textContent = 'Noget gik galt. Prøv igen.';
     } finally {
       // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
-      btn.disabled = false;
-      label.textContent = 'Gem ændringer';
       spinner.style.display = 'none';
+      if (gemtOk) {
+        // ✓-rytme (onboardingens sprog; samme mønster som login-knapperne 19/7):
+        // kort grøn ✓-kvittering på knappen, derefter tilbage til normal.
+        btn.style.background = 'var(--success)';
+        label.textContent = '✓ Gemt';
+        setTimeout(() => {
+          btn.style.background = '';
+          label.textContent = 'Gem ændringer';
+          btn.disabled = false;
+        }, 1400);
+      } else {
+        btn.disabled = false;
+        label.textContent = 'Gem ændringer';
+      }
     }
   }
 
@@ -1322,6 +1372,7 @@ function renderLeads() {
     const msg     = document.getElementById('pw-msg');
     const newPw   = document.getElementById('pw-new').value;
     const confirm = document.getElementById('pw-confirm').value;
+    let gemtOk = false;                       // styrer ✓-rytmen i finally
 
     msg.textContent = '';
 
@@ -1354,14 +1405,26 @@ function renderLeads() {
       document.getElementById('pw-confirm').value = '';
       msg.style.color = 'var(--forest-text)';
       msg.textContent = '✓ Din adgangskode er gemt. Brug den næste gang du logger ind.';
+      gemtOk = true;
     } catch (e) {
       msg.style.color = 'var(--danger)';
       msg.textContent = 'Noget gik galt. Prøv igen.';
     } finally {
       // ── Spinner fra (kører ALTID, også ved fejl) ───────────────
-      btn.disabled = false;
-      label.textContent = 'Gem ny adgangskode';
       spinner.style.display = 'none';
+      if (gemtOk) {
+        // ✓-rytme (onboardingens sprog; samme mønster som login-knapperne 19/7).
+        btn.style.background = 'var(--success)';
+        label.textContent = '✓ Gemt';
+        setTimeout(() => {
+          btn.style.background = '';
+          label.textContent = 'Gem ny adgangskode';
+          btn.disabled = false;
+        }, 1400);
+      } else {
+        btn.disabled = false;
+        label.textContent = 'Gem ny adgangskode';
+      }
     }
   }
 
