@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">
   <link rel="shortcut icon" href="/favicon.ico?v=2">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">
-  <meta name="theme-color" content="#1A3A5C">
+  <meta name="theme-color" content="#FFFFFF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Dit Kontor">
   <script>
@@ -46,32 +46,34 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy:#1A3A5C; --steel:#2C6B9E; --steel-hover:#3579b0; --smoke:#F4F7FA;
+      /* ── TRIN 2 (19/7): onboardingens designsprog som globalt fundament.
+         Gamle navne beholdes (al eksisterende CSS/JS virker uaendret),
+         men vaerdierne er nu onboardingens (16-17/7-designet, Annes spec):  */
+      --navy:#16232F;        /* PENSIONERET som flade — nu = ink (kun tekstbrug tilbage) */
+      --steel:#2C6B9E; --steel-hover:#3579b0;
+      --smoke:#F0F5FA;       /* indre flader (paneler/koder) = onboardingens tint; SIDEN er hvid */
       --forest:#2E7D52; --forest-dark:#25623F; --forest-text:#1B5E3A;
-      --ink:#1C2A38; --ink-muted:#4A5D6E;
-      --steel-light:#EAF2FB; --forest-light:#E8F5EE; --border:#DDE4EC; --white:#fff;
-      --danger:#dc2626; --danger-light:#fee2e2; --danger-dark:#991b1b;
-      --radius:12px; --radius-lg:16px;
+      --ink:#16232F; --ink-muted:#5B6B7A;
+      --steel-light:#F0F5FA; --forest-light:#E8F5EE; --border:#E4E9EF; --white:#fff;
+      --danger:#C24444;      /* onboardingens fejlroed (badge-toner --danger-light/-dark uroert) */
+      --danger-light:#fee2e2; --danger-dark:#991b1b;
+      --radius:12px; --radius-lg:16px;  /* radius-harmonisering (14) hoerer til trin 3-4 */
+      /* Onboardingens egne navne som aliaser — brug DISSE i nyt arbejde: */
+      --accent:var(--steel); --muted:var(--ink-muted); --line:var(--border);
+      --tint:var(--steel-light); --success:var(--forest); --error:var(--danger);
     }
 
-    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--smoke); color: var(--ink); }
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--white); color: var(--ink); }
     h1, h2, h3, h4 { font-family: 'Nunito', sans-serif; font-weight: 800; line-height: 1.2; }
 
     /* ── Login: onboardingens sprog — hvid flade, ingen kort-ramme (16-17/7-designet).
        Alt er scoped under #login-screen, saa resten af dashboardet (inkl. den
        globale .btn, som Log ud-knappen bruger) er uroert. Tokens er onboardingens
-       vaerdier, sat LOKALT her — trin 2 i restylingen goer dem globale. ── */
+       vaerdier — fra trin 2 baaret globalt af :root. ── */
     #login-screen {
-      --ink:    #16232F;   /* onboardingens ink (dashboardets er #1C2A38) */
-      --muted:  #5B6B7A;
-      --accent: #2C6B9E;   /* = --steel; samme farve, onboardingens navn */
-      --line:   #E4E9EF;   /* feltkanter (dashboardets --border er #DDE4EC) */
-      --tint:   #F0F5FA;
-      --success:#2E7D52;
-      /* JS saetter statusfarver inline via var(--danger)/var(--ink-muted) —
-         her peger de paa onboardingens toner, uden at JS roeres: */
-      --danger: #C24444;
-      --ink-muted: #5B6B7A;
+      /* (Trin 2: de lokale token-overrides fra trin 1 er fjernet —
+         :root baerer nu onboardingens vaerdier globalt, inkl. aliaserne
+         --accent/--muted/--line/--tint/--success som stilene her bruger.) */
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; padding: 28px 24px 48px;
       background: #FFFFFF; color: var(--ink); text-align: center;
@@ -141,14 +143,14 @@
     input[type=email]:focus, input[type=password]:focus { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.18); }
     .btn { margin-top: 24px; width: 100%; background: var(--steel); color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; transition: background .2s, transform .15s; }
     .btn:hover { background: var(--steel-hover); transform: translateY(-1px); }
-    .btn-sm { background: transparent; border: 1.5px solid rgba(255,255,255,.28); color: #fff; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; cursor: pointer; transition: all .2s; }
-    .btn-sm:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
+    .btn-sm { background: var(--white); border: 1.5px solid var(--line); color: var(--accent); border-radius: 10px; padding: 8px 14px; font-size: 14px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; transition: border-color .15s ease; }
+    .btn-sm:hover { border-color: var(--accent); background: var(--white); }
     .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
 
     /* App */
     #app { display: none; }
-    .topbar { background: var(--navy); padding: 0 20px; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 16px rgba(0,0,0,.12); }
-    .topbar h1 { font-size: 19px; font-weight: 800; color: #fff; }
+    .topbar { background: var(--white); padding: 0 20px; height: 64px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; font-weight: 800; color: var(--ink); }
     .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 90px; }
 
     /* Leads */
