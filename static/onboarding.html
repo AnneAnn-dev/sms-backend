@@ -781,7 +781,7 @@
          skaermdump 20/7 + Apples dokumenterede floej.) Aeldre iOS og
          Android springer denne skaerm over (videreFraTrin2). -->
     <section class="screen" id="s-9c">
-      <p class="step-eyebrow">Trin 3 af 5</p>
+      <p class="step-eyebrow" id="inst2b-step">Trin 3 af 5</p>
       <h1>Tryk på "Del"</h1>
       <p class="sub">Menuen folder sig ud — find "Del", firkanten med pilen op.</p>
       <div class="inst-icon" aria-hidden="true">
@@ -1278,8 +1278,8 @@
 
   // Faste demoklip (rigtige ElevenLabs-stemmer) fra Storage — IKKE firmaets egen tekst.
   const SAMPLE_URL = {
-    female: `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/female.mp3?v=2`,
-    male:   `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/male.mp3?v=2`,
+    female: `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/female.mp3?v=3`,
+    male:   `${SUPABASE_URL}/storage/v1/object/public/greetings/_samples/male.mp3?v=3`,
   };
 
   function playSample(gender, ev) {
@@ -1468,10 +1468,13 @@
     const nyS = installVariant === 'ios26';
     BACK_TARGET['s-10'] = nyS ? 's-9c' : 's-9b';   // bagud-pilen foelger varianten
     // Trin-numre: nyt Safari har 5 trin, alle andre 4.
-    document.getElementById('inst1-step').textContent = nyS ? 'Trin 1 af 5' : 'Trin 1 af 4';
-    document.getElementById('inst2-step').textContent = nyS ? 'Trin 2 af 5' : 'Trin 2 af 4';
-    document.getElementById('inst3-step').textContent = nyS ? 'Trin 4 af 5' : 'Trin 3 af 4';
-    document.getElementById('inst4-step').textContent = nyS ? 'Trin 5 af 5' : 'Trin 4 af 4';
+    // Faelles overskrift paa alle guidens trin (Anns oenske 20/7):
+    const GUIDE_TITEL = 'Læg appen på din telefon';
+    document.getElementById('inst1-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 1 af 5' : ' · Trin 1 af 4');
+    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 2 af 5' : ' · Trin 2 af 4');
+    document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin 3 af 5';
+    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 4 af 5' : ' · Trin 3 af 4');
+    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 5 af 5' : ' · Trin 4 af 4');
     // Trin 1: HVOR skal man kigge (20/7: piloten vidste ikke, hvor paa
     // skaermen knappen sad — orienteringen kommer nu FOER knappen).
     document.getElementById('inst1-title').textContent = isIOS ? 'Kig nederst på skærmen' : 'Kig øverst på skærmen';
