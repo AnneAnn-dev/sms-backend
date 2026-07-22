@@ -13,10 +13,15 @@ eftermiddag), ikke løbende. Ægte brande undtaget.
 
 - [ ] iPhone-røgtest af redningsvejen (gater prod-deploy af mail.js/dashboard.html)
 - [ ] Prod-nummerpulje tjekket/fyldt FØR første pilot provisioneres
-- [ ] **Manifest-opgaven: `short_name` → "Dit Kontor" + SW-versionsbump.**
+- [x] **Manifest-opgaven: `short_name` → "Dit Kontor" + SW-versionsbump.**
       Kørt som Claude Code session 2 (første rigtige opgave, feature branch
       `fix/manifest-short-name`, lille diff, fuldt review). Derefter: PWA slettes
       og geninstalleres på begge iPhones.
+      **Allerede opfyldt (verificeret 22/7):** `manifest.json` har `short_name: "Dit Kontor"`
+      siden 17/7, bekræftet i drift-runbookens udestående-liste ("VERIFICERET 18/7").
+      Ingen kodeændring nødvendig — krydses af som en dokumentationsopdatering.
+      SW står fortsat på `dashboard-v17`; bumpes når der rent faktisk laves en
+      frontend-ændring, jf. reglen i CLAUDE.md.
 - [ ] Frisbii staging-oprydning (jf. drift-runbook)
 
 ## Trin 1 — Beslutninger der lukkes FØR kode
