@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.env-prod*)",
+      "Bash(cat .env*)",
+      "Bash(cat ./.env*)",
+      "Bash(type .env*)",
+      "Bash(Get-Content .env*)",
+      "Bash(Get-Content ./.env*)",
+      "Bash(*push-prod*)",
+      "Bash(*skift-prod*)",
+      "Bash(*reset-test-data*)",
+      "Bash(git push --force*)",
+      "Bash(*buy-numbers*)"
+    ]
+  }
+}
