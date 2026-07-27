@@ -53,7 +53,8 @@ Gør hvert punkt én gang. Når det står, er resten daglig rutine.
    - Twilio-, Frisbii-, Scaleway-creds (**test-creds i staging**, se D)
    - ⚠️ **Kritisk fælde:** Duplicate kopierer prod's env-vars **ordret** → staging peger på **prod-Supabase**, indtil du manuelt skifter Supabase-variablerne til staging-projektet. Railways "frisk DB pr. miljø" gælder ikke os, fordi DB'en er ekstern Supabase. **Staging er ikke ægte, før Supabase-varene er skiftet.**
 4. ⏸️ **UDSKUDT (besluttet 2/7-26):** Restrikt `production`-miljøet (RBAC): partner kan trigge deploys, men ikke se/redigere prod-secrets. Kræver Railway team-plan-features — ikke launch-blokerende med to personer, der begge er founders. **Tag den op igen:** senest når tredje person får adgang (jf. Roller), eller hvis I opgraderer Railway-planen af anden grund.
-   ⏸️ **UDSKUDT (besluttet 3/7-26):** Migration fra Supabases legacy JWT-nøgler (`anon` + `service_role`) til de nye nøgletyper (Publishable/Secret keys). Koden bruger legacy-nøglerne i dag — begge miljøer er sat op med dem, og de virker. **Tag den op igen:** når Supabase varsler en deadline for udfasning af legacy-nøglerne, eller ved næste større refaktorering af Supabase-klient-koden. Migrationen omfatter: nye nøgler i begge Railway-miljøer + evt. kodeændringer i supabase-js-initialiseringen.
+   ✅ **GENNEMFØRT 24/7-26 (ophæver UDSKUDT 3/7-26):** Migration fra Supabases legacy JWT-nøgler til Publishable/Secret keys — udløst af nøglerotationen efter .env-eksponeringen (legacy-nøgler KAN ikke roteres; migrering var eneste vej). Begge projekter kører nu sb_publishable/sb_secret i eksisterende variabelnavne (`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` — ingen kodeændring, app-config.js leverer til frontend), legacy-nøglerne er DEAKTIVERET i dashboardet, supabase-js 2.105.4 verificeret kompatibel. Fremadrettet rotation = normal opret/skift/slet af secret keys. Se `docs/RUNBOOK-noeglerotation.md`.
+   ⏸️ **UDSKUDT (besluttet 24/7-26):** Twilio-migrering fra auth-token til API-nøgler (Twilios anbefaling). Kræver KODEÆNDRING: klient-init skiftes fra `twilio(accountSid, authToken)` til `twilio(apiKeySid, apiKeySecret, { accountSid })` + nye env-vars i begge miljøer + fuld telefoni-røgtest (opkald→SMS→lead). ⚠️ Auth-tokenet FORSVINDER IKKE ved migreringen — det signerer fortsat webhooks (X-Twilio-Signature) og skal derfor stadig roteres ved eksponering (mekanisme: sekundært token, se nøglerotations-runbooken; begge kontoers tokens roteret 24/7-26). Gevinst: nøgler der kan revokeres enkeltvis uden at røre kontoen. **Tag den op igen:** ved næste Twilio-relaterede kodearbejde, eller senest sammen med IE1-regionsvurderingen (Del 0.D) — de to Twilio-projekter kan med fordel tages i samme ombering.
 5. Find **rollback-knappen** i Railway nu, så du ved hvor den er, før du får brug for den.
 
 ### C. Supabase — staging-projekt + versionerede migrationer
@@ -69,6 +70,22 @@ Dette er det vigtigste skifte. **Stop med at køre SQL i hånden i dashboard-edi
    ```powershell
    npx supabase migration new tilfoej_kolonne_xyz
    # skriv din ALTER/CREATE i filen
+
+Ann:
+# 1. Opret de tre filer — ÉN AD GANGEN, i denne rækkefølge.
+#    Rækkefølgen er ikke kosmetisk: A2 og B bygger på A
+#    (mine_firmaer(), set_updated_at(), leads.firm_id).
+npx supabase migration new xxxx
+npx supabase migration new xxxx
+npx supabase migration new xxxx
+# 2. Kopiér indholdet ind i hver fil. GEM. (TOM-FIL-FÆLDEN)
+
+# 3. Tjek hvor CLI'en peger, FØR du rører push. (LINK-FÆLDEN)
+Get-Content supabase\.temp\project-ref
+
+# 4. Push til staging
+.\push-staging.ps1
+
    ```
    Kør den på staging først, så prod (se Del 1). `messages-patch.sql`-mønsteret bliver nu bare en almindelig migration — og `if not exists`-fælden forsvinder, fordi historikken styres af migrationsrækkefølgen.
 4. (Senere, valgfrit) Supabase **branching** kan give en DB-preview pr. pull request. Lad det ligge til I har behov; det persistente staging-projekt er arbejdshesten.
@@ -113,7 +130,7 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
   **Røgtestet begge veje 4/7-26** via `POST /onboarding/nyt-link` mod staging: med override → mail i egen indbakke med `[STAGING -> ...]`-emne; uden override → blokeret + to enige log-linjer. Bemærk endpointets cooldown (60 sek. pr. email/IP) ved gentagne tests — tavshed inden for cooldown er featuren, ikke en fejl.
 - **ElevenLabs:** delt nøgle er fint (det er bare rendering) — hold øje med kvoten. ✅ *5/7-26: prod-værdierne genbrugt i staging — alle TRE vars: `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_IDM` + `ELEVENLABS_VOICE_IDF` (stemme-ID'er er kontouafhængige). Ingen mur nødvendig: pre-renderet lyd ved onboarding, ingen delt tilstand, ingen kunde-risiko. Røgtestes implicit ved næste provisionering med greeting-rendering — filen skal lande i STAGINGS `greetings`-bucket.*
 
-**🏁 DEL 0.D FÆRDIG 5/7-26 — og dermed HELE DEL 0 (fundament-opsætningen):** Git ✓ · Railway to miljøer ✓ · Supabase staging + migrationer ✓ · Twilio subkonto ✓ · Frisbii testkonto pr. miljø ✓ · Scaleway mail-mur ✓ · ElevenLabs ✓ · Backup + gendannelses-øvelse ✓ · AppSignal ✓. Alle tre webhook-sømme (Twilio, Frisbii, Scaleway) er røgtestet end-to-end i staging med verificeret uberørt prod. Udskudte gates (dokumenteret med re-triggere): Pro/PITR + Frisbii live-nøgler + checkout-vars (master-punkt 8), RBAC + legacy-nøgle-migration (Del 0.B).
+**🏁 DEL 0.D FÆRDIG 5/7-26 — og dermed HELE DEL 0 (fundament-opsætningen):** Git ✓ · Railway to miljøer ✓ · Supabase staging + migrationer ✓ · Twilio subkonto ✓ · Frisbii testkonto pr. miljø ✓ · Scaleway mail-mur ✓ · ElevenLabs ✓ · Backup + gendannelses-øvelse ✓ · AppSignal ✓. Alle tre webhook-sømme (Twilio, Frisbii, Scaleway) er røgtestet end-to-end i staging med verificeret uberørt prod. Udskudte gates (dokumenteret med re-triggere): Pro/PITR + Frisbii live-nøgler + checkout-vars (master-punkt 8), RBAC + Twilio API-nøgle-migration (Del 0.B; Supabase legacy-nøgle-migration ✅ 24/7-26).
 
 ### E. Backup på prod
 
@@ -388,6 +405,8 @@ Resten kan lægges ovenpå, når I har luft.
 18. **Opkaldsadfærd-læring umiddelbart efter onboarding (Ann 20/7 — tolkning BEKRÆFTET af Ann samme dag):** kunden skal lære, hvad de skal gøre med et opkald, de ikke kan tage: **LAD TELEFONEN RINGE** — viderestillingen tager først over efter ca. 20-30 sekunder. Tryk IKKE på afvis (rød knap), tag den ikke for at lægge på, og teleselskabets egen telefonsvarer må ikke snuppe opkaldet før viderestillingen (afvisning/telefonsvarer kan sende kalderen i den forkerte "postkasse", og så bliver opkaldet aldrig til en opgave). Placering: info-skærm/side umiddelbart efter onboardingens Færdig-trin og/eller øverst på Tips-siden i dashboardet. Anne ejer copy — kernen er én regel: "Kan du ikke tage den, så lad den ringe."
 
 19. **Mere farve på dashboardet (Ann 20/7 — egen designrunde m. Anne):** (a) lille farvet initialcirkel ved navnene på opgavelisten — genbrug voice-avatar-mønstret fra profilens stemmekort (tint-cirkel, accent-initial, 36-40 px), (b) blød skygge under hver opgaveboks. **OBS — bevidst delvis tilbagerulning:** restylingens trin 3 (20/7) fjernede netop bokse/skygger til fordel for den flade, linjeadskilte liste (onboarding-sproget). Anns ønske efter at have SET den flade liste er mere visuel vægt — det er præcis den slags, man kun kan afgøre med øjnene, og hendes call. Forslag der bevarer roen: kort m. radius 14, 1px --line-kant, skygge `0 6px 16px rgba(22,35,47,.06)` (dæmpet, ikke 16/7-æraens tunge løft), initialcirkler som farveanker. Anne (design-ejer) skal med på afvejningen flade vs. kort, så dashboard og onboarding stadig føles som ét produkt.
+
+20. **Adressefelterne fra DAWA skal faktisk SKRIVES (27/7 — migrationen er kørt, kolonnerne er tomme):** migration `..._leads_adressefelter` gav `leads` (og den nye `kunder`) strukturerede felter — `vejnavn`, `husnr`, `etage`, `doer`, `postnr`, `by`, `dawa_id` — men de udfyldes ikke af sig selv. De tre steder hvor `initDawa()` allerede kører, HAR det strukturerede DAWA-svar i hånden og smider det væk til fordel for én streng: kundeformularen i `server.js` (`bygAdresse()`-chokepointet), "Ny opgave"-modalen og "Rediger lead"-modalen i `dashboard.html`. **Formålet er at afskaffe komma-parsing permanent** — det var rodårsagen bag 14-15/7-adressesporet; `parseAddress()` (bagfra, dedupe) er et symptomfix, ikke en kur, og den knækker igen første gang en adresse har ét komma mere end forventet. Efter denne opgave: `address` bevares som visningsstreng, postnr/by LÆSES fra kolonnerne, og ingen kode må splitte en adresse på komma. **BEVIDST EFTER PILOTEN** — ren additiv gevinst, nul værdi for pilotens kerneflow, og den rører præcis de tre filer, der lige er blevet stabile. **OBS ved implementering:** (1) gamle leads har NULL i felterne — læsekoden skal falde tilbage på `address`, aldrig antage kolonnerne; (2) `husnr` og `postnr` er `text` (husnumre er "12B", postnummer er en identifikator) — ingen `parseInt`; (3) felterne skal gemmes fra DAWA-OBJEKTET, ikke fra den formaterede streng — ellers har vi bare flyttet parsingen ét lag ned; (4) fuldt id-tjek + røgtest med GENÅBNING af begge modaler (17/7-QA-reglen — det var netop genåbnings-tjekket, der afslørede billedupload-fejlen 20/7). Backfill af historiske adresser: engangsscript der slår hver gammel `address` op mod DAWA's API og skriver felterne fra SVARET — valgfrit, haster ikke, må ikke blokere.
 
 ### 🏗️ Infrastruktur/indkøb
 1. **Supabase prod er FREE-tier (ok NU, men fast punkt i pilot-tjeklisten):** free pauser projektet efter ~1 uges inaktivitet (= opkald/SMS/leads fejler, til nogen vækker det manuelt) og har INGEN automatiske backups (en fejlkørsel ville være uoprettelig). **Opgradér til Pro, FØR første betalende håndværker er ombord.** Gratis nu: omdøb projektet til `ditdigitalekontor-prod` (Settings → General) — "anneann1904's Project" er en fejllæsnings-fælde (jf. identiske-dashboards-reglen).

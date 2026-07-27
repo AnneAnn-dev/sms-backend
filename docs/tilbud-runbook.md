@@ -9,20 +9,71 @@ flerfilsopgaver, `/clear` mellem opgaver, `/usage` efter hver opgave de første 
 Pilot-support må afbryde modularbejdet — men i faste vinduer (morgen + sen
 eftermiddag), ikke løbende. Ægte brande undtaget.
 
-## Trin 0 — FØR modulet (pilot-sporet, fra drift-runbooken)
+## Trin 0 — FØR modulet (pilot-sporet + sikkerhedsfundament)
+
+### 0a. Sikkerhedsopsætning omkring Claude Code
+
+- [x] Deny-regler i `.claude/settings.json` (Read + Bash-omveje til .env-filer,
+      prod-scripts, reset, force-push, buy-numbers) — testet virksomme 22/7
+      (dummy-test: Read-kald afvist) på Claude Code 2.1.218
+- [x] Settings-filen committet (gitignore-undtagelse: `.claude/*` +
+      `!.claude/settings.json`)
+- [x] Branch-oprydning lokalt + GitHub (kun main + staging i hvile;
+      rytme fremover: branch fødes til én opgave → merges → slettes)
+- [ ] **Nøglerotation efter .env-eksponeringen 22/7.** Rækkefølge: delte
+      kontonøgler først (Simply/DNS, tjek Scaleway, ElevenLabs, AppSignal —
+      opdatér i BEGGE masterfiler + BEGGE Railway-miljøer), derefter rene
+      staging-nøgler (Supabase service role + anon, Twilio testkonto, Frisbii
+      testnøgler + webhook-secret, nyt VAPID-par). Bitwarden ajourføres løbende.
+      FÆRDIG = `node check-env.js --live` grøn + ét testopkald gennem staging-flowet.
+- [ ] **Branch-beskyttelse på `staging`:** GitHub → Settings → Branches → regel
+      for `staging` med "block force pushes". FÆRDIG = force-push afvises.
+
+### 0b. Værn som kode (de to første Claude Code-opgaver efter manifestet)
+
+- [ ] **Opgave: gitleaks som pre-commit-vagt.** Branch `feat/gitleaks-precommit`.
+      Secret-scanning der nægter commits med nøgler i — beskytter mod hardcodede
+      secrets fra alle hænder, inkl. Claude Code selv.
+      FÆRDIG NÅR: (1) gitleaks er installeret og koblet på pre-commit (Windows/
+      PowerShell 5.1-kompatibelt — hook-scripts i ren ASCII); (2) et testcommit
+      med en fake Twilio-token AFVISES med forståelig besked; (3) et normalt
+      commit går igennem upåvirket; (4) evt. falske positiver fra eksisterende
+      kode er håndteret via `.gitleaks.toml`-allowlist (dokumentér hvorfor pr.
+      undtagelse); (5) opsætningen er beskrevet i drift-runbooken (installation
+      på ny maskine inkl.).
+- [ ] **Opgave: `smoke-staging.js` — røgtest som definition af færdig.**
+      Branch `feat/smoke-staging`. Ét script, ét samlet grønt/rødt resultat.
+      FÆRDIG NÅR: (1) scriptet tjekker mindst: health-endpoint svarer 200;
+      /opkald AFVISER kald med ugyldig Twilio-signatur; rescue-endpointet
+      svarer; Supabase-forbindelse OK og forventede kernetabeller findes;
+      login-flowets endpoint svarer; (2) exit code 0 ved grøn / 1 ved rød, med
+      dansk linje pr. tjek; (3) kører KUN mod staging — scriptet fail-closer
+      hvis env peger på prod (genbrug check-env-mønsteret); (4) køretid under
+      30 sek.; (5) CLAUDE.md er opdateret med: "En opgave er først færdig, når
+      `node smoke-staging.js` er grøn."
+      Vedligehold: hver driftsfejl fremover får et tjek, der ville have fanget den.
+
+### 0c. Gendannelses-brandøvelse (én time, uden kode)
+
+- [ ] Øv restore af prod-databasen i Supabase til et NYT testprojekt (aldrig
+      oven i eksisterende). Verificér data. Skriv opskriften ind i
+      drift-runbooken, mens du gør det. FÆRDIG = du har selv gendannet én gang
+      og proceduren står i runbooken.
+
+### 0d. Pilot-sporet (fra drift-runbooken)
 
 - [ ] iPhone-røgtest af redningsvejen (gater prod-deploy af mail.js/dashboard.html)
 - [ ] Prod-nummerpulje tjekket/fyldt FØR første pilot provisioneres
-- [x] **Manifest-opgaven: `short_name` → "Dit Kontor" + SW-versionsbump.**
-      Kørt som Claude Code session 2 (første rigtige opgave, feature branch
+- [ ] **Manifest-opgaven: `short_name` → "Dit Kontor" + SW-versionsbump.**
+      Claude Code session 2 (første rigtige opgave, feature branch
       `fix/manifest-short-name`, lille diff, fuldt review). Derefter: PWA slettes
       og geninstalleres på begge iPhones.
-      **Allerede opfyldt (verificeret 22/7):** `manifest.json` har `short_name: "Dit Kontor"`
-      siden 17/7, bekræftet i drift-runbookens udestående-liste ("VERIFICERET 18/7").
-      Ingen kodeændring nødvendig — krydses af som en dokumentationsopdatering.
-      SW står fortsat på `dashboard-v17`; bumpes når der rent faktisk laves en
-      frontend-ændring, jf. reglen i CLAUDE.md.
+      FÆRDIG NÅR: diffen rører præcis manifest + sw.js; installeret PWA på
+      iPhone viser "Dit Kontor" under ikonet.
 - [ ] Frisbii staging-oprydning (jf. drift-runbook)
+
+Rækkefølge i Trin 0: nøglerotation + branch-beskyttelse NU → manifest (session 2)
+→ gitleaks → smoke-staging → brandøvelse → resten af pilot-sporet.
 
 ## Trin 1 — Beslutninger der lukkes FØR kode
 
