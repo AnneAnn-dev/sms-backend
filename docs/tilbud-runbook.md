@@ -41,6 +41,18 @@ eftermiddag), ikke løbende. Ægte brande undtaget.
       kode er håndteret via `.gitleaks.toml`-allowlist (dokumentér hvorfor pr.
       undtagelse); (5) opsætningen er beskrevet i drift-runbooken (installation
       på ny maskine inkl.).
+- [x] **`rls-isolation-test.js` — RLS som testet påstand (leveret 27/7).**
+      To firmaer, to brugere, én række i hver tabel. Tester TRE ting: at A ikke
+      kan læse B's rækker; at A KAN læse sine egne (en politik der nægter ALT ville
+      ellers bestå med glans — fejlen ville først vise sig som et tomt dashboard
+      hos en kunde); og at `authenticated` afvises på insert/update/delete på de
+      seks nye tabeller (skrivning er server-side pr. design — en manglende
+      write-politik fejler ikke højlydt, den nægter stille). Begge retninger testes,
+      da asymmetriske politikker er en klassisk håndskrevet fejl. Rører aldrig
+      rækker, den ikke selv har oprettet; rydder op i `finally`, også ved crash.
+      Tørkørsel som standard (printer projekt-ref), skriver kun med `--bekraeft`.
+      **GRØN 27/7: 37 bestået / 0 fejlet i BÅDE staging og prod.**
+      Vedligehold: hver ny tabel med `firm_id` skal med i `NYE_TABELLER`.
 - [ ] **Opgave: `smoke-staging.js` — røgtest som definition af færdig.**
       Branch `feat/smoke-staging`. Ét script, ét samlet grønt/rødt resultat.
       FÆRDIG NÅR: (1) scriptet tjekker mindst: health-endpoint svarer 200;
@@ -75,11 +87,43 @@ eftermiddag), ikke løbende. Ægte brande undtaget.
 Rækkefølge i Trin 0: nøglerotation + branch-beskyttelse NU → manifest (session 2)
 → gitleaks → smoke-staging → brandøvelse → resten af pilot-sporet.
 
+## Skema-status — databaserne er KLARGJORT (27/7-26)
+
+Alle tre migrationer er kørt på **staging og prod** via push-scripts, og filerne
+ligger i git under `supabase/migrations/`. Datamodellen fra primeren står dermed i
+begge databaser, FØR piloterne kommer på — hvilket var hele formålet: tabeller er
+gratis at oprette og dyre at ændre, når der ligger kundedata i dem.
+
+| Migration | Indhold |
+| --- | --- |
+| `20260727065655_kunder_og_opgavelag` | `mine_firmaer()`, `set_updated_at()`, `kunder` + RLS, `leads.firm_id` / `.kunde_id` / `.titel` / `.updated_at` |
+| `20260727065656_leads_adressefelter` | `vejnavn`, `husnr`, `etage`, `doer`, `postnr`, `by`, `dawa_id` på `leads` |
+| `20260727065703_referater_tilbud_profil` | `referater`, `tilbud`, `tilbud_linjer`, `firma_profil`, `standardfelter` + RLS på alle fem |
+
+Verificeret i BEGGE miljøer: seks tabeller til stede, RLS aktiv overalt, leads uden
+firma = 0, og `rls-isolation-test.js` grøn (37/0).
+
+**Beslutning truffet undervejs (ud over primeren):** `leads.firm_id` blev tilføjet som
+direkte firmakobling. Uden den skal enhver RLS-politik og ethvert unikt indeks pr.
+firma joine via `calls` — og den sti brød for manuelt oprettede opgaver, hvor `call_id`
+er nullable. Med kolonnen er politikken ordret ens på alle seks tabeller.
+
+**To huller i skemaets levetid — kolonnerne findes, men er tomme:**
+1. `leads.firm_id` udfyldes ikke af koden (drift-runbookens **kodeopgave 21**).
+   Nye leads får NULL. **Haster ikke:** ingen kode læser kolonnen endnu, og
+   backfill-sætningen i kodeopgave 21 er idempotent og skalerer. Deadline er
+   **Trin 5** — politikken må ikke skifte til `firm_id`, mens der står NULL-rækker.
+   Planen: tag ændringen med oven i næste `server.js`-deploy, ikke som egen opgave.
+2. DAWA-adressefelterne udfyldes ikke af koden (drift-runbookens **kodeopgave 20**).
+   Bevidst efter piloten.
+
+Begge er expand/contract's anden halvdel. Skemaet er på plads; nogen skal skrive i det.
+
 ## Trin 1 — Beslutninger der lukkes FØR kode
 
 - [ ] **Scaleway-verifikation:** findes whisper-transskription i deres Generative
       APIs, EU-region, pris, filformater, størrelsesgrænser? (NO-GO → Mistral Voxtral.)
-- [ ] Annes nik: "opkald nr. 2 fra kendt nummer = ny opgave, altid"
+- [x] Annes nik: "opkald nr. 2 fra kendt nummer = ny opgave, altid" — **BEKRÆFTET 27/7**
 - [ ] Anne: indhold af STANDARDFELTER pr. branche (felter + brancher)
 - [ ] Anne: samtykke-tekst i optager-UI
 - [ ] DPA-liste + privatlivspolitik: tilføj Anthropic + transskriptionsleverandør
@@ -96,8 +140,12 @@ permission-flow, optagelse, mp4-blob, upload. Fejler dette, ændres planen NU
 Mål: Anne kan oprette kunde+opgave, optage/uploade lyd, få transskript, få
 AI-referatudkast, rette, gemme og genfinde det — på staging.
 
-- [ ] Migration A (staging → røgtest → prod): `kunder`, `leads.kunde_id`
-      (nullable), `referater`. RLS på alt. Unique på kunder(firm_id, telefon).
+- [x] **Migration A — KØRT staging + prod 27/7.** `kunder`, `leads.kunde_id`
+      (nullable), `referater`. RLS på alt. Unique på `kunder(firm_id, telefon)`
+      som PARTIAL index (kun aktive kunder med nummer — så NULL-numre og
+      arkiverede kunder ikke blokerer). Leveret ud over planen: `leads.firm_id`,
+      `leads.titel`, `updated_at` + trigger, og `mine_firmaer()`-helperen.
+      Se Skema-status ovenfor.
 - [ ] Transskriptions-endpoint (Scaleway, multipart webm+mp4, lyd slettes efter brug)
 - [ ] Claude-proxy-endpoint (generisk; body-limit, billing-gate, dagsloft,
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her
@@ -107,8 +155,10 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 
 ## Trin 4 — Skive 2: tilbudsflowet
 
-- [ ] Migration B: `tilbud` (med frysningsfelter fra dag ét), `firma_profil`,
-      `standardfelter`
+- [x] **Migration B — KØRT staging + prod 27/7.** `tilbud` med frysningsfelter fra
+      dag ét (summer på selve tilbuddet, `version`, `sendt_at`), `tilbud_linjer`
+      (numeric hele vejen, genereret `linje_sum`), `firma_profil` (én række pr.
+      firma), `standardfelter` (pr. firma, ikke globalt). RLS på alle fem
 - [ ] Tilbuds-prompt + notefoto-prompt kobles på proxyen
 - [ ] Datafunktioner for tilbud/profil/standardfelter
 - [ ] PDF-eksport (jsPDF), Tilbuds- og Indstillinger-fanerne aktiveres
@@ -122,6 +172,9 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       kendt nummer → samme kunde, NY opgave; ukendt → opgave uden kunde som i dag
       (kunde oprettes først, når håndværkeren gør det, eller via formularen — afklar
       med Anne hvad der føles rigtigt)
+- [ ] **FØR `leads`-politikken skifter til `firm_id`:** kør backfill-sætningen fra
+      drift-runbookens kodeopgave 21 og bekræft `uden_firma = 0` i BEGGE miljøer.
+      Springes den over, forsvinder alle NULL-rækker fra dashboardet på én gang.
 - [ ] Røgtest med rigtige opkald på staging
 
 ## Trin 6 — Polering og papir
