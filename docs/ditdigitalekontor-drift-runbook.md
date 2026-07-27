@@ -70,22 +70,6 @@ Dette er det vigtigste skifte. **Stop med at køre SQL i hånden i dashboard-edi
    ```powershell
    npx supabase migration new tilfoej_kolonne_xyz
    # skriv din ALTER/CREATE i filen
-
-Ann:
-# 1. Opret de tre filer — ÉN AD GANGEN, i denne rækkefølge.
-#    Rækkefølgen er ikke kosmetisk: A2 og B bygger på A
-#    (mine_firmaer(), set_updated_at(), leads.firm_id).
-npx supabase migration new xxxx
-npx supabase migration new xxxx
-npx supabase migration new xxxx
-# 2. Kopiér indholdet ind i hver fil. GEM. (TOM-FIL-FÆLDEN)
-
-# 3. Tjek hvor CLI'en peger, FØR du rører push. (LINK-FÆLDEN)
-Get-Content supabase\.temp\project-ref
-
-# 4. Push til staging
-.\push-staging.ps1
-
    ```
    Kør den på staging først, så prod (se Del 1). `messages-patch.sql`-mønsteret bliver nu bare en almindelig migration — og `if not exists`-fælden forsvinder, fordi historikken styres af migrationsrækkefølgen.
 4. (Senere, valgfrit) Supabase **branching** kan give en DB-preview pr. pull request. Lad det ligge til I har behov; det persistente staging-projekt er arbejdshesten.
@@ -177,12 +161,29 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
    ```
 4. **Røgtest på staging:** kør `provision-test-firm.js` mod staging, og lad en *bekendt* ringe til staging-nummeret. Tjek at lead lander, SMS sendes, mail kommer.
 5. Merge til `staging` → (når grøn) PR/merge til `main`.
-6. **Promote til prod — i deploy-vinduet** (se Del 2):
+6. **Se hvad der FAKTISK er i kø til prod — FØR du rører push-scriptet:**
+   ```powershell
+   git fetch origin
+   git log --oneline origin/main..staging
+   git diff --stat origin/main..staging
+   ```
+   Det er DEN liste, der rammer prod — ikke den ændring, du sidst arbejdede på.
+   **Hvorfor (lærdom 27/7):** git og databasen kan glide fra hinanden i BEGGE
+   retninger, og `db push` siger det aldrig højt. (a) *Filen mangler i git:*
+   `git commit -am` tager KUN filer, git allerede kender — helt nye filer ryger
+   tavst udenom, og `git status --short` viser dem som `??` (ikke ignoreret, bare
+   aldrig tilføjet). Kvittering: `git ls-files supabase/migrations`. (b) *Ændringen
+   mangler i `main`:* `20260716090000_onboarding_sidevisninger` blev kørt på prod
+   16-17/7, men filen lå kun på `staging` i 11 dage. Ufarligt — Supabase bogfører
+   anvendte migrationer og springer dem over — men skævheden er usynlig, indtil
+   man ser efter. Bonus: diffen afslører også, hvis et helt andet spor er sneget
+   med på `staging` (PR'en til `main` tager ALT, ikke kun det, du tænkte på).
+7. **Promote til prod — i deploy-vinduet** (se Del 2):
    - Railway: promote / deploy `main`.
    - Kør samme migration på **prod**: `.\push-prod.ps1` (kræver PROD-bekræftelse, linker selv om, og skifter tilbage til staging bagefter).
    - **Bump `sw.js` cache-version** ved ændringer i sw.js selv eller cachede aktiver. *(Fra v17, 13/7: /dashboard-HTML hentes network-first, så rene HTML-ændringer slår igennem UDEN bump; kundeformular/onboarding/config.js røres slet ikke af SW'en.)*
-7. Verificér i prod: health-check grøn + én ægte handling (fx et testopkald fra egen telefon). Hold øje i ~10 min.
-8. Går det galt: **rollback koden** i Railway (hurtigst). DB: kør kun frem-migrationer; ingen destruktive ændringer uden frisk backup.
+8. Verificér i prod: health-check grøn + én ægte handling (fx et testopkald fra egen telefon). Hold øje i ~10 min.
+9. Går det galt: **rollback koden** i Railway (hurtigst). DB: kør kun frem-migrationer; ingen destruktive ændringer uden frisk backup.
 
 ---
 
@@ -407,6 +408,18 @@ Resten kan lægges ovenpå, når I har luft.
 19. **Mere farve på dashboardet (Ann 20/7 — egen designrunde m. Anne):** (a) lille farvet initialcirkel ved navnene på opgavelisten — genbrug voice-avatar-mønstret fra profilens stemmekort (tint-cirkel, accent-initial, 36-40 px), (b) blød skygge under hver opgaveboks. **OBS — bevidst delvis tilbagerulning:** restylingens trin 3 (20/7) fjernede netop bokse/skygger til fordel for den flade, linjeadskilte liste (onboarding-sproget). Anns ønske efter at have SET den flade liste er mere visuel vægt — det er præcis den slags, man kun kan afgøre med øjnene, og hendes call. Forslag der bevarer roen: kort m. radius 14, 1px --line-kant, skygge `0 6px 16px rgba(22,35,47,.06)` (dæmpet, ikke 16/7-æraens tunge løft), initialcirkler som farveanker. Anne (design-ejer) skal med på afvejningen flade vs. kort, så dashboard og onboarding stadig føles som ét produkt.
 
 20. **Adressefelterne fra DAWA skal faktisk SKRIVES (27/7 — migrationen er kørt, kolonnerne er tomme):** migration `..._leads_adressefelter` gav `leads` (og den nye `kunder`) strukturerede felter — `vejnavn`, `husnr`, `etage`, `doer`, `postnr`, `by`, `dawa_id` — men de udfyldes ikke af sig selv. De tre steder hvor `initDawa()` allerede kører, HAR det strukturerede DAWA-svar i hånden og smider det væk til fordel for én streng: kundeformularen i `server.js` (`bygAdresse()`-chokepointet), "Ny opgave"-modalen og "Rediger lead"-modalen i `dashboard.html`. **Formålet er at afskaffe komma-parsing permanent** — det var rodårsagen bag 14-15/7-adressesporet; `parseAddress()` (bagfra, dedupe) er et symptomfix, ikke en kur, og den knækker igen første gang en adresse har ét komma mere end forventet. Efter denne opgave: `address` bevares som visningsstreng, postnr/by LÆSES fra kolonnerne, og ingen kode må splitte en adresse på komma. **BEVIDST EFTER PILOTEN** — ren additiv gevinst, nul værdi for pilotens kerneflow, og den rører præcis de tre filer, der lige er blevet stabile. **OBS ved implementering:** (1) gamle leads har NULL i felterne — læsekoden skal falde tilbage på `address`, aldrig antage kolonnerne; (2) `husnr` og `postnr` er `text` (husnumre er "12B", postnummer er en identifikator) — ingen `parseInt`; (3) felterne skal gemmes fra DAWA-OBJEKTET, ikke fra den formaterede streng — ellers har vi bare flyttet parsingen ét lag ned; (4) fuldt id-tjek + røgtest med GENÅBNING af begge modaler (17/7-QA-reglen — det var netop genåbnings-tjekket, der afslørede billedupload-fejlen 20/7). Backfill af historiske adresser: engangsscript der slår hver gammel `address` op mod DAWA's API og skriver felterne fra SVARET — valgfrit, haster ikke, må ikke blokere.
+
+21. **`leads.firm_id` udfyldes ikke af koden — tages med næste gang `server.js` røres (fund 27/7):** migration `..._kunder_og_opgavelag` tilføjede `firm_id` til `leads` og backfillede fra `calls`. Men ingen kode sætter kolonnen — hverken `/opkald`-flowet eller `/opret-opgave`; de blev skrevet, før kolonnen fandtes. Nye leads får derfor `firm_id = NULL`.
+    **Det HASTER IKKE, og her er hvorfor:** ingen kode LÆSER kolonnen endnu, og backfill'en er én sætning, der virker lige godt på 10 og 10.000 rækker — gælden er altså ikke rentebærende. Den rigtige deadline er ikke "før piloterne", men **før `leads`-politikken skifter** fra `call_id → calls.firm_id` til `firm_id` (Trin 5 i tilbud-runbooken). Sker det med NULL-rækker i tabellen, forsvinder de fra dashboardet på én gang.
+    **SÅDAN LØSES DEN — gratis, ikke som egen opgave:** firmaet er allerede kendt på hvert indsættelsessted (`/opkald` slår firmaet op på det kaldte nummer; `/opret-opgave` skal kende det for at kunne sende SMS), så det er ét felt mere i et objekt, der bygges i forvejen. Find stederne med `Select-String -Path *.js -Pattern "from\('leads'\)" -Context 0,6`. Kodearbejdet er minutter — **prisen er ceremonien**: `server.js` er hot path, altså feature branch → staging → røgtest med rigtigt opkald → PR → deploy-vindue → prod-verifikation. En halv dag i kalendertid for to linjer. Derfor: **læg ændringen oven i den næste `server.js`-opgave, du alligevel skal deploye** (kandidater: billedupload-endpointet nr. 14, telefonbesked-synk nr. 1f, statistikfeltet nr. 15). Marginal pris ≈ nul; prisen for at gøre den alene er en halv dag.
+    **SIKKERHEDSNET — kør denne, når du alligevel er i SQL-editoren, og ALTID lige før politikken skiftes:**
+    ```sql
+    update public.leads l set firm_id = c.firm_id
+    from public.calls c where l.call_id = c.id and l.firm_id is null;
+
+    select count(*) as uden_firma from public.leads where firm_id is null;  -- skal give 0
+    ```
+    Den er idempotent og kan køres så tit man vil. Virker for alle leads MED et `call_id` — og 27/7 havde 100 % af dem det. **Alternativ, hvis det nogensinde bliver presserende før næste server-deploy:** en `BEFORE INSERT`-trigger på `leads`, der udleder `firm_id` fra `call_id` ved NULL (nul kodeændring, nul app-deploy, rammer begge indgange). Fravalgt som standardvej, fordi den skaber en værdi, ingen kode har skrevet — om tre måneder leder man forgæves i `server.js` — og fordi den selv skal fjernes igen bagefter. **Til sidst:** `firm_id` gøres først NOT NULL, når kolonnen har været udfyldt et stykke tid, og tællingen ovenfor giver 0 i prod.
 
 ### 🏗️ Infrastruktur/indkøb
 1. **Supabase prod er FREE-tier (ok NU, men fast punkt i pilot-tjeklisten):** free pauser projektet efter ~1 uges inaktivitet (= opkald/SMS/leads fejler, til nogen vækker det manuelt) og har INGEN automatiske backups (en fejlkørsel ville være uoprettelig). **Opgradér til Pro, FØR første betalende håndværker er ombord.** Gratis nu: omdøb projektet til `ditdigitalekontor-prod` (Settings → General) — "anneann1904's Project" er en fejllæsnings-fælde (jf. identiske-dashboards-reglen).
