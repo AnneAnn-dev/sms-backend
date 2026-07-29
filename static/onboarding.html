@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kom i gang</title>
+  <meta name="apple-mobile-web-app-title" content="Dit Kontor">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">
   <link rel="shortcut icon" href="/favicon.ico?v=2">
@@ -461,7 +462,7 @@
 
     <!-- ── LINKET VIRKER IKKE ─────────────────────────────── -->
     <section class="screen" id="s-expired">
-      <h1>Linket er udløbet</h1>
+      <h1 id="expired-title">Linket er udløbet</h1>
       <p class="sub" id="expired-msg">Skriv din e-mail, så sender vi et nyt med det samme.</p>
       <div class="field">
         <input id="relink-email" type="email" autocomplete="email" placeholder="din@mail.dk"
@@ -642,14 +643,17 @@
       <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
     </section>
 
-    <!-- ── SIDE 9: INSTALLATION 1/4 — HVOR SKAL DU KIGGE ──── -->
-    <!-- Ombygget 20/7 (Anns pilotobservation: brugeren "fjumrede rundt" og
-         vidste ikke, HVOR paa skaermen han skulle kigge): guiden gaar fra
-         2 til 4 trin — orientering -> knappen -> menuen -> Tilfoej. -->
+    <!-- ── SIDE 9: INSTALLATION 1/4 — KIG NED + TRYK PÅ PRIKKER ──
+         26/7 (Anns test paa rigtig iPhone): iOS' gamle to-trins-start (kig
+         ned, TRYK saa paa Del) er lagt sammen til ét trin, da det kompakte
+         •••-layout viste sig at vaere det, hun rent faktisk ser. Flowet
+         (iOS): kig+prikker -> Del i •••-popup -> pil ned -> Foej til
+         hjemmeskaerm. Android: uaendret, kortere flow (springer "Del" og
+         "pil ned" over, jf. videreFraTrin2). -->
     <section class="screen" id="s-9">
       <p class="step-eyebrow" id="inst1-step">Trin 1 af 4</p>
-      <h1 id="inst1-title">Kig nederst på skærmen</h1>
-      <p class="sub" id="inst1-sub">I bunden af Safari sidder en række knapper.</p>
+      <h1 id="inst1-title">Kig ned og tryk på de tre prikker</h1>
+      <p class="sub" id="inst1-sub">De tre prikker sidder ved adressefeltet, nederst i Safari.</p>
       <div class="inst-icon" aria-hidden="true">
         <!-- iOS: siden daempet, bundlinjen fremhaevet -->
         <svg id="orient-ios" width="270" height="150" viewBox="0 0 270 150" fill="none">
@@ -683,19 +687,21 @@
             <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
             <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
           </g>
-          <text x="135" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
-          <path d="M135 97v10" stroke="#2C6B9E" stroke-width="1.6"/>
-          <path d="M130 103l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
+          <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
           <path d="M29 123l-5 6 5 6" stroke="#9AA6B2" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <rect x="48" y="115" width="164" height="28" rx="14" fill="#F0F3F7"/>
-          <text x="120" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <rect x="62" y="123.5" width="7" height="8" rx="1.5" fill="none" stroke="#9AA6B2" stroke-width="1.1"/>
+          <path d="M63.5 127.3h4" stroke="#9AA6B2" stroke-width="1.1"/>
+          <text x="126" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
           <path d="M191 124a5.5 5.5 0 1 1-2 -3.8M189 118l2 2-2.6 1.4" stroke="#9AA6B2" stroke-width="1.3" fill="none" stroke-linecap="round"/>
           <circle cx="236" cy="129" r="14" fill="#F0F3F7"/>
           <g fill="#5B6B7A">
             <circle cx="229" cy="129" r="1.7"/><circle cx="236" cy="129" r="1.7"/><circle cx="243" cy="129" r="1.7"/>
           </g>
-          <rect x="9" y="112" width="252" height="34" rx="17" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
         </svg>
         <!-- Android: siden daempet, toplinjen fremhaevet -->
         <svg id="orient-android" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
@@ -720,43 +726,45 @@
       <button class="btn" onclick="bekraeftOgVidere(this, 's-9b')">Næste</button>
     </section>
 
-    <!-- ── SIDE 9b: INSTALLATION 2/4 — TRYK PÅ KNAPPEN ────── -->
+    <!-- ── SIDE 9b: INSTALLATION 2/4 — TRYK PÅ DEL-IKONET ──── -->
     <section class="screen" id="s-9b">
       <p class="step-eyebrow" id="inst2-step">Trin 2 af 4</p>
       <h1 id="inst2-title">Tryk på Del-ikonet</h1>
       <p class="sub" id="inst2-sub">Firkanten med pilen, der peger op.</p>
       <div class="inst-icon" id="inst1-icon" aria-hidden="true">
-        <!-- NYT Safari (iOS 26+): zoomet bundlinje, ring om de tre prikker -->
-        <svg id="mock-ios26" width="270" height="120" viewBox="0 0 270 120" fill="none" style="display:none">
-          <text x="216" y="34" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
-          <path d="M216 39v12" stroke="#2C6B9E" stroke-width="1.6"/>
-          <path d="M211 47l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="18" y="66" width="156" height="34" rx="17" fill="#F0F3F7"/>
-          <text x="88" y="87" text-anchor="middle" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
-          <circle cx="216" cy="83" r="18" fill="#F0F3F7"/>
-          <g fill="#5B6B7A">
-            <circle cx="207" cy="83" r="2.2"/><circle cx="216" cy="83" r="2.2"/><circle cx="225" cy="83" r="2.2"/>
+        <!-- iOS: •••-popup'en der åbner, med "Del" fremhaevet øverst
+             (tidligere s-9c's mockup — nu det universelle iOS-trin 2,
+             uanset Safari-version, jf. Anns skaermdumps 26/7) -->
+        <svg id="mock-del-ios" width="270" height="200" viewBox="0 0 270 200" fill="none">
+          <g opacity=".3">
+            <rect x="12" y="14" width="110" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="12" y="30" width="90" height="8" rx="4" fill="#E6EBF1"/>
           </g>
-          <circle cx="216" cy="83" r="23" stroke="#2C6B9E" stroke-width="1.8" fill="none"/>
-        </svg>
-        <!-- iOS: Safaris bundlinje med Del-ikonet markeret -->
-        <svg id="mock-ios" width="270" height="128" viewBox="0 0 270 128" fill="none">
-          <text x="135" y="14" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
-          <path d="M135 20v26" stroke="#2C6B9E" stroke-width="1.6"/>
-          <path d="M130 41l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="8" y="56" width="254" height="64" rx="14" fill="#F0F3F7"/>
-          <rect x="24" y="64" width="222" height="18" rx="9" fill="#FFFFFF"/>
-          <text x="135" y="77" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
-          <g stroke="#9AA6B2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
-            <path d="M48 96l-6 6 6 6" transform="translate(0,-4)"/>
-            <path d="M86 92l6 6-6 6"/>
-            <path d="M196 92h14v14h-14z"/>
-            <circle cx="228" cy="99" r="7"/>
+          <!-- Popup'en, med luft ned til bundlinjen -->
+          <rect x="86" y="10" width="176" height="140" rx="14" fill="#FFFFFF" stroke="#E4E9EF" stroke-width="1.5"/>
+          <g stroke="#2C6B9E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="M105 42v-9"/><path d="M101 36l4-4 4 4"/><rect x="99" y="38" width="12" height="10" rx="2.5"/>
           </g>
-          <g stroke="#2C6B9E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
-            <path d="M135 90v10"/><path d="M131 93l4-4 4 4"/><rect x="128" y="96" width="14" height="11" rx="2.5"/>
-          </g>
-          <circle cx="135" cy="99" r="17" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="122" y="46" font-size="11" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Del</text>
+          <rect x="94" y="26" width="158" height="28" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="42" y="44" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M62 40h18" stroke="#2E7D52" stroke-width="1.6"/>
+          <path d="M74 35l6 5-6 5" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="122" y="78" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Føj til bogmærker</text>
+          <line x1="94" y1="94" x2="252" y2="94" stroke="#E4E9EF" stroke-width="1.5"/>
+          <text x="122" y="116" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Ny fane</text>
+          <text x="104" y="140" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Bogmærker</text>
+          <text x="194" y="140" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Alle faner</text>
+          <!-- Bundlinjen popup'en er foldet ud fra (26/7: giver popup'en en
+               forankring, saa den ikke virker som om den flyder frit) -->
+          <rect x="9" y="168" width="252" height="26" rx="13" fill="#F0F3F7"/>
+          <circle cx="26" cy="181" r="10" fill="#FFFFFF"/>
+          <path d="M28 177l-4 4 4 4" stroke="#9AA6B2" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="46" y="173" width="140" height="16" rx="8" fill="#FFFFFF"/>
+          <text x="116" y="185" text-anchor="middle" font-size="9" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <circle cx="236" cy="181" r="12" fill="#FFFFFF"/>
+          <g fill="#5B6B7A"><circle cx="230" cy="181" r="1.5"/><circle cx="236" cy="181" r="1.5"/><circle cx="242" cy="181" r="1.5"/></g>
+          <circle cx="236" cy="181" r="15" stroke="#2C6B9E" stroke-width="1.4" fill="none"/>
         </svg>
         <!-- Android: Chromes toplinje med ⋮-menuen markeret -->
         <svg id="mock-android" width="270" height="128" viewBox="0 0 270 128" fill="none" style="display:none">
@@ -775,65 +783,116 @@
       <button class="btn" onclick="videreFraTrin2(this)">Næste</button>
     </section>
 
-    <!-- ── SIDE 9c: KUN NYT SAFARI (iOS 26+) — TRYK PÅ "DEL" ──
-         I det kompakte layout ligger "Foej til hjemmeskaerm" IKKE direkte i
-         ⋯-menuen: menuen har "Del", og DERFRA aabner delarket. (Anns
-         skaermdump 20/7 + Apples dokumenterede floej.) Aeldre iOS og
+    <!-- ── SIDE 9c: INSTALLATION 3/4 — TRYK PÅ PIL NED ────────
+         Delarket er åbent (via Del i •••-menuen). "Føj til hjemmeskærm"
+         ligger i en udvidet liste, som først vises efter tryk på pil ned
+         ("Se mere") nederst til højre i handlingsraekken. Kun iOS —
          Android springer denne skaerm over (videreFraTrin2). -->
     <section class="screen" id="s-9c">
-      <p class="step-eyebrow" id="inst2b-step">Trin 3 af 5</p>
-      <h1>Tryk på "Del"</h1>
-      <p class="sub">Menuen folder sig ud — find "Del", firkanten med pilen op.</p>
+      <p class="step-eyebrow" id="inst2b-step">Trin 3 af 4</p>
+      <h1>Tryk på pil ned</h1>
+      <p class="sub">Nederst til højre i vinduet, der åbner, finder du en lille pil ned ("Se mere").</p>
       <div class="inst-icon" aria-hidden="true">
-        <svg width="270" height="168" viewBox="0 0 270 168" fill="none">
-          <g opacity=".35">
-            <rect x="12" y="14" width="110" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="12" y="30" width="90" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="12" y="46" width="104" height="8" rx="4" fill="#E6EBF1"/>
+        <svg width="270" height="212" viewBox="0 -20 270 212" fill="none">
+          <!-- Telefonens sider fortsætter lidt op over boksen — antyder at
+               arket ligger nederst på en skærm, der fortsætter opad (26/7) -->
+          <line x1="16" y1="-20" x2="16" y2="8" stroke="#DDE3EA" stroke-width="2"/>
+          <line x1="254" y1="-20" x2="254" y2="8" stroke="#DDE3EA" stroke-width="2"/>
+          <rect x="16" y="8" width="238" height="176" rx="16" fill="#F0F3F7"/>
+          <rect x="119" y="16" width="32" height="4" rx="2" fill="#C7CFD8"/>
+          <rect x="32" y="28" width="26" height="26" rx="7" fill="#2C6B9E"/>
+          <text x="45" y="46" text-anchor="middle" font-size="12" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">K</text>
+          <rect x="66" y="30" width="88" height="8" rx="4" fill="#DDE3EA"/>
+          <rect x="66" y="43" width="56" height="6" rx="3" fill="#E6EBF1"/>
+          <g fill="#FFFFFF">
+            <circle cx="54" cy="86" r="17"/>
+            <circle cx="103" cy="86" r="17"/>
+            <circle cx="152" cy="86" r="17"/>
+            <circle cx="201" cy="86" r="17"/>
           </g>
-          <rect x="88" y="8" width="174" height="152" rx="14" fill="#FFFFFF" stroke="#E4E9EF" stroke-width="1.5"/>
-          <g stroke="#2C6B9E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
-            <path d="M107 40v-9"/><path d="M103 34l4-4 4 4"/><rect x="101" y="36" width="12" height="10" rx="2.5"/>
+          <text x="54" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">AirDrop</text>
+          <text x="103" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Beskeder</text>
+          <text x="152" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Mail</text>
+          <text x="201" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Instagram</text>
+          <g fill="#FFFFFF">
+            <circle cx="54" cy="140" r="17"/>
+            <circle cx="103" cy="140" r="17"/>
+            <circle cx="152" cy="140" r="17"/>
+            <circle cx="201" cy="140" r="17"/>
           </g>
-          <text x="124" y="44" font-size="11" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Del</text>
-          <rect x="96" y="24" width="158" height="28" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
-          <text x="44" y="42" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
-          <path d="M64 38h18" stroke="#2C6B9E" stroke-width="1.6"/>
-          <path d="M76 33l6 5-6 5" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <text x="124" y="76" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Føj til bogmærker</text>
-          <line x1="96" y1="92" x2="254" y2="92" stroke="#E4E9EF" stroke-width="1.5"/>
-          <text x="124" y="114" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Ny fane</text>
-          <text x="106" y="146" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Bogmærker</text>
-          <text x="196" y="146" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Alle faner</text>
+          <path d="M196 137l5 5 5-5" stroke="#2C6B9E" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="201" cy="140" r="21" stroke="#2C6B9E" stroke-width="1.8" fill="none"/>
+          <text x="54" y="165" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Kopiér</text>
+          <text x="103" y="165" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Bogmærke</text>
+          <text x="152" y="165" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Læseliste</text>
+          <text x="201" y="165" text-anchor="middle" font-size="8" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Se mere</text>
+          <text x="234" y="130" text-anchor="middle" font-size="11" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M226 133l-9 6" stroke="#2E7D52" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          <path d="M217 134.5l-.5 4.5 4.5 1" stroke="#2E7D52" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <button class="btn" onclick="bekraeftOgVidere(this, 's-10')">Næste</button>
     </section>
 
-    <!-- ── SIDE 10: INSTALLATION 3/4 — MENUEN FOLDER SIG UD ── -->
+    <!-- ── SIDE 10: INSTALLATION 4/5 (iOS) / 3/4 (Android) —
+         TRYK PÅ "FØJ TIL HJEMMESKÆRM" ────────────────────── -->
     <section class="screen" id="s-10">
       <p class="step-eyebrow" id="inst3-step">Trin 3 af 4</p>
-      <h1 id="inst3-title">Menuen folder sig ud</h1>
+      <h1 id="inst3-title">Tryk på "Føj til hjemmeskærm"</h1>
       <p class="sub">Find "<span id="inst3-name">Føj til hjemmeskærm</span>" og tryk på den.<br>Rul ned i listen, hvis du ikke kan se den.</p>
       <div class="inst-icon" aria-hidden="true">
         <!-- iOS: delark nedefra med raekken fremhaevet -->
-        <svg id="menu-ios" width="270" height="168" viewBox="0 0 270 168" fill="none">
-          <rect x="30" y="14" width="210" height="154" rx="14" fill="#F0F3F7"/>
-          <rect x="123" y="22" width="24" height="4" rx="2" fill="#C7CFD8"/>
-          <rect x="44" y="34" width="120" height="10" rx="5" fill="#DDE3EA"/>
+        <svg id="menu-ios" width="270" height="284" viewBox="0 0 270 284" fill="none">
+          <rect x="16" y="8" width="238" height="266" rx="16" fill="#F0F3F7"/>
+          <rect x="119" y="16" width="32" height="4" rx="2" fill="#C7CFD8"/>
+          <!-- Sidens ikon + titel, som i det rigtige delark -->
+          <rect x="32" y="28" width="26" height="26" rx="7" fill="#2C6B9E"/>
+          <text x="45" y="46" text-anchor="middle" font-size="12" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">K</text>
+          <rect x="66" y="30" width="88" height="8" rx="4" fill="#DDE3EA"/>
+          <rect x="66" y="43" width="56" height="6" rx="3" fill="#E6EBF1"/>
+          <!-- Deleikoner (AirDrop/Beskeder/Mail/Instagram) -->
           <g fill="#FFFFFF">
-            <rect x="40" y="54" width="190" height="26" rx="8"/>
-            <rect x="40" y="84" width="190" height="26" rx="8"/>
-            <rect x="40" y="114" width="190" height="26" rx="8"/>
+            <circle cx="54" cy="86" r="17"/>
+            <circle cx="103" cy="86" r="17"/>
+            <circle cx="152" cy="86" r="17"/>
+            <circle cx="201" cy="86" r="17"/>
           </g>
-          <text x="52" y="71" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Føj til favoritter</text>
-          <text x="52" y="101" font-size="11" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Find på side</text>
-          <text x="52" y="131" font-size="11" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Føj til hjemmeskærm</text>
+          <text x="54" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">AirDrop</text>
+          <text x="103" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Beskeder</text>
+          <text x="152" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Mail</text>
+          <text x="201" y="111" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Instagram</text>
+          <!-- Hurtighandlinger (Kopiér/Bogmærke/Læseliste/Vis mere) -->
+          <g fill="#FFFFFF">
+            <circle cx="54" cy="136" r="17"/>
+            <circle cx="103" cy="136" r="17"/>
+            <circle cx="152" cy="136" r="17"/>
+            <circle cx="201" cy="136" r="17"/>
+          </g>
+          <text x="54" y="161" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Kopiér</text>
+          <text x="103" y="161" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Bogmærke</text>
+          <text x="152" y="161" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Læseliste</text>
+          <text x="201" y="161" text-anchor="middle" font-size="8" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Vis mere</text>
+          <rect x="32" y="174" width="206" height="1.2" fill="#E4E9EF"/>
+          <!-- Tre rækker: ikon til venstre, tekst til højre (26/7, Anns
+               rettelse) — flere rækker antyder at listen fortsætter, med
+               "Føj til hjemmeskærm" fremhævet nederst -->
+          <g fill="#FFFFFF">
+            <rect x="32" y="182" width="206" height="24" rx="8"/>
+            <rect x="32" y="212" width="206" height="24" rx="8"/>
+            <rect x="32" y="242" width="206" height="24" rx="8"/>
+          </g>
+          <circle cx="48" cy="194" r="6.5" fill="none" stroke="#8A97A5" stroke-width="1.3"/>
+          <circle cx="48" cy="194" r="2.5" fill="#8A97A5"/>
+          <text x="66" y="198" font-size="10" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Marker som ulæst</text>
+          <circle cx="46.5" cy="222.5" r="5.5" fill="none" stroke="#8A97A5" stroke-width="1.3"/>
+          <path d="M50.5 226.5l3.5 3.5" stroke="#8A97A5" stroke-width="1.3" stroke-linecap="round"/>
+          <text x="66" y="228" font-size="10" fill="#5B6B7A" font-family="'Source Sans 3',sans-serif">Find på side</text>
           <g stroke="#2C6B9E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
-            <rect x="206" y="119" width="15" height="15" rx="3.5"/><path d="M213.5 123v7M210 126.5h7"/>
+            <rect x="40" y="246.5" width="15" height="15" rx="3.5"/><path d="M47.5 250.5v7M44 254h7"/>
           </g>
-          <rect x="38" y="112" width="194" height="30" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
-          <text x="14" y="120" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif" transform="rotate(-90 14 120)">Tryk her</text>
+          <text x="66" y="258" font-size="10" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Føj til hjemmeskærm</text>
+          <rect x="30" y="240" width="210" height="28" rx="9" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".55"/>
+          <text x="12" y="254" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif" transform="rotate(-90 12 254)">Tryk her</text>
         </svg>
         <!-- Android: rullemenu fra ⋮ med raekken fremhaevet -->
         <svg id="menu-android" width="270" height="168" viewBox="0 0 270 168" fill="none" style="display:none">
@@ -860,7 +919,8 @@
       <button class="btn" onclick="bekraeftOgVidere(this, 's-10b')">Næste</button>
     </section>
 
-    <!-- ── SIDE 10b: INSTALLATION 4/4 — TRYK PÅ TILFØJ ─────── -->
+    <!-- ── SIDE 10b: INSTALLATION 5/5 (iOS) / 4/4 (Android) —
+         TRYK PÅ "TILFØJ" (genindsat 26/7, Anns ønske) ────────── -->
     <section class="screen" id="s-10b">
       <p class="step-eyebrow" id="inst4-step">Trin 4 af 4</p>
       <h1>Tryk på "Tilføj"</h1>
@@ -872,12 +932,12 @@
           <text x="36" y="36" font-size="11" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">Annuller</text>
           <text x="135" y="36" text-anchor="middle" font-size="11" font-weight="600" fill="#16232F" font-family="'Source Sans 3',sans-serif">Føj til hjemmeskærm</text>
           <text x="216" y="36" font-size="12" font-weight="700" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tilføj</text>
-          <rect x="200" y="20" width="44" height="24" rx="8" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".6"/>
-          <text x="222" y="66" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Tryk her</text>
-          <path d="M222 54v-6" stroke="#2C6B9E" stroke-width="1.6"/>
-          <path d="M217 52l5-6 5 6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <ellipse cx="222" cy="32" rx="26" ry="15" stroke="#2C6B9E" stroke-width="1.6" fill="none" opacity=".7"/>
+          <text x="222" y="66" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Tryk her</text>
+          <path d="M222 54v-6" stroke="#2E7D52" stroke-width="1.6"/>
+          <path d="M217 52l5-6 5 6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <rect x="36" y="76" width="34" height="34" rx="8" fill="#2C6B9E"/>
-          <text x="53" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">D</text>
+          <text x="53" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="#FFFFFF" font-family="'Nunito',sans-serif">K</text>
           <rect x="80" y="82" width="96" height="9" rx="4.5" fill="#DDE3EA"/>
           <rect x="80" y="97" width="130" height="7" rx="3.5" fill="#E6EBF1"/>
         </svg>
@@ -1007,6 +1067,17 @@
           state.phoneNumber = '+4531234567';
           state.greeting    = defaultGreeting(state.firmName);
           return startFlow();
+        }
+        // Delt-lager-fælden: intet token_hash i URL'en (ingen mail-link blev
+        // klikket lige nu) OG ingen session — det er typisk IKKE et udløbet
+        // link, men den installerede ikons allerførste åbning, hvor Safaris
+        // session fra magic-linket endnu ikke findes i denne kontekst.
+        // "Linket er udløbet" er misvisende her; vis en venlig velkomst i
+        // stedet og lad kodesporet være vejen ind (se primeren, 19-20/7).
+        if (!tokenHash && isStandalone()) {
+          document.getElementById('expired-title').textContent = 'Velkommen';
+          document.getElementById('expired-msg').textContent =
+            'Skriv din e-mail, så sender vi et login-link og en engangskode, du kan taste her i appen.';
         }
         return showScreen('s-expired');
       }
@@ -1459,48 +1530,45 @@
     const ua    = navigator.userAgent || '';
     const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
                   (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
-    // NYT Safari (iOS 26+, kompakt layout er STANDARD): alt bor bag de tre
-    // prikker nederst til hoejre, og "Foej til hjemmeskaerm" naas via
-    // ⋯ -> Del -> delarket (Anns skaermdumps 20/7). Aeldre iOS har del-
-    // ikonet direkte i bundlinjen. Vi forgrener paa iOS-hovedversionen:
-    const iosMajor = (ua.match(/OS (\d+)_/) || [])[1] * 1 || 0;
-    installVariant = !isIOS ? 'android' : (iosMajor >= 26 ? 'ios26' : 'ios');
-    const nyS = installVariant === 'ios26';
-    BACK_TARGET['s-10'] = nyS ? 's-9c' : 's-9b';   // bagud-pilen foelger varianten
-    // Trin-numre: nyt Safari har 5 trin, alle andre 4.
-    // Faelles overskrift paa alle guidens trin (Anns oenske 20/7):
+    installVariant = isIOS ? 'ios' : 'android';
+    // Bagud-pilen fra trin 4 (s-10): iOS kommer via "pil ned"-trinnet
+    // (s-9c), Android via de tre prikker direkte (s-9b).
+    BACK_TARGET['s-10'] = isIOS ? 's-9c' : 's-9b';
+    // Faelles overskrift for alle trin. iOS har 5 trin (kig+prikker -> Del
+    // -> pil ned -> Foej til hjemmeskaerm -> Tilfoej), Android har 4
+    // (springer "Del" og "pil ned" over, jf. videreFraTrin2).
     const GUIDE_TITEL = 'Læg appen på din telefon';
-    document.getElementById('inst1-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 1 af 5' : ' · Trin 1 af 4');
-    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 2 af 5' : ' · Trin 2 af 4');
+    document.getElementById('inst1-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 1 af 5' : ' · Trin 1 af 4');
+    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 2 af 5' : ' · Trin 2 af 4');
     document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin 3 af 5';
-    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 4 af 5' : ' · Trin 3 af 4');
-    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (nyS ? ' · Trin 5 af 5' : ' · Trin 4 af 4');
-    // Trin 1: HVOR skal man kigge (20/7: piloten vidste ikke, hvor paa
-    // skaermen knappen sad — orienteringen kommer nu FOER knappen).
-    document.getElementById('inst1-title').textContent = isIOS ? 'Kig nederst på skærmen' : 'Kig øverst på skærmen';
-    document.getElementById('inst1-sub').textContent   = !isIOS
-      ? 'Oppe ved adressefeltet sidder en lille menuknap.'
-      : (nyS ? 'I bunden af Safari sidder adressefeltet — og yderst til højre: tre prikker.'
-             : 'I bunden af Safari sidder en række knapper.');
-    document.getElementById('orient-ios').style.display     = (isIOS && !nyS) ? '' : 'none';
-    document.getElementById('orient-ios26').style.display   = nyS ? '' : 'none';
+    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 4 af 5' : ' · Trin 3 af 4');
+    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 5 af 5' : ' · Trin 4 af 4');
+    // Trin 1 (20/7 + 26/7): HVOR skal man kigge — og på iOS med det samme
+    // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
+    // Anns test viste at kigge-trinnet alene ikke gav nok information).
+    document.getElementById('inst1-title').textContent = isIOS
+      ? 'Kig ned og tryk på de tre prikker'
+      : 'Kig øverst på skærmen';
+    document.getElementById('inst1-sub').textContent = isIOS
+      ? 'De tre prikker sidder ved adressefeltet, nederst i Safari.'
+      : 'Oppe ved adressefeltet sidder en lille menuknap.';
+    document.getElementById('orient-ios').style.display     = 'none';   // udgaaet fuld-bundlinje-variant, mockup'et staar urørt herover
+    document.getElementById('orient-ios26').style.display   = isIOS ? '' : 'none';
     document.getElementById('orient-android').style.display = isIOS ? 'none' : '';
-    // Trin 2: KNAPPEN (de oprindelige mockups med "Tryk her"-pilen).
-    document.getElementById('inst2-title').textContent = (isIOS && !nyS) ? 'Tryk på Del-ikonet' : 'Tryk på de tre prikker';
-    document.getElementById('inst2-sub').textContent   = !isIOS
-      ? 'De sidder yderst til højre ved adressefeltet.'
-      : (nyS ? 'De sidder nederst til højre, ved siden af adressefeltet.'
-             : 'Firkanten med pilen, der peger op — midt i bunden.');
-    document.getElementById('mock-ios').style.display     = (isIOS && !nyS) ? '' : 'none';
-    document.getElementById('mock-ios26').style.display   = nyS ? '' : 'none';
+    // Trin 2: iOS -> tryk på "Del" i •••-popup'en (mock-del-ios). Android
+    // -> tryk på de tre prikker (uændret, fører direkte til rullemenuen).
+    document.getElementById('inst2-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på de tre prikker';
+    document.getElementById('inst2-sub').textContent   = isIOS
+      ? 'Den ligger øverst i menuen, der åbner.'
+      : 'De sidder yderst til højre ved adressefeltet.';
+    document.getElementById('mock-del-ios').style.display = isIOS ? '' : 'none';
     document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
-    // Trin 3/4: MENUEN/delarket — find punktet. (Nyt Safari: delarket, som
-    // kunden netop har aabnet via Del — mock'en af delarket passer begge.)
-    document.getElementById('inst3-title').textContent = nyS ? 'Delmenuen åbner' : 'Menuen folder sig ud';
+    // Trin 4 (s-10): den udfoldede liste — "Føj til hjemmeskærm"/"...startskærm".
+    document.getElementById('inst3-title').textContent = isIOS ? 'Tryk på "Føj til hjemmeskærm"' : 'Menuen folder sig ud';
     document.getElementById('inst3-name').textContent = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
     document.getElementById('menu-ios').style.display     = isIOS ? '' : 'none';
     document.getElementById('menu-android').style.display = isIOS ? 'none' : '';
-    // Trin 4: TILFOEJ-dialogen.
+    // Trin 5 (s-10b): TILFØJ-dialogen.
     document.getElementById('inst4-sub').textContent = isIOS
       ? 'Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.'
       : 'Telefonen spørger, om Dit Digitale Kontor må ligge på din startskærm.';
@@ -1549,9 +1617,10 @@
   // ── Installationsguidens variant (saettes af startInstall) ─────────
   let installVariant = 'android';
   function videreFraTrin2(btn) {
-    // Nyt Safari (iOS 26+) har det ekstra "Tryk paa Del"-trin; alle andre
-    // gaar direkte til menu/delark-trinnet.
-    bekraeftOgVidere(btn, installVariant === 'ios26' ? 's-9c' : 's-10');
+    // Alle iOS-brugere skal nu via "pil ned"-trinnet (s-9c) for at finde
+    // "Føj til hjemmeskærm" i den udvidede liste; kun Android springer det
+    // over og går direkte til rullemenuen (s-10).
+    bekraeftOgVidere(btn, installVariant === 'android' ? 's-10' : 's-9c');
   }
 
   // ── Kodesporet på udløbet-skærmen (20/7, kodeopgave 1d) ────────────
@@ -1648,6 +1717,12 @@
   }
 
   // ── Hjælpere ───────────────────────────────────────────────────────
+  // Kører siden som installeret hjemmeskærms-app? (iOS' egen flag +
+  // standard-medieforespørgslen som backup for Android/andre.)
+  function isStandalone() {
+    return window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  }
   function formatDK(e164) {
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
   }
