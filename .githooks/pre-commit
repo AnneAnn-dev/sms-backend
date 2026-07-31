@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# Pre-commit-vagt: naegter commits med hemmeligheder i.
+#
+# HVORFOR: en noegle, der foerst er committet, ligger i historikken for altid.
+# At fjerne den kraever historik-omskrivning OG rotation af noeglen. Det er
+# 100 gange nemmere at stoppe den her. (Baggrund: .env-eksponeringen 22/7-26.)
+#
+# Vagten gaelder ALLE haender, inkl. Claude Code.
+#
+# INSTALLATION PAA NY MASKINE (hook'en virker ikke af sig selv):
+#   1) winget install Gitleaks.Gitleaks
+#   2) git config core.hooksPath .githooks
+#   3) test: commit en fake noegle og se den blive afvist
+#
+# Filen SKAL have LF-linjeskift og ren ASCII. CRLF faar Git for Windows'
+# indbyggede sh til at fejle med en kryptisk besked. Se .gitattributes.
+
+set -u
+
+# Fail-closed: er vaerktoejet ikke der, gaar der ingen commits igennem.
+# Hellere en blokeret commit end en falsk tryghed - hvis hook'en stiltiende
+# lod commits passere, naar gitleaks manglede, ville vagten vaere vaerdiloes
+# praecis paa den maskine, hvor den ikke er sat op.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo ""
+  echo "STOP: gitleaks er ikke installeret - commit afvist."
+  echo "Installer med:  winget install Gitleaks.Gitleaks"
+  echo "og saet saa:    git config core.hooksPath .githooks"
+  echo ""
+  exit 1
+fi
+
+CONFIG=""
+if [ -f .gitleaks.toml ]; then
+  CONFIG="--config .gitleaks.toml"
+fi
+
+# --staged      : scan KUN det, der er lagt til commit (ikke hele historikken)
+# --pre-commit  : hoerer sammen med --staged; begge skal med
+# --redact      : skjul selve fundet i outputtet - ellers staar hemmeligheden
+#                 i din terminal og i dit scrollback
+gitleaks git --pre-commit --staged --redact --verbose $CONFIG
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "COMMIT AFVIST: gitleaks fandt noget, der ligner en hemmelighed."
+  echo ""
+  echo "Saadan gaar du videre:"
+  echo "  1) Er det en aegte noegle? Fjern den fra filen. Hoerer den til i"
+  echo "     .env-filen, saa tjek at .env staar i .gitignore."
+  echo "  2) Er det en falsk alarm? Tilfoej en undtagelse i .gitleaks.toml"
+  echo "     - og skriv HVORFOR i en kommentar ved siden af."
+  echo ""
+  echo "Kan du ikke komme videre, saa STOP og faa hjaelp. Brug ikke"
+  echo "--no-verify for at komme uden om: det er praecis den vane, der"
+  echo "gjorde vagten noedvendig."
+  echo ""
+  exit 1
+fi
+
+exit 0
