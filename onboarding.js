@@ -69,6 +69,16 @@ module.exports = function registerOnboarding(app, supabase) {
 
   // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
+  // ─── LOG-HYGIEJNE ─────────────────────────────────────────────────────────
+  // Telefonnumre paa kundens kunder er PERSONOPLYSNINGER. De havnede foer i
+  // Railways log med en opbevaringstid, vi ikke selv styrer. Maskering bevarer
+  // hele fejlsoegningsvaerdien (landekode + operatoerdel) og fjerner problemet.
+  const maskerTlf = (n) => {
+    const t = String(n || "").trim();
+    if (t.length < 6) return t ? "***" : "(tomt)";
+    return t.slice(0, t.length - 4) + "****";
+  };
+
   // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
   // Uændret signatur, så /send-sms og /opkald kalder den som før.
   async function sendSms({ to, from, body }) {
@@ -214,7 +224,7 @@ module.exports = function registerOnboarding(app, supabase) {
         // Firma er oprettet — mail kan sendes igen manuelt fra admin panel
       }
 
-      console.log("✅ Firma oprettet:", firm.id, "—", company, "→", phoneRow.number);
+      console.log("✅ Firma oprettet:", firm.id, "—", company, "→", maskerTlf(phoneRow.number));
       res.status(200).send("OK");
     }
   );
@@ -258,14 +268,17 @@ module.exports = function registerOnboarding(app, supabase) {
         }
         console.warn("⚠️  /opkald: ugyldig signatur (KUN LOG - ikke afvist). URL:", url);
       } else {
-        console.log("✅ /opkald: signatur OK");
+        // I log-tilstand er kvitteringen hele pointen - den er beviset paa at
+        // URL-opbygningen holder. Naar der HAANDHAEVES, er "det gik godt" paa
+        // hvert eneste opkald bare tapet: saa logges kun afvisninger.
+        if (tilstand === "log") console.log("✅ /opkald: signatur OK");
       }
     }
 
     const toNumber   = req.body.To;    // firmaets Twilio-nummer
     const fromNumber = req.body.From;  // kundens nummer
 
-    console.log("📞 Opkald modtaget:", fromNumber, "→", toNumber);
+    console.log("📞 Opkald modtaget:", maskerTlf(fromNumber), "→", maskerTlf(toNumber));
 
     const twiml = new twilio.twiml.VoiceResponse();
 
@@ -277,7 +290,7 @@ module.exports = function registerOnboarding(app, supabase) {
       .single();
 
     if (!firm) {
-      console.warn("⚠️  Intet firma fundet for nummer:", toNumber);
+      console.warn("⚠️  Intet firma fundet for nummer:", maskerTlf(toNumber));
       twiml.hangup();
       return res.type("text/xml").send(twiml.toString());
     }
@@ -335,7 +348,7 @@ module.exports = function registerOnboarding(app, supabase) {
           from: toNumber,
           body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
         }).catch(err => console.error("❌ Demo-SMS (kopi) fejl:", err));
-        console.log("📨 Demo-SMS sendt til håndværker:", firm.owner_phone || fromNumber);
+        console.log("📨 Demo-SMS sendt til håndværker:", maskerTlf(firm.owner_phone || fromNumber));
       } catch (e) {
         console.error("⚠️  Kunne ikke sende demo-SMS (verifikation fortsætter):", e.message);
       }
@@ -359,7 +372,7 @@ module.exports = function registerOnboarding(app, supabase) {
         .maybeSingle();
 
       if (hit) {
-        console.log("⚪ Hvidlistet nummer — springer opgaveformular over:", fromNorm, "→", firm.id);
+        console.log("⚪ Hvidlistet nummer — springer opgaveformular over:", maskerTlf(fromNorm), "→", firm.id);
         const voice = firm.voice_gender === "male" ? "Polly.Mads" : "Polly.Naja";
         twiml.say({ voice, language: "da-DK" },
           "Hej, jeg kan desværre ikke tage telefonen lige nu. Ring gerne igen senere.");
@@ -401,7 +414,10 @@ module.exports = function registerOnboarding(app, supabase) {
     // Normalt opkald fra kunde — send SMS med formular-link.
     // Format: ${BASE_URL}/{firma-slug}/{lead_token}  (maskeret opgave-subdomæne)
     const formUrl = `${FORM_BASE}/${firm.slug}/${call.lead_token}`;
-    console.log("SMS link:", formUrl);
+    // Tokenet ER adgangskontrollen til formularen - det maa ikke staa i en log,
+    // alle med adgang til Railway kan laese. Firma + call-id er det, man rent
+    // faktisk fejlsoeger paa, og rykker man et skridt kan man slaa tokenet op.
+    console.log("✉️  Formular-SMS sendt — firma:", firm.id, "call:", call.id);
 
     sendSms({
       to:   fromNumber,
