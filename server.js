@@ -95,7 +95,6 @@ if (TILBUD_AKTIV) {
   require("./routes/tilbud")(app, supabase);
   app.use("/tilbud", express.static("tilbud"));
 }
-console.log(`⚙️  Tilbudsmodul: ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}`);
 
 // ─── ADRESSE-NORMALISERING ──────────────────────────────────────────────────
 // DAWA's forslagstekst slutter typisk allerede på "postnr by", og kan
@@ -556,4 +555,52 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server kører på port ${PORT}`));
+
+// ─── OPSTART ────────────────────────────────────────────────────────────────
+// ÉN blok, der besvarer de spoergsmaal man faktisk stiller loggen efter et
+// deploy: koerer den nye kode, og hvilket miljoe taler den med? Supabase-ref
+// staar med, fordi de to projekter ser ens ud i dashboardet - det har kostet
+// tid foer (10/7-26).
+const signaturTilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "LOG (afviser ikke)";
+const supabaseRef = (process.env.SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "ukendt";
+
+const server = app.listen(PORT, () => {
+  console.log(
+    "\n  Dit Digitale Kontor" +
+    `\n  Port:              ${PORT}` +
+    `\n  Supabase-projekt:  ${supabaseRef}` +
+    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}` +
+    `\n  Opkaldssignatur:   ${signaturTilstand}\n`
+  );
+  if (signaturTilstand !== "haandhaev") {
+    console.warn("  HUSK: saet OPKALD_SIGNATUR=haandhaev naar et rigtigt opkald er set godkendt.\n");
+  }
+});
+
+// ─── PAEN NEDLUKNING ────────────────────────────────────────────────────────
+// Railway sender SIGTERM ved hvert deploy. Uden denne blok bliver processen
+// bare skudt: npm melder "command failed / signal SIGTERM", og deploy-loggen
+// fyldes med roede linjer, der ikke betyder noget. Vaerre - et opkald midt i
+// et deploy bliver afbrudt paa halvvejen.
+//
+// Nu: stop med at tage imod nye forbindelser, lad igangvaerende gore sig
+// faerdige, afslut med kode 0 (= "det gik godt", saa npm tier).
+let lukkerNed = false;
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, () => {
+    if (lukkerNed) return;   // Railway kan sende signalet flere gange
+    lukkerNed = true;
+    console.log(`Lukker ned (${signal}) - afventer igangvaerende foresporgsler...`);
+
+    server.close(() => {
+      console.log("Lukket paent.");
+      process.exit(0);
+    });
+
+    // Sikkerhedsnet: en haengende forbindelse maa ikke blokere deployet.
+    setTimeout(() => {
+      console.warn("Tvunget luk efter 10 sek.");
+      process.exit(0);
+    }, 10000).unref();
+  });
+}
