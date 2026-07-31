@@ -9,6 +9,110 @@ flerfilsopgaver, `/clear` mellem opgaver, `/usage` efter hver opgave de første 
 Pilot-support må afbryde modularbejdet — men i faste vinduer (morgen + sen
 eftermiddag), ikke løbende. Ægte brande undtaget.
 
+## Repo- og navnestruktur (besluttet 31/7)
+
+**Ét repo.** Tilbudsmodulet bor i SAMME repository som resten af Dit Digitale Kontor.
+Begrundelse: samme Supabase-database og dermed én migrationstidslinje (modulet
+udvider jo `leads`); samme service worker og cacheversion; samme Express-app, auth
+og `billing_status`-gate; og ét sæt værn (deny-regler, gitleaks, `smoke-staging.js`,
+`rls-isolation-test.js`). To repos = to sandheder om skemaet og to kopier af værnene.
+
+Isolationen mod dashboardet er en KODE-egenskab (ø-arkitekturen), ikke en
+repo-egenskab. Og retningen er den nemme vej: en mappe kan altid skilles ud i eget
+repo senere — to repos med fælles database er svære at flette. (Økonomisystem-
+integrationen er den eneste realistiske kandidat til eget repo, og først når vi når dertil.)
+
+**Eksisterende filer flyttes IKKE.** Roden er flad i dag (`server.js`, `dashboard.html`,
+`sw.js`, push-scripts) og forbliver det. En omstrukturering midt i pilotdrift er en
+stor diff uden funktionel gevinst. Kun NY kode får den nye struktur.
+
+### Navnekonventioner
+
+| Hvad | Regel | Eksempel |
+| --- | --- | --- |
+| Serverkode | `routes/tilbud/` | `routes/tilbud/transskription.js`, `routes/tilbud/ai-proxy.js`, `routes/tilbud/data.js` |
+| Frontend | undermappen `tilbud/` dér hvor statiske filer serveres i dag | `tilbud/index.html`, `tilbud/tilbud.js`, `tilbud/tilbud.css` |
+| API-stier | ALT under ét præfiks | `/api/tilbud/...` |
+| Branches | `feat/tilbud-...` / `fix/tilbud-...` | `feat/tilbud-transskription` |
+| Migrationer | fælles mappe, ingen modulopdeling | `supabase/migrations/` |
+| Modulets env-variable | præfiks `TILBUD_` | `TILBUD_AKTIV`, `TILBUD_DAGSLOFT` |
+| Dokumentation | `docs/` | `docs/tilbud-primer.md`, `docs/tilbud-runbook.md` |
+
+Delte hemmeligheder beholder deres eget navn (`ANTHROPIC_API_KEY`, `SCALEWAY_*`) —
+de tilhører platformen, ikke modulet.
+
+### Hvorfor ét API-præfiks betyder mere end det ser ud til
+
+Når hver rute, hver statisk fil og hver modul-env-variabel bærer ordet `tilbud`, kan
+hele modulet **slukkes i ét greb**: routerne mountes bag et feature flag
+(`TILBUD_AKTIV`), så en dårlig deploy afmonteres uden git-revert og uden at røre
+dashboardet. Det er ø-arkitekturen ført helt ud i routingen — og den eneste
+rollback-plan, der virker, når piloterne er på.
+Flagget lægges ind sammen med det ALLERFØRSTE modul-endpoint, ikke bagefter.
+
+### Nested CLAUDE.md
+
+`routes/tilbud/CLAUDE.md` med modulets egne regler (ø-arkitektur, per-række-CRUD
+frem for hele-listen-gem, frysningsreglen, lyd gemmes aldrig). Claude Code opdager
+CLAUDE.md-filer i undermapper, men **indlæser dem ikke ved opstart** — de kommer
+først med, når Claude læser en fil i den mappe, og de genindlæses heller ikke
+automatisk efter `/compact`.
+
+Konsekvens: nestede filer er gode til *modulets håndværk*, men de hårde
+sikkerhedsregler (migrationer kun via push-scripts, `.ENV-ER-PROD`, aldrig reset mod
+prod) skal blive stående i rod-`CLAUDE.md` — de skal gælde fra sekund nul i enhver
+session. Kilde: https://code.claude.com/docs/en/memory
+
+
+## Røgtesten — sådan bruges den
+
+Ét script, `smoke.js`, to måder at køre på. IKKE to filer: to filer, der påstår
+at teste det samme, driver fra hinanden, og så ved man ikke hvilken der er sandheden.
+
+```
+npm run smoke          # staging — alle tjek
+npm run smoke:prod     # prod — KUN de læsende tjek
+```
+
+Kræver `.env.smoke` i roden (må ALDRIG committes — tilføj til `.gitignore`).
+
+### Hvornår
+
+Efter forandring, ikke efter kalenderen. Har du ikke rørt noget, er der intet at fange.
+
+- efter hvert push til staging
+- FØR hvert prod-deploy
+- efter hvert prod-deploy (`npm run smoke:prod`)
+
+**En opgave er først færdig, når `npm run smoke` er grøn.** Samme linje står i CLAUDE.md.
+
+### Rød betyder stop
+
+Enten fixer du koden, eller også fixer du tjekket. Deployer du forbi en rød røgtest
+én gang, fordi "det tjek er nok bare skævt", har du lært dig selv at den er
+vejledende — og så er hele investeringen tabt.
+
+### Vedligehold
+
+1. Hver driftsfejl fremover får et tjek, der ville have fanget den.
+2. Nye tjek skal **kunne fejle** — bræk dem én gang med vilje og se dem blive røde.
+   Et tjek, du aldrig har set rødt, er dekoration.
+3. Ustabile afhængigheder markeres ADVARSEL, ikke FEJL. Rød skal betyde rød.
+4. Tjek der skriver noget, markeres `sikker: false` og køres aldrig mod prod.
+
+### Åbne punkter i scriptet
+
+- [ ] **`OPKALD_SIGNATUR=haandhaev`** — signaturkontrol på `/opkald` blev tilføjet
+      31/7 i LOG-tilstand, efter at røgtesten fandt, at ruten accepterede kald med
+      falsk signatur. Rækkefølge: (1) deploy staging, ring et rigtigt opkald
+      igennem, se `signatur OK` i loggen; (2) samme i prod, følg loggen et døgn;
+      (3) sæt `haandhaev` i BEGGE miljøer.
+      FÆRDIG = røgtesten viser `afvist med 403` i stedet for ADVARSEL.
+- [ ] Fjern `OPKALD_SIGNATUR` og gaflen igen, når `haandhaev` har kørt
+      problemfrit i prod i et par uger
+- [ ] Bræk hvert tjek én gang og se det blive rødt (den halve værdi af opgaven)
+- [ ] `/api/tilbud/health` tilføjes, når modulet oprettes
+
 ## Trin 0 — FØR modulet (pilot-sporet + sikkerhedsfundament)
 
 ### 0a. Sikkerhedsopsætning omkring Claude Code
@@ -26,6 +130,14 @@ eftermiddag), ikke løbende. Ægte brande undtaget.
       staging-nøgler (Supabase service role + anon, Twilio testkonto, Frisbii
       testnøgler + webhook-secret, nyt VAPID-par). Bitwarden ajourføres løbende.
       FÆRDIG = `node check-env.js --live` grøn + ét testopkald gennem staging-flowet.
+- [ ] **Modulets nye nøgler lægges ind i SAMME omgang som rotationen.**
+      Transskriptions-nøgle (Scaleway el. Voxtral) og `ANTHROPIC_API_KEY` skal
+      alligevel ud i BEGGE masterfiler + BEGGE Railway-miljøer + Bitwarden. Gør det
+      én gang frem for to. Sæt et **månedligt forbrugsloft på Anthropic-kontoen**
+      med det samme — det er den hårde grænse under dagsloftet i proxyen, og den
+      eneste der holder, hvis koden fejler. Brug en API-nøgle adskilt fra
+      Claude Code-forbruget, så modulets forbrug kan aflæses rent.
+      FÆRDIG = `node check-env.js --live` grøn med de nye navne i begge miljøer.
 - [ ] **Branch-beskyttelse på `staging`:** GitHub → Settings → Branches → regel
       for `staging` med "block force pushes". FÆRDIG = force-push afvises.
 
@@ -53,8 +165,8 @@ eftermiddag), ikke løbende. Ægte brande undtaget.
       Tørkørsel som standard (printer projekt-ref), skriver kun med `--bekraeft`.
       **GRØN 27/7: 37 bestået / 0 fejlet i BÅDE staging og prod.**
       Vedligehold: hver ny tabel med `firm_id` skal med i `NYE_TABELLER`.
-- [ ] **Opgave: `smoke-staging.js` — røgtest som definition af færdig.**
-      Branch `feat/smoke-staging`. Ét script, ét samlet grønt/rødt resultat.
+- [ ] **Opgave: `smoke.js` — røgtest som definition af færdig.**
+      Branch `feat/smoke-staging`. Udkast leveret 31/7; skal tilpasses og brækkes igennem. Ét script, ét samlet grønt/rødt resultat.
       FÆRDIG NÅR: (1) scriptet tjekker mindst: health-endpoint svarer 200;
       /opkald AFVISER kald med ugyldig Twilio-signatur; rescue-endpointet
       svarer; Supabase-forbindelse OK og forventede kernetabeller findes;
@@ -127,6 +239,11 @@ Begge er expand/contract's anden halvdel. Skemaet er på plads; nogen skal skriv
 - [ ] Anne: indhold af STANDARDFELTER pr. branche (felter + brancher)
 - [ ] Anne: samtykke-tekst i optager-UI
 - [ ] DPA-liste + privatlivspolitik: tilføj Anthropic + transskriptionsleverandør
+- [ ] **Annes prototype fastfryses i git** (`docs/referater-app.html` + handoffet).
+      Den er UI-kontrakten for de 10 datafunktioner; ligger den kun i en mailtråd,
+      driver implementeringen fra den uden at nogen opdager det.
+- [ ] **Testfirma nr. 2 på staging** med egen bruger, så QA af modulet kan se
+      isolationen med øjnene og ikke kun via `rls-isolation-test.js`.
 
 ## Trin 2 — Spike 0: mikrofonen (GO/NO-GO, ½–1 dag)
 

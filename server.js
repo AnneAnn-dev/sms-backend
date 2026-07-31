@@ -5,6 +5,7 @@ const webpush = require("web-push");
 const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
+const { TILBUD_AKTIV } = require("./flags");
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -26,6 +27,19 @@ app.get("/manifest.json", (req, res) =>
 );
 app.get("/sw.js", (req, res) =>
   res.sendFile(__dirname + "/static/sw.js")
+);
+
+// ─── Sundhedstjek: bruges af roegtesten (smoke.js) ─────────────────────
+// Svarer 200 saa laenge processen lever og Express svarer. Bevidst tom for
+// logik: den skal kunne fejle NAAR appen er nede, ikke naar noget andet er.
+// Udstiller ogsaa TILSTAND, saa roegtesten kan SPOERGE i stedet for at gaette.
+// Det er hele svaret paa "jeg kan ikke huske at rette forventningen i smoke.js".
+app.get("/health", (req, res) =>
+  res.status(200).json({
+    ok: true,
+    tilbud: TILBUD_AKTIV,
+    opkaldSignatur: process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log",
+  })
 );
 
 const supabase = createClient(
@@ -66,6 +80,21 @@ require("./frisbii-webhook")(app, supabase);
 // routen ikke → POST giver 404, fetch kaster ikke, og knappen "lykkes" tavst
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
+
+// ─── Tilbudsmodul — bag feature flag ────────────────────────────────
+// TILBUD_AKTIV=true kun i staging. Slukket betyder at ruterne slet ikke
+// registreres: /api/tilbud/* og /tilbud/* giver 404, og appen ved ikke at
+// modulet findes. Det er rollback-haandtaget — ét miljoevariabel-skift og
+// en genstart, i stedet for revert + build + deploy.
+//
+// Linjerne herunder koerer foerst, naar flaget er true. Saet det ALDRIG til
+// true, foer mappen routes/tilbud findes: saa crasher appen ved opstart.
+// Det er den rigtige maade at fejle paa - hoejlydt, med det samme, og kun
+// i staging, fordi prod staar slukket.
+if (TILBUD_AKTIV) {
+  require("./routes/tilbud")(app, supabase);
+  app.use("/tilbud", express.static("tilbud"));
+}
 
 // ─── ADRESSE-NORMALISERING ──────────────────────────────────────────────────
 // DAWA's forslagstekst slutter typisk allerede på "postnr by", og kan
@@ -526,4 +555,52 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server kører på port ${PORT}`));
+
+// ─── OPSTART ────────────────────────────────────────────────────────────────
+// ÉN blok, der besvarer de spoergsmaal man faktisk stiller loggen efter et
+// deploy: koerer den nye kode, og hvilket miljoe taler den med? Supabase-ref
+// staar med, fordi de to projekter ser ens ud i dashboardet - det har kostet
+// tid foer (10/7-26).
+const signaturTilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "LOG (afviser ikke)";
+const supabaseRef = (process.env.SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "ukendt";
+
+const server = app.listen(PORT, () => {
+  console.log(
+    "\n  Dit Digitale Kontor" +
+    `\n  Port:              ${PORT}` +
+    `\n  Supabase-projekt:  ${supabaseRef}` +
+    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}` +
+    `\n  Opkaldssignatur:   ${signaturTilstand}\n`
+  );
+  if (signaturTilstand !== "haandhaev") {
+    console.warn("  HUSK: saet OPKALD_SIGNATUR=haandhaev naar et rigtigt opkald er set godkendt.\n");
+  }
+});
+
+// ─── PAEN NEDLUKNING ────────────────────────────────────────────────────────
+// Railway sender SIGTERM ved hvert deploy. Uden denne blok bliver processen
+// bare skudt: npm melder "command failed / signal SIGTERM", og deploy-loggen
+// fyldes med roede linjer, der ikke betyder noget. Vaerre - et opkald midt i
+// et deploy bliver afbrudt paa halvvejen.
+//
+// Nu: stop med at tage imod nye forbindelser, lad igangvaerende gore sig
+// faerdige, afslut med kode 0 (= "det gik godt", saa npm tier).
+let lukkerNed = false;
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, () => {
+    if (lukkerNed) return;   // Railway kan sende signalet flere gange
+    lukkerNed = true;
+    console.log(`Lukker ned (${signal}) - afventer igangvaerende foresporgsler...`);
+
+    server.close(() => {
+      console.log("Lukket paent.");
+      process.exit(0);
+    });
+
+    // Sikkerhedsnet: en haengende forbindelse maa ikke blokere deployet.
+    setTimeout(() => {
+      console.warn("Tvunget luk efter 10 sek.");
+      process.exit(0);
+    }, 10000).unref();
+  });
+}
