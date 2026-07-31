@@ -32,7 +32,15 @@ app.get("/sw.js", (req, res) =>
 // ─── Sundhedstjek: bruges af roegtesten (smoke.js) ─────────────────────
 // Svarer 200 saa laenge processen lever og Express svarer. Bevidst tom for
 // logik: den skal kunne fejle NAAR appen er nede, ikke naar noget andet er.
-app.get("/health", (req, res) => res.status(200).json({ ok: true }));
+// Udstiller ogsaa TILSTAND, saa roegtesten kan SPOERGE i stedet for at gaette.
+// Det er hele svaret paa "jeg kan ikke huske at rette forventningen i smoke.js".
+app.get("/health", (req, res) =>
+  res.status(200).json({
+    ok: true,
+    tilbud: TILBUD_AKTIV,
+    opkaldSignatur: process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log",
+  })
+);
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -79,12 +87,13 @@ require("./onboarding-link")(app, supabase);
 // modulet findes. Det er rollback-haandtaget — ét miljoevariabel-skift og
 // en genstart, i stedet for revert + build + deploy.
 //
-// AFKOMMENTER de to linjer i SAMME commit som routes/tilbud oprettes.
-// Indtil da ville et taendt flag pege paa en fil, der ikke findes — og
-// appen ville crashe ved opstart.
+// Linjerne herunder koerer foerst, naar flaget er true. Saet det ALDRIG til
+// true, foer mappen routes/tilbud findes: saa crasher appen ved opstart.
+// Det er den rigtige maade at fejle paa - hoejlydt, med det samme, og kun
+// i staging, fordi prod staar slukket.
 if (TILBUD_AKTIV) {
-  // require("./routes/tilbud")(app, supabase);
-  // app.use("/tilbud", express.static("tilbud"));
+  require("./routes/tilbud")(app, supabase);
+  app.use("/tilbud", express.static("tilbud"));
 }
 console.log(`⚙️  Tilbudsmodul: ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}`);
 

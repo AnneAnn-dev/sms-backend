@@ -227,6 +227,41 @@ module.exports = function registerOnboarding(app, supabase) {
   // Ingen express.raw her — Twilio sender form-encoded, og global
   // express.urlencoded i server.js giver os req.body.From / .To direkte.
   app.post("/opkald", async (req, res) => {
+    // ─── SIGNATURKONTROL ───────────────────────────────────────────────────
+    // UDEN denne blok kan hvem som helst, der kender adressen, sende opkalds-
+    // data ind i systemet. Fundet af smoke.js 31/7-26.
+    //
+    // URL'en bygges EKSPLICIT som https://<host><sti>, fordi Railway afslutter
+    // TLS foran appen: req.protocol ville sige "http", signaturen ville aldrig
+    // matche, og saa afvises ALLE aegte opkald. Det er den farlige fejlmaade.
+    //
+    // OPKALD_SIGNATUR=log (standard)  -> beregn og log, afvis ALDRIG
+    // OPKALD_SIGNATUR=haandhaev       -> afvis ugyldige kald med 403
+    //
+    // Rulles ud i to trin: koer i "log" indtil et rigtigt opkald er set godkendt
+    // i loggen i BEGGE miljoeer -> saet derefter "haandhaev". Naar det har koert
+    // et par uger, fjernes variablen og gaffelen igen.
+    {
+      const tilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log";
+      const url      = `https://${req.get("host")}${req.originalUrl}`;
+      const gyldig   = twilio.validateRequest(
+        process.env.TWILIO_AUTH_TOKEN,
+        req.get("X-Twilio-Signature"),
+        url,
+        req.body || {}
+      );
+
+      if (!gyldig) {
+        if (tilstand === "haandhaev") {
+          console.warn("🚫 /opkald AFVIST - ugyldig Twilio-signatur. URL:", url);
+          return res.status(403).type("text/plain").send("Ugyldig signatur");
+        }
+        console.warn("⚠️  /opkald: ugyldig signatur (KUN LOG - ikke afvist). URL:", url);
+      } else {
+        console.log("✅ /opkald: signatur OK");
+      }
+    }
+
     const toNumber   = req.body.To;    // firmaets Twilio-nummer
     const fromNumber = req.body.From;  // kundens nummer
 

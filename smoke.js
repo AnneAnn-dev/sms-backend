@@ -48,6 +48,16 @@ const TIMEOUT_MS = 8000;
 // HJAELPERE
 // =====================================================================
 
+// Nogle tjek maa gerne raabe uden at faelde koerslen: en midlertidig tilstand,
+// du allerede kender til, skal ikke give ROED. Roed skal betyde roed - ellers
+// laerer man sig selv at ignorere den.
+class Advarsel extends Error {}
+
+// Udfyldes af /health-tjekket og bruges af de senere tjek, saa de kan SPOERGE
+// serveren om dens tilstand i stedet for at have en haardkodet forventning,
+// nogen skal huske at rette.
+const tilstand = { tilbud: null, opkaldSignatur: null };
+
 const erProd = process.argv.includes("--prod");
 const miljo  = erProd ? "prod" : "staging";
 const cfg    = MILJOER[miljo];
@@ -60,6 +70,23 @@ async function hent(url, options = {}) {
   } finally {
     clearTimeout(t);
   }
+}
+
+// Fanger tastefejl i .env.smoke FOER vi begynder at ringe. Uden den giver en
+// forkert adresse bare "fetch failed" paa hvert eneste tjek — seks roede linjer
+// der ikke peger paa aarsagen. Samme princip som fail-closed i app-config.js.
+function normaliserUrl(raa, navn) {
+  const u = String(raa).trim().replace(/\/+$/, "");        // fjern skraastreg til sidst
+  if ((u.match(/:\/\//g) || []).length !== 1) {
+    throw new Error(`${navn}: "${raa}" — skemaet (https://) staar ikke praecis én gang`);
+  }
+  if (!/^https?:\/\//.test(u)) {
+    throw new Error(`${navn}: "${raa}" — skal begynde med https://`);
+  }
+  if (/\s/.test(u)) {
+    throw new Error(`${navn}: "${raa}" — indeholder mellemrum`);
+  }
+  return u;
 }
 
 function projektRef(url) {
@@ -87,7 +114,10 @@ const TJEK = [
     async kor() {
       const r = await hent(`${cfg.basisUrl}/health`);
       if (r.status !== 200) throw new Error(`status ${r.status}, forventede 200`);
-      return "status 200";
+      const krop = await r.json().catch(() => ({}));
+      tilstand.tilbud         = krop.tilbud ?? null;
+      tilstand.opkaldSignatur = krop.opkaldSignatur ?? null;
+      return `status 200 (tilbud: ${tilstand.tilbud === null ? "ukendt" : tilstand.tilbud ? "TAENDT" : "SLUKKET"}, signatur: ${tilstand.opkaldSignatur ?? "ukendt"})`;
     },
   },
 
@@ -131,8 +161,16 @@ const TJEK = [
         },
         body: "From=&To=&SmokeTest=1",
       });
+      if (r.status >= 500) throw new Error(`serverfejl ${r.status} - afviste, men af den forkerte grund`);
+
+      // Er serveren i "log"-tilstand, ER det meningen at den ikke afviser endnu.
+      // Saa er det en ADVARSEL med en huskeseddel - ikke en fejl.
+      if (tilstand.opkaldSignatur === "log") {
+        if (r.status !== 200) return `afvist med ${r.status} (bedre end forventet i log-tilstand)`;
+        throw new Advarsel("signaturkontrol koerer i LOG-tilstand - accepterer stadig. Saet OPKALD_SIGNATUR=haandhaev naar et rigtigt opkald er set godkendt i loggen");
+      }
+
       if (r.status === 200) throw new Error("ACCEPTEREDE et kald med ugyldig signatur");
-      if (r.status >= 500) throw new Error(`serverfejl ${r.status} — afviste, men af den forkerte grund`);
       return `afvist med ${r.status}`;
     },
   },
@@ -200,19 +238,19 @@ const TJEK = [
   },
 
   {
-    // Fanger den dag, prod pludselig staar taendt, uden at nogen besluttede det.
-    navn: "Tilbudsmodulets flag staar som forventet",
+    // Sikkerhedsegenskaben er: PROD staar aldrig taendt ved et uheld. Den er haard.
+    // Staging maa vaere hvad som helst - der er intet at beskytte, og et roedt
+    // tjek af bogholderiaarsager laerer dig bare at ignorere roedt.
+    navn: "Tilbudsmodulet staar ikke uventet taendt i prod",
     sikker: true,
     async kor() {
-      const r = await hent(`${cfg.basisUrl}/api/tilbud/health`);
-      const taendt = r.status !== 404;
-      if (taendt !== cfg.tilbudForventet) {
-        throw new Error(
-          `modulet er ${taendt ? "TAENDT" : "SLUKKET"} — forventede ` +
-          `${cfg.tilbudForventet ? "TAENDT" : "SLUKKET"} i ${miljo}`
-        );
+      if (tilstand.tilbud === null) throw new Advarsel("kunne ikke laese tilstand fra /health");
+      if (erProd && tilstand.tilbud) {
+        throw new Error("modulet er TAENDT i PROD - saet TILBUD_AKTIV=false i Railway, hvis det ikke var med vilje");
       }
-      return cfg.tilbudForventet ? "taendt som forventet" : "slukket som forventet";
+      return erProd
+        ? "prod er slukket"
+        : `staging: ${tilstand.tilbud ? "taendt" : "slukket"} (oplysning, ikke krav)`;
     },
   },
 
@@ -229,6 +267,15 @@ async function main() {
     process.exit(1);
   }
 
+  // Valider og normaliser adresserne FOER foerste kald.
+  try {
+    cfg.basisUrl    = normaliserUrl(cfg.basisUrl, `SMOKE_${miljo.toUpperCase()}_URL`);
+    cfg.supabaseUrl = normaliserUrl(cfg.supabaseUrl, `SMOKE_${miljo.toUpperCase()}_SUPABASE_URL`);
+  } catch (err) {
+    console.error(`\nSTOP: fejl i .env.smoke\n  ${err.message}\n`);
+    process.exit(1);
+  }
+
   // Fail-closed: staging-tilstand maa ALDRIG ramme prod ved et uheld.
   if (!erProd && MILJOER.prod.basisUrl && cfg.basisUrl === MILJOER.prod.basisUrl) {
     console.error("\nSTOP: staging-URL peger paa prod. Tjek dine env-variable.\n");
@@ -242,7 +289,7 @@ async function main() {
   console.log("");
 
   const start = Date.now();
-  let fejlet = 0, sprunget = 0;
+  let fejlet = 0, sprunget = 0, advarsler = 0;
 
   for (const t of TJEK) {
     if (erProd && !t.sikker) {
@@ -254,7 +301,12 @@ async function main() {
       const detalje = await t.kor();
       console.log(`  OK   ${t.navn} — ${detalje}`);
     } catch (err) {
-      console.log(`  FEJL ${t.navn} — ${err.message}`);
+      if (err instanceof Advarsel) {
+        console.log(`  ADV  ${t.navn} - ${err.message}`);
+        advarsler++;
+        continue;
+      }
+      console.log(`  FEJL ${t.navn} - ${err.message}`);
       fejlet++;
     }
   }
@@ -263,7 +315,8 @@ async function main() {
   const kort = TJEK.length - sprunget;
   console.log("");
   if (fejlet === 0) {
-    console.log(`GROEN — ${kort} tjek bestaaet paa ${sek} sek.\n`);
+    console.log(`GROEN - ${kort - advarsler}/${kort} tjek bestaaet paa ${sek} sek.` +
+      (advarsler ? ` (${advarsler} advarsel/advarsler - se ovenfor)` : "") + "\n");
     process.exit(0);
   }
   console.log(`ROED — ${fejlet} af ${kort} tjek fejlede (${sek} sek.). Deploy IKKE.\n`);

@@ -102,10 +102,16 @@ vejledende — og så er hele investeringen tabt.
 
 ### Åbne punkter i scriptet
 
-- [ ] Verificér stien til Twilio-opkaldshandleren (`/opkald`) mod `onboarding.js`
+- [ ] **`OPKALD_SIGNATUR=haandhaev`** — signaturkontrol på `/opkald` blev tilføjet
+      31/7 i LOG-tilstand, efter at røgtesten fandt, at ruten accepterede kald med
+      falsk signatur. Rækkefølge: (1) deploy staging, ring et rigtigt opkald
+      igennem, se `signatur OK` i loggen; (2) samme i prod, følg loggen et døgn;
+      (3) sæt `haandhaev` i BEGGE miljøer.
+      FÆRDIG = røgtesten viser `afvist med 403` i stedet for ADVARSEL.
+- [ ] Fjern `OPKALD_SIGNATUR` og gaflen igen, når `haandhaev` har kørt
+      problemfrit i prod i et par uger
 - [ ] Bræk hvert tjek én gang og se det blive rødt (den halve værdi af opgaven)
-- [ ] `/api/tilbud/health` tilføjes i modulet, så flag-tjekket får noget at spørge om
-
+- [ ] `/api/tilbud/health` tilføjes, når modulet oprettes
 
 ## Trin 0 — FØR modulet (pilot-sporet + sikkerhedsfundament)
 
