@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --require ./appsignal.cjs server.js"
+    "start": "node --require ./appsignal.cjs server.js",
+    "smoke": "node --env-file=.env.smoke smoke.js",
+    "smoke:prod": "node --env-file=.env.smoke smoke.js --prod",
+    "rls": "node rls-isolation-test.js"
   },
   "repository": {
     "type": "git",

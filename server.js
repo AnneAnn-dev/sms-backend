@@ -5,6 +5,7 @@ const webpush = require("web-push");
 const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
+const { TILBUD_AKTIV } = require("./flags");
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -27,6 +28,11 @@ app.get("/manifest.json", (req, res) =>
 app.get("/sw.js", (req, res) =>
   res.sendFile(__dirname + "/static/sw.js")
 );
+
+// ─── Sundhedstjek: bruges af roegtesten (smoke.js) ─────────────────────
+// Svarer 200 saa laenge processen lever og Express svarer. Bevidst tom for
+// logik: den skal kunne fejle NAAR appen er nede, ikke naar noget andet er.
+app.get("/health", (req, res) => res.status(200).json({ ok: true }));
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -66,6 +72,21 @@ require("./frisbii-webhook")(app, supabase);
 // routen ikke → POST giver 404, fetch kaster ikke, og knappen "lykkes" tavst
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
+
+// ─── Tilbudsmodul — bag feature flag ────────────────────────────────
+// TILBUD_AKTIV=true kun i staging. Slukket betyder at ruterne slet ikke
+// registreres: /api/tilbud/* og /tilbud/* giver 404, og appen ved ikke at
+// modulet findes. Det er rollback-haandtaget — ét miljoevariabel-skift og
+// en genstart, i stedet for revert + build + deploy.
+//
+// AFKOMMENTER de to linjer i SAMME commit som routes/tilbud oprettes.
+// Indtil da ville et taendt flag pege paa en fil, der ikke findes — og
+// appen ville crashe ved opstart.
+if (TILBUD_AKTIV) {
+  // require("./routes/tilbud")(app, supabase);
+  // app.use("/tilbud", express.static("tilbud"));
+}
+console.log(`⚙️  Tilbudsmodul: ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}`);
 
 // ─── ADRESSE-NORMALISERING ──────────────────────────────────────────────────
 // DAWA's forslagstekst slutter typisk allerede på "postnr by", og kan
