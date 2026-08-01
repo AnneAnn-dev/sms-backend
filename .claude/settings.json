@@ -12,6 +12,9 @@
       "Bash(*push-prod*)",
       "Bash(*skift-prod*)",
       "Bash(*reset-test-data*)",
+      "Bash(git commit *--no-verify*)",
+      "Bash(git commit *-n *)",
+      "Bash(*core.hooksPath*)",
       "Bash(git push --force*)",
       "Bash(*buy-numbers*)"
     ]
