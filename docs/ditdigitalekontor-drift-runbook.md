@@ -74,6 +74,75 @@ Dette er det vigtigste skifte. **Stop med at køre SQL i hånden i dashboard-edi
    Kør den på staging først, så prod (se Del 1). `messages-patch.sql`-mønsteret bliver nu bare en almindelig migration — og `if not exists`-fælden forsvinder, fordi historikken styres af migrationsrækkefølgen.
 4. (Senere, valgfrit) Supabase **branching** kan give en DB-preview pr. pull request. Lad det ligge til I har behov; det persistente staging-projekt er arbejdshesten.
 
+### C2. Gitleaks — pre-commit-vagt mod hemmeligheder (etableret 31/7-26)
+
+Naegter commits med noegler i. Gaelder ALLE haender, inkl. Claude Code.
+Baggrund: `.env`-eksponeringen 22/7 — en noegle, der foerst ER committet, ligger i
+historikken for altid, og oprydningen kraever BAADE historik-omskrivning OG rotation.
+
+**Verificeret 31/7 i begge retninger:** fake Twilio-token AFVIST (`generic-api-key`,
+`Secret: REDACTED`), normal commit gik igennem upaavirket. Begge veje skal testes —
+en hook, der aldrig kaldes, ser i den ene retning ud praecis som en, der virker.
+
+**Installation paa ny maskine** (hook'en ligger i git, men virker ikke af sig selv):
+
+```powershell
+# 1) Vaerktoejet — hoerer til MASKINEN, ikke projektet
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$mappe = "$env:LOCALAPPDATA\gitleaks"
+New-Item -ItemType Directory -Force -Path $mappe | Out-Null
+$udg = Invoke-RestMethod "https://api.github.com/repos/gitleaks/gitleaks/releases/latest"
+$fil = $udg.assets | Where-Object { $_.name -like "*windows_x64.zip" } | Select-Object -First 1
+Invoke-WebRequest $fil.browser_download_url -OutFile "$mappe\gitleaks.zip"
+Expand-Archive "$mappe\gitleaks.zip" -DestinationPath $mappe -Force
+Remove-Item "$mappe\gitleaks.zip"
+
+# 2) PATH (permanent) — luk terminalen HELT bagefter, PATH laeses kun ved opstart
+$p = [Environment]::GetEnvironmentVariable("Path","User")
+[Environment]::SetEnvironmentVariable("Path", "$p;$mappe", "User")
+
+# 3) Indstillingen — hoerer til PROJEKTET, koeres i repo-roden
+git config core.hooksPath .githooks
+```
+
+`winget` findes ikke paa alle maskiner (kraever App Installer) — derfor binaeren direkte.
+Virker `gitleaks version` ikke i et FRISKT vindue: tjek `Test-Path`, derefter
+User-PATH, derefter `$env:Path`. Er de to sidste uenige, arves miljoeet fra en
+proces startet foer aendringen (klassisk med VS Code — luk hele programmet, ikke fanen).
+Hjaelper det ikke: `Unblock-File` paa exe'en (zip-udpakkede filer baerer et
+"hentet fra internettet"-maerke).
+
+**Filer i repoet:** `.githooks/pre-commit` (ren ASCII, **LF-linjeskift** — CRLF faar
+Git for Windows' indbyggede `sh` til at fejle kryptisk) og linjen
+`.githooks/** text eol=lf` i `.gitattributes`, saa checkout ikke konverterer dem.
+`core.hooksPath` er LOKAL config og foelger ikke med i git — derfor staar
+installationsvejledningen ogsaa i toppen af hook-filen selv.
+
+**Hook'en fail-closer:** mangler gitleaks, blokeres commit'et med en forklarende
+besked. En vagt, der stiltiende lader alt passere, naar den ikke finder sit
+vaerktoej, er vaerre end ingen vagt.
+
+**Triage naar den fyrer** — tre spoergsmaal i raekkefoelge:
+1. *Er det en aegte hemmelighed?*
+2. *Hvis ja — har den vaeret committet FOER?* Kun i staging-omraadet (hook'en stoppede
+   den) → fjern fra filen, faerdig, ingen rotation. Allerede i en tidligere commit →
+   **noeglen SKAL roteres**; at slette den nu fjerner den ikke fra fortiden.
+3. *Hvis nej — hvorfor tror den, det er en hemmelighed?* → undtagelse i
+   `.gitleaks.toml`, saa smal som mulig (én sti, én regel), med kommentar om
+   HVORFOR og HVORNAAR. Filen SKAL starte med `[extend]` + `useDefault = true`,
+   ellers ERSTATTER den gitleaks' 150+ indbyggede regler i stedet for at supplere —
+   en vagt der intet opdager, uden at sige det.
+
+**Historik-baseline:** `gitleaks git --redact` én gang. Fund fra 22/7-eksponeringen er
+forventede og roterede — information, ikke brand. Omskriv ikke historik paa den baggrund.
+
+**Udestaaende:**
+- [ ] `--no-verify` tilfoejes deny-reglerne i `.claude/settings.json` (Claude Code maa
+      ikke kunne omgaa vagten for at faa en commit igennem)
+- [ ] Naar tilbudsmodulets nye noegler kommer (transskription, Anthropic): test at
+      gitleaks genkender formaterne — fake noegle → skal afvises. Ellers egen regel.
+- [ ] Opdatér gitleaks et par gange aarligt (nye regler for nye leverandoerformater)
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
@@ -160,6 +229,15 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
    .\push-staging.ps1   # verificerer linket FØR push — nægter hvis linket ≠ staging
    ```
 4. **Røgtest på staging:** kør `provision-test-firm.js` mod staging, og lad en *bekendt* ringe til staging-nummeret. Tjek at lead lander, SMS sendes, mail kommer.
+3b. **`npm run smoke` mod staging — en opgave er først færdig, når den er grøn.**
+   Ét script (`smoke.js`), ~1,5 sek., ét grønt/rødt svar. Den tester IKKE det, du
+   lige har bygget — den tester, at du ikke har brækket noget andet. Rød = stop:
+   enten fixer du koden, eller også fixer du tjekket, men du deployer ikke forbi.
+   Efter prod-deploy: `npm run smoke:prod` (kun de læsende tjek).
+   **Vedligehold:** hver driftsfejl fremover får et tjek, der ville have fanget den.
+   Nye tjek skal brækkes én gang med vilje — et tjek, du aldrig har set rødt, er
+   dekoration. *(Leveret 31/7. Fandt samme dag et ægte hul: `/opkald` accepterede
+   kald med falsk Twilio-signatur — se kodeopgave 24.)*
 5. Merge til `staging` → (når grøn) PR/merge til `main`.
 6. **Se hvad der FAKTISK er i kø til prod — FØR du rører push-scriptet:**
    ```powershell
@@ -286,12 +364,15 @@ Dormant-kunde-detektion og værdi-realisering. **Ikke launch-blokerende:** det k
 
 ```
 [ ] Migration testet på staging
+[ ] `npm run smoke` grøn på staging
 [ ] Røgtest grøn på staging (bekendt har ringet, lead landede)
 [ ] Merged til main
 [ ] Vi er i deploy-vinduet (uden for arbejdstid) — eller det er en hotfix
 [ ] Migration kørt på prod
 [ ] sw.js cache-version bumpet
 [ ] Health-check grøn
+[ ] `npm run smoke:prod` grøn
+[ ] Opstartsblokken i prod-loggen viser PROD's Supabase-ref
 [ ] Én ægte handling verificeret i prod
 [ ] Holdt øje i ~10 min
 ```
@@ -391,7 +472,7 @@ Resten kan lægges ovenpå, når I har luft.
 8. **Trin 6 F** (valgfri hærdning): IP-lås/Basic Auth på webhook-endpointet.
 9. **Win-back-polish:** venlig TwiML-besked på karantæne-numre. *(Rescue-mail-delen ✅ 13/7: egen `sendLoginLinkMail`, rate-limit/anti-enumeration bevaret.)*
 10. **SMS-navnebudget** (m. Anne): firmanavn + slug ≤ 46 tegn tilsammen — håndhæves i onboarding trin 1 (navnegrænse) eller via kortere slugs. Vagten logger ⚠️ indtil da.
-12. **Privatlivs-eftersyn af logs (GDPR — "senere", men FØR rigtige kunder i volumen):** gennemgå hvad Railway-loggen gemmer af personhenførbare data. KENDTE SYNDERE allerede nu: `onboarding-link.js` logger fulde mailadresser ("Nyt login-link sendt til: …" / "anmodet for ukendt email: …"), og lignende console.log-mønstre findes formentlig flere steder (grep efter `email` ved console-kald). Mål: maskér (fx `an***@firma.dk`) eller udelad — Railway gemmer logs i klartekst, og de er ikke omfattet af RLS/sletning. **Dertil VERIFICÉR at persondata ikke flyder fra Railway til AppSignal:** Ann har ikke SET det ske, men det skal EFTERSES aktivt — tjek AppSignal-fejlrapporternes payloads/breadcrumbs (request-parametre, headers) og appsignal.cjs-konfigurationen for filtrering (`requestHeaders`/param-filtre). AppSignal er EU (NL), men dataminimering gælder stadig.
+12. **Privatlivs-eftersyn af logs (GDPR — DELVIST GJORT 31/7):** **LEVERET 31/7 i `onboarding.js`:** `maskerTlf()`-hjælper indført og anvendt seks steder (opkald modtaget, intet firma fundet, demo-SMS, hvidliste, firma oprettet) — telefonnumre på kundens kunder står ikke længere i klartekst i Railway-loggen. Samtidig fjernet: `SMS link:`-linjen der udstillede `lead_token` — **tokenet ER adgangskontrollen til opgaveformularen**, og alle med Railway-adgang kunne åbne kundens formular; erstattet af `firma-id + call-id`, som man reelt fejlsøger på (og som er en nøgle til MERE information, ikke mindre). **(a) TILBAGE — maskeringen er for grov:** `maskerTlf()` skjuler de sidste fire tegn uanset længde, så et dansk `+4530518313` bliver til `+453051****` — halvdelen af abonnentnummeret står stadig. Stram til landekode + de to første cifre (`+4530******`). Én funktion, ét sted, ingen kaldesteder skal røres. **(b) TILBAGE — `onboarding-link.js` logger fulde mailadresser** ("Nyt login-link sendt til: …" / "anmodet for ukendt email: …"). Samme behandling: maskér (`an***@firma.dk`) eller udelad. Grep efter `email` ved console-kald — mønstret findes formentlig flere steder. **(c) TILBAGE — VERIFICÉR at persondata ikke flyder fra Railway til AppSignal:** Ann har ikke SET det ske, men det skal EFTERSES aktivt — tjek fejlrapporternes payloads/breadcrumbs (request-parametre, headers) og `appsignal.cjs` for filtrering (`requestHeaders`/param-filtre). AppSignal er EU (NL), men dataminimering gælder stadig. Railway gemmer logs i klartekst, og de er ikke omfattet af RLS eller sletning.
 11. **Fejl-overlayet (dashboard.html) dæmpes/afmonteres, når piloten er stabil** (indført 13/7 som diagnoseværktøj — viser ALLE ufangede fejl, også godartede; muligt mellemtrin: ignorér kendte godartede supabase-baggrundsfejl). Hertil UAFKLARET, lav prioritet: sporadisk "Script error." på iPhone (dashboard virker; kommer og går) — afventer gentagelse med crossorigin aktiv → ægte fejltekst → dom.
 13. **Vis/Skjul-knap på login-skærmens adgangskodefelt (lav prioritet — tag den med i dashboard-restylingens senere trin):** onboardingens kodefelt (s-2) har en Vis/Skjul-knap (`.toggle-eye` + `togglePw()`); dashboardets login-felt har ingen. Kopiér mønsteret 1:1 fra onboarding.html (~10 linjer: knap inde i feltet + toggle af `input.type` password/text + tekstskift Vis/Skjul). Bevidst IKKE med i login-restylingen 19/7 (ren visuel leverance — ny JS kræver aftale, derfor dette punkt). **OBS ved implementering:** (1) kodetilstanden fra 19/7 skjuler hele adgangskodefeltet via `closest('.lfield')` — øje-knappen skal bo INDE i `.lfield`-wrapperen, så den automatisk følger med når feltet skjules (`.lfield` er dermed bærende i JS, ikke kun styling — må ikke omdøbes); (2) knappen må ikke stjæle `flex: 1` fra inputtet (onboardingens `.toggle-eye` er mønstret); (3) fuldt id-tjek efter ændringen (17/7-QA-reglen) + røgtest med rigtigt login.
 
@@ -424,6 +505,34 @@ Resten kan lægges ovenpå, når I har luft.
 22. **Statusfelt på opgaverne i overblikket (todo — tilføjet 29/7):** hver opgave i opgavelisten (dashboard) skal have et statusfelt, så håndværkeren kan se og skifte status direkte i overblikket — i dag findes kun implicit status via haster-markeringen og om leadet er "set" (den sidste fjernet 20/7, se pkt. 14). **Databaseændring:** ny `status`-kolonne på `leads` (fx enum/text: `ny` → `i gang` → `afsluttet`, default `ny` for nye rækker). Gamle rækker skal have en fornuftig default ved migrationen — sandsynligvis `ny`, siden der ikke findes historik at udlede status fra. **UI:** statusmærke i opgavelisten (farvet badge/prik — genbrug evt. det visuelle sprog fra initialcirklerne, pkt. 19) + en måde at skifte status på, enten inline i listen (dropdown/klik-cyklus) eller inde i "Rediger lead"-modalen, evt. begge steder. RLS er allerede på plads (firmaets egne rækker), så det er en ren tilføjelse, ikke en ny adgangsmodel. **AFKLAR M. ANNE FØRST:** hvilke statusser giver mening for en håndværkers arbejdsgang (tre trin er et gæt — måske skal fx "afvist"/"intet svar" også med), og om status nogensinde skal kunne ses/sættes af kunden (formentlig nej — rent internt værktøj). **Ved implementering:** både "Ny opgave"- og "Rediger lead"-modalen rører de samme rækker, så statusfeltet skal med begge steder, hvis det skal kunne sættes allerede ved oprettelse — og husk fuldt id-tjek + røgtest med GENÅBNING af modalen bagefter (17/7-QA-reglen; det var netop genåbnings-tjekket, der afslørede billedupload-fejlen 20/7, pkt. 14).
 
 23. **Mulighed for at sætte MFA op på dashboardet (todo — tilføjet 29/7):** brugeren (håndværkeren) skal selv kunne aktivere to-faktor-login (MFA/TOTP, fx Google Authenticator/Authy) på sin konto. Supabase Auth understøtter TOTP-MFA indbygget (`auth.mfa.enroll` → QR-kode → `auth.mfa.challenge`/`verify`), så det er ikke en ny mekanisme, der skal bygges fra bunden. **Vigtig afgrænsning ift. eksisterende funktioner:** dette er noget ANDET end engangskoden (`email_otp`), der allerede findes i redningsvejen (pkt. 1a-1d) — den er en genvej IND i appen ved glemt adgangskode; MFA er et EKSTRA lag OVENPÅ login. UI-teksten skal holde de to begreber adskilt, ellers bliver "kode" tvetydigt for brugeren. **Reel kompleksitet, ikke kun én skærm:** login har allerede tre veje ind (adgangskode, magic link, engangskode) og en PWA/Safari-session-arkitektur, der har krævet flere runder hærdning (16/7, 19/7, 20/7) — en MFA-udfordring skal fungere i ALLE tre veje og inde i den installerede app, ikke kun i Safari. En Supabase-session efter bestået MFA-udfordring får et andet AAL-niveau (aal2) — tjek om noget i koden (RLS-politikker, sessions-tjek) forudsætter aal1 og skal opdateres. **AFKLAR M. ANNE FØRST (produktbeslutning, ikke kun teknik):** skal MFA være valgfrit (brugeren slår det til selv, fx under en ny "Sikkerhed"-sektion på profilsiden) eller obligatorisk? Målgruppen (håndværkere, ofte på farten, i forvejen udfordret af PWA-installationen, jf. pkt. 1e) taler for valgfrit indtil videre — ufrivillig ekstra friktion ved login er en reel risiko. **Prioritet: lav / efter piloten** — ingen pilotkunder har efterspurgt det, og det rører login-stien, som lige er blevet stabil (samme forsigtighed som pkt. 20 om adressefelterne: rør ikke tre lige-stabiliserede filer uden god grund).
+
+24. **Twilio-signaturkontrol på `/opkald` — udrulning i prod (fundet 31/7 af `smoke.js`):**
+    Ruten havde INGEN signaturvalidering: den læste `req.body.To`/`.From` og handlede
+    på dem, som var de sandheden. Enhver, der kendte adressen, kunne dermed sende
+    SMS fra håndværkerens nummer til et vilkårligt nummer (linje ~371), oprette
+    opdigtede `calls`-rækker, sætte et ufærdigt firma til `verified`+`active`, og
+    kortlægge hvilke numre der hører til firmaer. Ingen tegn på misbrug.
+    **Rettet 31/7:** `twilio.validateRequest` med URL bygget EKSPLICIT som
+    `https://${req.get("host")}${req.originalUrl}` — Railway afslutter TLS foran
+    appen, så `req.protocol` ville sige `http`, signaturen aldrig matche, og ALLE
+    ægte opkald blive afvist. Det er den farlige fejlmåde, og derfor rulles det ud
+    i to trin via `OPKALD_SIGNATUR` (standard `log` = beregn og log, afvis aldrig).
+    **STAGING FÆRDIG 31/7:** ægte opkald `signatur OK`, falsk kald `AFVIST` (403),
+    `npm run smoke` 8/8 grøn. **PROD: kode deployet 31/7 i log-tilstand** (variablen
+    findes ikke i prod, og standarden er `log` — bevidst).
+    **TILBAGE:** (1) følg prod-loggen til et par ÆGTE kundeopkald er set med
+    `✅ /opkald: signatur OK`; (2) opret så `OPKALD_SIGNATUR=haandhaev` i
+    prod-servicen; (3) ring et opkald + `npm run smoke:prod` → skal vise
+    `afvist med 403`. **Derefter:** fjern variablen og gaflen i `onboarding.js`
+    igen, når `haandhaev` har kørt problemfrit et par uger — et flag har en
+    dødsdato, og fjernelsen er kun sikker, mens flaget står TÆNDT.
+    Bemærk: `✅ signatur OK` logges kun i log-tilstand; når der håndhæves, logges
+    kun afvisninger (ellers er linjen tapet).
+25. **Røgtestens næste tjek (vedligeholdelsesreglen, lav prioritet):** to kandidater
+    fra egen historik — (a) at Twilio-nummerets voice-webhook peger på det RIGTIGE
+    miljø (staging-nummer → staging-URL); et nummer, der peger forkert, fejler
+    tavst og er samme fejlklasse som de identiske dashboards; (b) at
+    `manifest.json`'s `short_name` stadig er "Dit Kontor" (jf. udestående 4).
 
 ### 🏗️ Infrastruktur/indkøb
 1. **Supabase prod er FREE-tier (ok NU, men fast punkt i pilot-tjeklisten):** free pauser projektet efter ~1 uges inaktivitet (= opkald/SMS/leads fejler, til nogen vækker det manuelt) og har INGEN automatiske backups (en fejlkørsel ville være uoprettelig). **Opgradér til Pro, FØR første betalende håndværker er ombord.** Gratis nu: omdøb projektet til `ditdigitalekontor-prod` (Settings → General) — "anneann1904's Project" er en fejllæsnings-fælde (jf. identiske-dashboards-reglen).
