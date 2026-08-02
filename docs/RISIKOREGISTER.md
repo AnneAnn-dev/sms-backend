@@ -136,6 +136,7 @@ Adskillelsen er ikke kosmetisk. Den er grunden til at markedsvalidering (P1-P3) 
 | ID | Risiko | S | K | Status | Næste skridt |
 |---|---|---|---|---|---|
 | D1 | Gendannelsesøvelsen er bestået 3/7-26 for `public` + auth. **Storage er ikke dækket** — hverken filerne (uden for Postgres) eller metadata i `storage.objects`/`storage.buckets` (dumpes ikke med `--schema=public`). Lead-billeder kan ikke genskabes | M | M | I gang | Se `TILLAEG-gendannelse-storage.md`. Gentag øvelsen med det nye beståelseskriterie |
+| D17 | **PITR ikke slået til** — RPO er op til 24 timer ved datatab, og Storage er slet ikke dækket af backups | L | M | Accepteret | Bekræftet i dashboardet 2/8-26. Genovervejes ved første betalende kunde. Kræver Small compute-add-on, og er ikke omfattet af Spend Cap. Begrundelse i runbogens Del 0.E |
 | D2 | Ingen automatiske tests — regressioner opdages først af kunder (jf. SMS-segmenteringsfejlen) | H | M | Åben | Tynd stribe integrationstests på de dyre veje |
 | D3 | Ingen alarm på tavshed — hvis Twilio-webhooken stopper, sker der bare ingenting | M | H | Åben | Dødmandsknap: alarm ved 0 opkald i X timer i arbejdstiden + delivery-failure-rate |
 | D4 | Rollback-vejen er ikke øvet — utryghed under pres | M | M | Åben | Øv rollback på staging **to gange** — første gang med hjælp, anden gang alene efter runbogen. Gentages hvert kvartal |
@@ -144,7 +145,7 @@ Adskillelsen er ikke kosmetisk. Den er grunden til at markedsvalidering (P1-P3) 
 | D7 | Twilio er single point of failure for produktets kernefunktion | L | H | Accepteret | Sinch/46elks evalueret; ingen handling nu |
 | D8 | **Et opkald under deploy er et tabt lead** — rammer direkte produktets løfte, og der kommer ingen fejlmeddelelse | M | H | Åben | Verificér zero-downtime på Railway; afklar hvad Twilio gør ved 5xx vs. timeout |
 | D9 | Twilio-saldo kan løbe tør — SMS holder bare op, ingen exception | M | H | Åben | Saldoalarm hos Twilio + auto-refill |
-| D10 | Migrationer kan muligvis ikke rulles tilbage — rollback-vejen er kun halvt så lang som antaget | M | M | Åben | Afklares under D4-øvelsen |
+| D10 | Migrationer kan muligvis ikke rulles tilbage — rollback-vejen er kun halvt så lang som antaget | M | M | **Mitigeret** | **Afklaret 2/8-26: alle seks migrationer er tilføjende → rollback-vejen er HEL.** Regel "tilføj først, fjern senere" står i runbogens rollback-afsnit. ⚠️ Genåbnes ved første indsnævrende migration — `firm_id not null` er allerede planlagt i en kommentar i `20260727065655_kunder_og_opgavelag.sql` |
 | D11 | **Ingen triage-runbog** — runbøgerne dækker det Ann gør, ikke "en kunde siger det ikke virker" | H | M | Åben | Hvor kigger man først: Twilio-log, Railway-log, AppSignal, database. En side |
 | D12 | Tidszoner og sommertid — opkaldstidsstempler, off-peak-vinduer, slettefrister i døgn | M | L | Åben | Alt i UTC i databasen, konvertér kun ved visning. Test omkring 25. oktober |
 | D16 | **Produktionsvariabler tastes manuelt både i Railway og i `.env.prod`** — to kilder, ingen afstemning. Forældet `.env.prod` betyder, at lokale scripts kan ramme forkert konto eller projekt | H | H | Åben | 1) Read-only sammenligningsscript, kør og ryd op. 2) Derefter: `.env.prod` genereres fra Railway, tastes aldrig. Se Å2 |
@@ -291,6 +292,7 @@ Desuden gælder tjeklisten øverst uændret, plus modulets egne invarianter: kvo
 | D7 | Twilio er evalueret mod Sinch og 46elks; skiftet koster mere end risikoen lige nu |
 | Ø3 | Afbrænding er præmissen indtil pilotfasen er gennemført |
 | P4 | Salgsværktøjet leverer værdi nu; teknisk gæld tages senere |
+| D17 | Daglige backups (7 dage) dækker testdata og nul betalende kunder. Re-trigger: første betalende kunde |
 
 ---
 
@@ -311,3 +313,7 @@ Desuden gælder tjeklisten øverst uændret, plus modulets egne invarianter: kvo
 | 2026-08-01 | **Rækkefølge rettet på Anns initiativ:** opsætningen flyttet fra dag 0 til dag 1½. D16 lukkes før et nyt værktøj får adgang til repoet |
 | 2026-08-01 | Plan opdateret: 7 → 9 byggedage. D15, D16, S9, S10, S11 indarbejdet. D8 og D12 udskudt eksplicit. Små dage prioriteret og erkendt som flaskehals |
 | 2026-08-01 | D14 og P5 oprettet (Å10 gjort til rigtige risici). Å2 fik konkret mitigering: afstemningsscripts. Tjeklisten udvidet med dublet-tjek. Tilbudsmodul-oversigt tilføjet |
+| 2026-08-02 | **PITR-status bekræftet i dashboardet: ikke slået til.** D17 oprettet som bevidst accepteret med re-trigger (første betalende kunde). Runbogens Del 0.E rettet fra Free-plan til Pro |
+| 2026-08-02 | **D4: rollback øvet på staging.** Rollback-afsnit skrevet i runbogen med øvelseslog. D10 afklaret for i dag: nyeste migration er 27/7, deploys 1/8 — ingen migration i spil, så øvelsen besvarer ikke D10. Skrivebordsafklaring udestår |
+| 2026-08-02 | Dagens rækkefølge byttet på Anns initiativ (mulighed C): rollback før gendannelse, så staging bevarer et rent måleinstrument til rollback-øvelsen |
+| 2026-08-02 | **D10 lukket som mitigeret.** Gennemgang af alle seks migrationer: ingen drop/rename/alter column, alle `not null` har default eller står på nye tabeller. Rollback-vejen er hel. Regel skrevet i runbogen. Genåbnes ved første indsnævrende migration |

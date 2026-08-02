@@ -247,12 +247,19 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
 ### E. Backup på prod
 
-⚠️ **VIRKELIGHEDEN LIGE NU (Free-plan):** Supabase tager **INGEN automatiske backups** af projektet på Free-planen. Den manuelle pg_dump-rutine nedenfor er **den eneste backup, der findes** — den er ikke et supplement, den er strategien, indtil planen opgraderes. Kadence med testdata: frisk dump før hver større skemaændring.
+**VIRKELIGHEDEN LIGE NU (Pro-plan — bekræftet i dashboardet 2/8-26):** prod-organisationen er på Pro. Supabase tager daglige fysiske snapshots, og de seneste 7 dage kan gendannes fra dashboardet (Database → Backups → Scheduled backups). Kadence for det manuelle dump: frisk dump før hver større skemaændring.
 
-**GO-LIVE-GATE (før første betalende kunde):** opgradér prod-organisationen til **Pro** (~25 USD/md) og slå **PITR** til. Fra det øjeblik findes der ægte kundedata, og beskyttelsen skal være automatisk — ikke afhængig af en manuel rutine.
+**PITR er IKKE slået til — bevidst valg 2/8-26.**
+- **Valgt:** 7 dages daglige backups. **Alternativ:** PITR som tilkøb.
+- **Hvorfor:** prod indeholder testdata, og der er ingen betalende kunder. De op til 24 timers RPO beskytter ikke noget uerstatteligt endnu.
+- **Omstødelig:** PITR faktureres pr. time og kan slås til når som helst. Derfor fem minutters beslutning, ikke en dags.
+- **Re-trigger: første betalende kunde.** Fra det øjeblik findes der ægte kundedata, og beskyttelsen skal være automatisk frem for afhængig af en manuel rutine.
+- ⚠️ **PITR er ikke omfattet af Spend Cap** (Spend Cap er aktiv på organisationen pr. 2/8-26). Den dag PITR slås til, løber udgiften uden om spærringen. PITR kræver desuden mindst et **Small compute-add-on**.
+- Se **D17** i `RISIKOREGISTER.md`.
 
 - Pro-plan giver de seneste 7 dages daglige (fysiske) snapshots — de kan **ikke** downloades/inspiceres.
-- Databasen er lille (<4 GB) → slå **PITR** til (sekund-granularitet). Bemærk: PITR kræver mindst et Small compute-add-on, og når PITR er slået til, tages der ikke længere daglige backups (PITR er finere).
+- ⚠️ **Backups dækker IKKE Storage.** Supabase skriver det selv på backup-siden: en databasebackup indeholder kun *metadata* om objekter uploadet via Storage-API'et, ikke objekterne selv — og gendannelse af en gammel backup bringer ikke filer tilbage, der er slettet siden. Greeting-lyd og lead-billeder skal sikres for sig, se "Gendannelses-øvelse (step-by-step)".
+- Slås PITR til en dag: bemærk at der så ikke længere tages daglige backups (PITR er finere granularitet, så begge dele er unødvendigt).
 - **Manuelt, portabelt snapshot du selv ejer** (beholder sin rolle som off-site-kopi, også efter Pro/PITR). Docker-fri vej med `pg_dump` (PostgreSQL-klientværktøjer installeret 3/7-26; `supabase db dump` kræver Docker):
   ```powershell
   $env:PGPASSWORD = 'databasepassword-fra-password-manager'   # enkelte anførselstegn!
@@ -497,6 +504,94 @@ Resten kan lægges ovenpå, når I har luft.
 5. **Ryd op:** slet dump-filerne, eller flyt dem til sikker off-site-placering — de må **ikke** committes til git.
 
 **Note:** dette dækker `public`-tabellerne + auth-brugere. Til en ægte katastrofe-gendannelse skal **Storage**-filer (greeting-lyd + lead-billeder) også med — de ligger uden for Postgres og eksporteres for sig. Øv dét, når der er ægte kundedata at beskytte.
+
+---
+
+## Rollback på Railway (D4)
+
+*Skrevet 2/8-26 under første øvelse. Gentages hvert kvartal sammen med gendannelsesøvelsen.*
+
+### Fire ting du skal vide, før du trykker
+
+**1. Rollback er ikke det samme som Redeploy.** Menuen (tre prikker på en deploy i historikken) har begge. **Redeploy** kører den valgte deploy op som en NY deploy med de NUVÆRENDE variabler. **Rollback** vender tilbage til den valgte deploy som helhed. Ved en hændelse: **Rollback**.
+
+⚠️ **Menuen er kontekstafhængig.** På den deploy, du forlod, kan du *Redeploy*. På den, du står på nu, kan du *Rollback*. Vejen tilbage hedder altså ikke det samme som vejen frem — led ikke efter det forkerte ord under pres.
+
+**2. Variabler ruller MED.** Railway genskaber både build og de brugerdefinerede variabler under en rollback — det står i bekræftelsesdialogen: *"This will restore both the build and variables."* Det betyder: har du rettet en variabel EFTER den deploy, du ruller tilbage til, forsvinder rettelsen uden varsel og uden fejlmeddelelse.
+- Har du roteret en nøgle siden da: **tjek Variables-fanen umiddelbart efter rollbacken.**
+
+**3. Databasen ruller IKKE med.** Rollback rører kun Railway. Supabase står, som den stod. Var der en migration med i den deploy, du forlader, kører gammel kode nu mod nyt skema. Se D10 — afklar altid, om der er en migration i spil, FØR du trykker.
+
+**4. Git og Railway er uenige bagefter.** Skyen kører gammel kode, repoet har den nye. **Næste push genindfører fejlen.** Rollback er en pause, ikke en rettelse — næste skridt er altid at revertere commit'en i git eller fikse fremad.
+
+**Holdbarhedsdato:** deploys ældre end Railways opbevaringspolitik kan ikke rulles tilbage — så vises Rollback slet ikke i menuen. Rollback-vejen rækker kun så langt.
+
+### Fremgangsmåde
+
+0. **Er der en migration i den deploy, du forlader?** `git log --oneline -- supabase/migrations`
+   Er der det: rollback løser kun halvdelen. Læs punkt 3 igen.
+1. **Notér den aktive deploy:** navn + commit-SHA.
+2. `.\skift-staging.ps1` (eller prod-modstykket), derefter `npm run smoke` — **skal være grøn.**
+   Det er nulpunktet. Uden det kan du ikke afgøre, om rollbacken hjalp. Notér klokkeslæt.
+3. Tre prikker på deployen under den aktive → **Rollback**. Bekræft dialogen. Notér klokkeslæt.
+4. Følg deploy-loggen, til status er ACTIVE. Regn med ca. 1 min — rollback er ikke hurtigere end en almindelig deploy, Railway rejser en container op på ny.
+5. `npm run smoke` igen. Notér resultat og klokkeslæt.
+6. Bekræft i Railway, at den aktive deploy nu er den gamle.
+7. **Tjek Variables-fanen**, hvis noget er roteret siden. Se punkt 2.
+8. **Beslut:** revertér commit'en i git, eller fiks fremad. Rollbacken står, indtil du gør det.
+
+### Tilbage til nyeste (efter en øvelse)
+
+**Brug Redeploy på den deploy, du forlod.** Tre prikker → *Redeploy*. Den tager præcis den deploy, du peger på, uafhængigt af branches. Verificér bagefter med `npm run smoke` og et kig på Variables-fanen.
+
+⚠️ **Brug IKKE "Deploy latest commit" (Ctrl+K) til dette.** Den deployer nyeste commit fra **default-branchen i GitHub — altså `main`** — uanset hvilket miljø du står i. Står du i staging, kan du dermed komme til at deploye `main` til staging. Kommandoen findes, men den er ikke vejen tilbage efter en øvelse.
+
+*(Ctrl+K åbner i øvrigt en kommandopalette, ikke deploy-listen direkte — "Deployments" i paletten fører derhen.)*
+
+### Hvad en grøn smoke beviser — og hvad den ikke gør
+
+Ved en øvelse, hvor gammel og ny deploy indeholder samme kørende kode, beviser grøn smoke bagefter **ikke**, at rollbacken virkede. Den beviser, at rollbacken ikke brækkede noget, og at nedetiden var kort nok. Den dag det gælder, er signalet et andet: **rød før, grøn efter.**
+
+### D10 — kan migrationerne rulles tilbage? (afklaret 2/8-26)
+
+**Rollback flytter koden tilbage. Skemaet bliver, hvor det er.** Spørgsmålet er derfor ikke, om migrationen kan rulles tilbage, men: *kan den gamle kode leve med det nye skema?*
+
+**Tilføjende ændringer — ufarlige.** Ny tabel, ny kolonne der er nullable eller har `default`, nyt indeks, RLS på en ny tabel. Gammel kode kender dem ikke og rører dem ikke.
+
+**Indsnævrende ændringer — farlige:**
+
+| Ændring | Hvad der sker efter rollback |
+|---|---|
+| Kolonne omdøbt eller slettet | Gammel kode skriver til et navn, der ikke findes → fejl ved hver skrivning |
+| `not null` UDEN default | Gammel kode indsætter uden feltet → alle inserts afvises |
+| `unique` på en EKSISTERENDE tabel | Gammel kode indsætter en dublet, den før havde lov til → afvist |
+| Datatype ændret | Gammel kode sender gammelt format → afvist, eller konverteret forkert |
+| RLS strammet på en EKSISTERENDE tabel | Gammel kode får tomme svar. **Ingen fejl — bare ingenting** |
+
+Den sidste er den ubehagelige: de fire første larmer, den femte er tavs.
+
+**Status 2/8-26: rollback-vejen er HEL.** Alle seks migrationer er gennemgået — ingen `drop`, `rename` eller `alter column`. Alle `not null` står enten i `create table` på nye tabeller eller har `default`. De unikke indekser sidder på nye tabeller. Kode kan rulles tilbage forbi enhver af dem.
+
+⚠️ **Planlagt undtagelse:** `20260727065655_kunder_og_opgavelag.sql` linje 134 noterer, at `firm_id` gøres `not null` i en **senere migration**. Den dag den køres, er rollback-vejen brudt på det punkt. Behandl den som indsnævrende, og noter i logbogen nedenfor, hvornår den lander.
+
+### Reglen: tilføj først, fjern senere
+
+Gælder alle fremtidige migrationer, og bliver vigtig når tilbudsmodulet ændrer skemaet for alvor.
+
+1. **Nye kolonner er nullable eller har `default`.** Aldrig `not null` uden default på en eksisterende tabel.
+2. **Omdøb aldrig.** Tilføj den nye kolonne, skriv til begge, fjern den gamle i en senere migration — efter den nye kode har kørt i produktion et stykke tid.
+3. **Stram først, når koden er ude.** Indsnævringer (`not null`, `unique`, strammere RLS) hører til i en migration for sig, kørt EFTER den kode, der overholder dem, har været i drift.
+4. **Skriv én linje øverst i hver migrationsfil:** `-- rollback-sikker: ja` eller `-- rollback-sikker: nej, fordi ...`. Så skal vurderingen ikke laves om kl. 22.
+5. **Tjek altid punkt 0 i fremgangsmåden**, før du ruller tilbage: er der en migration i den deploy, du forlader?
+
+### Øvelseslog
+
+| Dato | Miljø | Fra → til | Nedetid | Smoke før | Smoke efter | Udført af |
+|---|---|---|---|---|---|---|
+| 2/8-26 | staging | risikoregister mm (f1002fdc) → test af branch-beskyttelse | ca. 1 min (rollback 09:41) | grøn 09:37 | grøn | Ann, med hjælp |
+| 2/8-26 | staging | test af branch-beskyttelse → risikoregister mm (f1002fdc) | ca. 1 min (redeploy 10:05) | grøn | grøn, variabler OK | Ann, alene efter runbogen |
+
+**Erfaring 2/8-26:** begge øvelser forløb uden overraskelser. Det ikke-afklarede er stadig D10 — der var ingen migration i spil, så rollback-vejens halve længde ved skemaændringer er ikke afprøvet.
 
 ---
 
