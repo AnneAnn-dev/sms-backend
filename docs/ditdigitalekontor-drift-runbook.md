@@ -143,6 +143,66 @@ forventede og roterede — information, ikke brand. Omskriv ikke historik paa de
       gitleaks genkender formaterne — fake noegle → skal afvises. Ellers egen regel.
 - [ ] Opdatér gitleaks et par gange aarligt (nye regler for nye leverandoerformater)
 
+### C3. Branch-beskyttelse paa GitHub (etableret 1/8-26)
+
+**Ligger IKKE i git.** Rulesets er kontoindstillinger hos GitHub — derfor staar de her.
+Samme skel gaelder Railway-miljoeer og Supabase-planer: kode og konfiguration-som-kode
+hoerer i repoet, leverandoer-indstillinger hoerer i runbooken.
+
+**Findes under:** Settings → **Rules → Rulesets** (ikke "Branches" — menuen er flyttet).
+
+| Ruleset | Maal | Regler |
+| --- | --- | --- |
+| `staging-beskyttelse` | `staging` | Block force pushes, Restrict deletions |
+| `main-beskyttelse` | `main` | Block force pushes, Restrict deletions, **Require a pull request before merging** |
+
+Asymmetrien er med vilje: `staging` skal vaere hurtig, `main` skal vaere svaer.
+PR-kravet gaelder kun dér, hvor kunderne er. Ann pusher aldrig direkte til `main`
+(arbejdsgangen er `staging` → PR → merge → prod deployer), saa reglen haandhaever
+bare den vane, der allerede findes.
+
+**Verificeret i begge retninger 1/8** — `Everything up-to-date` beviser INTET
+(git sendte aldrig noget; reglen blev aldrig proevet). Aegte test:
+
+```powershell
+git commit --allow-empty -m "test af branch-beskyttelse"
+git push origin staging
+git reset --hard HEAD~1     # sikkert: commit'en er TOM, alt ligger paa GitHub
+git push --force origin staging     # skal afvises: GH013 "Cannot force-push"
+git pull
+```
+
+Efterlader en tom commit i historikken, der dokumenterer testen. Harmloest.
+
+**Bypass-listen skal vaere TOM.** En regel med en bypass er en regel, der ikke gaelder
+den, der er mest tilboejelig til at bruge den — én selv, sent om aftenen.
+
+### C4. Railway-projekter og GitHub-miljoeer (ryddet 1/8-26)
+
+**Railway:** ét projekt, `noble-ambition`, med to environments — `staging` og
+`production`. `shimmering-blessing` (tomt, oprettet ved et uheld) SLETTET 1/8.
+Ingen git-oprydning noedvendig; det var aldrig koblet til repoet.
+
+**GitHub-miljoeet `staging.` (med punktum) SLETTET 1/8.** Det stod roedt i
+deployment-listen ved hvert push. Diagnosen tog tre skridt og er vaerd at huske,
+fordi den foerste forklaring var forkert:
+
+1. Antagelse: "en enkelt mislykket deploy". **Forkert** — den havde intet tidsstempel
+   og gik igen ved hvert push.
+2. Commit'et bag fejlen aendrede kun KOMMENTARER (`lommekontor` → `ditdigitalekontor`).
+   Ingen kode. Altsaa fejlede koden ikke.
+3. Afgoerende: projekt-id'et i miljoeets link (`16bdc43e-0a87…`) matchede **ikke**
+   `noble-ambition`. Miljoeet pegede paa et Railway-projekt fra FOER navneskiftet,
+   som ikke findes laengere. Derfor fejlede deployet — der var intet at deploye til.
+
+**Slettes via Settings → Environments** (ikke via deployment-listen; "Mark as inactive"
+findes kun i GitHubs API, ikke i brugerfladen).
+
+**Laere:** et navneskift efterlader spor i leverandoerernes kontoindstillinger, som
+ingen kodesoegning finder. Ved fremtidig noeglerotation: tjek at Railway stadig har
+ét projekt med to environments, og at GitHub → Settings → Environments matcher.
+Et glemt miljoe med gamle noegler er praecis det, der overses.
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
@@ -535,6 +595,14 @@ Resten kan lægges ovenpå, når I har luft.
     `manifest.json`'s `short_name` stadig er "Dit Kontor" (jf. udestående 4).
 
 ### 🏗️ Infrastruktur/indkøb
+
+- [ ] **Railway: Hobby → Pro (BOER besluttes).** Prod koerer betalende kunder paa
+      **Hobby-planen**: ingen SLA, ingen prioriteret support, lavere ressourcegraenser,
+      og planen er beregnet til personlige projekter. Gaar appen ned en fredag aften,
+      er der ingen at ringe til. Samme argument som Supabase Pro (gennemfoert 31/7) —
+      Railway er det ANDET ben, piloterne staar paa. Bliver mere presserende med
+      tilbudsmodulet, der laegger AI-kald og lyduploads oveni. Tjek samtidig, om
+      log-opbevaringen aendrer sig (relevant for GDPR-punktet om logs).
 1. **Supabase prod er FREE-tier (ok NU, men fast punkt i pilot-tjeklisten):** free pauser projektet efter ~1 uges inaktivitet (= opkald/SMS/leads fejler, til nogen vækker det manuelt) og har INGEN automatiske backups (en fejlkørsel ville være uoprettelig). **Opgradér til Pro, FØR første betalende håndværker er ombord.** Gratis nu: omdøb projektet til `ditdigitalekontor-prod` (Settings → General) — "anneann1904's Project" er en fejllæsnings-fælde (jf. identiske-dashboards-reglen).
 
 1. ✅ **Staging-systemnummer etableret 12/7:** +4591309928 ophøjet fra puljen (slettet fra phone_numbers, sat som `TWILIO_SYSTEM_NUMBER` i staging-Railway + .env.staging). Staging-puljen har nu 1 ledigt nummer (+4593702605) — reset-test-data frigør det mellem kørsler. Verifikationsopkald virker nu i BEGGE miljøer.
