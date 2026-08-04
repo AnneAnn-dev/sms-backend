@@ -595,6 +595,61 @@ Gælder alle fremtidige migrationer, og bliver vigtig når tilbudsmodulet ændre
 
 ---
 
+## Miljøvariabler — to kilder, én sandhed (D16)
+
+*Skrevet 2/8-26 efter første afstemning. Oprydningen selv står i `docs/D16-variabeloprydning.md`.*
+
+### Sandheden bor i Railway
+
+Produktionsvariabler har hidtil været tastet manuelt **to** steder: i Railway og i `.env.prod`. Railway er det, appen faktisk kører på. `.env.prod` er en kopi — og en kopi af ukendt friskhed, som de lokale scripts læser, når de kører mod prod.
+
+**Regel: afvigelser rettes altid i filen, aldrig i Railway.** Målet er, at `.env.prod` en dag genereres fra Railway og aldrig tastes.
+
+### ⚠️ To uafhængige miljøkontakter
+
+Der er **to** kontakter på maskinen, og de kender ikke hinanden:
+
+| Kontakt | Styrer | Tjekkes med |
+|---|---|---|
+| `skift-staging.ps1` / `skift-prod.ps1` | hvad `.env` beskriver — altså hvad Node-scripts taler med | `Get-FileHash .env, .env.staging, .env.prod -Algorithm SHA256` |
+| Railway CLI's link | hvad `railway`-kommandoer rammer | `railway status` |
+
+**2/8-26 pegede `.env` på staging, mens CLI-linket pegede på production.** Der skete ikke noget, men `railway run` ville have kørt mod prod, mens alt andet sagde staging.
+
+**Tjek altid `railway status`, før du kører en `railway`-kommando — eller angiv `--environment` eksplicit.** Se D20 i registret.
+
+### ⚠️ CLI'en udskriver rå værdier
+
+`railway variable list` viser værdierne i klartekst, og **både `--json` og `--kv` gør det samme** — CLI'ens egen hjælpetekst advarer om det. Der findes ikke et flag, der kun giver navne.
+
+**Kør den derfor aldrig løst i terminalen med prod-miljøet.** Værdierne lander i scrollback og potentielt i PowerShell-historikken.
+
+### Afstemning: `afstem-railway-env.js`
+
+Read-only. Skriver intet. Udskriver **kun variabelnavne og et match/mismatch-flag** — aldrig værdier, og heller ikke hashes (en hash af `NODE_ENV=production` kan gættes). Sammenligningen sker internt på SHA-256.
+
+```powershell
+node afstem-railway-env.js --environment staging --file .env.staging
+node afstem-railway-env.js --environment production --file .env.prod
+```
+
+`--environment` har med vilje **ingen standardværdi** og skal angives. Scriptet arver aldrig CLI-linket. Ukendte flag afvises. Exit 0 = ingen afvigelser, 1 = afvigelser, 2 = fejl.
+
+Outputtet indeholder ingen hemmeligheder og kan trygt deles.
+
+**Kadence:** kør den før enhver produktionsdeploy, der rører variabler, og som fast punkt i den kvartalsvise runde sammen med rollback- og gendannelsesøvelsen.
+
+### Afstemningslog
+
+| Dato | Miljø | Ens | Afviger | Kun i Railway | Kun i filen | Bemærkning |
+|---|---|---|---|---|---|---|
+| 2/8-26 | staging | 21 | 2 | 3 | 4 | Første måling. `admin_email` vs. `ADMIN_EMAIL` er en reel defekt |
+| 2/8-26 | production | 21 | 1 | 2 | 5 | Fire variabler koden læser mangler helt i Railway |
+
+**Værktøjsversion:** Railway CLI 4.61.1 (nyeste er v5.x, hvor kommandoen hedder `railway variable list` i stedet for `railway variables`). Opgraderes som en bevidst opgave — `afstem-railway-env.js` skal testes bagefter.
+
+---
+
 ## Udeståender — samlet overblik (pr. 19/7-26)
 
 *Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
@@ -675,10 +730,22 @@ Gælder alle fremtidige migrationer, og bliver vigtig når tilbudsmodulet ændre
     **STAGING FÆRDIG 31/7:** ægte opkald `signatur OK`, falsk kald `AFVIST` (403),
     `npm run smoke` 8/8 grøn. **PROD: kode deployet 31/7 i log-tilstand** (variablen
     findes ikke i prod, og standarden er `log` — bevidst).
-    **TILBAGE:** (1) følg prod-loggen til et par ÆGTE kundeopkald er set med
-    `✅ /opkald: signatur OK`; (2) opret så `OPKALD_SIGNATUR=haandhaev` i
-    prod-servicen; (3) ring et opkald + `npm run smoke:prod` → skal vise
-    `afvist med 403`. **Derefter:** fjern variablen og gaflen i `onboarding.js`
+    **STATUS 2/8-26:**
+    - ✅ (1) Ægte kundeopkald set gå igennem i prod og blive til opgaveformularer.
+    - ✅ (2) `OPKALD_SIGNATUR=haandhaev` oprettet i prod-servicen OG deployet.
+      Staging står også på `haandhaev`, så de to miljøer er enige.
+    - ⬜ (3) **UDESTÅENDE — og det er det farlige:** ring et opkald +
+      `npm run smoke:prod` → skal vise `afvist med 403`. **Håndhævelse er live i
+      prod uden at afvisningsvejen er verificeret DER.** Fejler URL-bygningen,
+      afvises ALLE ægte opkald. Virker et rigtigt opkald ikke: sæt variablen
+      tilbage til `log` med det samme.
+    - ⚠️ Bekræftelsen `✅ signatur OK` findes ikke længere i loggen — den logges
+      kun i log-tilstand. Fra nu af logges kun afvisninger.
+    - ⚠️ **Variablen ruller med ved rollback.** Ruller du prod tilbage til en deploy
+      fra før 2/8-26, forsvinder `OPKALD_SIGNATUR` uden varsel, standarden `log`
+      træder i kraft, og håndhævelsen er slået fra igen. Se rollback-afsnittet, punkt 2.
+    - ⬜ `OPKALD_SIGNATUR` mangler i `.env.prod` og `.env.staging` — tilføjes under
+      D16-oprydningen, så lokale kørsler ikke opfører sig anderledes end skyen. **Derefter:** fjern variablen og gaflen i `onboarding.js`
     igen, når `haandhaev` har kørt problemfrit et par uger — et flag har en
     dødsdato, og fjernelsen er kun sikker, mens flaget står TÆNDT.
     Bemærk: `✅ signatur OK` logges kun i log-tilstand; når der håndhæves, logges
