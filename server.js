@@ -74,6 +74,18 @@ require("./onboarding")(app, supabase);
 // Behøver IKKE rå body — Frisbii signerer kun timestamp+id, så global express.json() er nok.
 require("./frisbii-webhook")(app, supabase);
 
+// ─── Frisbii Checkout: broen fra Simply-siden til betalingen ────────────────
+// Registrerer POST /checkout/start. UDEN denne linje er modulet aldrig indlæst
+// → POST giver 404, intet logges, og Simply-sidens koeb-knap "lykkes" tavst.
+// Det var anden forekomst af den fejlmaade (foerste var onboarding-link
+// herunder); fjernes permanent af ≠404-tjekket i roegtesten, se D23.
+// Tager KUN (app) — routen roerer ikke databasen.
+// Env-vars laeses ved MONTERING, ikke pr. kald: aendres FRISBII_PLAN_HANDLE
+// eller SIMPLY_BASE_URL i Railway, skal appen genstarte, foer det virker.
+// Mangler de, svarer routen 500 "server_misconfigured" — den kan ikke crashe
+// ved boot, fordi requireConfig() foerst kaldes inde i handleren.
+require("./frisbii-checkout")(app);
+
 // ─── "Send mig et login-link": redningsvej for glemt adgangskode ────────────
 // Registrerer POST /onboarding/nyt-link (prefetch-sikkert login-link via egen
 // Scaleway-mail, rate-limitet + anti-enumeration). UDEN denne linje findes

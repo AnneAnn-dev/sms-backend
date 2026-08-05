@@ -1,19 +1,90 @@
 {
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./.env-prod*)",
-      "Bash(cat .env*)",
-      "Bash(cat ./.env*)",
-      "Bash(type .env*)",
-      "Bash(Get-Content .env*)",
-      "Bash(Get-Content ./.env*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/.env-*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Edit(**/.env-*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Write(**/.env-*)",
+
+      "Read(**/config.php)",
+      "Edit(**/config.php)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/.npmrc)",
+      "Read(**/.git-credentials)",
+      "Read(**/service-account*.json)",
+      "Read(**/secrets/**)",
+
+      "Bash(railway variables*)",
+      "Bash(railway run*)",
+      "Bash(railway link*)",
+      "Bash(railway up*)",
+      "Bash(supabase secrets*)",
+      "Bash(supabase link*)",
+      "Bash(supabase db push*)",
+      "Bash(npx supabase db push*)",
+      "Bash(gh secret*)",
+      "Bash(gh auth token*)",
+      "Bash(twilio*)",
+
       "Bash(*push-prod*)",
       "Bash(*skift-prod*)",
       "Bash(*reset-test-data*)",
+      "Bash(*buy-numbers*)",
+      "Bash(pg_dump*)",
+      "Bash(psql*)",
+
+      "Bash(cat .env*)",
+      "Bash(cat ./.env*)",
+      "Bash(type .env*)",
+      "Bash(more .env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(Get-Content .env*)",
+      "Bash(Get-Content ./.env*)",
+      "Bash(gc .env*)",
+      "Bash(gc ./.env*)",
+      "Bash(Select-String *.env*)",
+      "Bash(findstr *.env*)",
+
+      "Bash(git commit *--no-verify*)",
+      "Bash(git commit *-n*)",
+      "Bash(*core.hooksPath*)",
       "Bash(git push --force*)",
-      "Bash(*buy-numbers*)"
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(*rm -rf*)",
+      "Bash(curl *| bash*)",
+      "Bash(curl *| sh*)"
+    ],
+
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(npm install*)",
+      "Bash(npm i *)",
+      "Bash(railway*)",
+      "Bash(supabase*)",
+      "Bash(*push-staging*)",
+      "Bash(*skift-staging*)",
+      "Bash(*sammenlign-env*)",
+      "Bash(*afstem-*)",
+      "Bash(*configure-number*)"
+    ],
+
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(npm run test*)",
+      "Bash(npm run lint*)",
+      "Bash(npm audit*)"
     ]
   }
 }

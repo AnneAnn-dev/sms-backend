@@ -74,6 +74,135 @@ Dette er det vigtigste skifte. **Stop med at køre SQL i hånden i dashboard-edi
    Kør den på staging først, så prod (se Del 1). `messages-patch.sql`-mønsteret bliver nu bare en almindelig migration — og `if not exists`-fælden forsvinder, fordi historikken styres af migrationsrækkefølgen.
 4. (Senere, valgfrit) Supabase **branching** kan give en DB-preview pr. pull request. Lad det ligge til I har behov; det persistente staging-projekt er arbejdshesten.
 
+### C2. Gitleaks — pre-commit-vagt mod hemmeligheder (etableret 31/7-26)
+
+Naegter commits med noegler i. Gaelder ALLE haender, inkl. Claude Code.
+Baggrund: `.env`-eksponeringen 22/7 — en noegle, der foerst ER committet, ligger i
+historikken for altid, og oprydningen kraever BAADE historik-omskrivning OG rotation.
+
+**Verificeret 31/7 i begge retninger:** fake Twilio-token AFVIST (`generic-api-key`,
+`Secret: REDACTED`), normal commit gik igennem upaavirket. Begge veje skal testes —
+en hook, der aldrig kaldes, ser i den ene retning ud praecis som en, der virker.
+
+**Installation paa ny maskine** (hook'en ligger i git, men virker ikke af sig selv):
+
+```powershell
+# 1) Vaerktoejet — hoerer til MASKINEN, ikke projektet
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$mappe = "$env:LOCALAPPDATA\gitleaks"
+New-Item -ItemType Directory -Force -Path $mappe | Out-Null
+$udg = Invoke-RestMethod "https://api.github.com/repos/gitleaks/gitleaks/releases/latest"
+$fil = $udg.assets | Where-Object { $_.name -like "*windows_x64.zip" } | Select-Object -First 1
+Invoke-WebRequest $fil.browser_download_url -OutFile "$mappe\gitleaks.zip"
+Expand-Archive "$mappe\gitleaks.zip" -DestinationPath $mappe -Force
+Remove-Item "$mappe\gitleaks.zip"
+
+# 2) PATH (permanent) — luk terminalen HELT bagefter, PATH laeses kun ved opstart
+$p = [Environment]::GetEnvironmentVariable("Path","User")
+[Environment]::SetEnvironmentVariable("Path", "$p;$mappe", "User")
+
+# 3) Indstillingen — hoerer til PROJEKTET, koeres i repo-roden
+git config core.hooksPath .githooks
+```
+
+`winget` findes ikke paa alle maskiner (kraever App Installer) — derfor binaeren direkte.
+Virker `gitleaks version` ikke i et FRISKT vindue: tjek `Test-Path`, derefter
+User-PATH, derefter `$env:Path`. Er de to sidste uenige, arves miljoeet fra en
+proces startet foer aendringen (klassisk med VS Code — luk hele programmet, ikke fanen).
+Hjaelper det ikke: `Unblock-File` paa exe'en (zip-udpakkede filer baerer et
+"hentet fra internettet"-maerke).
+
+**Filer i repoet:** `.githooks/pre-commit` (ren ASCII, **LF-linjeskift** — CRLF faar
+Git for Windows' indbyggede `sh` til at fejle kryptisk) og linjen
+`.githooks/** text eol=lf` i `.gitattributes`, saa checkout ikke konverterer dem.
+`core.hooksPath` er LOKAL config og foelger ikke med i git — derfor staar
+installationsvejledningen ogsaa i toppen af hook-filen selv.
+
+**Hook'en fail-closer:** mangler gitleaks, blokeres commit'et med en forklarende
+besked. En vagt, der stiltiende lader alt passere, naar den ikke finder sit
+vaerktoej, er vaerre end ingen vagt.
+
+**Triage naar den fyrer** — tre spoergsmaal i raekkefoelge:
+1. *Er det en aegte hemmelighed?*
+2. *Hvis ja — har den vaeret committet FOER?* Kun i staging-omraadet (hook'en stoppede
+   den) → fjern fra filen, faerdig, ingen rotation. Allerede i en tidligere commit →
+   **noeglen SKAL roteres**; at slette den nu fjerner den ikke fra fortiden.
+3. *Hvis nej — hvorfor tror den, det er en hemmelighed?* → undtagelse i
+   `.gitleaks.toml`, saa smal som mulig (én sti, én regel), med kommentar om
+   HVORFOR og HVORNAAR. Filen SKAL starte med `[extend]` + `useDefault = true`,
+   ellers ERSTATTER den gitleaks' 150+ indbyggede regler i stedet for at supplere —
+   en vagt der intet opdager, uden at sige det.
+
+**Historik-baseline:** `gitleaks git --redact` én gang. Fund fra 22/7-eksponeringen er
+forventede og roterede — information, ikke brand. Omskriv ikke historik paa den baggrund.
+
+**Udestaaende:**
+- [ ] `--no-verify` tilfoejes deny-reglerne i `.claude/settings.json` (Claude Code maa
+      ikke kunne omgaa vagten for at faa en commit igennem)
+- [ ] Naar tilbudsmodulets nye noegler kommer (transskription, Anthropic): test at
+      gitleaks genkender formaterne — fake noegle → skal afvises. Ellers egen regel.
+- [ ] Opdatér gitleaks et par gange aarligt (nye regler for nye leverandoerformater)
+
+### C3. Branch-beskyttelse paa GitHub (etableret 1/8-26)
+
+**Ligger IKKE i git.** Rulesets er kontoindstillinger hos GitHub — derfor staar de her.
+Samme skel gaelder Railway-miljoeer og Supabase-planer: kode og konfiguration-som-kode
+hoerer i repoet, leverandoer-indstillinger hoerer i runbooken.
+
+**Findes under:** Settings → **Rules → Rulesets** (ikke "Branches" — menuen er flyttet).
+
+| Ruleset | Maal | Regler |
+| --- | --- | --- |
+| `staging-beskyttelse` | `staging` | Block force pushes, Restrict deletions |
+| `main-beskyttelse` | `main` | Block force pushes, Restrict deletions, **Require a pull request before merging** |
+
+Asymmetrien er med vilje: `staging` skal vaere hurtig, `main` skal vaere svaer.
+PR-kravet gaelder kun dér, hvor kunderne er. Ann pusher aldrig direkte til `main`
+(arbejdsgangen er `staging` → PR → merge → prod deployer), saa reglen haandhaever
+bare den vane, der allerede findes.
+
+**Verificeret i begge retninger 1/8** — `Everything up-to-date` beviser INTET
+(git sendte aldrig noget; reglen blev aldrig proevet). Aegte test:
+
+```powershell
+git commit --allow-empty -m "test af branch-beskyttelse"
+git push origin staging
+git reset --hard HEAD~1     # sikkert: commit'en er TOM, alt ligger paa GitHub
+git push --force origin staging     # skal afvises: GH013 "Cannot force-push"
+git pull
+```
+
+Efterlader en tom commit i historikken, der dokumenterer testen. Harmloest.
+
+**Bypass-listen skal vaere TOM.** En regel med en bypass er en regel, der ikke gaelder
+den, der er mest tilboejelig til at bruge den — én selv, sent om aftenen.
+
+### C4. Railway-projekter og GitHub-miljoeer (ryddet 1/8-26)
+
+**Railway:** ét projekt, `noble-ambition`, med to environments — `staging` og
+`production`. `shimmering-blessing` (tomt, oprettet ved et uheld) SLETTET 1/8.
+Ingen git-oprydning noedvendig; det var aldrig koblet til repoet.
+
+**GitHub-miljoeet `staging.` (med punktum) SLETTET 1/8.** Det stod roedt i
+deployment-listen ved hvert push. Diagnosen tog tre skridt og er vaerd at huske,
+fordi den foerste forklaring var forkert:
+
+1. Antagelse: "en enkelt mislykket deploy". **Forkert** — den havde intet tidsstempel
+   og gik igen ved hvert push.
+2. Commit'et bag fejlen aendrede kun KOMMENTARER (`lommekontor` → `ditdigitalekontor`).
+   Ingen kode. Altsaa fejlede koden ikke.
+3. Afgoerende: projekt-id'et i miljoeets link (`16bdc43e-0a87…`) matchede **ikke**
+   `noble-ambition`. Miljoeet pegede paa et Railway-projekt fra FOER navneskiftet,
+   som ikke findes laengere. Derfor fejlede deployet — der var intet at deploye til.
+
+**Slettes via Settings → Environments** (ikke via deployment-listen; "Mark as inactive"
+findes kun i GitHubs API, ikke i brugerfladen).
+
+**Laere:** et navneskift efterlader spor i leverandoerernes kontoindstillinger, som
+ingen kodesoegning finder. Ved fremtidig noeglerotation: tjek at Railway stadig har
+ét projekt med to environments, og at GitHub → Settings → Environments matcher.
+Et glemt miljoe med gamle noegler er praecis det, der overses.
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
@@ -101,7 +230,13 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
   4. **Frisbiis event-log kan GENUDSENDE events** (flueben → resend) — uvurderligt testværktøj: ét checkout kan afprøves mod webhooken igen og igen uden nye betalinger.
   5. **En plan kræver en dunning-plan** — "dunning plan not found" ved plan-oprettelse i tom konto betyder: opret dunning-planen først (spejl prods: samme handle, forsøg, interval). Dunning-indstillingerne skal genbesøges i byggetrin 6 (grace-periodens længde afstemmes med dem).
   6. **Frisbii retryer fejlede webhooks i op til 3 dage** (2-5-10-20-30 min, så hver time) — gamle fejlede forsøg kan banke på længe efter; prods idempotens-/alders-guard håndterer dem som no-ops (verificeret 5/7-26).
-  7. **Kendt udestående — checkout-endpointet er en kontrolleret 500'er i BEGGE miljøer:** `FRISBII_PLAN_HANDLE` og `SIMPLY_BASE_URL` mangler i Railway (begge miljøer — de har aldrig været sat; `requireConfig()` i frisbii-checkout.js fejler pænt ved kald, ikke ved boot). **Go-live-blokerende for salg via partnersitet.** Fix: sæt begge vars i begge miljøer (prods plan-handle i prod, stagings i staging) + konfigurér accept_url/cancel_url, så kunden lander på onboarding i stedet for `GET /` (404) efter betaling.
+  7. **⚠️ RETTET 4/8-26 — checkout-endpointet er IKKE en kontrolleret 500'er. Det er et 404.** Den tidligere formulering her var forkert og kostede en forkert diagnose: `requireConfig()` i `frisbii-checkout.js` kan ikke fejle ved kald, fordi den aldrig **bliver** kaldt. **Modulet er aldrig monteret** — `require("./frisbii-checkout")(app)` findes ingen steder i kodebasen. Linjen står kun som en *kommentar inde i filen selv* (linje 10), der beskriver, hvordan den skulle indlæses. Verificeret 4/8-26 med `Select-String` over alle `.js` uden for `node_modules`.
+     **Go-live-blokerende for salg via partnersitet.** Fix i rækkefølge — de tre trin er uafhængige, og hvert af dem *alene* ændrer intet for kunden:
+     1. **Montér modulet** i `server.js`, sammen med de øvrige monteringer lige efter `frisbii-webhook`: `require("./frisbii-checkout")(app);` ✅ **Udført 5/8-26.** Verificeret før redigering, så det ikke skal udledes igen: signaturen er **`(app)` alene** (routen rører ikke databasen), og `requireConfig()` kaldes **først inde i rutehandleren** — modulet kan derfor ikke crashe ved boot, og trin 1 er trygt at køre før trin 2. Manglende variabler giver `500 server_misconfigured` med navnene i Railway-loggen. ⚠️ **Env-vars fanges i closuren ved montering, ikke pr. kald** — ændres `FRISBII_PLAN_HANDLE`/`SIMPLY_BASE_URL` i Railway, skal appen genstarte, før det virker. Bekræft monteringen på boot-linjen `🧾 Frisbii checkout-rute registreret paa /checkout/start`. **Nyt fund ved gennemgangen: `/checkout/start` er offentligt og uden rate limit → S12 i registret.**
+     2. **Sæt `FRISBII_PLAN_HANDLE` + `SIMPLY_BASE_URL`** i BEGGE Railway-miljøer — de har aldrig været sat. Plan-handlet læses inde i den rigtige konto (**tryk F5 først, jf. lærdom 1**), og planen åbnes for at bekræfte, at de 14 dages prøveperiode faktisk står på den. `SIMPLY_BASE_URL` er Simply-sitets domæne **uden afsluttende skråstreg** — koden bygger `${SIMPLY_BASE_URL}/tak` og `${SIMPLY_BASE_URL}/afbrudt`.
+     3. **Byg de to landingssider** `/tak` og `/afbrudt` på Simply-sitet, plus en venlig rod-rute på backenden (redirect til ditdigitalekontor.dk). Rå 404 må aldrig vises et menneske. Afbrudt-siden glemmes let — den ses kun af dem, der fortryder, og det er dem, man helst vil have tilbage.
+     ⚠️ **Selv med alle tre trin kan prod ikke tage imod penge endnu:** prod-kontoen kører bevidst på test-nøgler indtil go-live (se kontotabellen ovenfor). Den fulde rækkefølge er montering → variabler → sider → live-nøgler.
+     🔁 **Fejlmåden er vigtigere end fejlen:** et umonteret modul giver 404 — intet crasher, intet logges, og knappen "lykkes" tavst. Det er **anden** forekomst; `onboarding-link` var den første, og advarslen om præcis dette står som kommentar i `server.js` linje 78-82. Kommentarer beskytter kun mod fejl, som nogen når at læse dem i tide. Fjernes med et **≠404-tjek pr. kritisk endpoint i røgtesten** (punkt 25) — se **D23** i risikoregistret.
   8. **Staging-puljens artefakt:** +4591309229 er en kopieret prod-data-artefakt — tallet refererer et nummer, der fysisk bor i Twilio-HOVEDKONTOEN og ikke kan rutes til staging. Fint til at bevise provisioneringskæden; til trin 6-arbejdet skal artefakt-rækken slettes og erstattes af et ægte subkonto-nummer i puljen.
   **Go-live-gate (føj til master-punkt 8):** Frisbii live-nøgler trækkes → live-nøgler i PROD; staging beholder sin testkonto uændret. + checkout-vars (lærdom 7) skal være sat og checkout-flowet røgtestet fra partnersitet.
 - **Scaleway TEM:** i staging, **override modtager til din egen adresse**, så mails fra staging aldrig går til kunder. ✅ *Færdig og røgtestet 4/7-26.*
@@ -118,12 +253,19 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
 ### E. Backup på prod
 
-⚠️ **VIRKELIGHEDEN LIGE NU (Free-plan):** Supabase tager **INGEN automatiske backups** af projektet på Free-planen. Den manuelle pg_dump-rutine nedenfor er **den eneste backup, der findes** — den er ikke et supplement, den er strategien, indtil planen opgraderes. Kadence med testdata: frisk dump før hver større skemaændring.
+**VIRKELIGHEDEN LIGE NU (Pro-plan — bekræftet i dashboardet 2/8-26):** prod-organisationen er på Pro. Supabase tager daglige fysiske snapshots, og de seneste 7 dage kan gendannes fra dashboardet (Database → Backups → Scheduled backups). Kadence for det manuelle dump: frisk dump før hver større skemaændring.
 
-**GO-LIVE-GATE (før første betalende kunde):** opgradér prod-organisationen til **Pro** (~25 USD/md) og slå **PITR** til. Fra det øjeblik findes der ægte kundedata, og beskyttelsen skal være automatisk — ikke afhængig af en manuel rutine.
+**PITR er IKKE slået til — bevidst valg 2/8-26.**
+- **Valgt:** 7 dages daglige backups. **Alternativ:** PITR som tilkøb.
+- **Hvorfor:** prod indeholder testdata, og der er ingen betalende kunder. De op til 24 timers RPO beskytter ikke noget uerstatteligt endnu.
+- **Omstødelig:** PITR faktureres pr. time og kan slås til når som helst. Derfor fem minutters beslutning, ikke en dags.
+- **Re-trigger: første betalende kunde.** Fra det øjeblik findes der ægte kundedata, og beskyttelsen skal være automatisk frem for afhængig af en manuel rutine.
+- ⚠️ **PITR er ikke omfattet af Spend Cap** (Spend Cap er aktiv på organisationen pr. 2/8-26). Den dag PITR slås til, løber udgiften uden om spærringen. PITR kræver desuden mindst et **Small compute-add-on**.
+- Se **D17** i `RISIKOREGISTER.md`.
 
 - Pro-plan giver de seneste 7 dages daglige (fysiske) snapshots — de kan **ikke** downloades/inspiceres.
-- Databasen er lille (<4 GB) → slå **PITR** til (sekund-granularitet). Bemærk: PITR kræver mindst et Small compute-add-on, og når PITR er slået til, tages der ikke længere daglige backups (PITR er finere).
+- ⚠️ **Backups dækker IKKE Storage.** Supabase skriver det selv på backup-siden: en databasebackup indeholder kun *metadata* om objekter uploadet via Storage-API'et, ikke objekterne selv — og gendannelse af en gammel backup bringer ikke filer tilbage, der er slettet siden. Greeting-lyd og lead-billeder skal sikres for sig, se "Gendannelses-øvelse (step-by-step)".
+- Slås PITR til en dag: bemærk at der så ikke længere tages daglige backups (PITR er finere granularitet, så begge dele er unødvendigt).
 - **Manuelt, portabelt snapshot du selv ejer** (beholder sin rolle som off-site-kopi, også efter Pro/PITR). Docker-fri vej med `pg_dump` (PostgreSQL-klientværktøjer installeret 3/7-26; `supabase db dump` kræver Docker):
   ```powershell
   $env:PGPASSWORD = 'databasepassword-fra-password-manager'   # enkelte anførselstegn!
@@ -160,6 +302,15 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
    .\push-staging.ps1   # verificerer linket FØR push — nægter hvis linket ≠ staging
    ```
 4. **Røgtest på staging:** kør `provision-test-firm.js` mod staging, og lad en *bekendt* ringe til staging-nummeret. Tjek at lead lander, SMS sendes, mail kommer.
+3b. **`npm run smoke` mod staging — en opgave er først færdig, når den er grøn.**
+   Ét script (`smoke.js`), ~1,5 sek., ét grønt/rødt svar. Den tester IKKE det, du
+   lige har bygget — den tester, at du ikke har brækket noget andet. Rød = stop:
+   enten fixer du koden, eller også fixer du tjekket, men du deployer ikke forbi.
+   Efter prod-deploy: `npm run smoke:prod` (kun de læsende tjek).
+   **Vedligehold:** hver driftsfejl fremover får et tjek, der ville have fanget den.
+   Nye tjek skal brækkes én gang med vilje — et tjek, du aldrig har set rødt, er
+   dekoration. *(Leveret 31/7. Fandt samme dag et ægte hul: `/opkald` accepterede
+   kald med falsk Twilio-signatur — se kodeopgave 24.)*
 5. Merge til `staging` → (når grøn) PR/merge til `main`.
 6. **Se hvad der FAKTISK er i kø til prod — FØR du rører push-scriptet:**
    ```powershell
@@ -286,12 +437,15 @@ Dormant-kunde-detektion og værdi-realisering. **Ikke launch-blokerende:** det k
 
 ```
 [ ] Migration testet på staging
+[ ] `npm run smoke` grøn på staging
 [ ] Røgtest grøn på staging (bekendt har ringet, lead landede)
 [ ] Merged til main
 [ ] Vi er i deploy-vinduet (uden for arbejdstid) — eller det er en hotfix
 [ ] Migration kørt på prod
 [ ] sw.js cache-version bumpet
 [ ] Health-check grøn
+[ ] `npm run smoke:prod` grøn
+[ ] Opstartsblokken i prod-loggen viser PROD's Supabase-ref
 [ ] Én ægte handling verificeret i prod
 [ ] Holdt øje i ~10 min
 ```
@@ -359,6 +513,149 @@ Resten kan lægges ovenpå, når I har luft.
 
 ---
 
+## Rollback på Railway (D4)
+
+*Skrevet 2/8-26 under første øvelse. Gentages hvert kvartal sammen med gendannelsesøvelsen.*
+
+### Fire ting du skal vide, før du trykker
+
+**1. Rollback er ikke det samme som Redeploy.** Menuen (tre prikker på en deploy i historikken) har begge. **Redeploy** kører den valgte deploy op som en NY deploy med de NUVÆRENDE variabler. **Rollback** vender tilbage til den valgte deploy som helhed. Ved en hændelse: **Rollback**.
+
+⚠️ **Menuen er kontekstafhængig.** På den deploy, du forlod, kan du *Redeploy*. På den, du står på nu, kan du *Rollback*. Vejen tilbage hedder altså ikke det samme som vejen frem — led ikke efter det forkerte ord under pres.
+
+**2. Variabler ruller MED.** Railway genskaber både build og de brugerdefinerede variabler under en rollback — det står i bekræftelsesdialogen: *"This will restore both the build and variables."* Det betyder: har du rettet en variabel EFTER den deploy, du ruller tilbage til, forsvinder rettelsen uden varsel og uden fejlmeddelelse.
+- Har du roteret en nøgle siden da: **tjek Variables-fanen umiddelbart efter rollbacken.**
+
+**3. Databasen ruller IKKE med.** Rollback rører kun Railway. Supabase står, som den stod. Var der en migration med i den deploy, du forlader, kører gammel kode nu mod nyt skema. Se D10 — afklar altid, om der er en migration i spil, FØR du trykker.
+
+**4. Git og Railway er uenige bagefter.** Skyen kører gammel kode, repoet har den nye. **Næste push genindfører fejlen.** Rollback er en pause, ikke en rettelse — næste skridt er altid at revertere commit'en i git eller fikse fremad.
+
+**Holdbarhedsdato:** deploys ældre end Railways opbevaringspolitik kan ikke rulles tilbage — så vises Rollback slet ikke i menuen. Rollback-vejen rækker kun så langt.
+
+### Fremgangsmåde
+
+0. **Er der en migration i den deploy, du forlader?** `git log --oneline -- supabase/migrations`
+   Er der det: rollback løser kun halvdelen. Læs punkt 3 igen.
+1. **Notér den aktive deploy:** navn + commit-SHA.
+2. `.\skift-staging.ps1` (eller prod-modstykket), derefter `npm run smoke` — **skal være grøn.**
+   Det er nulpunktet. Uden det kan du ikke afgøre, om rollbacken hjalp. Notér klokkeslæt.
+3. Tre prikker på deployen under den aktive → **Rollback**. Bekræft dialogen. Notér klokkeslæt.
+4. Følg deploy-loggen, til status er ACTIVE. Regn med ca. 1 min — rollback er ikke hurtigere end en almindelig deploy, Railway rejser en container op på ny.
+5. `npm run smoke` igen. Notér resultat og klokkeslæt.
+6. Bekræft i Railway, at den aktive deploy nu er den gamle.
+7. **Tjek Variables-fanen**, hvis noget er roteret siden. Se punkt 2.
+8. **Beslut:** revertér commit'en i git, eller fiks fremad. Rollbacken står, indtil du gør det.
+
+### Tilbage til nyeste (efter en øvelse)
+
+**Brug Redeploy på den deploy, du forlod.** Tre prikker → *Redeploy*. Den tager præcis den deploy, du peger på, uafhængigt af branches. Verificér bagefter med `npm run smoke` og et kig på Variables-fanen.
+
+⚠️ **Brug IKKE "Deploy latest commit" (Ctrl+K) til dette.** Den deployer nyeste commit fra **default-branchen i GitHub — altså `main`** — uanset hvilket miljø du står i. Står du i staging, kan du dermed komme til at deploye `main` til staging. Kommandoen findes, men den er ikke vejen tilbage efter en øvelse.
+
+*(Ctrl+K åbner i øvrigt en kommandopalette, ikke deploy-listen direkte — "Deployments" i paletten fører derhen.)*
+
+### Hvad en grøn smoke beviser — og hvad den ikke gør
+
+Ved en øvelse, hvor gammel og ny deploy indeholder samme kørende kode, beviser grøn smoke bagefter **ikke**, at rollbacken virkede. Den beviser, at rollbacken ikke brækkede noget, og at nedetiden var kort nok. Den dag det gælder, er signalet et andet: **rød før, grøn efter.**
+
+### D10 — kan migrationerne rulles tilbage? (afklaret 2/8-26)
+
+**Rollback flytter koden tilbage. Skemaet bliver, hvor det er.** Spørgsmålet er derfor ikke, om migrationen kan rulles tilbage, men: *kan den gamle kode leve med det nye skema?*
+
+**Tilføjende ændringer — ufarlige.** Ny tabel, ny kolonne der er nullable eller har `default`, nyt indeks, RLS på en ny tabel. Gammel kode kender dem ikke og rører dem ikke.
+
+**Indsnævrende ændringer — farlige:**
+
+| Ændring | Hvad der sker efter rollback |
+|---|---|
+| Kolonne omdøbt eller slettet | Gammel kode skriver til et navn, der ikke findes → fejl ved hver skrivning |
+| `not null` UDEN default | Gammel kode indsætter uden feltet → alle inserts afvises |
+| `unique` på en EKSISTERENDE tabel | Gammel kode indsætter en dublet, den før havde lov til → afvist |
+| Datatype ændret | Gammel kode sender gammelt format → afvist, eller konverteret forkert |
+| RLS strammet på en EKSISTERENDE tabel | Gammel kode får tomme svar. **Ingen fejl — bare ingenting** |
+
+Den sidste er den ubehagelige: de fire første larmer, den femte er tavs.
+
+**Status 2/8-26: rollback-vejen er HEL.** Alle seks migrationer er gennemgået — ingen `drop`, `rename` eller `alter column`. Alle `not null` står enten i `create table` på nye tabeller eller har `default`. De unikke indekser sidder på nye tabeller. Kode kan rulles tilbage forbi enhver af dem.
+
+⚠️ **Planlagt undtagelse:** `20260727065655_kunder_og_opgavelag.sql` linje 134 noterer, at `firm_id` gøres `not null` i en **senere migration**. Den dag den køres, er rollback-vejen brudt på det punkt. Behandl den som indsnævrende, og noter i logbogen nedenfor, hvornår den lander.
+
+### Reglen: tilføj først, fjern senere
+
+Gælder alle fremtidige migrationer, og bliver vigtig når tilbudsmodulet ændrer skemaet for alvor.
+
+1. **Nye kolonner er nullable eller har `default`.** Aldrig `not null` uden default på en eksisterende tabel.
+2. **Omdøb aldrig.** Tilføj den nye kolonne, skriv til begge, fjern den gamle i en senere migration — efter den nye kode har kørt i produktion et stykke tid.
+3. **Stram først, når koden er ude.** Indsnævringer (`not null`, `unique`, strammere RLS) hører til i en migration for sig, kørt EFTER den kode, der overholder dem, har været i drift.
+4. **Skriv én linje øverst i hver migrationsfil:** `-- rollback-sikker: ja` eller `-- rollback-sikker: nej, fordi ...`. Så skal vurderingen ikke laves om kl. 22.
+5. **Tjek altid punkt 0 i fremgangsmåden**, før du ruller tilbage: er der en migration i den deploy, du forlader?
+
+### Øvelseslog
+
+| Dato | Miljø | Fra → til | Nedetid | Smoke før | Smoke efter | Udført af |
+|---|---|---|---|---|---|---|
+| 2/8-26 | staging | risikoregister mm (f1002fdc) → test af branch-beskyttelse | ca. 1 min (rollback 09:41) | grøn 09:37 | grøn | Ann, med hjælp |
+| 2/8-26 | staging | test af branch-beskyttelse → risikoregister mm (f1002fdc) | ca. 1 min (redeploy 10:05) | grøn | grøn, variabler OK | Ann, alene efter runbogen |
+
+**Erfaring 2/8-26:** begge øvelser forløb uden overraskelser. Det ikke-afklarede er stadig D10 — der var ingen migration i spil, så rollback-vejens halve længde ved skemaændringer er ikke afprøvet.
+
+---
+
+## Miljøvariabler — to kilder, én sandhed (D16)
+
+*Skrevet 2/8-26 efter første afstemning. Oprydningen selv står i `docs/D16-variabeloprydning.md`.*
+
+### Sandheden bor i Railway
+
+Produktionsvariabler har hidtil været tastet manuelt **to** steder: i Railway og i `.env.prod`. Railway er det, appen faktisk kører på. `.env.prod` er en kopi — og en kopi af ukendt friskhed, som de lokale scripts læser, når de kører mod prod.
+
+**Regel: afvigelser rettes altid i filen, aldrig i Railway.** Målet er, at `.env.prod` en dag genereres fra Railway og aldrig tastes.
+
+### ⚠️ To uafhængige miljøkontakter
+
+Der er **to** kontakter på maskinen, og de kender ikke hinanden:
+
+| Kontakt | Styrer | Tjekkes med |
+|---|---|---|
+| `skift-staging.ps1` / `skift-prod.ps1` | hvad `.env` beskriver — altså hvad Node-scripts taler med | `Get-FileHash .env, .env.staging, .env.prod -Algorithm SHA256` |
+| Railway CLI's link | hvad `railway`-kommandoer rammer | `railway status` |
+
+**2/8-26 pegede `.env` på staging, mens CLI-linket pegede på production.** Der skete ikke noget, men `railway run` ville have kørt mod prod, mens alt andet sagde staging.
+
+**Tjek altid `railway status`, før du kører en `railway`-kommando — eller angiv `--environment` eksplicit.** Se D20 i registret.
+
+### ⚠️ CLI'en udskriver rå værdier
+
+`railway variable list` viser værdierne i klartekst, og **både `--json` og `--kv` gør det samme** — CLI'ens egen hjælpetekst advarer om det. Der findes ikke et flag, der kun giver navne.
+
+**Kør den derfor aldrig løst i terminalen med prod-miljøet.** Værdierne lander i scrollback og potentielt i PowerShell-historikken.
+
+### Afstemning: `afstem-railway-env.js`
+
+Read-only. Skriver intet. Udskriver **kun variabelnavne og et match/mismatch-flag** — aldrig værdier, og heller ikke hashes (en hash af `NODE_ENV=production` kan gættes). Sammenligningen sker internt på SHA-256.
+
+```powershell
+node afstem-railway-env.js --environment staging --file .env.staging
+node afstem-railway-env.js --environment production --file .env.prod
+```
+
+`--environment` har med vilje **ingen standardværdi** og skal angives. Scriptet arver aldrig CLI-linket. Ukendte flag afvises. Exit 0 = ingen afvigelser, 1 = afvigelser, 2 = fejl.
+
+Outputtet indeholder ingen hemmeligheder og kan trygt deles.
+
+**Kadence:** kør den før enhver produktionsdeploy, der rører variabler, og som fast punkt i den kvartalsvise runde sammen med rollback- og gendannelsesøvelsen.
+
+### Afstemningslog
+
+| Dato | Miljø | Ens | Afviger | Kun i Railway | Kun i filen | Bemærkning |
+|---|---|---|---|---|---|---|
+| 2/8-26 | staging | 21 | 2 | 3 | 4 | Første måling. `admin_email` vs. `ADMIN_EMAIL` er en reel defekt |
+| 2/8-26 | production | 21 | 1 | 2 | 5 | Fire variabler koden læser mangler helt i Railway |
+
+**Værktøjsversion:** Railway CLI 4.61.1 (nyeste er v5.x, hvor kommandoen hedder `railway variable list` i stedet for `railway variables`). Opgraderes som en bevidst opgave — `afstem-railway-env.js` skal testes bagefter.
+
+---
+
 ## Udeståender — samlet overblik (pr. 19/7-26)
 
 *Én autoritativ liste. Når et punkt løses: flyt det til den relevante sektions ✅-historik og slet det her.*
@@ -384,14 +681,14 @@ Resten kan lægges ovenpå, når I har luft.
    - **(f) Foreslået telefonbesked skal synkroniseres:** dashboardets forslag ændret 20/7 til Anns nye tekst ("Hej, du har ringet til [Firmanavn]. Jeg kan desværre ikke tage telefonen lige nu. Om et øjeblik modtager du en SMS, hvor du nemt kan beskrive din opgave. Jeg vender tilbage hurtigst muligt."). Onboardingens forslag/default skal følge med, ellers møder kunden to forskellige forslag. **DELVIST GJORT 20/7:** onboarding.html's `defaultGreeting` er synket til Anns tekst. **TILBAGE:** serverens evt. default ved provisionering/TTS-prerender — grep repoet efter den gamle tekst ("Tak for din henvendelse" / "Hansens VVS" / "du får straks en SMS") og synk fundne steder.
 2. **Dublet-emails** (FØR go-live, blokerer ikke test): genbrug-eller-afvis ved eksisterende email i provisioneringen — produktbeslutning m. Anne. Indtil da: manuelt tjek jf. pilot-drejebog. *(Byg-trin 6, fundet 8/7; falsk alarm 10/7 var en tastefejls-email.)*
 3. **Trin 6 E — varslinger** (produktbeslutning m. Anne, scope udvidet 10/7): (a) "vi er på sagen"-mail ved strandet provisionering (VIGTIGST — kunden har betalt og hører i dag INTET), (b) dunning-varsling/grace, (c) retention-alarm til os ved cancel, (d) **NY 10/7:** detektion af uleveret velkomstmail/aldrig-logget-ind (tastefejls-email → kunde med service men uden adgang).
-4. **Checkout-vars + kunde-broen** (go-live-gate): `FRISBII_PLAN_HANDLE` (= trial-planens handle!) + `SIMPLY_BASE_URL` i BEGGE miljøer. **Broen (fundet m. kundeøjne 11/7):** efter betaling lander kunden i dag i "Cannot GET /" — accept_url skal pege på en designet "Tak — tjek din mail for dit login-link"-side (Anne laver siden), og backend-roden skal have en venlig rod-rute (redirect til ditdigitalekontor.dk) — rå 404 må aldrig vises et menneske. *(Delvis genvej: sæt trial-planens handle i staging som led i checkout-test.)*
+4. **Checkout-vars + kunde-broen** — ~~indholdet stod her~~. **Flyttet til risikoregistret som Ø5 (4/8-26).** Runbogen ejer ikke udestående-lister (jf. rollefordelingen i registret), og punktet dublerede Ø5. Nummeret er bevaret med vilje, fordi andre punkter henviser til listen efter nummer. **Status og rækkefølge: se Ø5.** Fremgangsmåden ejes af Frisbii-lærdom 7 ovenfor — bemærk at den er rettet: endpointet er aldrig monteret, så det svarer 404 og ikke 500.
 5. **Dead-letter-cron** (m. trin 7 overvågning): dagligt tjek af `processed_at is null` ældre end 1 time → sendAdminAlert. *(Del 0.F TODO.)*
 6. `firms.phone_number` **unique-constraint** (kendt udskudt skema-skævhed — dagens medfødte `frisbii_subscription`-constraint dækker KUN samme-abonnement-racet, ikke to forskellige abonnementer der vælger samme pulje-nummer) + `created_at` på firms. *(Bonus-oprydning ved lejlighed: redundant `idx_firms_frisbii_sub` + legacy `firms_shopify_order_id_key`.)*
 7. **check-env.js:** validér også `TWILIO_SYSTEM_NUMBER` + `VOICE_URL` + `SUPABASE_ANON_KEY` (navnedrift/manglende nøgler fanget 10/7).
 8. **Trin 6 F** (valgfri hærdning): IP-lås/Basic Auth på webhook-endpointet.
 9. **Win-back-polish:** venlig TwiML-besked på karantæne-numre. *(Rescue-mail-delen ✅ 13/7: egen `sendLoginLinkMail`, rate-limit/anti-enumeration bevaret.)*
 10. **SMS-navnebudget** (m. Anne): firmanavn + slug ≤ 46 tegn tilsammen — håndhæves i onboarding trin 1 (navnegrænse) eller via kortere slugs. Vagten logger ⚠️ indtil da.
-12. **Privatlivs-eftersyn af logs (GDPR — "senere", men FØR rigtige kunder i volumen):** gennemgå hvad Railway-loggen gemmer af personhenførbare data. KENDTE SYNDERE allerede nu: `onboarding-link.js` logger fulde mailadresser ("Nyt login-link sendt til: …" / "anmodet for ukendt email: …"), og lignende console.log-mønstre findes formentlig flere steder (grep efter `email` ved console-kald). Mål: maskér (fx `an***@firma.dk`) eller udelad — Railway gemmer logs i klartekst, og de er ikke omfattet af RLS/sletning. **Dertil VERIFICÉR at persondata ikke flyder fra Railway til AppSignal:** Ann har ikke SET det ske, men det skal EFTERSES aktivt — tjek AppSignal-fejlrapporternes payloads/breadcrumbs (request-parametre, headers) og appsignal.cjs-konfigurationen for filtrering (`requestHeaders`/param-filtre). AppSignal er EU (NL), men dataminimering gælder stadig.
+12. **Privatlivs-eftersyn af logs (GDPR — DELVIST GJORT 31/7):** **LEVERET 31/7 i `onboarding.js`:** `maskerTlf()`-hjælper indført og anvendt seks steder (opkald modtaget, intet firma fundet, demo-SMS, hvidliste, firma oprettet) — telefonnumre på kundens kunder står ikke længere i klartekst i Railway-loggen. Samtidig fjernet: `SMS link:`-linjen der udstillede `lead_token` — **tokenet ER adgangskontrollen til opgaveformularen**, og alle med Railway-adgang kunne åbne kundens formular; erstattet af `firma-id + call-id`, som man reelt fejlsøger på (og som er en nøgle til MERE information, ikke mindre). **(a) TILBAGE — maskeringen er for grov:** `maskerTlf()` skjuler de sidste fire tegn uanset længde, så et dansk `+4530518313` bliver til `+453051****` — halvdelen af abonnentnummeret står stadig. Stram til landekode + de to første cifre (`+4530******`). Én funktion, ét sted, ingen kaldesteder skal røres. **(b) TILBAGE — `onboarding-link.js` logger fulde mailadresser** ("Nyt login-link sendt til: …" / "anmodet for ukendt email: …"). Samme behandling: maskér (`an***@firma.dk`) eller udelad. Grep efter `email` ved console-kald — mønstret findes formentlig flere steder. **(c) TILBAGE — VERIFICÉR at persondata ikke flyder fra Railway til AppSignal:** Ann har ikke SET det ske, men det skal EFTERSES aktivt — tjek fejlrapporternes payloads/breadcrumbs (request-parametre, headers) og `appsignal.cjs` for filtrering (`requestHeaders`/param-filtre). AppSignal er EU (NL), men dataminimering gælder stadig. Railway gemmer logs i klartekst, og de er ikke omfattet af RLS eller sletning.
 11. **Fejl-overlayet (dashboard.html) dæmpes/afmonteres, når piloten er stabil** (indført 13/7 som diagnoseværktøj — viser ALLE ufangede fejl, også godartede; muligt mellemtrin: ignorér kendte godartede supabase-baggrundsfejl). Hertil UAFKLARET, lav prioritet: sporadisk "Script error." på iPhone (dashboard virker; kommer og går) — afventer gentagelse med crossorigin aktiv → ægte fejltekst → dom.
 13. **Vis/Skjul-knap på login-skærmens adgangskodefelt (lav prioritet — tag den med i dashboard-restylingens senere trin):** onboardingens kodefelt (s-2) har en Vis/Skjul-knap (`.toggle-eye` + `togglePw()`); dashboardets login-felt har ingen. Kopiér mønsteret 1:1 fra onboarding.html (~10 linjer: knap inde i feltet + toggle af `input.type` password/text + tekstskift Vis/Skjul). Bevidst IKKE med i login-restylingen 19/7 (ren visuel leverance — ny JS kræver aftale, derfor dette punkt). **OBS ved implementering:** (1) kodetilstanden fra 19/7 skjuler hele adgangskodefeltet via `closest('.lfield')` — øje-knappen skal bo INDE i `.lfield`-wrapperen, så den automatisk følger med når feltet skjules (`.lfield` er dermed bærende i JS, ikke kun styling — må ikke omdøbes); (2) knappen må ikke stjæle `flex: 1` fra inputtet (onboardingens `.toggle-eye` er mønstret); (3) fuldt id-tjek efter ændringen (17/7-QA-reglen) + røgtest med rigtigt login.
 
@@ -425,7 +722,65 @@ Resten kan lægges ovenpå, når I har luft.
 
 23. **Mulighed for at sætte MFA op på dashboardet (todo — tilføjet 29/7):** brugeren (håndværkeren) skal selv kunne aktivere to-faktor-login (MFA/TOTP, fx Google Authenticator/Authy) på sin konto. Supabase Auth understøtter TOTP-MFA indbygget (`auth.mfa.enroll` → QR-kode → `auth.mfa.challenge`/`verify`), så det er ikke en ny mekanisme, der skal bygges fra bunden. **Vigtig afgrænsning ift. eksisterende funktioner:** dette er noget ANDET end engangskoden (`email_otp`), der allerede findes i redningsvejen (pkt. 1a-1d) — den er en genvej IND i appen ved glemt adgangskode; MFA er et EKSTRA lag OVENPÅ login. UI-teksten skal holde de to begreber adskilt, ellers bliver "kode" tvetydigt for brugeren. **Reel kompleksitet, ikke kun én skærm:** login har allerede tre veje ind (adgangskode, magic link, engangskode) og en PWA/Safari-session-arkitektur, der har krævet flere runder hærdning (16/7, 19/7, 20/7) — en MFA-udfordring skal fungere i ALLE tre veje og inde i den installerede app, ikke kun i Safari. En Supabase-session efter bestået MFA-udfordring får et andet AAL-niveau (aal2) — tjek om noget i koden (RLS-politikker, sessions-tjek) forudsætter aal1 og skal opdateres. **AFKLAR M. ANNE FØRST (produktbeslutning, ikke kun teknik):** skal MFA være valgfrit (brugeren slår det til selv, fx under en ny "Sikkerhed"-sektion på profilsiden) eller obligatorisk? Målgruppen (håndværkere, ofte på farten, i forvejen udfordret af PWA-installationen, jf. pkt. 1e) taler for valgfrit indtil videre — ufrivillig ekstra friktion ved login er en reel risiko. **Prioritet: lav / efter piloten** — ingen pilotkunder har efterspurgt det, og det rører login-stien, som lige er blevet stabil (samme forsigtighed som pkt. 20 om adressefelterne: rør ikke tre lige-stabiliserede filer uden god grund).
 
+24. **Twilio-signaturkontrol på `/opkald` — udrulning i prod (fundet 31/7 af `smoke.js`):**
+    Ruten havde INGEN signaturvalidering: den læste `req.body.To`/`.From` og handlede
+    på dem, som var de sandheden. Enhver, der kendte adressen, kunne dermed sende
+    SMS fra håndværkerens nummer til et vilkårligt nummer (linje ~371), oprette
+    opdigtede `calls`-rækker, sætte et ufærdigt firma til `verified`+`active`, og
+    kortlægge hvilke numre der hører til firmaer. Ingen tegn på misbrug.
+    **Rettet 31/7:** `twilio.validateRequest` med URL bygget EKSPLICIT som
+    `https://${req.get("host")}${req.originalUrl}` — Railway afslutter TLS foran
+    appen, så `req.protocol` ville sige `http`, signaturen aldrig matche, og ALLE
+    ægte opkald blive afvist. Det er den farlige fejlmåde, og derfor rulles det ud
+    i to trin via `OPKALD_SIGNATUR` (standard `log` = beregn og log, afvis aldrig).
+    **STAGING FÆRDIG 31/7:** ægte opkald `signatur OK`, falsk kald `AFVIST` (403),
+    `npm run smoke` 8/8 grøn. **PROD: kode deployet 31/7 i log-tilstand** (variablen
+    findes ikke i prod, og standarden er `log` — bevidst).
+    **STATUS 2/8-26:**
+    - ✅ (1) Ægte kundeopkald set gå igennem i prod og blive til opgaveformularer.
+    - ✅ (2) `OPKALD_SIGNATUR=haandhaev` oprettet i prod-servicen OG deployet.
+      Staging står også på `haandhaev`, så de to miljøer er enige.
+    - ⬜ (3) **UDESTÅENDE — og det er det farlige:** ring et opkald +
+      `npm run smoke:prod` → skal vise `afvist med 403`. **Håndhævelse er live i
+      prod uden at afvisningsvejen er verificeret DER.** Fejler URL-bygningen,
+      afvises ALLE ægte opkald. Virker et rigtigt opkald ikke: sæt variablen
+      tilbage til `log` med det samme.
+    - ⚠️ Bekræftelsen `✅ signatur OK` findes ikke længere i loggen — den logges
+      kun i log-tilstand. Fra nu af logges kun afvisninger.
+    - ⚠️ **Variablen ruller med ved rollback.** Ruller du prod tilbage til en deploy
+      fra før 2/8-26, forsvinder `OPKALD_SIGNATUR` uden varsel, standarden `log`
+      træder i kraft, og håndhævelsen er slået fra igen. Se rollback-afsnittet, punkt 2.
+    - ⬜ `OPKALD_SIGNATUR` mangler i `.env.prod` og `.env.staging` — tilføjes under
+      D16-oprydningen, så lokale kørsler ikke opfører sig anderledes end skyen. **Derefter:** fjern variablen og gaflen i `onboarding.js`
+    igen, når `haandhaev` har kørt problemfrit et par uger — et flag har en
+    dødsdato, og fjernelsen er kun sikker, mens flaget står TÆNDT.
+    Bemærk: `✅ signatur OK` logges kun i log-tilstand; når der håndhæves, logges
+    kun afvisninger (ellers er linjen tapet).
+25. **Røgtestens næste tjek (vedligeholdelsesreglen, lav prioritet):** to kandidater
+    fra egen historik — (a) at Twilio-nummerets voice-webhook peger på det RIGTIGE
+    miljø (staging-nummer → staging-URL); et nummer, der peger forkert, fejler
+    tavst og er samme fejlklasse som de identiske dashboards; (b) at
+    `manifest.json`'s `short_name` stadig er "Dit Kontor" (jf. udestående 4).
+    **(c) TILFØJET 4/8-26 — vigtigst af de tre: at hvert kritisk endpoint svarer
+    **≠ 404**.** Baggrund: `frisbii-checkout` viste sig aldrig at have været
+    monteret — `require("./frisbii-checkout")(app)` fandtes ingen steder, kun som
+    en kommentar inde i filen selv. Anden forekomst af samme fejlklasse;
+    `onboarding-link` var den første, og advarslen om den står som kommentar i
+    `server.js` linje 78-82. Et umonteret modul crasher ikke, logger ikke og
+    fejler ikke i CI — det svarer bare 404, og knappen "lykkes" tavst hos kunden.
+    Kommentarer beskytter kun mod fejl, som nogen når at læse dem i tide; et tjek
+    gør det hver gang. Kandidater til listen: `/checkout`, `/opkald`,
+    `/onboarding/nyt-link`, `/config.js`. Se **D23** i risikoregistret.
+
 ### 🏗️ Infrastruktur/indkøb
+
+- [ ] **Railway: Hobby → Pro (BOER besluttes).** Prod koerer betalende kunder paa
+      **Hobby-planen**: ingen SLA, ingen prioriteret support, lavere ressourcegraenser,
+      og planen er beregnet til personlige projekter. Gaar appen ned en fredag aften,
+      er der ingen at ringe til. Samme argument som Supabase Pro (gennemfoert 31/7) —
+      Railway er det ANDET ben, piloterne staar paa. Bliver mere presserende med
+      tilbudsmodulet, der laegger AI-kald og lyduploads oveni. Tjek samtidig, om
+      log-opbevaringen aendrer sig (relevant for GDPR-punktet om logs).
 1. **Supabase prod er FREE-tier (ok NU, men fast punkt i pilot-tjeklisten):** free pauser projektet efter ~1 uges inaktivitet (= opkald/SMS/leads fejler, til nogen vækker det manuelt) og har INGEN automatiske backups (en fejlkørsel ville være uoprettelig). **Opgradér til Pro, FØR første betalende håndværker er ombord.** Gratis nu: omdøb projektet til `ditdigitalekontor-prod` (Settings → General) — "anneann1904's Project" er en fejllæsnings-fælde (jf. identiske-dashboards-reglen).
 
 1. ✅ **Staging-systemnummer etableret 12/7:** +4591309928 ophøjet fra puljen (slettet fra phone_numbers, sat som `TWILIO_SYSTEM_NUMBER` i staging-Railway + .env.staging). Staging-puljen har nu 1 ledigt nummer (+4593702605) — reset-test-data frigør det mellem kørsler. Verifikationsopkald virker nu i BEGGE miljøer.
