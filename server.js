@@ -315,9 +315,11 @@ app.get("/formular/:token", async (req, res) => {
 const upload = multer({ storage: multer.memoryStorage() });
 
 app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
+  // firm_id hentes MED her, saa leadet kan baere sin egen ejerskabsnoegle.
+  // Uden den ville firm_id vaere NULL paa hver eneste kunde-indsendelse (D21).
   const { data: call } = await supabase
     .from("calls")
-    .select("id")
+    .select("id, firm_id")
     .eq("lead_token", req.params.token)
     .single();
 
@@ -327,6 +329,7 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
     .from("leads")
     .insert({
       call_id:      call.id,
+      firm_id:      call.firm_id,   // D21: multi-tenant-noeglen, udledt af opkaldet
       name:         req.body.navn,
       address:      bygAdresse(req.body.vej, req.body.postnr, req.body.by),
       address_mail: req.body.email || null,
@@ -508,6 +511,7 @@ app.post("/opret-opgave", async (req, res) => {
 
   const { error: leadError } = await supabase.from("leads").insert({
     call_id:      call.id,
+    firm_id,                        // D21: kendt fra sessionen, samme som paa calls-raekken
     name,
     address,
     task,

@@ -27,7 +27,17 @@ const MILJOER = {
     basisUrl:        process.env.SMOKE_STAGING_URL,
     supabaseUrl:     process.env.SMOKE_STAGING_SUPABASE_URL,
     supabaseAnon:    process.env.SMOKE_STAGING_SUPABASE_ANON,
-    tilbudForventet: true,   // modulet SKAL vaere taendt i staging
+    // ⚠️ RETTET 5/8-26. Her stod "modulet SKAL vaere taendt i staging", og det
+    // var forkert: mappen routes/ FINDES IKKE endnu. Tilbudsmodulet er ikke
+    // bygget. Saetter man TILBUD_AKTIV=true i dag, CRASHER appen ved opstart,
+    // fordi require("./routes/tilbud") kaster (server.js advarer om praecis
+    // det). Flaget staar derfor korrekt SLUKKET i begge miljoeer.
+    //
+    // Feltet her laeses ikke af noget tjek — tjekket spoerger /health om den
+    // FAKTISKE tilstand i stedet for at have en forventning, nogen skal huske
+    // at rette. Kommentaren loeg altsaa uden at goere skade, men den loeg.
+    // Saet den til true igen, naar routes/tilbud rent faktisk er bygget.
+    tilbudForventet: false,
   },
   prod: {
     basisUrl:        process.env.SMOKE_PROD_URL,
@@ -127,6 +137,36 @@ function normaliserUrl(raa, navn) {
     throw new Error(`${navn}: "${raa}" — indeholder mellemrum`);
   }
   return u;
+}
+
+// Naegter at koere paa vaerdier, der aldrig blev udfyldt. Uden den producerer
+// en placeholder otte roede linjer, der ser ud som om PROD er nede — hvor
+// sandheden er, at roegtesten ringede til det forkerte sted. Opdaget 5/8-26:
+// SMOKE_PROD_SUPABASE_URL stod paa "yyyyyyyy", og SMOKE_PROD_URL pegede paa
+// Simply-sitet i stedet for backenden. Prod-delen havde dermed aldrig koert
+// rigtigt, selv om deploy-tjeklisten kraever den groen.
+// Samme fail-fast-princip som normaliserUrl() ovenfor: fang det FOER foerste
+// kald, og sig hvad der er galt — i stedet for at lade symptomerne raabe.
+const PLACEHOLDERE = [
+  /^x+$/i, /^y+$/i, /^z+$/i,                       // xxxx, yyyyyyyy
+  /skift[-_ ]?mig/i, /aendre[-_ ]?mig/i,           // SKIFT-MIG
+  /change[-_ ]?me/i, /replace[-_ ]?me/i,
+  /^(din|dit|deres|your)[-_]/i,                    // dit-domaene, your-key
+  /todo/i, /placeholder/i, /indsaet/i,
+  /eksempel\.|example\.(com|invalid)/i,
+];
+
+function tjekPlaceholder(raa, navn) {
+  const v = String(raa).trim();
+  // Undersoeg hvert led for sig: "https://yyyyyyyy.supabase.co" er ikke fanget
+  // af et moenster paa hele strengen, men "yyyyyyyy" er.
+  const led = v.split(/[/.:@?&=]+/).filter(Boolean);
+  for (const m of PLACEHOLDERE) {
+    if (m.test(v) || led.some((d) => m.test(d))) {
+      throw new Error(`${navn}: "${v}" ser ud til at vaere en placeholder, ikke en rigtig vaerdi`);
+    }
+  }
+  return v;
 }
 
 function projektRef(url) {
@@ -383,8 +423,12 @@ async function main() {
 
   // Valider og normaliser adresserne FOER foerste kald.
   try {
-    cfg.basisUrl    = normaliserUrl(cfg.basisUrl, `SMOKE_${miljo.toUpperCase()}_URL`);
-    cfg.supabaseUrl = normaliserUrl(cfg.supabaseUrl, `SMOKE_${miljo.toUpperCase()}_SUPABASE_URL`);
+    const praefiks = `SMOKE_${miljo.toUpperCase()}`;
+    cfg.basisUrl    = normaliserUrl(cfg.basisUrl, `${praefiks}_URL`);
+    cfg.supabaseUrl = normaliserUrl(cfg.supabaseUrl, `${praefiks}_SUPABASE_URL`);
+    tjekPlaceholder(cfg.basisUrl,     `${praefiks}_URL`);
+    tjekPlaceholder(cfg.supabaseUrl,  `${praefiks}_SUPABASE_URL`);
+    tjekPlaceholder(cfg.supabaseAnon, `${praefiks}_SUPABASE_ANON`);
   } catch (err) {
     console.error(`\nSTOP: fejl i .env.smoke\n  ${err.message}\n`);
     process.exit(1);
