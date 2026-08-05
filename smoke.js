@@ -45,6 +45,46 @@ const KERNETABELLER = [
 const TIMEOUT_MS = 8000;
 
 // =====================================================================
+// RUTER DER SKAL VAERE MONTERET (D23)
+//
+// Fejlmaaden: et modul, der aldrig blev indlaest i server.js, giver 404.
+// Intet crasher, intet logges, og knappen "lykkes" tavst. To forekomster:
+// onboarding-link, og frisbii-checkout (fundet 4/8-26, monteret 5/8-26).
+// En kommentar i kildekoden var forsvaret begge gange, og den virkede ikke.
+//
+// REGEL FOR LISTEN: kun ruter, der skal findes i BEGGE miljoeer. Ruter bag et
+// feature flag hoerer ikke hjemme her — `TILBUD_AKTIV=false` giver 404 MED
+// VILJE, og et permanent roedt tjek laerer dig at ignorere roedt. Tilbudsruterne
+// tjekkes derfor betinget af tilstand.tilbud, ikke her.
+//
+// KRAV TIL HVERT KALD: bivirkningsfrit i prod. Kroppen skal falde paa den
+// FOERSTE validering i handleren, saa kaldet aldrig naar hverken database
+// eller ekstern tjeneste. Er du i tvivl om en rute, saa laes handleren, foer
+// du foejer den til — et tjek, der skriver i prod, er vaerre end intet tjek.
+// =====================================================================
+
+const MONTEREDE_RUTER = [
+  {
+    navn: "POST /checkout/start",
+    sti: "/checkout/start",
+    metode: "POST",
+    headers: { "Content-Type": "application/json" },
+    krop: "{}",
+    // Trygt: requireConfig() og looksLikeEmail() koerer BEGGE foer fetch mod
+    // Frisbii. Tomt body stopper i e-mailtjekket -> 400 invalid_email. Der
+    // oprettes aldrig en session og aldrig en kunde.
+    // 500 server_misconfigured = monteret, men FRISBII_PLAN_HANDLE eller
+    // SIMPLY_BASE_URL mangler i Railway. Faelden 5/8: staging var groen,
+    // prod svarede 404, fordi commiten kun laa paa staging-branchen.
+  },
+
+  // TILFOEJ HER, naar du har laest handleren og bekraeftet, at et tomt/ugyldigt
+  // kald falder paa foerste validering uden at skrive noget:
+  //   POST /opret-opgave      (skriver leads — verificér FOERST)
+  //   Frisbii-webhookens sti  (idempotens-guarden goer den formentlig tryg)
+];
+
+// =====================================================================
 // HJAELPERE
 // =====================================================================
 
@@ -199,6 +239,80 @@ const TJEK = [
       const r = await hent(`${cfg.basisUrl}/dashboard`);
       if (r.status >= 400) throw new Error(`status ${r.status}`);
       return `status ${r.status}`;
+    },
+  },
+
+  {
+    // Den negative kontrol, og den SKAL staa foer monteringstjekket herunder.
+    // Uden den beviser et ≠404-tjek ingenting: svarede serveren 200 paa alt
+    // (fejlkonfigureret proxy, en catch-all der kom til at fange for meget),
+    // ville hver eneste rute se monteret ud, og suiten ville lyse groent, mens
+    // ingenting virkede. Det her tjek er det, der goer det naeste sandt.
+    navn: "Roegtesten kan skelne — ukendt rute giver 404",
+    sikker: true,
+    async kor() {
+      const r = await hent(`${cfg.basisUrl}/roegtest/rute-der-ikke-findes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (r.status !== 404) {
+        throw new Error(`ukendt rute svarede ${r.status} og ikke 404 — monteringstjekket herunder er dermed vaerdiloest`);
+      }
+      return "404 som forventet";
+    },
+  },
+
+  {
+    // D23. Koerer HELE listen igennem og samler fundene, i stedet for at stoppe
+    // ved den foerste: er tre moduler faldet ud, vil du vide det i én koersel.
+    navn: "Kritiske ruter er monteret (≠404)",
+    sikker: true,
+    async kor() {
+      const umonterede = [];
+      const serverfejl = [];
+      const detaljer = [];
+
+      for (const rute of MONTEREDE_RUTER) {
+        const r = await hent(`${cfg.basisUrl}${rute.sti}`, {
+          method: rute.metode || "GET",
+          headers: rute.headers || {},
+          body: rute.krop,
+        });
+        if (r.status === 404) umonterede.push(rute.navn);
+        else if (r.status >= 500) serverfejl.push(`${rute.navn} (${r.status})`);
+        else detaljer.push(`${rute.navn}: ${r.status}`);
+      }
+
+      if (umonterede.length) {
+        throw new Error(`UMONTERET — modulet er ikke indlaest i server.js: ${umonterede.join(", ")}. Fejler tavst for kunden`);
+      }
+      if (serverfejl.length) {
+        throw new Error(`monteret, men svarer serverfejl: ${serverfejl.join(", ")}. For /checkout/start betyder 500 typisk, at FRISBII_PLAN_HANDLE eller SIMPLY_BASE_URL mangler i dette miljoe — Railway-loggen navngiver den`);
+      }
+      return detaljer.join(" · ");
+    },
+  },
+
+  {
+    // Rodruten (Oe5 trin 3). Backendens domaene er ikke et sted et menneske
+    // skal lande — uden ruten ser man Express' raa "Cannot GET /".
+    // Tjekker ogsaa MAALET: en redirect til "undefined" er vaerre end en 404,
+    // fordi den ser ud til at virke i loggen.
+    navn: "Rodruten sender folk videre til sitet",
+    sikker: true,
+    async kor() {
+      const r = await hent(`${cfg.basisUrl}/`);
+      if (r.status === 404) throw new Error("rodruten findes ikke — besoegende ser Express' raa fejlside");
+      if (r.status !== 302) throw new Error(`status ${r.status}, forventede 302`);
+      const maal = r.headers.get("location") || "";
+      if (!/^https:\/\/[^\s]+$/.test(maal)) {
+        throw new Error(`redirecter til "${maal}" — ikke en gyldig absolut adresse`);
+      }
+      if (/undefined|\/\/$/.test(maal)) {
+        throw new Error(`redirecter til "${maal}" — SIMPLY_BASE_URL mangler eller er tom`);
+      }
+      return `302 -> ${maal}`;
     },
   },
 
