@@ -538,6 +538,18 @@ app.post("/opret-opgave", async (req, res) => {
 // gammelt UUID osv.) falder igennem via next() til normal 404-håndtering.
 const MASK_TOKEN_RE = /^[a-z0-9]{12}$/;
 
+// ─── Venlig rod-rute (Ø5 trin 3) ────────────────────────────────────────────
+// opgave.ditdigitalekontor.dk uden sti er backendens domaene, ikke et sted et
+// menneske skal lande. Uden denne rute ser man Express' raa "Cannot GET /".
+// 302 og ikke 301: en permanent redirect caches i browseren for evigt, og saa
+// kan rodruten aldrig faa et rigtigt indhold senere uden at gamle besoegende
+// sidder fast. SIMPLY_BASE_URL genbruges (samme var som checkout bruger), med
+// fallback saa ruten ikke sender folk til "undefined", hvis varen mangler.
+app.get("/", (req, res) => {
+  const maal = (process.env.SIMPLY_BASE_URL || "https://ditdigitalekontor.dk").replace(/\/+$/, "");
+  res.redirect(302, maal);
+});
+
 app.get("/:slug/:token", async (req, res, next) => {
   const { token } = req.params;
   if (!MASK_TOKEN_RE.test(token)) return next(); // ikke et gyldigt token → videre i stakken
