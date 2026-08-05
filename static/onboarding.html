@@ -1075,9 +1075,16 @@
         // "Linket er udløbet" er misvisende her; vis en venlig velkomst i
         // stedet og lad kodesporet være vejen ind (se primeren, 19-20/7).
         if (!tokenHash && isStandalone()) {
+          // Alle TRE elementer skal sige det samme. Stod knappen tilbage paa
+          // "Send nyt link", mens teksten lovede en kode, ventede brugeren paa
+          // en mail, ingen havde bestilt — hullet fundet 5/8-26. I den
+          // installerede app er linket i oevrigt ubrugeligt: det aabner i
+          // Safari, hvilket er praecis den faelde, kodesporet loeser.
+          velkomstTilstand = true;
           document.getElementById('expired-title').textContent = 'Velkommen';
           document.getElementById('expired-msg').textContent =
-            'Skriv din e-mail, så sender vi et login-link og en engangskode, du kan taste her i appen.';
+            'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.';
+          document.getElementById('relink-label').textContent = 'Send mig en kode';
         }
         return showScreen('s-expired');
       }
@@ -1578,6 +1585,12 @@
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
+  // velkomstTilstand: saettes af boot-koden, naar skaermen bruges som
+  // FOERSTE-AABNING i den installerede app (ikke som udloebet-link).
+  // De to tilstande deler markup men skal sige forskellige ting — uden den
+  // her ville knappen falde tilbage til "Send nyt link" efter foerste tryk.
+  let velkomstTilstand = false;
+
   async function requestNewLink() {
     const input  = document.getElementById('relink-email');
     const btn    = document.getElementById('relink-btn');
@@ -1607,10 +1620,12 @@
 
     // Samme besked uanset om e-mailen findes (ingen email-enumeration).
     status.className = 'status ok';
-    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode — koden kan du taste her.';
+    status.textContent = velkomstTilstand
+      ? 'Vi har sendt dig en kode. Den kan være et par minutter undervejs — kig også i spam.'
+      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode — koden kan du taste her.';
     visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
-    label.textContent = 'Send nyt link';
+    label.textContent = velkomstTilstand ? 'Send mig en kode' : 'Send nyt link';
     spin.style.display = 'none';
   }
 
