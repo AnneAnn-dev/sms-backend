@@ -218,11 +218,13 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
   📌 **Kendt afvigelse fra EU-princippet (konstateret 3/7-26): Twilio voice-trafik behandles i US1 — i BÅDE prod og staging.** Twilios Irland-region (IE1) står "Inactive" på numrene; al voice-behandling (og dermed opkaldsmetadata, evt. optagelser/lyd i transit) går via USA. Det bryder med stakkens ellers konsekvente EU-datasuverænitet (Railway EU West, Supabase Irland, Scaleway, AppSignal Amsterdam). **Ikke akut med testdata, men skal vurderes før/kort efter go-live med ægte kunder:** undersøg om IE1 kan aktiveres for jeres numre og hvad det kræver (webhook-URL'er, TwiML, evt. funktionsbegrænsninger i IE1 — ikke alle Twilio-features findes uden for US1). Behandles som ét samlet projekt for begge miljøer — staging først, som alt andet.
 - **Frisbii:** kør i **test-/sandbox-tilstand** i staging, så et test-checkout aldrig trækker et rigtigt kort. ✅ *Færdig og røgtestet end-to-end 5/7-26: hosted checkout (testkort 4111...) → `invoice_settled` → staging-webhook (POST 200) → provisionering (firma + nummer claimet + auth-bruger) → `[STAGING -> ...]`-velkomstmail + pulje-alarm modtaget. Prod verificeret uberørt.*
   **Kontomapping** (autoritativ HER — handles er permanente, navne kan ændres; verificér ALTID via handle i browserens URL, ikke via visningsnavnet):
-  | Handle | Navn (pr. 5/7-26) | Rolle |
-  |---|---|---|
-  | `test-2-lommekontor` | prod dit digitale kontor | **PROD** — test-nøgler indtil go-live (bevidst: live-nøgler koster penge, trækkes umiddelbart før launch). Webhook → KUN prod-URL. |
-  | `lommekontor` | test dit digitale kontor | **STAGING** — egen API-nøgle, egen webhook-secret, webhook → KUN staging-URL, spejlet plan + dunning-plan. |
-  | `oprettelse-og-abonnement` | (uændret) | **UBRUGT — må ikke tages i brug.** |
+  📌 **Udvidet 5/8-26: der er FIRE konti i vælgeren, ikke tre.** Rollefordelingen nedenfor er uændret og blev bekræftet ved at aflæse **webhooks pr. konto** — det er den eneste pålidelige prøve, for en konto med en webhook mod staging-URL'en *er* staging. Hostede sider og plan-lister siger intet om, hvad koden peger på.
+  | Handle | Mærkat i UI | Webhooks | Rolle |
+  |---|---|---|---|
+  | `test-2-lommekontor` | LIVE | ingen | **PROD ved go-live.** Endnu ikke i brug — derfor hverken webhooks eller hostet side. Live-nøgler koster penge og trækkes umiddelbart før launch |
+  | `test-2-lommekontor_test` | TEST | mange | **PROD i dag.** Prod-appen kører bevidst på denne kontos test-nøgler indtil go-live. Webhook → KUN prod-URL |
+  | `lommekontor` | TEST | mange | **STAGING** — egen API-nøgle, egen webhook-secret, webhook → KUN staging-URL, spejlet plan + dunning-plan |
+  | `oprettelse-og-abonnement` | TEST | ingen | **UBRUGT — må ikke tages i brug.** ⚠️ `.env.staging` pegede alligevel herhen indtil 5/8-26; `check-env.js --live` fangede det, og meldingen blev først læst baglæns. Den er tom, så alt Frisbii-arbejde fra lokale scripts ramte en konto uden data |
   🔑 **Lærdomme fra opsætningen (4-5/7-26):**
   1. **⚠️ Frisbii-UI'et opdaterer IKKE pålideligt ved kontoskift — tryk F5 efter HVERT skift.** Ellers vises den gamle kontos data under det nye kontonavn. Var årsag til både tilsyneladende "delte data" mellem konti og et test-checkout, der reelt skete i PROD-kontoen (→ prod provisionerede et testfirma, der måtte ryddes op: firms + firm_users + auth-bruger + phone_numbers-frigivelse + annullér abonnementet i Frisbii, så det ikke fornyer).
   2. **Hosted checkout arver konto → webhook → miljø.** Betalingssiden afgør, hvilket miljø der provisionerer. Brug ALTID en emailadresse du selv ejer i test-checkouts — hvis eventet ender i prod, sender prod en ÆGTE mail til adressen.
@@ -656,18 +658,50 @@ node afstem-railway-env.js --environment staging --file .env.staging
 node afstem-railway-env.js --environment production --file .env.prod
 ```
 
-`--environment` har med vilje **ingen standardværdi** og skal angives. Scriptet arver aldrig CLI-linket. Ukendte flag afvises. Exit 0 = ingen afvigelser, 1 = afvigelser, 2 = fejl.
+`--environment` har med vilje **ingen standardværdi** og skal angives. Scriptet arver aldrig CLI-linket. Ukendte flag afvises. Exit 0 = ingen **uforklarede** afvigelser, 1 = uforklarede afvigelser eller en forældet undtagelse, 2 = fejl.
 
 Outputtet indeholder ingen hemmeligheder og kan trygt deles.
 
 **Kadence:** kør den før enhver produktionsdeploy, der rører variabler, og som fast punkt i den kvartalsvise runde sammen med rollback- og gendannelsesøvelsen.
 
+### Bevidste forskelle (indført 5/8-26)
+
+**Målet er ikke "0 afvigelser" — det er "0 uforklarede afvigelser."** Filen og Railway forsyner to forskellige ting: filen forsyner de lokale scripts, Railway forsyner appen. Overlappet er stort, men mængderne er ikke ens, og det er med vilje. Tabellen `BEVIDSTE_FORSKELLE` øverst i `afstem-railway-env.js` bærer undtagelserne, og begrundelsen **printes ved hver kørsel** — så den ikke skal huskes eller slås op.
+
+| Variabel | Type | Miljøer | Hvorfor |
+|---|---|---|---|
+| `VOICE_URL` | kun i filen | begge | Læses kun af `buy-numbers`, `configure-number`, `afstem-numre`, `check-env`. Appen rører den ikke |
+| `TWILIO_ADDRESS_SID` | kun i filen | begge | Læses kun af `buy-numbers.js`. Efter nummer-hændelsen er det en fordel, at den kun findes, hvor indkøbsscriptet kører |
+| `SIMPLY_ACCOUNT` | kun i filen | begge | Læses kun af `simply-dns-add.js` |
+| `MAIL_OVERRIDE_TO` | kun i filen | **kun production** | Prod skal maile rigtige kunder. I filen som lokal sikkerhedsventil. ⚠️ I **staging** skal den findes BEGGE steder — mangler den dér, er mailmuren nede, og det er en ægte afvigelse |
+
+To ting gør tabellen sikker frem for bekvem. **Undtagelsen er bundet til afvigelsestypen:** `VOICE_URL` er undtaget som "kun i filen" — dukker den op i Railway med en forkert værdi, er den ikke undskyldt. Og **en undtagelse, der ikke længere dækker noget, gør kørslen rød** (`FORAELDEDE_UNDTAGELSER_ER_FEJL`), fordi en liste over undtagelser, der ikke selv ryddes op, ender med at undskylde fremtidige fejl. Rettelsen er at slette linjen.
+
+Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke** undtages i staging.
+
 ### Afstemningslog
 
-| Dato | Miljø | Ens | Afviger | Kun i Railway | Kun i filen | Bemærkning |
-|---|---|---|---|---|---|---|
-| 2/8-26 | staging | 21 | 2 | 3 | 4 | Første måling. `admin_email` vs. `ADMIN_EMAIL` er en reel defekt |
-| 2/8-26 | production | 21 | 1 | 2 | 5 | Fire variabler koden læser mangler helt i Railway |
+| Dato | Miljø | Ens | Afviger | Kun i Railway | Kun i filen | Bevidste | Bemærkning |
+|---|---|---|---|---|---|---|---|
+| 2/8-26 | staging | 21 | 2 | 3 | 4 | — | Første måling. `admin_email` vs. `ADMIN_EMAIL` er en reel defekt |
+| 2/8-26 | production | 21 | 1 | 2 | 5 | — | Fire variabler koden læser mangler helt i Railway |
+| 5/8-26 | staging | 28 | **0** | **0** | **0** | 3 | ✅ Oprydning gennemført |
+| 5/8-26 | production | 27 | **0** | **0** | **0** | 4 | ✅ Oprydning gennemført. Kun fil-siden rørt — ingen deploy udløst |
+
+**Hvad oprydningen 5/8 bestod af** (alt sammen fil-siden; Railway blev ikke rørt, og der blev derfor ikke udløst nogen deploy):
+
+- `admin_email` → `ADMIN_EMAIL` i begge filer. Versalfølsom defekt: koden fik `undefined` lokalt uden fejlmeddelelse. Fjernede to afvigelser pr. miljø på én gang
+- `OPKALD_SIGNATUR` og `TILBUD_AKTIV` tilføjet i begge filer. Førstnævnte betød, at en lokal kørsel faldt tilbage til standarden `log`, altså en anden opførsel end appen kører med
+- `ELEVENLABS_VOICE_IDM` rettet i begge filer → udløser efterkontrol af stemmefilerne, se nedenfor
+- `SIMPLY_ACCOUNT`, `TWILIO_ADDRESS_SID`, `VOICE_URL` **beholdt i filerne og IKKE tilføjet i Railway.** Arbejdsdokumentets trin 2d/3d påstod, at alle fire læses af appen; `Select-String` over alle `.js` viste, at ingen af dem gør. De blev til bevidste forskelle i stedet
+- `FRISBII_PRIVATE_KEY` i `.env.staging` pegede på den **ubrugte** konto `oprettelse-og-abonnement` i stedet for `lommekontor`. Se lærdommen nedenfor
+
+⚠️ **Udestående efter oprydningen: stemmefilerne.** `ELEVENLABS_VOICE_IDM` afveg i **begge** miljøer, og regenereringsscriptet læser `.env`. De mandlige greeting-filer kan derfor være renderet med det gamle ID — samme fejl som tidligere: lydfiler ude af sync med stemme-ID'erne. Kontrollér prod-Storage og **lyt til én fil**, ikke bare sammenlign ID'er.
+
+🔑 **Lærdom 5/8-26 — et tjek, der siger sandheden, kan stadig læses baglæns.** `check-env.js --live` meldte `❌ Frisbii: noeglen hoerer til STAGING-kontoen — handle="oprettelse-og-abonnement"`. Meldingen var korrekt: nøglen hørte IKKE til staging. Men navnet var formuleret som en påstand, så den røde linje læste som en konstatering af noget rigtigt, og konklusionen blev vendt om — først blev en nøgle udskiftet unødigt, derefter blev både kontotabellen her og konstanten i scriptet "rettet" til noget forkert. **Fix:** tjekket hedder nu `Frisbii: hvilken konto hoerer noeglen til?` og skriver både det fundne og det forventede. Samme rettelse i Twilio-tjekket. **Regel: et tjeks navn skal være et spørgsmål eller en observation, aldrig en påstand om det ønskede — ellers giver en rød linje mening baglæns.**
+
+**Sådan afgøres hvilken Frisbii-konto der er hvilken:** aflæs **webhooks pr. konto**. Kontoen med en webhook mod staging-URL'en *er* staging. Hostede sider, planlister og kontonavne siger intet om, hvad koden peger på. Bekræftet 5/8: `lommekontor` og `test-2-lommekontor_test` har webhooks; `oprettelse-og-abonnement` og LIVE-kontoen har ingen.
+
 
 **Værktøjsversion:** Railway CLI 4.61.1 (nyeste er v5.x, hvor kommandoen hedder `railway variable list` i stedet for `railway variables`). Opgraderes som en bevidst opgave — `afstem-railway-env.js` skal testes bagefter.
 
