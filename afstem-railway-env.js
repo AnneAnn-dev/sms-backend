@@ -30,9 +30,16 @@
  *   Ukendte argumenter afvises. Ingen positionelle argumenter tillades.
  *
  * EXIT-KODER
- *   0 = ingen afvigelser
- *   1 = afvigelser fundet
+ *   0 = ingen UFORKLAREDE afvigelser (bevidste forskelle tæller ikke med)
+ *   1 = uforklarede afvigelser fundet, eller en forældet undtagelse
  *   2 = fejl (forkert brug, CLI fejlede, fil mangler)
+ *
+ * BEVIDSTE FORSKELLE
+ *   Filen og Railway forsyner to forskellige ting: filen forsyner de lokale
+ *   scripts, Railway forsyner appen. Overlappet er stort, men mængderne er
+ *   ikke ens — og det er med vilje. Tabellen BEVIDSTE_FORSKELLE nedenfor
+ *   holder styr på undtagelserne, så målet bliver "0 uforklarede" i stedet for
+ *   et "0", der aldrig kan nås. Tilføjet 5/8-26.
  */
 
 'use strict';
@@ -49,6 +56,83 @@ const SYSTEM_NAVNE = ['PORT'];
 // Kun disse tegn tillades i miljø- og servicenavne. Lukker for kommandoindsprøjtning,
 // fordi vi er nødt til at køre via shell på Windows (railway er ofte en .cmd-shim).
 const SIKKERT_NAVN = /^[A-Za-z0-9_-]+$/;
+
+// ---------------------------------------------------------------------------
+// BEVIDSTE FORSKELLE
+//
+// Målet er ikke "0 afvigelser" — det er "0 UFORKLAREDE afvigelser". Filen og
+// Railway forsyner to forskellige ting: filen forsyner de lokale scripts,
+// Railway forsyner appen i skyen. De to mængder overlapper, men er ikke ens,
+// og det er med vilje. Uden denne tabel skulle begrundelsen huskes hver gang,
+// og om tre måneder ville en korrekt opsætning ligne noget, der manglede.
+//
+// FELTERNE
+//   navn     variabelnavnet, præcis som det staves
+//   hvor     hvilken AFVIGELSESTYPE undtagelsen gælder. Vigtigt: en variabel,
+//            der er undtaget som "kun i filen", må IKKE også blive undskyldt,
+//            hvis den en dag dukker op i Railway med en forkert værdi
+//   miljoer  hvilke miljøer undtagelsen gælder i. Lige så vigtigt:
+//            MAIL_OVERRIDE_TO er bevidst fraværende i Railway PROD, men hvis
+//            den forsvinder fra Railway STAGING, er mailmuren nede — og det
+//            skal være rødt
+//   hvorfor  begrundelsen, der læses højt ved hver kørsel
+//
+// Gyldige værdier for `hvor`: "kun i filen" · "kun i Railway" · "afviger"
+// ---------------------------------------------------------------------------
+
+const BEVIDSTE_FORSKELLE = [
+  {
+    navn: 'VOICE_URL',
+    hvor: 'kun i filen',
+    miljoer: ['staging', 'production'],
+    hvorfor:
+      'Læses KUN af lokale nummer-scripts (buy-numbers, configure-number, ' +
+      'afstem-numre, check-env). Appen rører den ikke — verificeret med ' +
+      'Select-String 5/8-26. At den kun findes lokalt er en fordel: den styrer ' +
+      'webhook-ruting på indkøbte numre.',
+  },
+  {
+    navn: 'TWILIO_ADDRESS_SID',
+    hvor: 'kun i filen',
+    miljoer: ['staging', 'production'],
+    hvorfor:
+      'Læses KUN af buy-numbers.js (DK-mobilnumre kræver en godkendt adresse). ' +
+      'Appen bruger den ikke. Efter nummer-hændelsen er det en fordel, at den ' +
+      'kun findes dér, hvor indkøbsscriptet kører.',
+  },
+  {
+    navn: 'SIMPLY_ACCOUNT',
+    hvor: 'kun i filen',
+    miljoer: ['staging', 'production'],
+    hvorfor:
+      'Læses KUN af simply-dns-add.js. Appen rører ikke Simply-DNS.',
+  },
+  {
+    navn: 'MAIL_OVERRIDE_TO',
+    hvor: 'kun i filen',
+    miljoer: ['production'],
+    hvorfor:
+      'Prod SKAL maile rigtige kunder, så variablen hører ikke hjemme i Railway ' +
+      'production. Den bliver i .env.prod som lokal sikkerhedsventil: skal et ' +
+      'script undtagelsesvis køre mod prod, rammer mails ikke kunderne. ' +
+      'BEMÆRK: i STAGING skal den findes BEGGE steder — mangler den dér, er ' +
+      'mailmuren nede, og det er en ægte afvigelse.',
+  },
+];
+
+// Skal en undtagelse, der ikke længere dækker noget, gøre kørslen rød?
+// Ja som standard: en liste over undtagelser, der ikke selv ryddes op, bliver
+// til støj, der undskylder fremtidige fejl. Rettelsen er at slette linjen.
+const FORAELDEDE_UNDTAGELSER_ER_FEJL = true;
+
+function findUndtagelse(noegle, hvor, miljoe) {
+  return (
+    BEVIDSTE_FORSKELLE.find(
+      (u) => u.navn === noegle && u.hvor === hvor && u.miljoer.includes(miljoe)
+    ) || null
+  );
+}
+
 
 function doed(besked, kode = 2) {
   console.error('\nFEJL: ' + besked + '\n');
@@ -283,6 +367,24 @@ function skrivListe(overskrift, noegler, forklaring) {
   for (const n of noegler) console.log('  - ' + n);
 }
 
+// Begrundelserne er lange med vilje — de skal kunne læses uden at slå op i et
+// andet dokument. Ombrydningen holder dem læsbare i et terminalvindue.
+function ombryd(tekst, bredde) {
+  const ord = String(tekst).split(/\s+/);
+  const linjer = [];
+  let nu = '';
+  for (const o of ord) {
+    if (nu && (nu + ' ' + o).length > bredde) {
+      linjer.push(nu);
+      nu = o;
+    } else {
+      nu = nu ? nu + ' ' + o : o;
+    }
+  }
+  if (nu) linjer.push(nu);
+  return linjer;
+}
+
 function main() {
   const args = parseArgumenter(process.argv.slice(2));
   const filsti = path.resolve(process.cwd(), args.file);
@@ -302,13 +404,42 @@ function main() {
   const railway = hentFraRailway(args.environment, args.service);
   const r = sammenlign(railway, fil.vaerdier);
 
+  // Skil de bevidste forskelle fra de uforklarede. Kun de sidste er problemer.
+  const brugteUndtagelser = new Set();
+  function opdel(noegler, hvor) {
+    const uforklarede = [];
+    const bevidste = [];
+    for (const n of noegler) {
+      const u = findUndtagelse(n, hvor, args.environment);
+      if (u) {
+        bevidste.push(u);
+        brugteUndtagelser.add(u);
+      } else {
+        uforklarede.push(n);
+      }
+    }
+    return { uforklarede, bevidste };
+  }
+
+  const kunIFil = opdel(r.kunIFil, 'kun i filen');
+  const kunIRailway = opdel(r.kunIRailway, 'kun i Railway');
+  const afviger = opdel(r.afviger, 'afviger');
+  const alleBevidste = [...afviger.bevidste, ...kunIRailway.bevidste, ...kunIFil.bevidste];
+
+  // Undtagelser, der gælder DETTE miljø, men ikke dækkede nogen afvigelse.
+  // Begrundelsen er dermed forældet: variablen er enten fjernet eller kommet
+  // på plads. Undtagelsen skal væk, ellers undskylder den en fremtidig fejl.
+  const foraeldede = BEVIDSTE_FORSKELLE.filter(
+    (u) => u.miljoer.includes(args.environment) && !brugteUndtagelser.has(u)
+  );
+
   console.log('\nHENTET');
   console.log('  Railway:  ' + railway.size + ' variabler');
   console.log('  ' + args.file + ':  ' + fil.vaerdier.size + ' variabler');
 
   skrivListe(
     'AFVIGER — samme navn, forskellig værdi',
-    r.afviger,
+    afviger.uforklarede,
     'Railway er sandheden. Ret ' + args.file + ' til at matche.'
   );
   skrivListe(
@@ -318,14 +449,31 @@ function main() {
   );
   skrivListe(
     'KUN I RAILWAY',
-    r.kunIRailway,
+    kunIRailway.uforklarede,
     'Mangler i ' + args.file + '. Lokale scripts vil køre uden dem.'
   );
   skrivListe(
     'KUN I ' + args.file.toUpperCase(),
-    r.kunIFil,
+    kunIFil.uforklarede,
     'Findes ikke i Railway. Efterladenskab, eller en variabel appen aldrig får.'
   );
+
+  if (alleBevidste.length) {
+    console.log('\nBEVIDSTE FORSKELLER (' + alleBevidste.length + ')');
+    console.log('  Ikke fejl. Begrundelsen står her, så den ikke skal huskes.');
+    for (const u of alleBevidste) {
+      console.log('  - ' + u.navn + '  [' + u.hvor + ']');
+      for (const linje of ombryd(u.hvorfor, 68)) console.log('      ' + linje);
+    }
+  }
+
+  if (foraeldede.length) {
+    console.log('\n⚠️  FORÆLDEDE UNDTAGELSER (' + foraeldede.length + ')');
+    console.log('  Disse står i BEVIDSTE_FORSKELLE for miljøet "' + args.environment + '",');
+    console.log('  men dækker ikke længere nogen afvigelse. Enten er variablen kommet');
+    console.log('  på plads, eller også er den fjernet. Slet linjen i scriptet.');
+    for (const u of foraeldede) console.log('  - ' + u.navn + '  [' + u.hvor + ']');
+  }
 
   if (fil.dubletter.length) {
     console.log('\nDUBLETTER I ' + args.file + ' (' + fil.dubletter.length + ')');
@@ -343,21 +491,35 @@ function main() {
 
   console.log('\n----------------------------------------------------------');
   console.log('  Ens:                  ' + r.ens.length);
-  console.log('  Afviger:              ' + r.afviger.length);
+  console.log('  Afviger:              ' + afviger.uforklarede.length);
   console.log('  Kun mellemrum:        ' + r.afvigerKunMellemrum.length);
-  console.log('  Kun i Railway:        ' + r.kunIRailway.length);
-  console.log('  Kun i filen:          ' + r.kunIFil.length);
+  console.log('  Kun i Railway:        ' + kunIRailway.uforklarede.length);
+  console.log('  Kun i filen:          ' + kunIFil.uforklarede.length);
+  console.log('  Bevidste forskelle:   ' + alleBevidste.length + ' (ikke fejl)');
+  if (foraeldede.length) {
+    console.log('  Forældede undtagelser:' + foraeldede.length + ' ⚠️');
+  }
   console.log('  Systemvariabler:      ' + r.system.length + ' (ignoreret)');
   console.log('----------------------------------------------------------');
 
   const antalProblemer =
-    r.afviger.length + r.afvigerKunMellemrum.length + r.kunIRailway.length + r.kunIFil.length;
+    afviger.uforklarede.length +
+    r.afvigerKunMellemrum.length +
+    kunIRailway.uforklarede.length +
+    kunIFil.uforklarede.length +
+    (FORAELDEDE_UNDTAGELSER_ER_FEJL ? foraeldede.length : 0);
+
+  const bevidstNote = alleBevidste.length
+    ? ' (' + alleBevidste.length + ' bevidste — se ovenfor)'
+    : '';
 
   if (antalProblemer === 0) {
-    console.log('\nRESULTAT: ingen afvigelser. De to kilder er enige.\n');
+    console.log('\nRESULTAT: 0 uforklarede afvigelser' + bevidstNote + '. De to kilder er enige.\n');
     process.exit(0);
   }
-  console.log('\nRESULTAT: ' + antalProblemer + ' afvigelser. Se listerne ovenfor.\n');
+  console.log(
+    '\nRESULTAT: ' + antalProblemer + ' uforklarede afvigelser' + bevidstNote + '. Se listerne ovenfor.\n'
+  );
   process.exit(1);
 }
 

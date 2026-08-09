@@ -177,26 +177,43 @@ async function live() {
   } catch (e) { check("Supabase: anon-sikkerhedstjek", false, e.message); }
 
   // 4) Twilio: hvilken konto tilhoerer SID+token? (friendly name afsloerer subkontoen)
+  // Samme spoergsmaalsform som Frisbii-tjekket nedenfor, af samme grund.
   try {
     const auth = Buffer.from(`${tsid}:${ttok}`).toString("base64");
     const res  = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tsid}.json`,
       { headers: { Authorization: `Basic ${auth}` } });
     const data = res.ok ? await res.json() : null;
-    check("Twilio: creds hoerer til STAGING-subkontoen",
-      data?.friendly_name === TWILIO_SUBACCOUNT_NAME,
-      data ? `friendly_name="${data.friendly_name}"`
-           : `HTTP ${res.status} — SID og token skal komme fra SAMME konto (subkontoen har sit EGET auth-token)`);
+    const rigtig = data?.friendly_name === TWILIO_SUBACCOUNT_NAME;
+    check("Twilio: hvilken konto hoerer creds til?",
+      rigtig,
+      data
+        ? (rigtig
+            ? `friendly_name="${data.friendly_name}" (staging-subkonto)`
+            : `friendly_name="${data.friendly_name}" — forventede "${TWILIO_SUBACCOUNT_NAME}"`)
+        : `HTTP ${res.status} — SID og token skal komme fra SAMME konto (subkontoen har sit EGET auth-token)`);
   } catch (e) { check("Twilio: forbindelse", false, e.message); }
 
   // 5) Frisbii: hvilken konto tilhoerer den private noegle? (handle afsloerer det)
+  // Navnet er et SPOERGSMAAL, ikke en paastand. Stod der "noeglen hoerer til
+  // STAGING-kontoen", laeser en ROED linje som en konstatering af noget rigtigt
+  // — det skete 5/8-26 og kostede en unoedvendig noegleudskiftning, fordi
+  // meldingen blev laest baglaens. Detaljen siger nu baade hvad der blev FUNDET
+  // og hvad der blev FORVENTET, saa retningen ikke kan misforstaas.
+  // (Konstanten var rigtig hele tiden: staging er `lommekontor`. Fejlen laa i
+  // .env.staging, der pegede paa den UBRUGTE konto `oprettelse-og-abonnement`.)
   try {
     const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
     const res  = await fetch("https://api.reepay.com/v1/account",
       { headers: { Authorization: `Basic ${auth}` } });
     const data = res.ok ? await res.json() : null;
-    check("Frisbii: noeglen hoerer til STAGING-kontoen",
-      data?.handle === FRISBII_STAGING_HANDLE,
-      data ? `handle="${data.handle}"` : `HTTP ${res.status} (forkert noegle?)`);
+    const rigtig = data?.handle === FRISBII_STAGING_HANDLE;
+    check("Frisbii: hvilken konto hoerer noeglen til?",
+      rigtig,
+      data
+        ? (rigtig
+            ? `handle="${data.handle}" (staging)`
+            : `handle="${data.handle}" — forventede "${FRISBII_STAGING_HANDLE}"`)
+        : `HTTP ${res.status} (forkert noegle?)`);
   } catch (e) { check("Frisbii: forbindelse", false, e.message); }
 }
 

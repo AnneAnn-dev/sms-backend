@@ -95,7 +95,28 @@ Fuld rotation af nøgler til Scaleway TEM, Simply.com DNS, VAPID, AppSignal, Fri
 `.env` var ikke i `.gitignore` fra projektets start.
 
 **Hvad forhindrer gentagelse**
-`.gitignore` rettet. Fremadrettet: secret scanning i CI — se **S2** i risikoregistret. Historikken består fortsat — se **S1**.
+`.gitignore` rettet. Gitleaks pre-commit etableret 31/7 og verificeret i begge retninger. Serverside secret scanning viste sig **ikke** at være tilgængelig for private repoer på gratis-plan (afklaret 5/8) — se **S2**. Historikken består fortsat — se **S1**.
+
+### Opdatering 2026-08-05 — uafhængig bekræftelse af commit og omfang
+
+*Tilføjet efter arbejde med S2 (push protection). Ændrer ikke vurderingen; rettes ikke ind i teksten ovenfor, jf. regel 1.*
+
+**Intet nyt i sagen.** At `.env` lå i git, har været kendt hele vejen, og nøglerne blev roteret — to gange, da HÆNDELSE-002 senere gav anledning til en rotation mere. Det følgende er dokumentation, ikke et nyt fund.
+
+**Hvad GitHubs secret scanning viser.** To alarmer, begge oprettet 15. maj 2026, begge med *Detected in 1 location*: commit `d6e373b`, filen `.env`. Kilden er altså dette private repositorium og ikke en offentlig lokation — mærkaten **"Public leak"** beskriver mønsterkategorien (nøgleformater, der er offentligt dokumenterede og derfor genkendelige), ikke at nøglerne har ligget offentligt tilgængeligt. **Præmissen "repositoriet var privat i hele perioden" holder dermed.**
+
+| # | Type | Fundet i |
+|---|---|---|
+| 1 | Twilio Account String Identifier | `.env` linje 4 |
+| 2 | Supabase Service Key | `.env` linje 2 |
+
+**Værdien er, at vurderingen nu hviler på noget efterprøvbart** — commit-hash, fil og dato fra en tredjepart — i stedet for på hukommelse. Det er værd at have, hvis vurderingen nogensinde skal forsvares over for andre end os selv.
+
+**To forbehold, der bør stå her.** Alarmlisten er **ikke** en opgørelse over omfanget: GitHub genkender kun sine partneres mønstre. Filen indeholder eksempelvis også `TWILIO_AUTH_TOKEN` på linje 5 — den egentlige hemmelighed, hvor Account SID på linje 4 blot er en identifikator — og den har ingen alarm. Scaleway, Frisbii og VAPID har heller ingen. **Det fulde omfang læses af commit `d6e373b`, ikke af alarmlisten.** Alt er roteret uanset.
+
+**Konsekvens for S1.** Registrets åbne spørgsmål — hvad ligger der i historikken — kan nu besvares præcist ved at åbne den ene commit. Det er en billigere vej end den, S1 forudsatte.
+
+**Handling.** Begge alarmer lukkes som *Revoked* med henvisning til nøglerotationen.
 
 ---
 
@@ -143,3 +164,17 @@ Deny-regler verificeres, før et nyt værktøj får adgang til repositoriet. Bre
 | År | Hændelser i alt | Heraf databrud | Heraf anmeldt |
 |---|---|---|---|
 | 2026 | 2 | *vurderes* | 0 |
+
+---
+
+## Vurderet og bevidst IKKE logført
+
+*Regel 2 siger, at alt logføres — også det ufarlige. Men loggen dækker sikkerhedshændelser og databrud, ikke driftsfejl. Denne liste findes, så fravalget er et valg og ikke en forglemmelse, og så det kan omgøres, hvis vurderingen viser sig forkert.*
+
+| Dato | Hvad | Hvorfor ikke her | Hvor det bor |
+|---|---|---|---|
+| 2026-08-05 | System-PATH på udviklingsmaskinen var overskrevet ned til to poster; alle System32-værktøjer utilgængelige | Ingen persondata, ingen adgang, intet eksternt. Ren arbejdsstationskonfiguration | Runbogens Del 1 |
+| 2026-08-05 | `npm run smoke:prod` havde aldrig kørt reelt — `.env.smoke` havde en placeholder som Supabase-URL og pegede på Simply-sitet i stedet for backenden | Manglende overvågningsdækning, ikke en hændelse. Ingen data berørt. **Grænsetilfælde:** et forsvar, man troede man havde, er beslægtet med det, S2 viste sig at være | Runbogens Del 1 |
+| 2026-08-05 | GitHub Secret Protection er ikke inkluderet for private repoer på gratis-plan; knapperne kan slås til uden effekt | Et kontrolhul, ikke en hændelse — ingen hemmelighed slap ud som følge af det. Men det er årsagen til opdateringen af HÆNDELSE-001 ovenfor | Registret, **S2** |
+| 2026-08-05 | Onboardingens velkomstskærm lovede en engangskode, mens knappen bad om et link | Brugsfejl uden sikkerheds- eller databeskyttelsesdimension | Registret, ændringslog |
+
