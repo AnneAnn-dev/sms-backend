@@ -18,11 +18,55 @@
 // Kraever Node 18+ (global fetch).
 // -----------------------------------------------------------------------------
 
+const { opretLoft, klientIp } = require("./ratelimit");
+
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
+
+// ─── Vindueloft (S12) ────────────────────────────────────────────────────────
+// Routen er offentlig og uautentificeret, og hvert kald bruger den private
+// Frisbii-noegle. Uden loft kan hvem som helst fylde Frisbii med skraldekunder.
+// Eksponeringen begyndte, da Ø5 trin 1+2 gik i luften — routen svarer ikke
+// laengere 404.
+//
+// Vaerdierne kan overstyres via env, men fail-closed: er en env-variabel sat og
+// ulaeselig, braender det ved boot i stedet for tavst at falde tilbage til
+// standarden. Et loft, man tror er 5, men som i virkeligheden er noget andet,
+// er vaerre end intet loft.
+function heltalFraEnv(navn, standard) {
+  const raa = process.env[navn];
+  if (raa === undefined || raa === "") return standard;
+  const n = Number(raa);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(`${navn} er sat til "${raa}" — skal vaere et heltal >= 1`);
+  }
+  return n;
+}
+
+const CHECKOUT_LOFT_MAKS       = heltalFraEnv("CHECKOUT_LOFT_MAKS", 5);
+const CHECKOUT_LOFT_VINDUE_MIN = heltalFraEnv("CHECKOUT_LOFT_VINDUE_MIN", 10);
+
+const checkoutLoft = opretLoft({
+  navn: "checkout",
+  maks: CHECKOUT_LOFT_MAKS,
+  vinduetMs: CHECKOUT_LOFT_VINDUE_MIN * 60 * 1000,
+});
+
+// Maskerer en e-mail til loggen: "anne@firma.dk" -> "an***@firma.dk".
+// Runbogens punkt 12(b): loggen skrev hele adressen i klartekst. Bekraeftet i
+// praksis 13/8 under S16-testen. Domaenet beholdes, saa en fejl stadig kan
+// diagnosticeres. ⚠️ `onboarding-link.js` har samme problem og er endnu ikke
+// rettet — bliver der brug for maskeringen et tredje sted, flyttes den til et
+// delt modul frem for at blive kopieret igen.
+function maskerEmail(s) {
+  if (typeof s !== "string" || !s.includes("@")) return "(ugyldig)";
+  const [lokal, domaene] = s.split("@");
+  const synlig = lokal.slice(0, 2);
+  return `${synlig}${"*".repeat(Math.max(1, lokal.length - 2))}@${domaene}`;
+}
 
 module.exports = (app) => {
   const PRIVATE_KEY  = process.env.FRISBII_PRIVATE_KEY;   // samme noegle som frisbii-webhook.js bruger til frisbiiGet
-  const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // fx "lommekontor-standard" — IKKE "test-abonement" i produktion
+  const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // fx "telefonpasser" — IKKE en test-plan i produktion
   const SIMPLY_BASE_URL = process.env.SIMPLY_BASE_URL;    // Simply-sidens domæne, til accept_url/cancel_url
 
   function requireConfig() {
@@ -57,6 +101,30 @@ module.exports = (app) => {
     // frisbii-webhook.js altid har et brugbart firmanavn at vise/sende mail med.
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "missing_name" });
+    }
+
+    // ─── Loftet ligger HER med vilje ─────────────────────────────────────────
+    // Efter begge valideringer, foer alt arbejde. To grunde:
+    //  1) `smoke.js` sender tomt body og kraever 400 invalid_email. Laa loftet
+    //     foerst, ville gentagne roegtestkoersler fra samme IP faa 429 i stedet,
+    //     og et groent tjek ville blive roedt af sig selv.
+    //  2) Fagligt rigtigt: det, der skal beskyttes, er kaldet mod Frisbii med
+    //     den private noegle — ikke serverens evne til at afvise tomt input.
+    const ip = klientIp(req);
+    if (ip) {
+      const loft = checkoutLoft.tjek(`ip:${ip}`);
+      if (loft.blokeret) {
+        console.warn(
+          `⚠️  /checkout/start: loft ramt — ip=${ip} email=${maskerEmail(email)} ` +
+          `(${loft.brugt}/${loft.maks} inden for ${CHECKOUT_LOFT_VINDUE_MIN} min., aabner om ${loft.nulstillerOm}s)`
+        );
+        res.set("Retry-After", String(loft.nulstillerOm));
+        return res.status(429).json({ error: "rate_limited", retry_after_sekunder: loft.nulstillerOm });
+      }
+    } else {
+      // Sker reelt kun lokalt uden proxy foran. Logges frem for at ignoreres
+      // tavst: forsvinder headeren i produktion, skal det vaere synligt.
+      console.warn("⚠️  /checkout/start: ingen x-forwarded-for — loftet er sprunget over for dette kald");
     }
 
     // E.164-tjek er bevidst løst her (kun præfiks) — phone er valgfri for
@@ -105,6 +173,9 @@ module.exports = (app) => {
       // Frisbii returnerer en struktureret fejl (code/error/message) — log den
       // fulde tekst, så en evt. plan/MSN-fejlkonfiguration er let at se i
       // Railway-loggen, men eksponer kun en generisk fejl til Simply-siden.
+      // ⚠️ Denne tekst kan indeholde kundens e-mail, hvis Frisbii ekkoer den
+      // tilbage. Beholdt som den er — diagnostikken vejer tungere her — men
+      // det er et bevidst valg og ikke en overset detalje.
       console.error(`❌ /checkout/start: Frisbii afviste (HTTP ${frisbiiRes.status}):`, bodyText);
       return res.status(502).json({ error: "frisbii_rejected_session" });
     }
@@ -122,9 +193,12 @@ module.exports = (app) => {
       return res.status(502).json({ error: "frisbii_missing_url" });
     }
 
-    console.log("🧾 Checkout-session oprettet:", session.id, "for", email);
+    console.log("🧾 Checkout-session oprettet:", session.id, "for", maskerEmail(email));
     res.json({ url: session.url, session_id: session.id });
   });
 
-  console.log("🧾 Frisbii checkout-rute registreret paa /checkout/start");
+  console.log(
+    `🧾 Frisbii checkout-rute registreret paa /checkout/start ` +
+    `(loft: ${CHECKOUT_LOFT_MAKS} kald pr. IP pr. ${CHECKOUT_LOFT_VINDUE_MIN} min.)`
+  );
 };
