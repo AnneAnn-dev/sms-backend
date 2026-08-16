@@ -15,3 +15,4 @@ auth-users.sql
 
 supabase/.temp/
 \docs\stiftelsesdokumenter
+body.json
