@@ -2,7 +2,7 @@
 
 *Indsæt denne tekst i starten af en ny tråd, så Claude hurtigt har kontekst.*
 
-*Dette er samtidig teamets **fælles, levende dokument**: den gældende version er filen på `staging`-branchen i repoet — løse dokumenter, chatbeskeder og gamle kopier tæller ikke. Sektionerne **Produktplan** og **Design & visuel identitet** ejes af [makkerens navn]; de tekniske sektioner ejes af Anne. Redigering uden teknisk opsætning: åbn filen på GitHub i browseren → blyants-ikonet → "Propose changes".*
+*Dette er samtidig teamets **fælles, levende dokument**: den gældende version er filen på `staging`-branchen i repoet — løse dokumenter, chatbeskeder og gamle kopier tæller ikke. Sektionerne **Produktplan** og **Design & visuel identitet** ejes af Anne; de tekniske sektioner ejes af Ann. Redigering uden teknisk opsætning: åbn filen på GitHub i browseren → blyants-ikonet → "Propose changes".*
 
 ---
 
@@ -10,13 +10,13 @@
 
 Dit Digitale Kontor (ditdigitalekontor.dk, tidligere "LommeKontor" / lommekontor.dk) er en dansk B2B SaaS-platform til håndværkere. Hver kunde får et dedikeret **+45-nummer**. Ved ubesvarede opkald afspilles en personlig stemmehilsen, kunden får en SMS med link til et opgave-indtastningsformular, og leadet lander i en håndværker-vendt PWA-dashboard.
 
-**Roller:** Anne ejer backend, infrastruktur og al kode. [Makkerens navn] ejer produktplanen, det visuelle udtryk, kundevendt indhold og QA/røgtest — hans mockups, tekster og AI-prototyper er *spec*, som Anne implementerer (prototyper går aldrig direkte i kodebasen). Detaljeret samarbejdsmodel: se `ditdigitalekontor-drift-runbook.md` → "Partner som bidragyder".
+**Roller:** **Ann** ejer backend, infrastruktur og al kode. **Anne** ejer produktplanen, det visuelle udtryk, kundevendt indhold og QA/røgtest — Annes mockups, tekster og AI-prototyper er *spec*, som Ann implementerer (prototyper går aldrig direkte i kodebasen). Detaljeret rollefordeling: se `ditdigitalekontor-drift-runbook.md` → afsnittet **Roller**.
 
 ---
 
 ## Produktplan
 
-*Ejes af [makkerens navn]. Dette er den gældende plan — Anne og Claude tager altid afsæt her, ikke i løse dokumenter.*
+*Ejes af Anne. Dette er den gældende plan — Ann og Claude tager altid afsæt her, ikke i løse dokumenter.*
 
 ### Produktvision — appens fire hovedområder
 
@@ -41,8 +41,8 @@ Appen udvides fra ét skærmbillede (opgavelisten) til **fire hovedområder i en
 
 ### Arbejdsdeling lige nu
 
-- **[Makkerens navn]:** Overblik (opgaver + kunder).
-- **Anne:** Tilbud — aktuelt tale-til-tekst-referatet. Referat-PWA-prototypen (`referater-app`) er spec-reference for flowet (prototype = spec, ikke produktionskode — artifact-API'erne findes ikke i prod).
+- **Anne:** Overblik (opgaver + kunder).
+- **Ann:** Tilbud — aktuelt tale-til-tekst-referatet. Referat-PWA-prototypen (`referater-app`) er spec-reference for flowet (prototype = spec, ikke produktionskode — artifact-API'erne findes ikke i prod).
 
 ### Åbne spørgsmål (afklares før UI-tekster og datamodel låses)
 
@@ -54,8 +54,8 @@ Appen udvides fra ét skærmbillede (opgavelisten) til **fire hovedområder i en
 ### Nu / Næste / Senere
 
 **Nu (bygges/testes i denne iteration):**
-- Overblik: omdøbning + de to indgange (opgaver, kunder) — [makkerens navn]
-- Tilbud: tale-til-tekst-referat — Anne
+- Overblik: omdøbning + de to indgange (opgaver, kunder) — Anne
+- Tilbud: tale-til-tekst-referat — Ann
 
 **Næste (besluttet, ikke påbegyndt):**
 - Bundnavigation med de fire områder + profil-cirkel i toppen
@@ -70,7 +70,7 @@ Appen udvides fra ét skærmbillede (opgavelisten) til **fire hovedområder i en
 - SMS-skabeloner — fjernet, frit tekstfelt vandt (jf. *Opgave-modal*)
 - Deadline + "Ønsket tidspunkt" på opgaver — fjernet fra formular og modal
 
-### Spec-format (en feature er klar til Anne, når den har:)
+### Spec-format (en feature er klar til Ann, når den har:)
 
 1. **Problem:** hvad oplever kunden i dag? (én sætning)
 2. **Flow:** skærm-for-skærm — mockup, skitse eller AI-prototype (prototyper er spec, ikke kode)
@@ -82,7 +82,7 @@ Appen udvides fra ét skærmbillede (opgavelisten) til **fire hovedområder i en
 
 ## Design & visuel identitet
 
-*Ejes af [makkerens navn]. Styrende for alt kundevendt UI — Anne implementerer, men afviger ikke herfra uden aftale.*
+*Ejes af Anne. Styrende for alt kundevendt UI — Ann implementerer, men afviger ikke herfra uden aftale.*
 
 - **Farver:** navy `#1A3A5C` (primær — header, knapper, brand), stålblå `#2C6B9E` (sekundær — links, aktive tilstande), skovgrøn `#2E7D52` (succes — verificeret, lead modtaget), røg `#F4F7FA` (baggrund/flader).
 - **Typografi:** Nunito (overskrifter), Source Sans 3 (brødtekst).
