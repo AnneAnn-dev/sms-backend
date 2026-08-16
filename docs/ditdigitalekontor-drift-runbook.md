@@ -203,6 +203,61 @@ ingen kodesoegning finder. Ved fremtidig noeglerotation: tjek at Railway stadig 
 ét projekt med to environments, og at GitHub → Settings → Environments matcher.
 Et glemt miljoe med gamle noegler er praecis det, der overses.
 
+### C5. PowerShell 5.1 — citationstegn, scripts og HTTP-test (skrevet 15/8-26)
+
+Tre faelder har hver kostet en forkert diagnose. De ligner alle sammen fejl i koden
+under test, og det er derfor, de er dyre.
+
+**1. Citationstegn forsvinder paa vej til eksterne programmer.**
+Sender du JSON til `curl.exe`, strimler PowerShell 5.1 de indre `"` — **uanset om du
+bruger enkelte eller dobbelte anfoerselstegn udenom, og uanset hvordan du escaper.**
+Symptom: `400 Bad Request` som en HTML-side fra Express. Det ligner en fejl i
+handleren, men body'en naaede den aldrig; `express.json()` afviste den foerst.
+
+```powershell
+# VIRKER IKKE - begge varianter giver ugyldig JSON
+curl.exe -X POST $u -d "{\"email\":\"a@b.dk\"}"
+curl.exe -X POST $u -d '{"email":"a@b.dk"}'
+
+# VIRKER - gaar ikke gennem skallen
+Invoke-WebRequest -Uri $u -Method Post -ContentType "application/json" -Body '{"email":"a@b.dk"}' -UseBasicParsing
+
+# VIRKER ogsaa - filen omgaar skallen
+'{"email":"a@b.dk"}' | Set-Content -Encoding ascii body.json
+curl.exe -s -X POST $u -H "Content-Type: application/json" -d "@body.json"
+```
+
+Samme faelde rammer `Select-String`: brug **enkelte** anfoerselstegn om moenstre med
+citationstegn i, eller undlad dem helt (`-Pattern 'require\('` frem for
+`-Pattern "require\(\"\./"`).
+
+**2. Fejlsvarets body kan ikke laeses fra stroemmen.**
+`Invoke-WebRequest` kaster paa 4xx/5xx, og `$_.Exception.Response.GetResponseStream()`
+er da ofte allerede opbrugt — du faar tom streng. Body'en ligger i
+**`$_.ErrorDetails.Message`**. Laes dér foerst, fald tilbage til stroemmen.
+
+Konsekvensen for testvaerktoej er vigtigere end teknikken:
+**skeln "maalt og forkert" fra "kunne ikke maales".** Et script, der melder FEJLET,
+naar det i virkeligheden ikke kunne aflaese noget, laerer én at ignorere roedt.
+Brug en tredje tilstand — UAFKLARET — og lad kun aegte fejl taelle i exit-koden.
+
+**3. Execution policy blokerer nye scripts.**
+Maskinen staar paa `AllSigned`, saa usignerede `.ps1`-filer afvises — ogsaa dine egne.
+Hentede filer baerer desuden et zonemaerke.
+
+```powershell
+Unblock-File .\mit-script.ps1
+powershell -ExecutionPolicy Bypass -File .\mit-script.ps1 -Miljo staging
+```
+
+Begge dele er midlertidige: `Bypass` gaelder kun den proces, kommandoen starter.
+Aendr ikke politikken permanent for at faa en test til at koere.
+`Get-ExecutionPolicy -List` viser, hvilket scope der saetter den.
+
+**Og reglen der gaelder alle `.ps1` i dette projekt:** ren ASCII. PS 5.1 fejllaeser
+UTF-8 uden BOM. Verificér foer levering — det er ikke nok at have tænkt paa det.
+
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
@@ -235,15 +290,27 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
   7. **⚠️ RETTET 4/8-26 — checkout-endpointet er IKKE en kontrolleret 500'er. Det er et 404.** Den tidligere formulering her var forkert og kostede en forkert diagnose: `requireConfig()` i `frisbii-checkout.js` kan ikke fejle ved kald, fordi den aldrig **bliver** kaldt. **Modulet er aldrig monteret** — `require("./frisbii-checkout")(app)` findes ingen steder i kodebasen. Linjen står kun som en *kommentar inde i filen selv* (linje 10), der beskriver, hvordan den skulle indlæses. Verificeret 4/8-26 med `Select-String` over alle `.js` uden for `node_modules`.
      **Go-live-blokerende for salg via partnersitet.** Fix i rækkefølge — de tre trin er uafhængige, og hvert af dem *alene* ændrer intet for kunden:
      1. **Montér modulet** i `server.js`, sammen med de øvrige monteringer lige efter `frisbii-webhook`: `require("./frisbii-checkout")(app);` ✅ **Udført OG verificeret 5/8-26** — boot-linjen `🧾 Frisbii checkout-rute registreret paa /checkout/start` observeret lokalt og i Railways deploy-log. ⚠️ **Prod var stadig 404 efter staging-verifikationen:** commiten lå kun på `staging`, og `main` var bagud — PR til `main` var nødvendig. Mål ALTID prod selvstændigt; staging beviser koden, ikke deployet. Verificeret før redigering, så det ikke skal udledes igen: signaturen er **`(app)` alene** (routen rører ikke databasen), og `requireConfig()` kaldes **først inde i rutehandleren** — modulet kan derfor ikke crashe ved boot, og trin 1 er trygt at køre før trin 2. Manglende variabler giver `500 server_misconfigured` med navnene i Railway-loggen. ⚠️ **Env-vars fanges i closuren ved montering, ikke pr. kald** — ændres `FRISBII_PLAN_HANDLE`/`SIMPLY_BASE_URL` i Railway, skal appen genstarte, før det virker. Bekræft monteringen på boot-linjen `🧾 Frisbii checkout-rute registreret paa /checkout/start`. **Nyt fund ved gennemgangen: `/checkout/start` er offentligt og uden rate limit → S12 i registret.**
-     2. **Sæt `FRISBII_PLAN_HANDLE` + `SIMPLY_BASE_URL`** i BEGGE Railway-miljøer — de har aldrig været sat. Plan-handlet er **`telefonpasser`** (sat 8/8-26; hed `trial-30-dage` indtil da, se lærdom 413) og læses inde i den rigtige konto (**tryk F5 først, jf. lærdom 1**). Planen åbnes for at bekræfte, at de **30 dages** prøveperiode faktisk står på den — og siden 8/8 er den manuelle aflæsning ikke længere eneste værn: `check-env.js --live` fejler, hvis feltet er tomt (**D26**). `SIMPLY_BASE_URL` er Simply-sitets domæne **uden afsluttende skråstreg** — koden bygger `${SIMPLY_BASE_URL}/tak` og `${SIMPLY_BASE_URL}/afbrudt`. ✅ **Udført og verificeret 5/8-26.** Værdier: `FRISBII_PLAN_HANDLE=telefonpasser` (samme handle i BEGGE Frisbii-konti — det gamle prod-handle `test-2-lommekontor` er ude af brug; handlet blev sat som `trial-30-dage` 5/8 og omdøbt 8/8, se lærdom 413 og **D25**) · `SIMPLY_BASE_URL=https://ditdigitalekontor.dk`. Sat i begge Railway-miljøer og i `.env.staging`/`.env.prod`. **Prøveperioden er 30 dage, ikke 14** (Annes beslutning 5/8). **Verifikationskald — trygt mod prod, fordi `requireConfig()` og e-mailtjekket begge kører før `fetch`, så Frisbii aldrig rammes:**
+     2. **Sæt `FRISBII_PLAN_HANDLE` + `SIMPLY_BASE_URL`** i BEGGE Railway-miljøer — de har aldrig været sat. Plan-handlet er **`abonnement-standard`** (sat 15/8-26; hed `trial-30-dage` 5/8 → `telefonpasser` 8/8 → `abonnement-standard` 15/8, da prøveperioden samtidig blev sat ned fra 30 til **5 dage** efter samtaler med sælgere) og læses inde i den rigtige konto (**tryk F5 først, jf. lærdom 1**). Planen åbnes for at bekræfte, at de **5 dages** prøveperiode faktisk står på den *(var 30 indtil 15/8-26)* — og siden 8/8 er den manuelle aflæsning ikke længere eneste værn: `check-env.js --live` fejler, hvis feltet er tomt (**D26**). ⚠️ **Men værnet har et hul, fundet 16/8:** tjekket dækker prøveperioden, ikke planens *eksistens*. Da handlet blev omdøbt til `abonnement-standard` uden at `.env.staging` fulgte med, meldte `check-env.js --live` **ALT GRØNT**, mens Frisbii svarede 404 på planen. Det var `afstem-railway-env.js`, der fangede det. Tjekket skal fejle på tre ting: planen findes ikke · prøveperioden er tom · prøveperioden afviger fra det forventede antal dage. `SIMPLY_BASE_URL` er Simply-sitets domæne **uden afsluttende skråstreg** — koden bygger `${SIMPLY_BASE_URL}/tak` og `${SIMPLY_BASE_URL}/afbrudt`. ✅ **Udført og verificeret 5/8-26.** Værdier: `FRISBII_PLAN_HANDLE=abonnement-standard` *(stod som `telefonpasser` indtil 15/8-26)* (samme handle i BEGGE Frisbii-konti — det gamle prod-handle `test-2-lommekontor` er ude af brug; handlet blev sat som `trial-30-dage` 5/8 og omdøbt 8/8, se lærdom 413 og **D25**) · `SIMPLY_BASE_URL=https://ditdigitalekontor.dk`. Sat i begge Railway-miljøer og i `.env.staging`/`.env.prod`. **Prøveperioden er 30 dage, ikke 14** (Annes beslutning 5/8). **Verifikationskald — trygt mod prod, fordi `requireConfig()` og e-mailtjekket begge kører før `fetch`, så Frisbii aldrig rammes:**
         ```powershell
         curl.exe -i -X POST https://opgave.ditdigitalekontor.dk/checkout/start -H "Content-Type: application/json" -d "{}"
         curl.exe -i -X POST https://opgave.ditdigitalekontor.dk/checkout/findes-ikke -d "{}"
         ```
         Forventet: **400 `invalid_email`** på den første (= monteret OG variabler sat), **404** på den anden (negativ kontrol — uden den beviser et ≠404-svar ingenting). `500 server_misconfigured` = mindst én variabel mangler, og Railway-loggen navngiver den.
      3. **Byg de to landingssider** `/tak` og `/afbrudt` på Simply-sitet, plus en venlig rod-rute på backenden (redirect til ditdigitalekontor.dk). Rå 404 må aldrig vises et menneske. Afbrudt-siden glemmes let — den ses kun af dem, der fortryder, og det er dem, man helst vil have tilbage.
-     ⚠️ **Selv med alle tre trin kan prod ikke tage imod penge endnu:** prod-kontoen kører bevidst på test-nøgler indtil go-live (se kontotabellen ovenfor). Den fulde rækkefølge er montering → variabler → sider → live-nøgler.
+     4. **⚠️ NYT 15/8-26 — TRINENE 1 OG 2 GJORDE IKKE FLOWET VIRKENDE. `/checkout/start` har ALDRIG gennemført et checkout.** Frisbii afviser hvert gyldigt kald: `HTTP 400 {"code":1,"error":"Invalid request","message":"handle is required","path":"/v1/session/subscription"}`. Fundet ved et tilfælde, da S12-rate limit-testen blev det **første**, der kaldte endpointet med et gyldigt body.
+        🔁 **Fejlmåden er igen vigtigere end fejlen — og det er tredje variant af samme tema:** trin 1+2 blev noteret færdige, fordi modulet blev monteret og bootlinjen dukkede op. Men **en bootlinje beviser kun, at filen blev indlæst.** Og kontrolkaldet ovenfor (`-d "{}"`) rammer med vilje første validering, så det aldrig skriver noget — hvilket også betyder, at det **aldrig når frem til Frisbii**. `400 invalid_email` beviser derfor, at ruten findes og at variablerne er sat. Det beviser **ikke**, at flowet virker. De to ting lignede hinanden nok til at koste en uge, hvor checkout troedes færdigt. **Regel: et endpoint er ikke verificeret, før et kald er set gå HELE vejen til leverandøren og komme tilbage med det, kunden skal bruge** — her en `session.url`.
+        ✅ **LØST 16/8-26 — første gennemførte checkout siden endpointet blev skrevet.** Der var **TO** fejl oven på hinanden:
+        1. `generate_handle: true` stod kun inde i `create_customer` og gjaldt derfor kundens handle. **Abonnementet skal have sit eget** — `generate_handle: true` på `prepare_subscription`-niveau, ved siden af `plan`. Et eksplicit `handle` virker også, men lader koden opfinde unikke navne og holde styr på kollisioner; lad Frisbii om det.
+        2. Bagved lå `payment_methods: ["vipps_recurring"]` — en metode kontoen ikke har. **Den fejl var usynlig, indtil den første var rettet**, fordi Frisbii validerer felt for felt og stopper ved første mangel. *En rettelse, der afdækker en ny fejl, er fremskridt, ikke tilbageslag.*
+        **Feltet udelades nu helt.** Kontoen bestemmer, hvad der tilbydes: staging kører på testkort, prod tilbyder kort når indløsningsaftalen lander, og MobilePay dukker op ved siden af når MSN'et kommer — **uden en kodeændring på hver af de to datoer.** En hårdkodet liste ville give kunden en tavs 502 den dag, metoden ikke er der endnu. *(Linjen var ikke forkert, da den blev skrevet: `test-checkout-start.js` henviser til et Vipps test-MSN, som kontoen engang havde. Den blev forkert, da virkeligheden flyttede sig — og ingen målte.)*
+        🔑 **Metoden er det, der skal genbruges: kald leverandøren DIREKTE fra et script, uden om egen backend, med flere payload-varianter i samme kørsel.** Loopet blev sekunder i stedet for en deploy pr. forsøg, og hver variant afveg med præcis én linje, så fejlen kunne tilskrives den linje frem for gættes. Scripts: `test-oe6-checkout-payload.ps1` (handle) og `test-oe6-betalingsmetoder.ps1` (betalingsmetoder).
+        ⚠️ **Første kørsel var UAFKLARET og blev læst som FEJLET.** Alle tre varianter gav samme svar, fordi `.env.staging` stadig havde det gamle plan-handle og Frisbii faldt på `plan not found` FØR den nåede forskellen mellem varianterne. **Tre ens svar på tre forskellige payloads betyder pr. definition, at forskellen aldrig blev nået.** Værnet er nu bygget ind i scriptet. Og: **læs `Fil:` og `Plan:` i outputtets hoved, før du læser fejlene** — nøjagtig samme regel som `URL:`/`Supabase-ref:` ved en rød prod-røgtest.
+        **Verificeret 16/8 hele vejen:** `/checkout/start` → `session.url` → betaling med testkort 4111 → `subscription_created` → trial-detektion → nummer claimet → `✅ Firma oprettet (Frisbii): … — Test ApS`. **Firmanavnet i loglinjen er beviset** på, at `company` går fra formularfelt til firma. Bemærk at det er `subscription_created` og ikke `invoice_settled` — planen har prøveperiode, så trial-grenen fra 10/7 er dermed også bevist med et ægte checkout foran.
+        ⚠️ **Verifikationskaldet skal sende HELE felt-sættet** (`email`, `name`, `phone`, `company`). Testscriptene sendte kun de to første, så `company` og begge `phone`-felter var uprøvede — et grønt scriptkald ville have bevist en payload, koden ikke sender. Se Ø6 og D33 i risikoregistret.
+     ⚠️ **Selv med alle fire trin kan prod ikke tage imod penge endnu:** prod-kontoen kører bevidst på test-nøgler indtil go-live (se kontotabellen ovenfor). Den fulde rækkefølge er montering → variabler → **virkende payload** → sider → live-nøgler.
      🔁 **Fejlmåden er vigtigere end fejlen:** et umonteret modul giver 404 — intet crasher, intet logges, og knappen "lykkes" tavst. Det er **anden** forekomst; `onboarding-link` var den første, og advarslen om præcis dette står som kommentar i `server.js` linje 78-82. Kommentarer beskytter kun mod fejl, som nogen når at læse dem i tide. Fjernes med et **≠404-tjek pr. kritisk endpoint i røgtesten** (punkt 25) — se **D23** i risikoregistret. ✅ **LEVERET 5/8-26 i `smoke.js`, grøn i begge miljøer.** Tre tjek: negativ kontrol (ukendt rute SKAL give 404, ellers beviser ≠404 intet) · monteringstjek over `MONTEREDE_RUTER` (samler alle fund i én kørsel) · rodrute (302 + validering af `location`). **To regler for listen:** kun ruter der skal findes i BEGGE miljøer — flag-styrede ruter som `/api/tilbud/*` giver 404 MED VILJE, og et permanent rødt tjek lærer dig at ignorere rødt · kun kald der falder på første validering i handleren, så intet skrives i prod. Rest: `/opret-opgave` og Frisbii-webhooken føjes til, når deres handlere er læst.
+  9. **⚠️ Firmanavnet er ikke bare et felt — det bliver telefonsvarerens ordlyd (16/8-26).** `provisionFirm()` falder tilbage på `customer.company || "fornavn efternavn" || email`, så et tomt firmanavn provisionerer stille og roligt et firma, der hedder personen: `firms.name`, sluggen, velkomstmailen og **`greeting_text`, som prærenderes til lyd.** Håndværkerens telefonsvarer siger da hans eget navn. Intet i koden råber op. **Fix 16/8: `company` er obligatorisk i `/checkout/start`** (`400 missing_company`, placeret efter `missing_name` og FØR loftet, så røgtestens kontrakt med `400 invalid_email` på tomt body holder). ⚠️ **Frisbiis hostede betalingsside går uden om `/checkout/start` og dermed uden om valideringen — og feltet kan IKKE gøres obligatorisk i Frisbii.** Enten slås den side fra, eller også skal `provisionFirm()` sende `sendAdminAlert` ved tomt firmanavn frem for at substituere tavst. **Timingen er på vores side:** lyden renderes først, når kunden gemmer sin besked i onboarding, så i det vindue er rettelsen gratis. Se D33.
+  10. **Hvert kald opretter en kunde OG et abonnement hos Frisbii — også uden betaling (16/8-26).** Fem testkald på én formiddag gav fem af hver, i tilstanden AFVENTER. Ryd op i kontoen efter enhver testrunde: gamle abonnementer ligger og venter og kan gribe efter puljens ledige numre, mens du kigger et andet sted hen. **Loftet (S12) begrænser tempoet, ikke sporet** — og lokalt springes det helt over (`ingen x-forwarded-for`).
   8. **Staging-puljens artefakt:** +4591309229 er en kopieret prod-data-artefakt — tallet refererer et nummer, der fysisk bor i Twilio-HOVEDKONTOEN og ikke kan rutes til staging. Fint til at bevise provisioneringskæden; til trin 6-arbejdet skal artefakt-rækken slettes og erstattes af et ægte subkonto-nummer i puljen.
   **Go-live-gate (føj til master-punkt 8):** Frisbii live-nøgler trækkes → live-nøgler i PROD; staging beholder sin testkonto uændret. + checkout-vars (lærdom 7) skal være sat og checkout-flowet røgtestet fra partnersitet.
 - **Scaleway TEM:** i staging, **override modtager til din egen adresse**, så mails fra staging aldrig går til kunder. ✅ *Færdig og røgtestet 4/7-26.*
@@ -411,7 +478,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 🔑 **Lærdomme 11/7-26 (prod-togsdagen):**
 - **Prod-tog = PR på GitHub, ALDRIG lokalt merge+push:** `main` er PR-beskyttet (Del 0.A) — et lokalt `git merge staging` + `git push` afvises med GH013 "Changes must be made through a pull request". Køreplan: PR fra `staging` → `main` på GitHub → self-review af commit-listen → Merge → Railway deployer prod. Blev dit lokale merge afvist: `git reset --hard origin/main` (ufarligt — indholdet lever på staging). Samme klasse regel som "kun push-prod.ps1 må røre prod-migrationer": de farlige veje er spærret med vilje.
 - **Navngiv Frisbii-planer efter egenskab** (fx `trial-14-dage` / `standard-uden-trial`): sub-0013 blev oprettet på en plan UDEN prøveperiode → detektionen sagde korrekt "uden trial", men det kostede detektivarbejde at se, at det var testopsætningen (ikke koden), der afveg. En rigtig kunde-trial SKAL ramme 🎁-grenen — planens handle er samtidig den, `FRISBII_PLAN_HANDLE` skal pege på (kodeopgave 3). ✅ **Efterlevet 5/8-26: `trial-30-dage` oprettet i BEGGE konti** (1.875,00 DKK/md, månedlig, 30 dages prøveperiode — Anne besluttede 30 frem for 14). Bekræftet i planlisten, at Prøveperiode-kolonnen faktisk siger `30 days`; den gamle staging-plan `test-abonement` havde kolonnen TOM, altså præcis `sub-0013`-fælden, synlig direkte i listen uden at åbne planen. **Samme handle i begge konti er et bevidst valg** — så skal forskellen mellem miljøerne ikke huskes. Det gamle prod-handle `test-2-lommekontor` er dermed ude af brug.
-  ⚠️ **OMGJORT 8/8-26 — lærdommen gælder ikke længere som navnekonvention.** Planen er omdøbt til **`telefonpasser`**, fordi handlet skal navngive *produktet* og kunne stå side om side med tre andre add-ons (**D25**). Prisen er, at plannavnet ikke længere er trial-garantien: en tom Prøveperiode-kolonne kan ikke længere ses i planlisten. **Forsvaret er flyttet fra navnet til et tjek** — `check-env.js --live` læser prøveperiode-feltet og fejler, hvis det er tomt (**D26**). Det dækker bredere end navnet gjorde, fordi det også fanger en plan oprettet i UI'et med feltet glemt. Selve `sub-0013`-fælden ovenfor er uændret — kun værnet er skiftet.
+  ⚠️ **OMGJORT 8/8-26 — lærdommen gælder ikke længere som navnekonvention.** Planen er omdøbt til **`telefonpasser`**, fordi handlet skal navngive *produktet* og kunne stå side om side med tre andre add-ons (**D25**). Prisen er, at plannavnet ikke længere er trial-garantien: en tom Prøveperiode-kolonne kan ikke længere ses i planlisten. 📌 **OMDØBT IGEN 15/8-26 til `abonnement-standard`, og prøveperioden sat ned fra 30 til 5 dage** efter samtaler med sælgere. ⚠️ **`.env.staging` fulgte ikke med, og det kostede en forkert diagnose i Ø6-arbejdet:** Frisbii svarede `404 Subscription plan not found` på tre forskellige payloads, som derfor lignede tre ens fejl. **Forsvaret er flyttet fra navnet til et tjek** — `check-env.js --live` læser prøveperiode-feltet og fejler, hvis det er tomt (**D26**). Det dækker bredere end navnet gjorde, fordi det også fanger en plan oprettet i UI'et med feltet glemt. Selve `sub-0013`-fælden ovenfor er uændret — kun værnet er skiftet.
 - **Git-merge åbner en editor** (MERGE_MSG) ved ikke-fast-forward: gem+luk (VS Code: Ctrl+S, Ctrl+W / Vim: `:wq`) — eller giv beskeden direkte: `git merge X -m "..."`. Sæt evt. `git config --global core.editor "code --wait"`.
 - **Untracked filer "bor" ikke på en gren:** de følger med ved checkout og vises ikke i checkout-outputtet (kun kendte M-filer gør). Først `git add` + commit binder dem til grenen.
 - **M-listen er en statusrapport, ikke en indkøbsliste:** commits opdeles efter emne (config/scripts/docs), og en M-fil man ikke kan forklare, addes ikke før `git diff` er læst.
@@ -842,7 +909,7 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
 ### 🚦 Go-live-gates (master-punkt 8 — før første betalende kunde)
 1. Supabase Pro + PITR på prod
 2. Frisbii live-nøgler i PROD (kræver indløsningsaftale + MobilePay MSN → kræver bankkonto; staging beholder testkonto)
-3. Checkout-vars + checkout-flow røgtestet fra partnersitet (kodeopgave 3)
+3. ✅/⛔ **Checkout-flowet virker i STAGING (16/8) — prod udestår.** Hele kæden er bevist: `session.url` → betaling → `subscription_created` → provisionering → `✅ Firma oprettet`. **Tilbage:** PR til `main`, deploy, og **prod målt selvstændigt** (5/8-lærdommen: staging beviser koden, ikke deployet). ⚠️ Prod kan kun nå til en `session.url`, indtil prod-kontoen har en betalingsmetode — **det er ikke verificeret, hvad prod-kontoen faktisk har.** Dertil: flowet kørt fra partnersitet.
 4. Dublet-email-håndtering løst (kodeopgave 1)
 5. ✅ Config-fixet deployet + verificeret i BEGGE miljøer (11/7)
 

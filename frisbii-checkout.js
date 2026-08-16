@@ -137,6 +137,12 @@ module.exports = (app) => {
     const payload = {
       prepare_subscription: {
         plan: PLAN_HANDLE,
+        // ⚠️ Ø6: abonnementet skal have SIT EGET handle. `generate_handle` inde i
+        // create_customer gælder kun kundens handle — uden denne linje afviser
+        // Frisbii hvert kald med 400 "handle is required", og det gjorde den fra
+        // dag ét uden at nogen opdagede det. Verificeret 16/8 mod staging:
+        // uden linjen 400, med linjen 200 + session.url.
+        generate_handle: true,
         create_customer: {
           email: email.toLowerCase().trim(),
           first_name: name.trim(),
@@ -145,12 +151,36 @@ module.exports = (app) => {
           generate_handle: true, // lad Frisbii generere et unikt customer-handle
         },
       },
-      payment_methods: ["vipps_recurring"],
+      // ⚠️ Ø6: `payment_methods` er BEVIDST udeladt. Feltet stod som
+      // ["vipps_recurring"] — en metode kontoen ikke har (Vipps/MobilePay kræver
+      // MSN + indløsningsaftale, go-live-gate 2). Frisbii svarede 400
+      // "No payment methods found", og kunden ville have fået en tavs 502.
+      //
+      // Uden feltet bestemmer KONTOEN: staging kører på testkort i dag, prod
+      // tilbyder kort når indløsningsaftalen lander, og MobilePay dukker op ved
+      // siden af når MSN'et kommer — uden kodeændring på hver af de to datoer.
+      // Verificeret 16/8: uden feltet 200, med feltet 400. Kontrollen ligger i
+      // Frisbii-dashboardet, hvor aftalerne administreres i forvejen.
       accept_url: `${SIMPLY_BASE_URL}/tak`,
       cancel_url: `${SIMPLY_BASE_URL}/afbrudt`,
       // Prefilder kundens telefonnummer på Vipps/MobilePay-signup-siden, hvis givet.
       ...(cleanPhone ? { phone: cleanPhone } : {}),
     };
+
+    // Én streng, ikke to. Logger man `payload` og sender `JSON.stringify(payload)`,
+    // er der to udtryk, der kan drive fra hinanden — og så måler loggen ikke det,
+    // der faktisk bliver sendt.
+    const kropp = JSON.stringify(payload);
+
+    // ⏳ MIDLERTIDIG (Ø6) — FJERNES når Ø6 er lukket og checkout har kørt et par
+    // uger. Aldrig i production: kundens navn står i klartekst. Nøglen er ikke i
+    // payloaden (den sidder i Authorization-headeren), så den lækker ikke her.
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        "🧾 /checkout/start payload:",
+        kropp.split(email.toLowerCase().trim()).join(maskerEmail(email))
+      );
+    }
 
     let frisbiiRes;
     try {
@@ -161,7 +191,7 @@ module.exports = (app) => {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: kropp,
       });
     } catch (err) {
       console.error("❌ /checkout/start: netværksfejl mod Frisbii:", err.message);
