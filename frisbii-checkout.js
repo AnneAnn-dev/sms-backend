@@ -66,7 +66,7 @@ function maskerEmail(s) {
 
 module.exports = (app) => {
   const PRIVATE_KEY  = process.env.FRISBII_PRIVATE_KEY;   // samme noegle som frisbii-webhook.js bruger til frisbiiGet
-  const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // fx "telefonpasser" — IKKE en test-plan i produktion
+  const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // pr. 15/8-26: "abonnement-standard" — IKKE en test-plan i produktion
   const SIMPLY_BASE_URL = process.env.SIMPLY_BASE_URL;    // Simply-sidens domæne, til accept_url/cancel_url
 
   function requireConfig() {
@@ -97,10 +97,26 @@ module.exports = (app) => {
       return res.status(400).json({ error: "invalid_email" });
     }
     // Navn er ikke strengt nødvendigt for Frisbii (de kan splitte first/last
-    // fra company senere), men vi kræver det her, så provisionFirm() i
-    // frisbii-webhook.js altid har et brugbart firmanavn at vise/sende mail med.
+    // fra company senere), men vi kræver det her, så der altid er en person
+    // at skrive til i velkomstmailen.
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "missing_name" });
+    }
+    // ⚠️ D33: firmanavnet er OBLIGATORISK (Anns beslutning 16/8). Det er ikke
+    // bare et felt i databasen: provisionFirm() bruger det til firms.name,
+    // sluggen, velkomstmailen og — vigtigst — greeting_text, som PRÆRENDERES
+    // til lyd. Mangler det, falder webhooken tilbage på personens navn
+    // (`company || "fornavn efternavn" || email`), og håndværkerens
+    // telefonsvarer siger hans eget navn i stedet for firmaets. Det er en
+    // fuldt gyldig provisionering med et forkert produkt i den anden ende,
+    // og rettelsen bagefter kræver ny TTS-rendering — ikke bare en update.
+    // Derfor afvises det ved indgangen.
+    //
+    // ⚠️ Bemærk: Frisbiis egen hostede betalingsside går UDEN OM denne rute
+    // og dermed uden om valideringen, og feltet kan ikke gøres obligatorisk
+    // dér. Denne linje lukker vores dør, ikke den anden. Se D33.
+    if (!company || typeof company !== "string" || !company.trim()) {
+      return res.status(400).json({ error: "missing_company" });
     }
 
     // ─── Loftet ligger HER med vilje ─────────────────────────────────────────
@@ -146,7 +162,7 @@ module.exports = (app) => {
         create_customer: {
           email: email.toLowerCase().trim(),
           first_name: name.trim(),
-          company: company && company.trim() ? company.trim() : undefined,
+          company: company.trim(), // garanteret til stede, jf. valideringen ovenfor
           phone: cleanPhone,
           generate_handle: true, // lad Frisbii generere et unikt customer-handle
         },
