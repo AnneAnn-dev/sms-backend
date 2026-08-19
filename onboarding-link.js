@@ -18,6 +18,7 @@
 // -----------------------------------------------------------------------------
 
 const { sendLoginLinkMail } = require("./mail");
+const { maskerMail }        = require("./phone");
 
 module.exports = (app, supabase) => {
   const BASE_URL = process.env.BASE_URL;
@@ -99,13 +100,13 @@ module.exports = (app, supabase) => {
         const { url: loginUrl, otpCode } = await buildMagicLink(email);
         const mailResult = await sendLoginLinkMail({ to: email, loginUrl, otpCode });
         if (mailResult?.blocked) {
-          console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", email);
+          console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
         } else {
-          console.log("✉️  Nyt login-link sendt til:", email);
+          console.log("✉️  Nyt login-link sendt til:", maskerMail(email));
         }
       } else {
         // Ukendt email: log internt, men svar stadig generisk (ingen laekage).
-        console.log("ℹ️  Nyt-link anmodet for ukendt email (ingen mail sendt):", email);
+        console.log("ℹ️  Nyt-link anmodet for ukendt email (ingen mail sendt):", maskerMail(email));
       }
     } catch (err) {
       // Vi svarer stadig 200 generisk — fejlen logges blot, intet laekkes til klienten.

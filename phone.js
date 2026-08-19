@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PHONE — normalisering af telefonnumre til pålidelig matching mod hvidlisten.
+// PHONE — normalisering og log-maskering af telefonnumre og mailadresser.
 //
 // Twilio leverer From som E.164 (+4512345678), men håndværkeren taster numre i
 // alle mulige former ("12 34 56 78", "+45 12 34 56 78", "0045 12345678").
@@ -11,6 +11,10 @@
 //
 // BEMÆRK: et bart 8-cifret nummer antages dansk (+45). Udenlandske numre SKAL
 // tastes med landekode (+49…, +46…), ellers gættes der forkert på +45.
+//
+// maskerTlf()/maskerMail() hører hjemme her og IKKE i det enkelte modul: da
+// maskerTlf lå lokalt i onboarding.js, kunne frisbii-webhook.js ikke bruge den
+// og loggede numre råt. Ét sted at rette, alle kaldere følger med.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function normalizePhone(input) {
@@ -35,4 +39,47 @@ function normalizePhone(input) {
   return "+" + digits;
 }
 
-module.exports = { normalizePhone };
+// ─── LOG-HYGIEJNE ────────────────────────────────────────────────────────────
+// Telefonnumre og mailadresser på kundens kunder er PERSONOPLYSNINGER. De havnede
+// før i Railways log med en opbevaringstid, vi ikke selv styrer, uden for RLS og
+// uden for enhver slettepolitik. Maskering bevarer fejlsøgningsværdien og fjerner
+// problemet.
+//
+// SYNLIGT BUDGET: fem tegn. For et dansk nummer er det "+45" + de to første
+// cifre — nok til at se land og operatørserie, og til at se at nummeret
+// overhovedet har den rigtige form. De resterende cifre er dem, der udpeger en
+// person, og de forsvinder.
+//
+//   +4530518313  →  +4530******
+//
+// Antal stjerner følger nummerets længde med vilje: en forkert formateret værdi
+// skal kunne ses i loggen uden at afsløre indholdet.
+const SYNLIGE_TEGN = 5;
+
+function maskerTlf(input) {
+  const t = String(input ?? "").trim();
+  if (!t) return "(tomt)";
+  if (t.length <= SYNLIGE_TEGN + 3) return "***";   // for kort til at maskere meningsfuldt
+  return t.slice(0, SYNLIGE_TEGN) + "*".repeat(t.length - SYNLIGE_TEGN);
+}
+
+// Domænet bevares: det er dét, der fortæller hvilken kunde en fejl hører til,
+// og det er sjældent i sig selv identificerende for en person. Lokaldelen
+// reduceres til to tegn.
+//
+//   mail@magnoramarketing.dk  →  ma**@magnoramarketing.dk
+function maskerMail(input) {
+  const t = String(input ?? "").trim();
+  if (!t) return "(tomt)";
+
+  const at = t.lastIndexOf("@");
+  if (at < 1 || at === t.length - 1) return "***";  // ikke en brugbar adresse
+
+  const lokal   = t.slice(0, at);
+  const domaene = t.slice(at);                      // inkl. @
+  const synlige = Math.min(2, lokal.length - 1);
+
+  return lokal.slice(0, synlige) + "*".repeat(lokal.length - synlige) + domaene;
+}
+
+module.exports = { normalizePhone, maskerTlf, maskerMail };
