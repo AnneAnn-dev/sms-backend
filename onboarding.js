@@ -17,7 +17,7 @@ const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
-const { normalizePhone }  = require("./phone");
+const { normalizePhone, maskerTlf, maskerMail } = require("./phone");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -70,14 +70,8 @@ module.exports = function registerOnboarding(app, supabase) {
   // ─── HJÆLPER: Velkomstmail ligger nu i ./mail.js (delt med frisbii-webhook.js) ──
 
   // ─── LOG-HYGIEJNE ─────────────────────────────────────────────────────────
-  // Telefonnumre paa kundens kunder er PERSONOPLYSNINGER. De havnede foer i
-  // Railways log med en opbevaringstid, vi ikke selv styrer. Maskering bevarer
-  // hele fejlsoegningsvaerdien (landekode + operatoerdel) og fjerner problemet.
-  const maskerTlf = (n) => {
-    const t = String(n || "").trim();
-    if (t.length < 6) return t ? "***" : "(tomt)";
-    return t.slice(0, t.length - 4) + "****";
-  };
+  // maskerTlf()/maskerMail() ligger nu i ./phone.js, saa frisbii-webhook.js og
+  // onboarding-link.js kan bruge de samme regler. Se kommentaren dér.
 
   // ─── HJÆLPER: Send SMS via Twilio ───────────────────────────────────────
   // Uændret signatur, så /send-sms og /opkald kalder den som før.
@@ -215,9 +209,9 @@ module.exports = function registerOnboarding(app, supabase) {
           phoneNumber: phoneRow.number,
         });
         if (mailResult?.blocked) {
-          console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", email);
+          console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
         } else {
-          console.log("✉️  Velkomstmail sendt til:", email);
+          console.log("✉️  Velkomstmail sendt til:", maskerMail(email));
         }
       } catch (mailErr) {
         console.error("❌ Mail fejlede:", mailErr);
@@ -487,7 +481,7 @@ module.exports = function registerOnboarding(app, supabase) {
 
     } catch (err) {
       console.error("❌ Verifikationsopkald fejlede:", err.message);
-      console.error("❌ Ring til:", callTo, "Fra:", process.env.TWILIO_SYSTEM_NUMBER);
+      console.error("❌ Ring til:", maskerTlf(callTo), "Fra:", maskerTlf(process.env.TWILIO_SYSTEM_NUMBER));
       res.status(500).json({ error: "Opkald fejlede", detail: err.message });
     }
   });

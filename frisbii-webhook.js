@@ -31,6 +31,7 @@
 const crypto = require("crypto");
 const { sendWelcomeMail, sendAdminAlert } = require("./mail");
 const { uniqueSlug } = require("./slug");
+const { maskerTlf, maskerMail } = require("./phone");
 
 const FRISBII_API = "https://api.frisbii.com/v1";
 
@@ -413,7 +414,7 @@ module.exports = (app, supabase) => {
     });
     if (authErr) {
       if (authErr.code === "email_exists" || /already.*regist/i.test(authErr.message)) {
-        console.log("ℹ️  Auth-bruger findes allerede for", email, "— fortsaetter (magic link virker stadig)");
+        console.log("ℹ️  Auth-bruger findes allerede for", maskerMail(email), "— fortsaetter (magic link virker stadig)");
       } else {
         console.error("❌ Auth-bruger fejlede:", authErr.message);
       }
@@ -445,16 +446,16 @@ module.exports = (app, supabase) => {
     try {
       const mailResult = await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: phoneRow.number });
       if (mailResult?.blocked) {
-        console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", email);
+        console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
       } else {
-        console.log("✉️  Velkomstmail sendt til:", email);
+        console.log("✉️  Velkomstmail sendt til:", maskerMail(email));
       }
     } catch (mailErr) {
       console.error("❌ Mail fejlede:", mailErr);
       // Firma er oprettet — mail kan sendes igen manuelt
     }
 
-    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", phoneRow.number);
+    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", maskerTlf(phoneRow.number));
   }
 
   // ─── Webhook-rute (express.json() er allerede sat globalt i server.js) ──────

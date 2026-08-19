@@ -385,6 +385,8 @@
   
   <button onclick="document.getElementById('app-hilsen').style.display='none'"
           style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Åbn</button>
+  <button onclick="skiftPushBeskeder().finally(() => document.getElementById('app-hilsen').style.display='none')"
+          style="margin-top:10px;min-height:44px;padding:0 28px;border:2px solid #DDE4EC;border-radius:14px;background:transparent;color:#4A5D6E;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Slå beskeder til</button>
 </div>
 <script>
   // Fejlsikker med vilje: localStorage kan kaste i visse private tilstande —
@@ -490,6 +492,19 @@
       <div class="profile-name" id="profile-name">—</div>
       <div class="profile-firm" id="profile-firm">—</div>
       <div class="profile-phone" id="profile-phone">—</div>
+    </div>
+
+    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
+         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
+         kortet passer ind uden ny CSS. -->
+    <div class="greeting-card" id="push-card">
+      <div class="greeting-title">Beskeder</div>
+      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
+      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
+        <span id="push-toggle-label">Slå beskeder til</span>
+        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
+      </button>
+      <div class="greeting-saved" id="push-status"></div>
     </div>
 
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
@@ -1015,11 +1030,14 @@
   if (session) {
     document.getElementById('login-screen').style.display = 'none';
     // App vises først når loadData har bekræftet onboarding er gennemført
-    // Notification-API'et findes IKKE i iPhone Safari-faner (kun i
-    // installerede PWA'er, iOS 16.4+). Ukapslet kald var årsagen til hvid
-    // skærm på mobil: login skjult, exception her, loadData() aldrig nået.
-    if ('Notification' in window) Notification.requestPermission();
     loadData();
+    // Push-tilladelsen bedes IKKE om her længere — et automatisk, asynkront
+    // Notification-kald ved login var netop kilden til den hvide skærm på
+    // mobil 13/7 (se primerens "Web-API'er skal guardes"), og selv med
+    // guarden kan iOS's krav om en ægte brugerhandling gøre kaldet
+    // virkningsløst. Tilladelsen bedes nu KUN om via et rigtigt klik —
+    // se skiftPushBeskeder() nedenfor.
+    opdaterPushKnap();
   } else if (event === 'SIGNED_OUT') {
     // Logud — også når loadData rydder en død session — viser login igen.
     document.getElementById('app').style.display = 'none';
@@ -1793,13 +1811,16 @@ if ('serviceWorker' in navigator) {
 // Opdater badge med antal nye leads
 function updateBadge(count) {
   document.title = count > 0 ? `(${count}) Leads` : 'Leads';
-  
+
   if ('setAppBadge' in navigator) {
-    if (count > 0) {
-      navigator.setAppBadge(count);
-    } else {
-      navigator.clearAppBadge();
-    }
+    // setAppBadge/clearAppBadge returnerer et Promise, der kan blive afvist
+    // (fx manglende notifikationstilladelse på iOS). Uden fangst fejlede
+    // badgen tavst — ingen fejlmeddelelse, intet der fortalte at den ikke
+    // blev sat. Se RISIKOREGISTER D34, spor (c).
+    const badgeKald = count > 0
+      ? navigator.setAppBadge(count)
+      : navigator.clearAppBadge();
+    badgeKald?.catch(err => console.warn('Kunne ikke opdatere app-badge:', err));
   }
 }
 // ── DAWA Autocomplete ─────────────────────────────────────────────────────
@@ -1945,16 +1966,151 @@ setInterval(async () => {
 
   const { data: leads } = await db
     .from("leads")
-    .select("id, seen_at")   
+    .select("id, seen_at, status")
     .in("call_id", callIds);
 
+  // Sammenlign IDENTITET, ikke antal — og brug samme definition af "ny" som
+  // badge og "Ny"-mærket (!seen_at && status === 'open'). Før denne
+  // rettelse sammenlignede polleren rå antal uden statusfilter: kom der ét
+  // nyt lead, mens et andet ulæst lead blev åbnet i samme vindue, var summen
+  // uændret og ingen genindlæsning skete. Og et ulæst lead med status
+  // 'completed' eller 'rejected' talte med her, men ikke i badgen — så
+  // badgen kunne stå og vise et tal, der aldrig gik i nul.
+  // Se RISIKOREGISTER D34, spor (a) og (b).
+  const nyeIdsServer = new Set(
+    (leads || [])
+      .filter(l => !l.seen_at && l.status === 'open')
+      .map(l => l.id)
+  );
+  const nyeIdsLokalt = new Set(
+    allLeads
+      .filter(l => !l.seen_at && l.status === 'open')
+      .map(l => l.id)
+  );
 
- const unseenCount = leads?.filter(l => !l.seen_at).length || 0;
-if (unseenCount !== allLeads.filter(l => !l.seen_at).length) {
+  const erEnige =
+    nyeIdsServer.size === nyeIdsLokalt.size &&
+    [...nyeIdsServer].every(id => nyeIdsLokalt.has(id));
+
+  if (!erEnige) {
     // Der er kommet nye leads — genindlæs data
     loadData();
   }
 }, 30000);
+
+// ── Push-beskeder (badge + notifikation, også med appen lukket) ────────────
+// Selvstændig blok, jf. mønsteret fra app-hilsen: fejler den, må resten af
+// dashboardet aldrig mærke det. Alle web-API-kald er feature-detected og i
+// try/catch — se primerens "Web-API'er skal guardes"-lærdom (13/7).
+// RISIKOREGISTER D34.
+function pushStoettes() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function hentPushAbonnement() {
+  if (!pushStoettes()) return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    return await reg.pushManager.getSubscription();
+  } catch (err) {
+    console.warn('Kunne ikke aflæse push-abonnement:', err);
+    return null;
+  }
+}
+
+// Sætter "Slå beskeder til/fra"-knappens tekst efter den faktiske tilstand.
+// Kaldes efter login og efter hvert skift — aldrig antaget, altid aflæst.
+async function opdaterPushKnap() {
+  const label  = document.getElementById('push-toggle-label');
+  const status = document.getElementById('push-status');
+  if (!label) return; // Profil-siden ikke tegnet endnu — intet at opdatere
+  try {
+    if (!pushStoettes()) {
+      label.textContent = 'Beskeder understøttes ikke her';
+      if (status) status.textContent = 'Virker kun i den installerede app.';
+      return;
+    }
+    const sub = await hentPushAbonnement();
+    if (sub && Notification.permission === 'granted') {
+      label.textContent = 'Slå beskeder fra';
+      if (status) status.textContent = 'Beskeder er slået til på denne enhed.';
+    } else {
+      label.textContent = 'Slå beskeder til';
+      if (status) status.textContent = '';
+    }
+  } catch (err) {
+    console.warn('Kunne ikke opdatere push-knap:', err);
+  }
+}
+
+// Slår beskeder til ELLER fra, alt efter nuværende tilstand. Bruges både af
+// app-hilsens knap og af Profil-sidens knap — samme funktion, samme regler.
+async function skiftPushBeskeder() {
+  if (!pushStoettes()) return;
+  const btn     = document.getElementById('push-toggle-btn');
+  const spinner = document.getElementById('push-toggle-spinner');
+  const status  = document.getElementById('push-status');
+  if (btn) btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+
+  try {
+    const eksisterende = await hentPushAbonnement();
+
+    if (eksisterende && Notification.permission === 'granted') {
+      // Slå fra: annullér abonnementet i browseren OG fjern det server-
+      // side, så der ikke ligger et dødt abonnement næste gang der pushes.
+      const endpoint = eksisterende.endpoint;
+      await eksisterende.unsubscribe();
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        await fetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ endpoint }),
+        }).catch(() => {}); // fail-open: lokalt er den allerede slået fra
+      }
+      if (status) status.textContent = 'Beskeder er slået fra.';
+    } else {
+      const tilladelse = await Notification.requestPermission();
+      if (tilladelse !== 'granted') {
+        if (status) status.textContent = tilladelse === 'denied'
+          ? 'Tilladelse blev afvist. Den kan slås til igen i telefonens indstillinger.'
+          : 'Tilladelse blev ikke givet.';
+        return;
+      }
+      const reg       = await navigator.serviceWorker.ready;
+      const publicKey = window.APP_CONFIG?.VAPID_PUBLIC_KEY;
+      if (!publicKey) throw new Error('VAPID_PUBLIC_KEY mangler i /config.js');
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      const { data: { session } } = await db.auth.getSession();
+      if (!session) throw new Error('Ikke logget ind');
+      const r = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+      if (!r.ok) throw new Error('Serveren afviste abonnementet');
+      if (status) status.textContent = 'Beskeder er slået til på denne enhed.';
+    }
+  } catch (err) {
+    console.warn('Kunne ikke skifte push-beskeder:', err);
+    if (status) status.textContent = 'Der gik noget galt — prøv igen.';
+  } finally {
+    if (btn) btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+    opdaterPushKnap();
+  }
+}
 </script>
 </body>
 </html>

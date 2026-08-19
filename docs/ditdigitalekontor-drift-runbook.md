@@ -258,6 +258,113 @@ Aendr ikke politikken permanent for at faa en test til at koere.
 UTF-8 uden BOM. Verificér foer levering — det er ikke nok at have tænkt paa det.
 
 
+### C6. Arbejdstræ til AI-assistenter i skyen (etableret 19/8-26)
+
+**To modeller, to hegn — bland dem ikke sammen.**
+
+| Hvor | Hvad den kan se | Hvad der holder den inde |
+|---|---|---|
+| **Claude Code, lokalt** | hele repoet, inkl. `.env*` og `.git` | deny-reglerne i `.claude/settings.json` |
+| **Claude i skyen (appen)** | kun den mappe, du forbinder | **hvilken mappe du forbinder** |
+
+Forskellen er vigtig, fordi det andet hegn er stærkere end det første. Deny-reglerne
+forhindrer Claude Code i at *læse* `.env` — men ikke i at køre et almindeligt script,
+der læser `.env` som en normal del af sin drift. I skyen findes filen slet ikke, og
+så er der ingen regel at omgå. Til gengæld er alt, hvad der ligger i den forbundne
+mappe, per definition inde. **Mappens indhold ER adgangskontrollen.**
+
+#### 1. Lav arbejdstræet
+
+`git archive` eksporterer kun **sporede filer på HEAD**: ingen `.git`, altså ingen
+historik med de gamle roterede nøgler (**S1**), og ingen ignorerede filer, altså intet
+`.env*`. Udelukkelsen følger af værktøjet, ikke af hukommelsen.
+
+```powershell
+# Koer fra repo-roden. Laeg kopien UDEN FOR repoet.
+$dest = "C:\Users\Bruger\claude-arbejdstrae"
+Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+git archive HEAD --format=zip -o "$env:TEMP\ddk.zip"
+Expand-Archive "$env:TEMP\ddk.zip" -DestinationPath $dest -Force
+Remove-Item "$env:TEMP\ddk.zip"
+```
+
+Hurtigt forhåndstjek i repo-roden: `git ls-files | Select-String "\.env"` skal give
+tomt svar. Gør den ikke det, er `.env` sporet, og **det** er fundet.
+
+#### 2. Verificér FØR du forbinder
+
+```powershell
+$dest = "C:\Users\Bruger\claude-arbejdstrae"
+if (-not (Test-Path $dest)) { Write-Host "STOP: mappen findes ikke" -ForegroundColor Red; return }
+
+$filer = Get-ChildItem $dest -Recurse -File -Force
+$fund1 = Get-ChildItem $dest -Recurse -Force |
+    Where-Object { $_.Name -like ".env*" -or $_.Name -eq ".git" -or $_.Extension -in ".pem",".key",".pfx" }
+if ($fund1) { Write-Host "TJEK 1 FEJLEDE:" -ForegroundColor Red; $fund1.FullName }
+else        { Write-Host "TJEK 1 OK" -ForegroundColor Green }
+
+$fund2 = $filer | Select-String -Pattern "eyJhbGciOi|AC(?!0{30})[0-9a-f]{30}|SK(?!0{30})[0-9a-f]{30}|sk_live_"
+if ($fund2) { Write-Host "TJEK 2 FEJLEDE:" -ForegroundColor Red; $fund2 | Select-Object Path,LineNumber,Line | Format-List }
+else        { Write-Host "TJEK 2 OK" -ForegroundColor Green }
+```
+
+`Test-Path`-vagten er ikke pynt: i et nyt PowerShell-vindue er `$dest` tom, og så
+ville tjekket køre på ingenting og se ud som om alt var fint.
+
+**Mønstrene rammer nøgle*værdier*, ikke nøgle*navne* — med vilje.** `process.env.TWILIO_AUTH_TOKEN`
+er præcis som det skal være; koden *læser* nøglen, den indeholder den ikke. Et mønster,
+der matcher `AUTH_TOKEN` eller `SERVICE_ROLE`, rammer al normal kode og lærer dig at
+ignorere rødt. `eyJhbGciOi` er starten på ethvert Supabase-JWT og optræder aldrig som
+variabelnavn; `AC`/`SK` + 30 hex er Twilios SID-format. Negativt lookahead på bar-nuller
+springer den dokumenterede dummy `AC00000000000000000000000000000000` over (se Del 0.D).
+
+Rammer tjek 2 alligevel noget, står en nøgle **hardkodet i kildekoden** — så skal den
+ikke bare ud af kopien, den skal **roteres**, og hændelsen i loggen.
+
+#### 3. Hvad grænsen garanterer — og hvad den ikke gør
+
+**Garanteret, uafhængigt af assistentens adfærd:** værktøjerne afviser stier uden for
+den forbundne mappe · en udvidelse kan ikke ske i tavshed, den åbner en bekræftelses-
+dialog på maskinen med de præcise stier · adgangen gælder én session · assistentens
+shell kører i dens egen container i skyen, ikke på din maskine.
+
+**Ikke garanteret:** alt i mappen er inde, og filer den læser, indgår i samtalen.
+Derfor er trin 2 det egentlige sikkerhedsarbejde — ikke seler og livrem.
+
+**Persondata:** send aldrig rå logudtræk eller databaserækker ind i en samtale.
+Beskriv strukturen i stedet (`Ring til: <nummer> Fra: <nummer>`). Vi er databehandler
+for håndværkerens kunder (**J1**, **J3**), og en samtale er hverken omfattet af RLS
+eller af en slettepolitik.
+
+#### 4. Levering tilbage
+
+Rettelser skrives i **arbejdstræet**, aldrig i repoet. Du kopierer selv ind, læser
+diffen og committer:
+
+```powershell
+$repo = "C:\sti\til\sms-backend"
+Copy-Item "C:\Users\Bruger\claude-arbejdstrae\<fil>" "$repo\<fil>" -Force
+cd $repo; git diff
+```
+
+⚠️ **CRLF skal overleve.** Alle `.md`- og `.html`-filer i repoet bruger CRLF.
+Konverteres de til LF, melder `git diff` hele filen som ændret, og så kan du ikke se,
+hvad der reelt er rørt. Er diffen mistænkeligt stor, er det næsten altid dét.
+
+#### 5. Hold kopien frisk — og smid den væk
+
+`HEAD` flytter sig. Et arbejdstræ fra i går er gammel kode, og en rettelse ovenpå
+gammel kode giver en konfliktfyldt diff. Lav en frisk kopi ved hver ny opgave
+(trin 1 er tre kommandoer), og slet mappen, når opgaven er lukket.
+
+🔑 **Lærdom 19/8-26: en sikkerhedskontrol, der består i tavshed, er ikke en kontrol.**
+Første udgave af tjekket ovenfor bestod ved at udskrive ingenting — og fejlede på
+projektets egen dokumenterede dummy. Begge dele er samme fejl som S2's knap, der lod
+sig slå til uden at spærre: **et værn skal sige OK eller FEJLET hver gang, og det skal
+ramme det, der betyder noget.** Ellers lærer man at ignorere det.
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
@@ -814,7 +921,11 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
 8. **Trin 6 F** (valgfri hærdning): IP-lås/Basic Auth på webhook-endpointet.
 9. **Win-back-polish:** venlig TwiML-besked på karantæne-numre. *(Rescue-mail-delen ✅ 13/7: egen `sendLoginLinkMail`, rate-limit/anti-enumeration bevaret.)*
 10. **SMS-navnebudget** (m. Anne): firmanavn + slug ≤ 46 tegn tilsammen — håndhæves i onboarding trin 1 (navnegrænse) eller via kortere slugs. Vagten logger ⚠️ indtil da.
-12. **Privatlivs-eftersyn af logs (GDPR — DELVIST GJORT 31/7):** **LEVERET 31/7 i `onboarding.js`:** `maskerTlf()`-hjælper indført og anvendt seks steder (opkald modtaget, intet firma fundet, demo-SMS, hvidliste, firma oprettet) — telefonnumre på kundens kunder står ikke længere i klartekst i Railway-loggen. Samtidig fjernet: `SMS link:`-linjen der udstillede `lead_token` — **tokenet ER adgangskontrollen til opgaveformularen**, og alle med Railway-adgang kunne åbne kundens formular; erstattet af `firma-id + call-id`, som man reelt fejlsøger på (og som er en nøgle til MERE information, ikke mindre). **(a) TILBAGE — maskeringen er for grov:** `maskerTlf()` skjuler de sidste fire tegn uanset længde, så et dansk `+4530518313` bliver til `+453051****` — halvdelen af abonnentnummeret står stadig. Stram til landekode + de to første cifre (`+4530******`). Én funktion, ét sted, ingen kaldesteder skal røres. **(b) TILBAGE — `onboarding-link.js` logger fulde mailadresser** ("Nyt login-link sendt til: …" / "anmodet for ukendt email: …"). Samme behandling: maskér (`an***@firma.dk`) eller udelad. Grep efter `email` ved console-kald — mønstret findes formentlig flere steder. **(c) TILBAGE — VERIFICÉR at persondata ikke flyder fra Railway til AppSignal:** Ann har ikke SET det ske, men det skal EFTERSES aktivt — tjek fejlrapporternes payloads/breadcrumbs (request-parametre, headers) og `appsignal.cjs` for filtrering (`requestHeaders`/param-filtre). AppSignal er EU (NL), men dataminimering gælder stadig. Railway gemmer logs i klartekst, og de er ikke omfattet af RLS eller sletning.
+12. **Privatlivs-eftersyn af logs (GDPR — ✅ LUKKET 19/8; (c) flyttet til registret):** **LEVERET 31/7 i `onboarding.js`:** `maskerTlf()`-hjælper indført og anvendt seks steder (opkald modtaget, intet firma fundet, demo-SMS, hvidliste, firma oprettet) — telefonnumre på kundens kunder står ikke længere i klartekst i Railway-loggen. Samtidig fjernet: `SMS link:`-linjen der udstillede `lead_token` — **tokenet ER adgangskontrollen til opgaveformularen**, og alle med Railway-adgang kunne åbne kundens formular; erstattet af `firma-id + call-id`, som man reelt fejlsøger på (og som er en nøgle til MERE information, ikke mindre).
+    **✅ (a) LUKKET 19/8 — maskeringen er strammet.** `maskerTlf()` skjulte de sidste fire tegn uanset længde, så `+4530518313` blev til `+453051****`; halvdelen af abonnentnummeret stod stadig, og med ca. 10.000 kombinationer tilbage er det ikke reelt anonymt. Nu vises fem tegn (landekode + to cifre) og resten maskeres: **`+4530******`**. Bare numre uden landekode bliver til `***` — der er ikke plads til fem tegn uden at afsløre for meget, så den fejler i den rigtige retning. Antallet af stjerner følger længden med vilje, så en forkert formateret værdi stadig kan ses i loggen uden at afsløre indholdet.
+    **✅ (b) LUKKET 19/8 — mailadresser maskeres.** Ny `maskerMail()` samme sted: `mail@magnoramarketing.dk` → `ma**@magnoramarketing.dk`. Otte kaldesteder rettet i `onboarding.js`, `onboarding-link.js` og `frisbii-webhook.js`. **Domænet bevares med vilje** — det er dét, der fortæller hvilken kunde en fejl hører til, og det er sjældent i sig selv identificerende. ⚠️ **Genovervej ved første pilot:** for et enkeltmandsfirma identificerer domænet reelt personen. Ændringen er én linje i `phone.js`.
+    **🔑 Lærdom — en hjælper, der ikke kan deles, bliver ikke delt.** `maskerTlf()` lå som en `const` INDE i modulfunktionen i `onboarding.js`. `frisbii-webhook.js` kunne derfor ikke bruge den og loggede `phoneRow.number` råt. Det så ud som en forglemmelse, men var arkitektur: **funktionen var ikke tilgængelig dér, hvor den manglede.** Begge hjælpere bor nu i `phone.js` og eksporteres sammen med `normalizePhone` — ét sted at rette, alle kaldere følger med. **Å2 i en ny form.** **Og det sidste fund sad i en fejlgren:** `onboarding.js:490` loggede `callTo` — håndværkerens PRIVATE mobilnummer — fire linjer under en kommentar, der siger præcis det. Fejlgrene køres sjældent i test og er derfor systematisk underbelyste: **led i `catch`-blokkene først, næste gang du leder efter persondata i logs.**
+    **➡️ (c) FLYTTET TIL REGISTRET SOM S20 (19/8):** verifikationen af, at persondata ikke flyder fra Railway til AppSignal. Runbogen ejer ikke udestående-lister (jf. rollefordelingen i registret), og punktet stod uden for den autoritative liste — **O7 i praksis.** Konstateret ved flytningen: `appsignal.cjs` sætter **ingen** filtre — hverken `filterParameters`, `filterSessionData` eller `requestHeaders`.
 11. **Fejl-overlayet (dashboard.html) dæmpes/afmonteres, når piloten er stabil** (indført 13/7 som diagnoseværktøj — viser ALLE ufangede fejl, også godartede; muligt mellemtrin: ignorér kendte godartede supabase-baggrundsfejl). Hertil UAFKLARET, lav prioritet: sporadisk "Script error." på iPhone (dashboard virker; kommer og går) — afventer gentagelse med crossorigin aktiv → ægte fejltekst → dom.
 13. **Vis/Skjul-knap på login-skærmens adgangskodefelt (lav prioritet — tag den med i dashboard-restylingens senere trin):** onboardingens kodefelt (s-2) har en Vis/Skjul-knap (`.toggle-eye` + `togglePw()`); dashboardets login-felt har ingen. Kopiér mønsteret 1:1 fra onboarding.html (~10 linjer: knap inde i feltet + toggle af `input.type` password/text + tekstskift Vis/Skjul). Bevidst IKKE med i login-restylingen 19/7 (ren visuel leverance — ny JS kræver aftale, derfor dette punkt). **OBS ved implementering:** (1) kodetilstanden fra 19/7 skjuler hele adgangskodefeltet via `closest('.lfield')` — øje-knappen skal bo INDE i `.lfield`-wrapperen, så den automatisk følger med når feltet skjules (`.lfield` er dermed bærende i JS, ikke kun styling — må ikke omdøbes); (2) knappen må ikke stjæle `flex: 1` fra inputtet (onboardingens `.toggle-eye` er mønstret); (3) fuldt id-tjek efter ændringen (17/7-QA-reglen) + røgtest med rigtigt login.
 

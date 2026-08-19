@@ -6,6 +6,7 @@ const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
 const { TILBUD_AKTIV } = require("./flags");
+const { registrerPushRuter, sendNytLeadPush } = require("./push");
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -92,6 +93,11 @@ require("./frisbii-checkout")(app);
 // routen ikke → POST giver 404, fetch kaster ikke, og knappen "lykkes" tavst
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
+
+// ─── Push-abonnementer: badge/notifikation med appen lukket (D34) ──────────
+// Registrerer POST /api/push/subscribe + /api/push/unsubscribe. Selve
+// afsendelsen (sendNytLeadPush) kaldes fra POST /formular/:token nedenfor.
+registrerPushRuter(app, supabase);
 
 // ─── Tilbudsmodul — bag feature flag ────────────────────────────────
 // TILBUD_AKTIV=true kun i staging. Slukket betyder at ruterne slet ikke
@@ -371,6 +377,13 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
     .eq("id", call.id);
 
   console.log("✅ Lead gemt:", lead.id);
+
+  // Fire-and-forget: en fejlet push må aldrig forsinke eller vælte kundens
+  // kvittering. Manuel oprettelse (/opret-opgave) sender IKKE push — den
+  // sætter seen_at med det samme og er derfor aldrig "ny". Se push.js.
+  sendNytLeadPush(supabase, call.firm_id).catch((err) =>
+    console.error("❌ push ved nyt lead:", err.message)
+  );
 
   res.send(`<!DOCTYPE html>
 <html lang="da">
