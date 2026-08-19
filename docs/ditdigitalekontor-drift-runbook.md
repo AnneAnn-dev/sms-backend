@@ -258,6 +258,113 @@ Aendr ikke politikken permanent for at faa en test til at koere.
 UTF-8 uden BOM. Verificér foer levering — det er ikke nok at have tænkt paa det.
 
 
+### C6. Arbejdstræ til AI-assistenter i skyen (etableret 19/8-26)
+
+**To modeller, to hegn — bland dem ikke sammen.**
+
+| Hvor | Hvad den kan se | Hvad der holder den inde |
+|---|---|---|
+| **Claude Code, lokalt** | hele repoet, inkl. `.env*` og `.git` | deny-reglerne i `.claude/settings.json` |
+| **Claude i skyen (appen)** | kun den mappe, du forbinder | **hvilken mappe du forbinder** |
+
+Forskellen er vigtig, fordi det andet hegn er stærkere end det første. Deny-reglerne
+forhindrer Claude Code i at *læse* `.env` — men ikke i at køre et almindeligt script,
+der læser `.env` som en normal del af sin drift. I skyen findes filen slet ikke, og
+så er der ingen regel at omgå. Til gengæld er alt, hvad der ligger i den forbundne
+mappe, per definition inde. **Mappens indhold ER adgangskontrollen.**
+
+#### 1. Lav arbejdstræet
+
+`git archive` eksporterer kun **sporede filer på HEAD**: ingen `.git`, altså ingen
+historik med de gamle roterede nøgler (**S1**), og ingen ignorerede filer, altså intet
+`.env*`. Udelukkelsen følger af værktøjet, ikke af hukommelsen.
+
+```powershell
+# Koer fra repo-roden. Laeg kopien UDEN FOR repoet.
+$dest = "C:\Users\Bruger\claude-arbejdstrae"
+Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+git archive HEAD --format=zip -o "$env:TEMP\ddk.zip"
+Expand-Archive "$env:TEMP\ddk.zip" -DestinationPath $dest -Force
+Remove-Item "$env:TEMP\ddk.zip"
+```
+
+Hurtigt forhåndstjek i repo-roden: `git ls-files | Select-String "\.env"` skal give
+tomt svar. Gør den ikke det, er `.env` sporet, og **det** er fundet.
+
+#### 2. Verificér FØR du forbinder
+
+```powershell
+$dest = "C:\Users\Bruger\claude-arbejdstrae"
+if (-not (Test-Path $dest)) { Write-Host "STOP: mappen findes ikke" -ForegroundColor Red; return }
+
+$filer = Get-ChildItem $dest -Recurse -File -Force
+$fund1 = Get-ChildItem $dest -Recurse -Force |
+    Where-Object { $_.Name -like ".env*" -or $_.Name -eq ".git" -or $_.Extension -in ".pem",".key",".pfx" }
+if ($fund1) { Write-Host "TJEK 1 FEJLEDE:" -ForegroundColor Red; $fund1.FullName }
+else        { Write-Host "TJEK 1 OK" -ForegroundColor Green }
+
+$fund2 = $filer | Select-String -Pattern "eyJhbGciOi|AC(?!0{30})[0-9a-f]{30}|SK(?!0{30})[0-9a-f]{30}|sk_live_"
+if ($fund2) { Write-Host "TJEK 2 FEJLEDE:" -ForegroundColor Red; $fund2 | Select-Object Path,LineNumber,Line | Format-List }
+else        { Write-Host "TJEK 2 OK" -ForegroundColor Green }
+```
+
+`Test-Path`-vagten er ikke pynt: i et nyt PowerShell-vindue er `$dest` tom, og så
+ville tjekket køre på ingenting og se ud som om alt var fint.
+
+**Mønstrene rammer nøgle*værdier*, ikke nøgle*navne* — med vilje.** `process.env.TWILIO_AUTH_TOKEN`
+er præcis som det skal være; koden *læser* nøglen, den indeholder den ikke. Et mønster,
+der matcher `AUTH_TOKEN` eller `SERVICE_ROLE`, rammer al normal kode og lærer dig at
+ignorere rødt. `eyJhbGciOi` er starten på ethvert Supabase-JWT og optræder aldrig som
+variabelnavn; `AC`/`SK` + 30 hex er Twilios SID-format. Negativt lookahead på bar-nuller
+springer den dokumenterede dummy `AC00000000000000000000000000000000` over (se Del 0.D).
+
+Rammer tjek 2 alligevel noget, står en nøgle **hardkodet i kildekoden** — så skal den
+ikke bare ud af kopien, den skal **roteres**, og hændelsen i loggen.
+
+#### 3. Hvad grænsen garanterer — og hvad den ikke gør
+
+**Garanteret, uafhængigt af assistentens adfærd:** værktøjerne afviser stier uden for
+den forbundne mappe · en udvidelse kan ikke ske i tavshed, den åbner en bekræftelses-
+dialog på maskinen med de præcise stier · adgangen gælder én session · assistentens
+shell kører i dens egen container i skyen, ikke på din maskine.
+
+**Ikke garanteret:** alt i mappen er inde, og filer den læser, indgår i samtalen.
+Derfor er trin 2 det egentlige sikkerhedsarbejde — ikke seler og livrem.
+
+**Persondata:** send aldrig rå logudtræk eller databaserækker ind i en samtale.
+Beskriv strukturen i stedet (`Ring til: <nummer> Fra: <nummer>`). Vi er databehandler
+for håndværkerens kunder (**J1**, **J3**), og en samtale er hverken omfattet af RLS
+eller af en slettepolitik.
+
+#### 4. Levering tilbage
+
+Rettelser skrives i **arbejdstræet**, aldrig i repoet. Du kopierer selv ind, læser
+diffen og committer:
+
+```powershell
+$repo = "C:\sti\til\sms-backend"
+Copy-Item "C:\Users\Bruger\claude-arbejdstrae\<fil>" "$repo\<fil>" -Force
+cd $repo; git diff
+```
+
+⚠️ **CRLF skal overleve.** Alle `.md`- og `.html`-filer i repoet bruger CRLF.
+Konverteres de til LF, melder `git diff` hele filen som ændret, og så kan du ikke se,
+hvad der reelt er rørt. Er diffen mistænkeligt stor, er det næsten altid dét.
+
+#### 5. Hold kopien frisk — og smid den væk
+
+`HEAD` flytter sig. Et arbejdstræ fra i går er gammel kode, og en rettelse ovenpå
+gammel kode giver en konfliktfyldt diff. Lav en frisk kopi ved hver ny opgave
+(trin 1 er tre kommandoer), og slet mappen, når opgaven er lukket.
+
+🔑 **Lærdom 19/8-26: en sikkerhedskontrol, der består i tavshed, er ikke en kontrol.**
+Første udgave af tjekket ovenfor bestod ved at udskrive ingenting — og fejlede på
+projektets egen dokumenterede dummy. Begge dele er samme fejl som S2's knap, der lod
+sig slå til uden at spærre: **et værn skal sige OK eller FEJLET hver gang, og det skal
+ramme det, der betyder noget.** Ellers lærer man at ignorere det.
+
 ### D. Eksterne tjenester i test-tilstand
 Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
