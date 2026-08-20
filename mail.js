@@ -1,7 +1,7 @@
 // mail.js
 // -----------------------------------------------------------------------------
-// Delt mail-modul. Bruges af baade onboarding.js (Shopify) og frisbii-webhook.js,
-// saa velkomstmailen kun vedligeholdes ét sted.
+// Delt mail-modul. Bruges af frisbii-webhook.js (velkomst + adminalarm) og
+// onboarding-link.js (login-link-mail), saa hver mailtype kun vedligeholdes ét sted.
 //
 // Transport: Scaleway Transactional Email (TEM) HTTP-API over port 443.
 // (Skiftet fra nodemailer/SMTP fordi Railway blokerer udgaaende SMTP-porte.)
@@ -95,7 +95,7 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
   return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
-    fromName:  process.env.APP_NAME || "Håndværkerservice",
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
     subject:   `Velkommen, ${firmName} — din konto er klar`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">

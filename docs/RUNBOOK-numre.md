@@ -3,7 +3,7 @@
 Håndtering af nummerpuljen: køb, konfiguration, afstemning, frigivelse og
 genopretning efter kontosuspendering.
 
-Sidst opdateret: 8/8-2026 (afsnit 4: tilbagetagelse fra kunde + fjernelse af adgang)
+Sidst opdateret: 19/8-2026 (nyt afsnit 3½: forveksling af frigivelse/tilbagetagelse + genopretningsvej · skærpet returning-advarsel i afsnit 5)
 
 ---
 
@@ -115,6 +115,24 @@ bør bekræftes i koden — se punkt 8 nedenfor.
 Det amerikanske gratis-nummer fra kontooprettelsen (`+1618…`) dukkede op som
 forældreløst, indtil det blev frigivet. Sådanne kendte undtagelser bør frigives
 frem for at blive vænnet til i outputtet.
+
+---
+
+## 3½. Vælg det rigtige afsnit — frigivelse eller tilbagetagelse?
+
+**Tilføjet 19/8, efter en reel forveksling** (se HAENDELSESLOG.md). De to ord
+lyder ens og handler begge om et nummer uden kunde, men er modsatte handlinger
+— og kun den ene af dem er let at fortryde.
+
+| Du vil... | Brug | Hvad der sker |
+|---|---|---|
+| ...give nummeret til en ny kunde senere | **Afsnit 4 — Tilbagetagelse** | Rækken i `phone_numbers` bliver stående, kun `firm_id` nulstilles (+ karantæne). Twilio røres slet ikke. I betaler videre for nummeret. |
+| ...holde op med at betale for nummeret | **Afsnit 5 — Frigivelse** | Nummeret frigives hos Twilio (konsollen, i hånden) OG rækken slettes fra `phone_numbers`. Begge dele er endelige. |
+
+**Er du i tvivl, vælg afsnit 4.** Det er den reversible af de to — en
+tilbagetagelse kan altid efterfølges af en rigtig frigivelse senere, men en
+frigivelse kan ikke gøres om uden Twilios 10-dages-genkøbsvindue, og selv da
+mangler databaserækken bagefter (se genopretningsboksen sidst i afsnit 5).
 
 ---
 
@@ -248,7 +266,8 @@ en engangshandling, den er uigenkaldelig, og der findes ikke et script til én
 bruger — `reset-test-data.js` sletter alle firmaer og hele puljen og hører kun
 hjemme i testmiljøet.
 
-Bekræft bagefter, at brugeren faktisk er væk fra listen. Er der tvivl, kan
+Bekræft bagefter, at brugeren faktisk er væk fra listen. Er d
+er tvivl, kan
 personen desuden fjernes fra `firm_whitelist`, så et nyt link ikke kan udstedes
 til samme adresse.
 
@@ -264,6 +283,10 @@ Skal firmaet alligevel slettes helt, er FK-rækkefølgen den samme som i
 `reset-test-data.js`, blot filtreret på ét `firm_id`:
 `messages` → `lead_images` → `leads` → `calls` → `firm_whitelist` →
 `firm_users` → `frisbii_webhook_events` → `firms`.
+
+fjern tilbagetag nummeret i twillio 
+node configure-number.js PNxxxxxxxxxxxxxxxxx
+PNXXX =sidnummeret som findes i twillio  konsollen
 
 ### Trin 5 — afstem
 
@@ -340,6 +363,12 @@ returning id, number, twilio_sid;
 tildelt, sletter forespørgslen ingenting. `returning` viser, hvad der faktisk
 blev slettet — tæl rækkerne.
 
+**Samme fælde som i afsnit 4 (ramt i praksis 19/8):** Supabase' SQL-editor
+svarer "Success. No rows returned" på ethvert `delete` uden `returning`,
+uanset om forespørgslen ramte én række eller nul. Uden `returning` kan du
+ikke skelne "sikkerhedsselen reddede mig" fra "det virkede" — og de to
+kræver stik modsat opfølgning. Brug `returning` hver gang, ingen undtagelser.
+
 **Trin 4:** `node afstem-numre.js`
 
 ### Frigiver du flere ad gangen
@@ -347,6 +376,36 @@ blev slettet — tæl rækkerne.
 Markér ét ad gangen i konsollen. Ved en batch-frigivelse i juli 2026 blev der
 frigivet tre numre, hvor kun to var tilsigtet — det blev først opdaget af
 afstemningen bagefter.
+
+### Slettede du rækken, men mente egentlig en tilbagetagelse? (19/8)
+
+Sker det — og nummeret **ikke** nåede at blive frigivet hos Twilio (tjek
+Active Numbers-listen først; luk en evt. åben Release-dialog uden at
+bekræfte) — er nummeret stadig jeres. Kun databaserækken mangler, og det er
+præcis den situation afsnit 2 er lavet til:
+
+1. Find nummerets PN-SID i Twilio-konsollen. Det står **ikke** altid i
+   listevisningen — klik ind på selve nummeret, og se enten browserens
+   adresselinje eller nummerets detaljeside. SID'et starter med `PN` og er
+   34 tegn.
+2. Kør:
+   ```powershell
+   node configure-number.js PN<sid>
+   ```
+   Det henter E.164-nummeret fra Twilio, sætter webhooken igen (harmløst —
+   den var allerede sat), og indsætter rækken i puljen med `firm_id = null`.
+3. **Karantæne:** `configure-number.js` sætter ingen — den er lavet til
+   fabriksnye numre. Har nummeret tidligere hørt til en rigtig kunde, der
+   kan have viderestilling stående (se boksen i afsnit 3), sæt den manuelt
+   bagefter:
+   ```sql
+   update phone_numbers
+   set quarantined_until = now() + interval '7 days'
+   where number = '+45XXXXXXXX';
+   ```
+   Var kunden en, der aldrig nåede at sætte noget op (som 19/8), er der
+   ingen viderestilling at vente på, og karantænen kan udelades.
+4. `node afstem-numre.js` for at bekræfte Twilio og puljen er enige.
 
 ---
 
