@@ -5,15 +5,10 @@
 //
 // Telefoni kører på Twilio (twilioClient.messages / .calls + TwiML).
 // Krævede env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SYSTEM_NUMBER
-//
-// BEMÆRK: Shopify-webhooken nedenfor er formentlig forældet (onboarding kører
-// nu via frisbii-webhook.js). Slet den når du har bekræftet at intet bruger den.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express    = require("express");
-const crypto     = require("crypto");
 const twilio     = require("twilio");
-const { sendWelcomeMail } = require("./mail");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
@@ -79,151 +74,7 @@ module.exports = function registerOnboarding(app, supabase) {
     return twilioClient.messages.create({ to, from, body });
   }
 
-  // ─── 1. SHOPIFY WEBHOOK — ny håndværker har købt abonnement ─────────────
-  // Sæt denne URL i Shopify: Settings → Notifications → Webhooks
-  // Event: "Order payment" — Format: JSON
-  // URL: https://dinapp.railway.app/webhook/shopify
-  app.post("/webhook/shopify", async (req, res) => {
-
-      // Valider Shopify HMAC signatur
-      const hmac   = req.headers["x-shopify-hmac-sha256"];
-      const digest = crypto
-        .createHmac("sha256", process.env.SHOPIFY_WEBHOOK_SECRET)
-        .update(req.body) // req.body er Buffer fra express.raw
-        .digest("base64");
-
-      const valid = hmac && digest === hmac;
-
-      if (!valid) {
-        console.warn("⚠️  Ugyldig Shopify webhook signatur");
-        return res.status(401).send("Unauthorized");
-      }
-
-      const payload = JSON.parse(req.body.toString());
-      console.log("🛒 Shopify webhook modtaget:", payload.id);
-
-      // Træk relevante data ud
-      const email          = payload.email?.toLowerCase().trim();
-      const firstName      = payload.billing_address?.first_name || payload.customer?.first_name || "";
-      const lastName       = payload.billing_address?.last_name  || payload.customer?.last_name  || "";
-      const company        = payload.billing_address?.company    || `${firstName} ${lastName}`.trim();
-      const shopifyOrderId = String(payload.id);
-
-      if (!email) {
-        console.error("❌ Ingen email i Shopify payload");
-        return res.status(400).send("Mangler email");
-      }
-
-      // Undgå dubletter — tjek om ordren allerede er behandlet
-      const { data: existing } = await supabase
-        .from("firms")
-        .select("id")
-        .eq("shopify_order_id", shopifyOrderId)
-        .maybeSingle();
-
-      if (existing) {
-        console.log("ℹ️  Ordre allerede behandlet:", shopifyOrderId);
-        return res.status(200).send("OK");
-      }
-
-      // Find ledigt Twilio-nummer i puljen — spring numre i KARANTAENE over
-      // (reserveret til evt. vundet-tilbage kunder, jf. frisbii-webhook.js)
-      const { data: phoneRow, error: phoneErr } = await supabase
-        .from("phone_numbers")
-        .select("id, number")
-        .is("firm_id", null)
-        .or(`quarantined_until.is.null,quarantined_until.lt.${new Date().toISOString()}`)
-        .limit(1)
-        .single();
-
-      if (phoneErr || !phoneRow) {
-        console.error("❌ Ingen ledige numre i puljen!");
-        // TODO: Send intern alarm (Slack, mail osv.) når puljen er ved at løbe tør
-        return res.status(500).send("Ingen ledige numre");
-      }
-
-      // Opret firma i Supabase
-      const { data: firm, error: firmErr } = await supabase
-        .from("firms")
-        .insert({
-          name:                company,
-          email,
-          phone_number:        phoneRow.number,
-          shopify_order_id:    shopifyOrderId,
-          status:              "onboarding", // → "active" efter verifikation
-          voice_gender:        "female",     // standard — kan ændres i dashboard
-          greeting_text:       `Hej, du har ringet til ${company}. Jeg har ikke mulighed for at tage telefonen lige nu, men jeg sender dig en SMS, så du kan beskrive din opgave. Jeg vender tilbage hurtigst muligt.`,
-          verification_status: "pending",
-        })
-        .select()
-        .single();
-
-      if (firmErr) {
-        console.error("❌ Firma-oprettelse fejlede:", firmErr);
-        return res.status(500).send("Fejl ved oprettelse af firma");
-      }
-
-      // Knyt nummeret til firmaet
-      await supabase
-        .from("phone_numbers")
-        .update({ firm_id: firm.id })
-        .eq("id", phoneRow.id);
-
-      // Opret Supabase Auth-bruger
-      const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { firm_id: firm.id, firm_name: company },
-      });
-
-      if (authErr) {
-        console.error("❌ Auth-bruger fejlede:", authErr);
-        // Firma er oprettet — log fejlen men fortsæt, retry manuelt om nødvendigt
-      }
-
-      // Gem bruger-firma kobling
-      if (authUser?.user) {
-        await supabase.from("firm_users").insert({
-          firm_id: firm.id,
-          user_id: authUser.user.id,
-          role:    "owner",
-        });
-      }
-
-      // Generer magic link til login
-      const { data: linkData } = await supabase.auth.admin.generateLink({
-        type:  "magiclink",
-        email,
-        options: { redirectTo: `${process.env.BASE_URL}/onboarding` },
-      });
-
-      const loginUrl = linkData?.properties?.action_link ||
-                       `${process.env.BASE_URL}/dashboard`;
-
-      // Send velkomstmail
-      try {
-        const mailResult = await sendWelcomeMail({
-          to:          email,
-          firmName:    company,
-          loginUrl,
-          phoneNumber: phoneRow.number,
-        });
-        if (mailResult?.blocked) {
-          console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
-        } else {
-          console.log("✉️  Velkomstmail sendt til:", maskerMail(email));
-        }
-      } catch (mailErr) {
-        console.error("❌ Mail fejlede:", mailErr);
-        // Firma er oprettet — mail kan sendes igen manuelt fra admin panel
-      }
-
-      console.log("✅ Firma oprettet:", firm.id, "—", company, "→", maskerTlf(phoneRow.number));
-      res.status(200).send("OK");
-    }
-  );
-
-  // ─── 2. TWILIO OPKALDSHANDLER ────────────────────────────────────────────
+  // ─── 1. TWILIO OPKALDSHANDLER ────────────────────────────────────────────
   // Twilio kalder denne URL (POST, form-encoded) når en kunde ringer til et af
   // jeres numre. Vi svarer med TwiML (XML). Sæt webhook-URL'en i Twilio Console
   // for hvert nummer (Phone Numbers → Configure → A call comes in):
@@ -434,7 +285,7 @@ module.exports = function registerOnboarding(app, supabase) {
     return res.type("text/xml").send(twiml.toString());
   });
 
-  // ─── 3. VERIFIKATIONSOPKALD — system ringer til håndværker ──────────────
+  // ─── 2. VERIFIKATIONSOPKALD — system ringer til håndværker ──────────────
   // Kaldes fra onboarding-dashboardet når håndværkeren klikker "Test nu"
   app.post("/onboarding/verificer", async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);

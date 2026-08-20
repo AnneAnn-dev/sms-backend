@@ -16,9 +16,6 @@ webpush.setVapidDetails(
 
 const app = express();
 
-// Raw body til Shopify webhook HMAC-validering — skal være FØR express.json()
-app.use("/webhook/shopify", express.raw({ type: "application/json" }));
-
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(express.static("static"));
@@ -68,7 +65,7 @@ function escapeHtml(s) {
 // og kan ikke oprette Supabase-klienten.
 require("./app-config")(app);
 
-// ─── Onboarding: Shopify webhook + Twilio opkaldshandler ────────────────────
+// ─── Onboarding: Twilio opkaldshandler ──────────────────────────────────────
 require("./onboarding")(app, supabase);
 
 // ─── Frisbii Billing & Pay: betalings-webhook (onboarding-trigger) ──────────
