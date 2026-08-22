@@ -385,8 +385,12 @@
   
   <button onclick="document.getElementById('app-hilsen').style.display='none'"
           style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Åbn</button>
-  <button onclick="skiftPushBeskeder().finally(() => document.getElementById('app-hilsen').style.display='none')"
-          style="margin-top:10px;min-height:44px;padding:0 28px;border:2px solid #DDE4EC;border-radius:14px;background:transparent;color:#4A5D6E;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Slå beskeder til</button>
+  <!-- Bevidst INGEN besked-tilladelse her mere (rettet 20/8): at bede om
+       notifikations-tilladelse i samme åndedrag som "installer app"-rejsen
+       brød med princippet om at det skal være superenkelt at komme i gang
+       med Dit Digitale Kontor — ikke en tælle-fejl, men en unødig forhindring
+       ved første åbning. Beskeder er nu udelukkende en til/fra-mulighed
+       nederst på Profil-siden (#push-card nedenfor). -->
 </div>
 <script>
   // Fejlsikker med vilje: localStorage kan kaste i visse private tilstande —
@@ -494,17 +498,17 @@
       <div class="profile-phone" id="profile-phone">—</div>
     </div>
 
-    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
-         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
-         kortet passer ind uden ny CSS. -->
-    <div class="greeting-card" id="push-card">
-      <div class="greeting-title">Beskeder</div>
-      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
-      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
-        <span id="push-toggle-label">Slå beskeder til</span>
-        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
-      </button>
-      <div class="greeting-saved" id="push-status"></div>
+    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
+    <div class="wl-card">
+      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
+      <div class="wl-add">
+        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
+        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
+        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
+      </div>
+      <div id="wl-error" class="wl-error"></div>
+      <div id="wl-list" class="wl-list"></div>
     </div>
 
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
@@ -570,19 +574,6 @@
       </details>
     </div>
 
-    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
-    <div class="wl-card">
-      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
-      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
-      <div class="wl-add">
-        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
-        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
-        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
-      </div>
-      <div id="wl-error" class="wl-error"></div>
-      <div id="wl-list" class="wl-list"></div>
-    </div>
-
     <!-- Skift adgangskode -->
     <div class="pw-card">
       <div class="pw-title">Skift adgangskode</div>
@@ -599,6 +590,19 @@
         <span class="spinner" id="pw-save-spinner" style="display:none"></span>
       </button>
       <div class="pw-msg" id="pw-msg"></div>
+    </div>
+
+    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
+         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
+         kortet passer ind uden ny CSS. -->
+    <div class="greeting-card" id="push-card">
+      <div class="greeting-title">Beskeder</div>
+      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
+      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
+        <span id="push-toggle-label">Slå notifikationer til</span>
+        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
+      </button>
+      <div class="greeting-saved" id="push-status"></div>
     </div>
 
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:var(--white);border-color:var(--line);color:var(--muted)">Log ud</button>
@@ -2025,7 +2029,7 @@ async function hentPushAbonnement() {
   }
 }
 
-// Sætter "Slå beskeder til/fra"-knappens tekst efter den faktiske tilstand.
+// Sætter "Slå notifikationer til/fra"-knappens tekst efter den faktiske tilstand.
 // Kaldes efter login og efter hvert skift — aldrig antaget, altid aflæst.
 async function opdaterPushKnap() {
   const label  = document.getElementById('push-toggle-label');
@@ -2039,10 +2043,10 @@ async function opdaterPushKnap() {
     }
     const sub = await hentPushAbonnement();
     if (sub && Notification.permission === 'granted') {
-      label.textContent = 'Slå beskeder fra';
+      label.textContent = 'Slå notifikationer fra';
       if (status) status.textContent = 'Beskeder er slået til på denne enhed.';
     } else {
-      label.textContent = 'Slå beskeder til';
+      label.textContent = 'Slå notifikationer til';
       if (status) status.textContent = '';
     }
   } catch (err) {
