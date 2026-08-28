@@ -44,7 +44,7 @@ jobs:
       # Railpack bruger til at vaelge Node paa Railway. Ét tal, to forbrugere,
       # ingen dublet (AA2).
       - name: Node - samme version som produktion
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: package.json
           cache: npm
