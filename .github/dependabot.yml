@@ -1,0 +1,48 @@
+# S11 - Dependabot aabner pull requests, naar en afhaengighed faar en ny version
+# eller en kendt saarbarhed.
+#
+# ⚠ VIGTIGT: Dependabot laeser DENNE fil fra repoets DEFAULT-branch (main).
+# Filen skal altsaa merges til main for at virke - men PR'erne lander paa staging,
+# saa en afhaengighedsopdatering foelger den normale vej:
+# staging -> roegtest -> PR til main.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: staging
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Copenhagen
+    # Loft paa aabne PR'er. Med én operatoer er stoej dyrere end forsinkelse.
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      # Minor og patch samles i én PR pr. gruppe - én gennemlaesning, ikke ti.
+      # Major-opdateringer grupperes bevidst IKKE: de kan braekke noget og
+      # fortjener hver sin PR.
+      produktion:
+        applies-to: version-updates
+        dependency-type: production
+        update-types: [minor, patch]
+      udvikling:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+      sikkerhed:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # Actions i selve workflowet er ogsaa afhaengigheder.
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: staging
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: deps
