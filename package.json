@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --require ./appsignal.cjs server.js",
     "smoke": "node --env-file=.env.smoke smoke.js",
     "smoke:prod": "node --env-file=.env.smoke smoke.js --prod",
-    "rls": "node rls-isolation-test.js"
+    "rls": "node rls-isolation-test.js",
+    "audit": "npm audit --omit=dev --audit-level=critical"
   },
   "repository": {
     "type": "git",
@@ -28,7 +32,6 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.10",
     "twilio": "^6.0.2",
     "web-push": "^3.6.7"
   },
