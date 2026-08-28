@@ -1,0 +1,79 @@
+name: CI
+
+# S11 - forsyningskaede.
+#
+# Formaalet er ET tjek, der kun kan blive roedt af en aegte grund. Moderate og
+# lavere rapporteres, men blokerer ikke - et tjek der er roedt hele tiden laerer
+# én at ignorere roedt (samme laerdom som noeglescanningen 19/8).
+#
+# ⚠ GRAENSEN ER SAT TIL "critical", IKKE "high" - og det er et BEVIDST VALG
+#   truffet 27/8-26, ikke en standardvaerdi.
+#
+#   To high-fund staar tilbage, begge fra @opentelemetry/core <2.8.0 inde i
+#   @appsignal/nodejs. AppSignal 3.8.1 er nyeste version og indeholder ikke
+#   rettelsen. npm's egen "fix" ville NEDGRADERE AppSignal til 3.4.2.
+#   Se S22 i RISIKOREGISTER.md for vurdering og re-trigger.
+#
+#   PRISEN VED DET VALG: et NYT high-fund vil ikke blokere. Derfor skal
+#   "Fuld rapport"-trinnet nedenfor LAESES, ikke bare koeres. Naar AppSignal
+#   udgiver rettelsen, saettes graensen tilbage til "high" - det er selve
+#   re-triggeren.
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  afhaengigheder:
+    name: Afhaengigheder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v4
+
+      # Node-versionen laeses af "engines" i package.json - samme felt som
+      # Railpack bruger til at vaelge Node paa Railway. Ét tal, to forbrugere,
+      # ingen dublet (AA2).
+      - name: Node - samme version som produktion
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      # Skrives ud, saa den kan sammenlignes med Railways build-log med oejnene.
+      - name: Vis Node-version
+        run: node -v
+
+      # "npm ci" fejler, hvis package.json og package-lock.json er uenige.
+      # Det er i sig selv et tjek: laasefilen kan ikke sakke bagud ubemaerket.
+      - name: Installer praecis det, laasefilen siger
+        run: npm ci --omit=dev
+
+      # Staar i hver eneste koersel, saa undtagelsen ikke bliver usynlig.
+      - name: Kendte, accepterede fund
+        run: |
+          echo "ACCEPTERET 27/8-26 (S22) - blokerer bevidst ikke:"
+          echo "  @opentelemetry/propagator-jaeger  high  - Jaeger-propagering er ikke aktiveret"
+          echo "  @opentelemetry/sdk-node           high  - paraply over samme rod"
+          echo "  Rod: @opentelemetry/core <2.8.0, inde i @appsignal/nodejs 3.8.1"
+          echo "  RE-TRIGGER: naar AppSignal udgiver en version paa otel-core >=2.8.0,"
+          echo "  saettes --audit-level tilbage til high i denne fil."
+
+      # BLOKERENDE. Se graense-noten oeverst.
+      - name: Sikkerhedsgennemgang (blokerende)
+        run: npm audit --omit=dev --audit-level=critical
+
+      # IKKE-BLOKERENDE, men SKAL laeses: her dukker et nyt high op, som
+      # graensen ovenfor bevidst lader passere.
+      - name: Fuld rapport (blokerer aldrig - men laes den)
+        if: always()
+        run: npm audit --omit=dev || true
