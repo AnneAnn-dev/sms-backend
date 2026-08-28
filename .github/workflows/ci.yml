@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hent koden
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Node-versionen laeses af "engines" i package.json - samme felt som
       # Railpack bruger til at vaelge Node paa Railway. Ét tal, to forbrugere,
