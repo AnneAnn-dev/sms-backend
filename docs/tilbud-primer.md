@@ -99,13 +99,19 @@ Den beskrivelse er ikke længere gældende.
 
 ## Claude-proxy (3 AI-kald) — besluttet
 
-> ⚠️ **UAFKLARET 28/8 — læs før du bygger.** Dette afsnit siger **ét generisk
-> endpoint**. Risikoregistrets **S6** besluttede 20/8 **tre endpoints**
-> (`/api/tilbud/referat`, `/api/tilbud/udtraek`, `/api/tilbud/tilbudslinjer`).
-> De to dokumenter er ikke afstemt. Byg ikke proxyen, før Ann har valgt — og ret
-> så dette afsnit, så der kun står ét svar. Alt andet i afsnittet gælder uanset valg.
+**Rettet 28/8.** Primeren sagde tidligere "ét generisk endpoint" og modsagde dermed
+risikoregistrets **S6** (20/8). Ann har bekræftet **tre endpoints**; afsnittet er
+rettet, så der kun står ét svar.
 
-- **Ét generisk endpoint** bærer alle tre kald (referatudkast, tilbudsudkast, notefoto).
+- **Tre navngivne endpoints**, ét pr. AI-kald — `/api/tilbud/referat` ·
+  `/api/tilbud/udtraek` · `/api/tilbud/tilbudslinjer`. Til Fase 1 bygges kun den
+  første; de to øvrige hører til Fase 2.
+  **Hvorfor tre og ikke ét:** hvert kald får sit eget loft og sin egen linje i Ø2's
+  forbrugslog — med ét endpoint kan et dyrt og et billigt kald ikke skilles ad,
+  hverken i kvoten eller i regnskabet. Og det er ruten selv, ikke noget klienten
+  sender, der afgør hvilken prompt der bruges. Filstruktur:
+  `server/prompts/{referat,udtraek,tilbudslinjer}.js` bygger prompten pr. endpoint,
+  `server/routes/tilbud-ai.js` eksponerer dem.
 - **JSON-body-limit hæves bevidst og bounded på netop denne rute** (Express-default
   er 100 kb — base64-billeder sprænger den).
 - **Gate på `billing_status`** som `/opkald` — opsagte firmaer brænder ikke tokens.
