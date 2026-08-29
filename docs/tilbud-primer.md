@@ -6,11 +6,17 @@ Dette dokument er autoritativt for HVAD og HVORFOR. Rækkefølge og opgaver: se 
 
 ## Hvad modulet er
 
-Produktområde nr. 2: mødereferater og tilbud for håndværkere. Fire faner (Kunder,
+Produktområde nr. 2: referater og tilbud for håndværkere. Fire faner (Kunder,
 Referater, Tilbud, Indstillinger) som ny side i den eksisterende PWA. AI-assisteret:
-tale-til-tekst af møder, referatudkast, tilbudsudkast ud fra referat + firmaprofil,
-PDF-eksport. Annes prototype definerer UI og flow; grænsefladen mod backend er de
-10 datafunktioner + 2 stubbe + 3 AI-kald beskrevet i handoffet.
+tale-til-tekst af håndværkerens **egen indtaling**, referatudkast, tilbudsudkast ud
+fra referat + firmaprofil, PDF-eksport. Annes prototype definerer UI og flow;
+grænsefladen mod backend er de 10 datafunktioner + 2 stubbe + 3 AI-kald beskrevet
+i handoffet.
+
+**Referat-fanen er en diktafon, ikke en mødeoptager** (J8, fælles beslutning 19/8).
+"Kundemøde" findes ikke som valgmulighed i UI'et — kun "Noter". Se
+"Samtykke og afgrænsning" nedenfor; afgrænsningen er bindende for både UI, prompts
+og markedsføring.
 
 ## Datamodel — besluttet
 
@@ -45,18 +51,59 @@ filtrere listen og gemme resten, skrives om til eksplicitte delete-kald.
 
 ## Transskription — besluttet
 
-- **Scaleway (EU) frem for OpenAI.** Skal verificeres (whisper-modeller i Scaleways
-  Generative APIs) FØR endpointet designes. Fallback-kandidat: Mistral Voxtral (FR).
-  OpenAI direkte er fravalgt pga. EU-princippet.
+- **Scaleway (EU) frem for OpenAI — VALGT af Ann 28/8.** Fallback-kandidat var
+  Mistral Voxtral (FR); OpenAI direkte er fravalgt pga. EU-princippet.
+  Modellen er `whisper-large-v3` på `POST /v1/audio/transcriptions`.
+  ⚠️ **Valget af leverandør er truffet — verifikationen er ikke gennemført.**
+  Pris, størrelsesgrænser og dansk kvalitet mangler stadig at blive målt.
 - Endpoint modtager multipart-lyd. **Håndtér både webm (Android/Chrome) og mp4
   (iPhone).** Fornuftig størrelsesgrænse. Bearer-auth, firm_id fra token.
+  ⚠️ **Formatfælde, fundet 28/8:** Scaleways audio-API angiver i sin offentlige
+  API-reference `wav, mp3, flac, mpga, oga, ogg` — **hverken webm eller mp4/m4a**,
+  altså præcis det, `MediaRecorder` producerer i PWA'en. Holder det ved kontrol i
+  konsollen, skal der et transkodningstrin (fx ffmpeg på Railway) ind mellem upload
+  og transskription. Det er nyt arbejde, en ny afhængighed, og det ændrer
+  succeskriteriet for Spike 0. **Skal afklares før endpointet designes.**
 - **Lyd gemmes ALDRIG.** Optag → transskribér → smid lydfilen væk. Kun tekst og
   referat består. Det er vores vigtigste GDPR-håndtag (ingen arkiv af
   stemmeoptagelser af tredjeparter).
-- Samtykke: UI-tekst i optageren ("Husk at fortælle mødedeltagerne, at du optager").
-  Lovligt i DK at optage samtaler, man selv deltager i; UI-teksten er god skik.
+
+## Samtykke og afgrænsning — besluttet (J8)
+
+**Rettet 28/8.** Dette afsnit erstatter primerens oprindelige samtykke-linje
+("Husk at fortælle mødedeltagerne, at du optager"), som beskrev en mødeoptager.
+Den beskrivelse er ikke længere gældende.
+
+- **Referat-fanen er afgrænset til egen-diktering** (fælles beslutning 19/8).
+  "Kundemøde" er fjernet som valgmulighed; kun "Noter" er tilbage. Restrisikoen er
+  **misbrug** — at håndværkeren optager et møde alligevel — ikke en manglende
+  samtykkemekanik. Derfor er værnet tekst og ansvarsplacering, ikke en samtykkeskærm.
+- **Tre tekster er release-blokerende for diktafonen.** Godkendt af Anne 26/8;
+  implementering i koden udestår. Ordlyden er den godkendte:
+  1. **Advarsel ved optageknappen:** "Kun dine egne noter. Nævnes andre, er det dit
+     ansvar, at de ved det."
+  2. **Uddybning i onboarding:** "Referat-fanen er til dine egne noter — ikke til at
+     optage kundemøder. Du taler frit ind, og vi laver et referat af det, du selv
+     siger. Nævner du andre i optagelsen, en kollega, en kunde, er det dig, der har
+     ansvaret for at fortælle dem, at du optager."
+  3. **Linje i vilkårene:** "Referat-funktionen ('Noter') er til brugerens egne
+     notater. Nævnes tredjeparter i en optagelse, er det brugerens eget ansvar at
+     oplyse dem om det — Dit Digitale Kontor indhenter ikke samtykke på
+     tredjeparters vegne."
+- **Konsekvens for CLAUDE.md's tilbuds-invariant.** Invarianten siger "tvungen
+  samtykkeskærm i produktet, ikke en linje i vilkårene". Den blev skrevet, da fanen
+  stadig var en mødeoptager. Med tredjeparter udelukket fra optagelse er der ikke
+  længere en tredjepart at indhente samtykke fra — værnet er flyttet fra en skærm
+  til en afgrænsning plus de tre tekster. **Invarianten bør omformuleres, så den
+  ikke læses som et krav, der er sprunget over.** Ikke gjort endnu.
 
 ## Claude-proxy (3 AI-kald) — besluttet
+
+> ⚠️ **UAFKLARET 28/8 — læs før du bygger.** Dette afsnit siger **ét generisk
+> endpoint**. Risikoregistrets **S6** besluttede 20/8 **tre endpoints**
+> (`/api/tilbud/referat`, `/api/tilbud/udtraek`, `/api/tilbud/tilbudslinjer`).
+> De to dokumenter er ikke afstemt. Byg ikke proxyen, før Ann har valgt — og ret
+> så dette afsnit, så der kun står ét svar. Alt andet i afsnittet gælder uanset valg.
 
 - **Ét generisk endpoint** bærer alle tre kald (referatudkast, tilbudsudkast, notefoto).
 - **JSON-body-limit hæves bevidst og bounded på netop denne rute** (Express-default
@@ -71,6 +118,12 @@ filtrere listen og gemme resten, skrives om til eksplicitte delete-kald.
   parset data gemt.
 - **Anthropic (US) er en bevidst accepteret undtagelse fra EU-princippet — indtil videre.**
   DPA-listen i GDPR-punktet opdateres med Anthropic + transskriptionsleverandøren.
+  ⚠️ **Åbent 28/8 (J9): hvilken model skriver selve referatet?** Transskriptionen er
+  afgjort (Scaleway), men referat-genereringen er et selvstændigt valg. Scaleways
+  Generative APIs hoster også sprogmodeller i EU, så begge trin *kan* ligge samme
+  sted — det ville fjerne US-undtagelsen og efterlade én DPA i stedet for to.
+  Prisen er, at referatkvaliteten på dansk med en open-weight model er umålt.
+  **Valget afgøres af regressionssættet (D14), ikke af et skøn.**
 
 ## Tilbud & frysning — besluttet
 
