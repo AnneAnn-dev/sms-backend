@@ -21,7 +21,7 @@
 // praecis den faelde D16/AA2 handler om, blot i en ny service):
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   SCW_SECRET_KEY, SCW_PROJECT_ID, SMTP_FROM     (mail.js's egne krav)
-//   ADMIN_EMAIL                                    (ellers falder mail.js tilbage til SMTP_FROM)
+//   ADMIN_EMAIL                                    (kraeves nu eksplicit, se nedenfor)
 //   APPSIGNAL_APP_ENV=production                   (ellers blokerer mail.js's egen staging-gate, se mail.js)
 //
 // Valgfrit (fornuftige standarder, ingen Railway-opsaetning kraevet for at starte):
@@ -35,14 +35,52 @@
 // sikrere end en tavs, og en koeletid er en senere finpudsning, ikke en
 // forudsaetning for at goere gavn. Bliver det for meget: saet cronnens
 // interval op, eller byg en koeletid i en senere opgave.
+//
+// AENDRET 4/9-26: miljoetjekket udvidet fra to til seks variabler plus ét
+// vaerditjek. Foer tjekkede scriptet kun Supabase-adgangen, altsaa evnen til
+// at OPDAGE stilhed -- ikke evnen til at SIGE DET. Manglede en mailvariabel,
+// eller stod APPSIGNAL_APP_ENV forkert, koerte servicen groent i ugevis og
+// tav foerst den dag, den skulle raabe. En doedmandsknap uden fungerende
+// mailvej er farligere end ingen doedmandsknap: den giver falsk tryghed.
+// Fail-closed ved opstart er derfor det rigtige moenster her (Aa3).
 // -----------------------------------------------------------------------------
 
 require("dotenv").config({ quiet: true });
 const { createClient } = require("@supabase/supabase-js");
 const { sendAdminAlert } = require("./mail");
 
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
-  if (!process.env[k]) { console.error(`Mangler ${k} i miljoeet.`); process.exit(1); }
+// ─── Miljoetjek: fail-closed paa hele kaeden, ikke kun paa laesningen ────────
+// Rapporterer ALLE manglende variabler paa én gang. Den gamle loekke stoppede
+// ved den foerste, saa man rettede én, startede igen, og fandt den naeste --
+// tre genstarter for tre manglende navne.
+const KRAEVEDE = [
+  "SUPABASE_URL",             // laesning: at kunne se stilheden
+  "SUPABASE_SERVICE_ROLE_KEY", //   (bemaerk S8 -- endnu et sted noeglen bor)
+  "SCW_SECRET_KEY",           // mail.js: at kunne sige det
+  "SCW_PROJECT_ID",           // mail.js
+  "SMTP_FROM",                // mail.js
+  "ADMIN_EMAIL",              // mail.js falder ellers stille tilbage til
+                              // SMTP_FROM. For en alarm er "den gik nok det
+                              // rigtige sted hen" ikke godt nok -- modtageren
+                              // skal vaere valgt, ikke arvet.
+];
+
+const manglende = KRAEVEDE.filter((k) => !process.env[k]);
+if (manglende.length) {
+  console.error(`Mangler i miljoeet: ${manglende.join(", ")}`);
+  process.exit(1);
+}
+
+// Vaerditjek, ikke bare tilstedevaerelse. mail.js har sin egen staging-gate:
+// enhver anden vaerdi end "production" faar den til at BLOKERE alarmmailen og
+// returnere { blocked: true }. Det er ikke en manglende variabel -- det er en
+// forkert, og den ville glide lige igennem et rent tilstedevaerelses-tjek.
+if (process.env.APPSIGNAL_APP_ENV !== "production") {
+  console.error(
+    `APPSIGNAL_APP_ENV er "${process.env.APPSIGNAL_APP_ENV || "(ikke sat)"}" -- skal vaere "production", ` +
+    `ellers blokerer mail.js alarmmailen tavst. Se mail.js' staging-gate.`
+  );
+  process.exit(1);
 }
 
 const DOEDMANDS_TIMER  = Number(process.env.DOEDMANDS_TIMER  || 4);

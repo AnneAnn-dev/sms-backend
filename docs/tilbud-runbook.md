@@ -9,6 +9,44 @@ flerfilsopgaver, `/clear` mellem opgaver, `/usage` efter hver opgave de første 
 Pilot-support må afbryde modularbejdet — men i faste vinduer (morgen + sen
 eftermiddag), ikke løbende. Ægte brande undtaget.
 
+## Fase-opdeling (D36, besluttet 23/8, præciseret 28/8)
+
+Tilbudsmodulets tynde skive er delt i tre selvstændige faser — ikke kun en
+byggerækkefølge. **Gate'erne (Ø2, S6, J8, J9) flyttes ikke af faseopdelingen:**
+en fase kan først frigives, når dens egne gates er lukket, uanset hvor langt
+Trin-nummereringen nedenfor er nået.
+
+**Fase 1 — Diktafon/referat.** Selvstændig pilotudgivelse, uden tilbud eller
+faktura bagved. To veje ind: indtaling → transskription → referat, og
+(besluttet 28/8) foto af håndskreven note → referat, med samme JSON-facit begge
+veje (se primerens "Håndskrevne noter"). Kun `/api/tilbud/referat` og
+`/api/tilbud/notefoto` skal være bygget. **Gates for Fase 1:** Ø2 (kvoter —
+arkitektur besluttet 28/8, ikke implementeret) · S6 (proxy — arkitektur
+besluttet, ikke implementeret) · J8 (samtykke — tre tekster godkendt af Anne
+26/8, ikke lagt ind i koden) · J9 (transskriptionsmodel afgjort: Scaleway;
+referat-/vision-model afgøres af D14's regressionssæt). **Ingen af de fire er
+lukket endnu.** ⚠️ D36's oprindelige krav om et forventningsbrev til
+pilotkunden (fordi Fase 1 kun dækker halvdelen af P7's oprindelige
+efterspørgsel) er **bevidst droppet af Ann 28/8** — den mundtlige afdækning ved
+næste kontakt er valgt i stedet.
+
+**Fase 2 — Tilbud.** Udtræk af kunde/opgave fra indtalt tekst → tilbudsforslag
+→ kladde → godkendelse → kundeaccept. `/api/tilbud/udtraek` og
+`/api/tilbud/tilbudslinjer` hører her. Tilbuds-rykkeren (aktiv påmindelse mod
+kunden, jf. D22) er en del af denne fase; dens konkrete udformning er ikke
+fastlagt.
+
+**Fase 3 — Faktura.** D22's fulde flow (se primerens "Faktura"-afsnit), inkl.
+betalings-rykkerprocedure. Ikke begyndt.
+
+⚠️ **Ikke reconcilieret med Trin 0-6 nedenfor:** Trin-nummereringen i resten af
+denne fil blev skrevet, før faseopdelingen fandtes, og er ikke skrevet om til
+at følge den. Løst sagt dækker Trin 2-3 det meste af Fase 1's diktafonvej
+(fotovejen står slet ikke i noget Trin endnu), Trin 4 er en del af Fase 2, og
+Faktura (Fase 3) har intet Trin overhovedet. Det er ikke rettet her — det
+kræver en beslutning om, hvorvidt Trin-listen skal skrives om, eller om de to
+inddelinger bare skal leve side om side. Flagget, ikke løst.
+
 ## Repo- og navnestruktur (besluttet 31/7)
 
 **Ét repo.** Tilbudsmodulet bor i SAMME repository som resten af Dit Digitale Kontor.
