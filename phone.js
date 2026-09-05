@@ -82,4 +82,74 @@ function maskerMail(input) {
   return lokal.slice(0, synlige) + "*".repeat(lokal.length - synlige) + domaene;
 }
 
-module.exports = { normalizePhone, maskerTlf, maskerMail };
+// ─── PULJEUDVAELGELSE MED VERIFIKATION HOS TWILIO ──────────────────────────
+// Baggrund (4/9-26): puljen indeholdt to numre, som Twilio ikke ejede. De var
+// frigivet i konsollen (RUNBOOK-numre afsnit 5, trin 2), uden at raekken blev
+// slettet (trin 3). Provisioneringen stolede blindt paa tabellen og tildelte en
+// kunde et DOEDT nummer: ingen webhook, ingen rutning, intet opkald naaede frem.
+// Verifikationsopkaldet i onboarding kunne aldrig lykkes, og intet i loggen sagde
+// fra — nummeret findes jo i vores egen database.
+//
+// PRINCIP: spoerg leverandoeren, stol ikke paa vores egen tabel. Samme laerdom
+// som Frisbii-noeglen samme dag (D39 i registret).
+//
+// Hjaelperne bor HER, fordi phone.js allerede ejer nummer-reglerne og er delt
+// mellem onboarding.js, frisbii-webhook.js og onboarding-link.js. En hjaelper,
+// der ikke kan deles, bliver ikke delt (laerdom 19/8-26).
+// Klienterne sendes ind som argumenter, saa phone.js forbliver afhaengighedsfri.
+
+// Twilios faktiske beholdning som et Set af normaliserede numre.
+// KASTER ved API-fejl — med vilje: kan vi ikke spoerge Twilio, udleverer vi
+// ikke et uverificeret nummer. I webhook-stien betyder det dead-letter og
+// genbehandling ved Frisbiis retry. Samme fail-loud-princip som trial-opslaget.
+async function hentEjedeNumre(twilioClient) {
+  const liste = await twilioClient.incomingPhoneNumbers.list({ limit: 1000 });
+  return new Set(liste.map((n) => normalizePhone(n.phoneNumber)).filter(Boolean));
+}
+
+// Vaelger det foerste ledige puljenummer, som Twilio-kontoen FAKTISK ejer.
+// Returnerer ogsaa de spoegelser, der blev sprunget over, og hvor mange
+// verificerede ledige der var — saa kalderen kan alarmere paa begge dele.
+//
+// SKRIVER INTET. Spoegelsesraekker slettes ikke automatisk: oprydning i prod
+// sker med aabne oejne, jf. RUNBOOK-numre. Vi springer dem over og raaber op.
+//
+// `maxKandidater` er et loft paa, hvor mange raekker vi henter — er alle de
+// foerste 20 spoegelser, er situationen alligevel en alarm og ikke et
+// gennemloeb. Bemaerk at `ledigeVerificeret` derfor er "mindst dette antal",
+// ikke en eksakt total; det er rigeligt til en lav-pulje-graense paa 3.
+async function vaelgLedigtNummer({ supabase, twilioClient, maxKandidater = 20 }) {
+  const nowIso = new Date().toISOString();
+
+  const { data: kandidater, error } = await supabase
+    .from("phone_numbers")
+    .select("id, number")
+    .is("firm_id", null)
+    .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`)
+    .order("number")
+    .limit(maxKandidater);
+  if (error) throw error;
+
+  const ejede = await hentEjedeNumre(twilioClient);
+
+  const spoegelser = [];
+  let valgt = null;
+  for (const k of kandidater || []) {
+    if (ejede.has(normalizePhone(k.number))) {
+      if (!valgt) valgt = k;
+    } else {
+      spoegelser.push(k.number);
+    }
+  }
+  const ledigeVerificeret = (kandidater || []).length - spoegelser.length;
+
+  return { valgt, spoegelser, ledigeVerificeret };
+}
+
+module.exports = {
+  normalizePhone,
+  maskerTlf,
+  maskerMail,
+  hentEjedeNumre,
+  vaelgLedigtNummer,
+};

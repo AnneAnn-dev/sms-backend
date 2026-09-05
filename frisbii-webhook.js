@@ -29,13 +29,24 @@
 // -----------------------------------------------------------------------------
 
 const crypto = require("crypto");
+const twilio = require("twilio");
 const { sendWelcomeMail, sendAdminAlert } = require("./mail");
 const { uniqueSlug } = require("./slug");
-const { maskerTlf, maskerMail } = require("./phone");
+const { maskerTlf, maskerMail, vaelgLedigtNummer } = require("./phone");
 
 const FRISBII_API = "https://api.frisbii.com/v1";
 
 module.exports = (app, supabase) => {
+  // Twilio-klient — bruges KUN til at verificere, at et puljenummer faktisk
+  // findes i kontoen, foer det gives til en kunde (se vaelgLedigtNummer).
+  // Konstrueres som i onboarding.js: SDK'en formvaliderer SID'en her, saa en
+  // formugyldig vaerdi crasher ved boot. Det er uaendret adfaerd — onboarding.js
+  // goer allerede praecis det samme, saa appen kan i forvejen ikke starte uden.
+  const twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+
   const PRIVATE_KEY    = process.env.FRISBII_PRIVATE_KEY;    // privat API-noegle
   const WEBHOOK_SECRET = process.env.FRISBII_WEBHOOK_SECRET; // secret fra webhook-indstillingerne
 
@@ -136,7 +147,7 @@ module.exports = (app, supabase) => {
   }
 
   // ─── Er abonnementet i (eller paa vej ind i) en trial-periode? ──────────────
-  // Frisbii/Reepay-subscription-objektet har felterne til det: is_in_trial er
+  // Frisbii/Reepay-subscription-objektet har felterne til det: in_trial er
   // sandt i selve trial-perioden; er abonnementet endnu ikke startet, siger
   // trial_start/trial_end om det FAAR en trial-periode.
   // FAIL-CLOSED: kan sporgsmaalet ikke besvares (manglende felter), svares
@@ -147,7 +158,7 @@ module.exports = (app, supabase) => {
   // Frisbiis retry — vi gaetter aldrig.
   function isTrialSubscription(sub) {
     if (!sub || typeof sub !== "object") return false;
-    if (sub.is_in_trial === true) return true;
+    if (sub.in_trial === true) return true;
     if (sub.trial_end && new Date(sub.trial_end).getTime() > Date.now()) return true;
     return false;
   }
@@ -314,17 +325,31 @@ module.exports = (app, supabase) => {
       return;
     }
 
-    // Find ledigt nummer i puljen (firm_id IS NULL) — og spring numre i
-    // KARANTAENE over (reserveret til evt. vundet-tilbage kunder).
-    const nowIso = new Date().toISOString();
-    const { data: phoneRow, error: phoneErr } = await supabase
-      .from("phone_numbers")
-      .select("id, number")
-      .is("firm_id", null)
-      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`)
-      .limit(1)
-      .single();
-    if (phoneErr || !phoneRow) {
+    // Find ledigt nummer i puljen — KARANTAENE springes over (reserveret til
+    // evt. vundet-tilbage kunder), og nummeret verificeres hos Twilio, foer det
+    // gives til en kunde. Se begrundelsen i phone.js: puljen kan indeholde
+    // "spoegelser" — raekker for numre, der er frigivet hos Twilio uden at
+    // raekken blev slettet. Et spoegelse er et doedt nummer for kunden.
+    // Kan Twilio ikke naas, kaster vaelgLedigtNummer -> dead-letter -> retry.
+    // Vi gaetter aldrig paa, om et nummer findes.
+    const { valgt: phoneRow, spoegelser, ledigeVerificeret } =
+      await vaelgLedigtNummer({ supabase, twilioClient });
+
+    // Spoegelser slettes IKKE herfra — oprydning i prod sker med aabne oejne.
+    // Men de skal ses: uden alarm er det naeste kunde, der opdager dem.
+    if (spoegelser.length) {
+      console.error("👻 Spoegelsesnumre i puljen (findes ikke hos Twilio):", spoegelser.join(", "));
+      await sendAdminAlert({
+        subject: `Spoegelsesnumre i nummerpuljen (${spoegelser.length})`,
+        text:
+          `Disse numre staar som ledige i phone_numbers, men findes ikke i Twilio-kontoen:\n` +
+          `${spoegelser.join("\n")}\n\n` +
+          `De er sprunget over ved tildelingen, saa ingen kunde har faaet et doedt nummer.\n` +
+          `Ryd op: bekraeft med "node afstem-numre.js" og slet derefter raekkerne (RUNBOOK-numre afsnit 5).`,
+      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+    }
+
+    if (!phoneRow) {
       console.error("❌ Ingen ledige numre i puljen!");
       // Kritisk: en betalende kunde kunne ikke faa et nummer.
       await sendAdminAlert({
@@ -332,8 +357,9 @@ module.exports = (app, supabase) => {
         text:
           `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
           `Kunde: ${company} <${email}>\n` +
-          `Frisbii-abonnement: ${subHandle}\n\n` +
-          `Firmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
+          `Frisbii-abonnement: ${subHandle}\n` +
+          (spoegelser.length ? `Bemaerk: ${spoegelser.length} raekke(r) i puljen er spoegelser og taeller ikke med.\n` : ``) +
+          `\nFirmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
       }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
       throw new Error("Ingen ledige numre");
     }
@@ -388,15 +414,14 @@ module.exports = (app, supabase) => {
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
 
-    // Advar hvis puljen er ved at loebe toer (taeller kun REELT ledige numre
-    // — karantaene-numre er ikke tilgaengelige for nye kunder)
+    // Advar hvis puljen er ved at loebe toer. Tallet er nu VERIFICEREDE ledige
+    // numre — karantaene-numre og spoegelser taeller ikke med. Den gamle
+    // optaelling spurgte kun vores egen tabel og sagde 4/9-26 "3 ledige", hvor
+    // det sande tal var 1. En alarm, der overvurderer beholdningen, er verre
+    // end ingen alarm. (-1 fordi det netop tildelte nummer ikke er ledigt mere.)
     const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
-    const { count: ledige } = await supabase
-      .from("phone_numbers")
-      .select("*", { count: "exact", head: true })
-      .is("firm_id", null)
-      .or(`quarantined_until.is.null,quarantined_until.lt.${nowIso}`);
-    if (typeof ledige === "number" && ledige <= LOW_POOL) {
+    const ledige = Math.max(0, ledigeVerificeret - 1);
+    if (ledige <= LOW_POOL) {
       console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
       await sendAdminAlert({
         subject: `Nummerpulje lav: ${ledige} ledige tilbage`,
