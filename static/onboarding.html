@@ -1167,14 +1167,35 @@
     } catch (_) {}
   }
 
+  // Tilstand for verifikationstjekket (side 6). Ligger her, fordi
+  // visibilitychange-lytteren nedenfor skal kunne se den.
+  const verifikation = { aktiv: false, skjultSiden: 0, skjultIAlt: 0 };
+
   // Fanger også dem, der forlader flowet midt i det (eller lægger appen i
   // baggrunden): opholdet sendes som en bid, og uret nulstilles — vender de
   // tilbage, tæller næste bid ovenpå. Summér pr. side i analysen.
-  document.addEventListener('visibilitychange', () => {
+  //
+  // 5/9-26: lytteren har nu et job mere. Under verifikationstjekket ringer
+  // telefonen, opkaldsskaermen tager over, og browseren ryger i baggrunden
+  // praecis i de 28-30 sekunder, hvor det viderestillede ben lander. iOS
+  // fryser timere i skjulte faner, saa pollingen stod stille netop mens
+  // svaret kom. Twilio-loggen 5/9 viste syv komplette opkaldspar og NUL
+  // fejlende opkald — telefonien virkede hver gang, browseren saa det bare
+  // ikke. Derfor: mens siden er skjult, taeller tiden ikke med i budgettet,
+  // og i det oejeblik den kommer frem igen, spoerger vi med det samme.
+  document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'hidden') {
       sendSidevisning(currentScreen, Date.now() - maaling.enteredAt);
       maaling.enteredAt = Date.now();
+      if (verifikation.aktiv) verifikation.skjultSiden = Date.now();
+      return;
     }
+    if (!verifikation.aktiv) return;
+    if (verifikation.skjultSiden) {
+      verifikation.skjultIAlt += Date.now() - verifikation.skjultSiden;
+      verifikation.skjultSiden = 0;
+    }
+    if (await erVerificeret()) verifikationLykkedes();
   });
 
   // ── Navigation med 150 ms crossfade ────────────────────────────────
@@ -1183,6 +1204,16 @@
 
   function showScreen(id) {           // første visning — uden udfasning
     const el = document.getElementById(id);
+    // RETTET 5/9-26: funktionen taendte den nye skaerm uden at slukke den
+    // gamle — kun goTo() ryddede op. Efter kode-login gik vejen
+    // loginMedKode -> startFlow -> showScreen('s-1'), mens 's-expired'
+    // stadig stod med .on, og "Linket er udloebet" blev liggende som et laag
+    // oven paa resten af flowet. Ryd ALLE andre taendte skaerme, ikke kun
+    // currentScreen: den variabel er tom ved foerste kald og kan ikke baere
+    // ansvaret alene.
+    document.querySelectorAll('.screen.on').forEach(s => {
+      if (s !== el) s.classList.remove('on', 'visible');
+    });
     el.classList.add('on');
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
     currentScreen = id;
@@ -1473,6 +1504,12 @@
     status.className = 'status';
     status.textContent = 'Telefonen ringer om få sekunder. Lad den ringe ud.';
 
+    // Er tjekket allerede bestaaet, skal der ikke ringes igen. Uden det her
+    // koster et "Ring igen" efter en falsk fejlbesked et opkald paa noget,
+    // der forlaengst var i orden.
+    verifikation.aktiv = true;
+    if (await erVerificeret()) return verifikationLykkedes();
+
     try {
       const res = await fetch('/onboarding/verificer', {
         method:  'POST',
@@ -1482,6 +1519,7 @@
       if (!res.ok) throw new Error('Opkald fejlede');
       await pollVerification();
     } catch (e) {
+      verifikation.aktiv = false;   // ellers tror visibilitychange stadig, vi venter
       status.className = 'status err';
       status.textContent = 'Opkaldet fejlede. Tjek at viderestillingen er sat op, og prøv igen.';
       btn.disabled = false;
@@ -1490,45 +1528,118 @@
     }
   }
 
-  async function pollVerification(attempts = 0) {
-    // ~70 sek. i alt: telefonen ringer 20-30 sek., før operatøren viderestiller,
-    // så det forwardede opkald når typisk først frem efter 30-40 sek.
-    if (attempts > 28) {
-      const status = document.getElementById('verify-status');
-      status.className = 'status err';
-      status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, tryk Ring igen — og lad den ringe ud.';
-      document.getElementById('verify-btn').disabled = false;
-      document.getElementById('verify-label').textContent = 'Ring igen';
-      document.getElementById('verify-spin').style.display = 'none';
-      return;
-    }
-    await new Promise(r => setTimeout(r, 2500));
+  // Ét opslag. Netvaerksfejl er ikke et nej — det er "ved det ikke endnu".
+  async function erVerificeret() {
     try {
       const res  = await fetch('/api/firma/status', { headers: { Authorization: `Bearer ${state.token}` } });
       const data = await res.json();
-      if (data?.verification_status === 'verified') {
-        const status = document.getElementById('verify-status');
-        status.className = 'status ok';
-        status.textContent = 'Klar.';
-        document.getElementById('verify-spin').style.display = 'none';
-        document.getElementById('verify-label').textContent = '✓';
-        document.getElementById('verify-btn').classList.add('ok');
-        setTimeout(() => goTo('s-7'), 1200);
-        return;
-      }
-    } catch (e) { /* fortsæt polling */ }
-    await pollVerification(attempts + 1);
+      return data?.verification_status === 'verified';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Maa kunne kaldes fra to steder (pollingen og visibilitychange) uden at
+  // koere sit indhold to gange.
+  function verifikationLykkedes() {
+    if (!verifikation.aktiv) return;
+    verifikation.aktiv = false;
+    const status = document.getElementById('verify-status');
+    status.className = 'status ok';
+    status.textContent = 'Klar.';
+    document.getElementById('verify-spin').style.display = 'none';
+    document.getElementById('verify-label').textContent = '✓';
+    document.getElementById('verify-btn').classList.add('ok');
+    setTimeout(() => goTo('s-7'), 1200);
+  }
+
+  // Venter paa ben 2 — det viderestillede opkald, der lander 28-30 sek. efter
+  // ben 1. Budgettet er 70 sekunders SYNLIG tid, ikke 28 forsoeg: den gamle
+  // udgave taalte hverken en fane i baggrunden eller en strubet timer, og
+  // begge dele sker, netop mens telefonen ringer (se visibilitychange).
+  async function pollVerification() {
+    const BUDGET_MS = 70000;    // synlig tid — tid i baggrunden taeller ikke
+    // ... men uret maa ikke staa stille for evigt. Tager kunden telefonen,
+    // kommer ben 2 aldrig, og uden loft ville spinderen koere, saa laenge
+    // hun blev i opkaldet (maalt til ca. 2 min 5/9-26). Ben 2 lander efter
+    // 28-30 sek., saa to minutters ur-tid er rigeligt uanset hvad.
+    const LOFT_MS   = 120000;
+    const start = Date.now();
+    verifikation.aktiv      = true;
+    verifikation.skjultIAlt = 0;
+    verifikation.skjultSiden = document.visibilityState === 'hidden' ? Date.now() : 0;
+
+    while (verifikation.aktiv) {
+      await new Promise(r => setTimeout(r, 2500));
+      if (!verifikation.aktiv) return;               // visibilitychange naaede det foerst
+      if (await erVerificeret()) return verifikationLykkedes();
+
+      const skjultNu = verifikation.skjultSiden ? Date.now() - verifikation.skjultSiden : 0;
+      const synligTid = Date.now() - start - verifikation.skjultIAlt - skjultNu;
+      if (synligTid > BUDGET_MS) break;
+      if (Date.now() - start > LOFT_MS) break;
+    }
+    if (!verifikation.aktiv) return;
+
+    // Ét sidste tjek, foer vi paastaar at det gik galt. 5/9-26 sagde skaermen
+    // "vi naaede ikke igennem" om opkald, Twilio havde gennemfoert korrekt.
+    if (await erVerificeret()) return verifikationLykkedes();
+
+    verifikation.aktiv = false;
+    const status = document.getElementById('verify-status');
+    status.className = 'status err';
+    status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, tryk Ring igen — og lad den ringe ud.';
+    document.getElementById('verify-btn').disabled = false;
+    document.getElementById('verify-label').textContent = 'Ring igen';
+    document.getElementById('verify-spin').style.display = 'none';
   }
 
   // ── Side 8: installer som app ──────────────────────────────────────
   function setupPwa() {
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
+    // Brug den faelles isStandalone() — den egne kopi her spurgte kun
+    // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
+    const standalone = isStandalone();
     if (standalone) {
       // Kører allerede som app — vejledningen er unødig.
       document.getElementById('install-btn').style.display = 'none';
       document.getElementById('install-hint').textContent = 'Du kører allerede Dit Digitale Kontor som app — perfekt.';
+    } else if (erIndbyggetBrowser()) {
+      // Vejledningen kan ikke gennemfoeres her: Del-menuen i den indbyggede
+      // browser har ingen "Foej til hjemmeskaerm". Peg paa vejen ud i stedet.
+      // Kompasset er verificeret i SFSafariViewController 5/9-26.
+      document.getElementById('install-btn').style.display = 'none';
+      document.getElementById('install-hint').textContent =
+        'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.';
+    } else if (!erIOSSafari() && erIOS()) {
+      // Chrome/Edge/Firefox paa iOS: vejledningens trin passer ikke, og
+      // resultatet ville uanset hvad blive et genvejsikon uden push.
+      //
+      // En webside kan IKKE aabne Safari — kompasset i den indbyggede
+      // browser er iOS' egen knap, ikke noget vi tegner. Det naermeste er at
+      // laegge adressen i udklipsholderen, saa kunden kun skal skifte app og
+      // indsaette. Knappen genbruges frem for at tilfoeje markup.
+      //
+      // Sessionen foelger ikke med: Safari har sin egen lagring, saa kunden
+      // lander paa "Linket er udloebet" og skal ind ad kodesporet. Det SKAL
+      // teksten sige — ellers er det bare den naeste overraskelse.
+      const btn = document.getElementById('install-btn');
+      btn.textContent = 'Kopiér adressen';
+      btn.onclick = () => kopierAdresse(btn);
+      document.getElementById('install-hint').textContent =
+        'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.';
+    }
+  }
+
+  // Udklipsholderen kraever et brugertryk og https — begge dele har vi her.
+  // Fejler den (aeldre browser, afvist tilladelse), siger knappen hvad
+  // kunden selv kan goere. Den maa aldrig bare staa doed.
+  async function kopierAdresse(btn) {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      btn.textContent = 'Kopieret ✓';
+      btn.classList.add('ok');
+    } catch (e) {
+      btn.textContent = 'Kopiér adressen fra adressefeltet';
     }
   }
 
@@ -1732,11 +1843,66 @@
   }
 
   // ── Hjælpere ───────────────────────────────────────────────────────
-  // Kører siden som installeret hjemmeskærms-app? (iOS' egen flag +
-  // standard-medieforespørgslen som backup for Android/andre.)
+  // Kører siden som installeret hjemmeskærms-app?
+  //
+  // MAALT 5/9-26 paa iPhone (iOS 18.7 / Safari 26.6.1): aabner kunden
+  // mail-linket inde i Simply Mail, henter iOS siden i en
+  // SFSafariViewController — den indbyggede browser med et X i venstre
+  // hjoerne og et kompas nederst til hoejre. Derinde returnerer
+  // navigator.standalone SAND, selv om der hverken er app eller
+  // hjemmeskaerms-ikon. Det var kilden til beskeden "Du koerer allerede
+  // Dit Digitale Kontor som app", uanset hvor mange gange appen blev
+  // slettet. display-mode svarede korrekt FALSK i samme maaling.
+  //
+  // Derfor: display-mode er grundsignalet paa ALLE platforme, og paa iOS
+  // skal navigator.standalone bekraefte det. En aegte hjemmeskaerms-app
+  // giver begge; den indbyggede browser giver kun flaget; en almindelig
+  // Safari-fane giver ingen af dem.
+  //
+  // Prisen: paa iOS under 17 (ingen display-mode-stoette) svarer en aegte
+  // app FALSK, og kunden ser en installationsvejledning, hun ikke behoever.
+  // Det er den harmloese fejlretning — den modsatte spaerrer for at
+  // installere overhovedet.
+  function erIOS() {
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/i.test(ua) ||
+           (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad paa iPadOS
+  }
+  function visesSomApp() {
+    return !!(window.matchMedia &&
+              window.matchMedia('(display-mode: standalone)').matches);
+  }
   function isStandalone() {
-    return window.navigator.standalone === true ||
-      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (erIOS()) return visesSomApp() && window.navigator.standalone === true;
+    return visesSomApp();
+  }
+  // Den indbyggede browser i en anden app (Simply Mail, Gmail, LinkedIn …).
+  // Praecis det moenster, der narrede os: flaget sat, medieforespoergslen
+  // ikke. Her findes "Foej til hjemmeskaerm" IKKE i Del-menuen — kunden skal
+  // foerst over i Safari, ellers kan hun ikke installere appen.
+  function erIndbyggetBrowser() {
+    return erIOS() && window.navigator.standalone === true && !visesSomApp();
+  }
+  // Er vi i Safari paa iOS — den ENESTE browser, der kan laegge en aegte PWA
+  // paa hjemmeskaermen?
+  //
+  // EFTERPROEVET 5/9-26 paa iPhone: "Foej til hjemmeskaerm" fra Chrome giver
+  // et GENVEJSIKON, ikke en standalone-app. Dermed heller ingen egen lagring
+  // og ingen web-push — og push er hele lead-notifikationen, altsaa det
+  // kunden betaler for. En Chrome-vejledning ville foere haandvaerkeren
+  // gennem fem skaerme hen til et ikon, der ikke kan det, appen skal.
+  // Derfor sendes de til Safari i stedet.
+  //
+  // 5/9-26: startInstall() forgrenede paa STYRESYSTEM (isIOS ? ios : android).
+  // Men vejledningen beskriver en BROWSER: Safari har Del-ikonet nederst i
+  // •••-menuen, Chrome har det oeverst i adressefeltet. Alle iOS-browsere fik
+  // Safari-vejledningen — den passede kun i Safari.
+  function erIOSSafari() {
+    if (!erIOS()) return false;
+    const ua = navigator.userAgent || '';
+    // Chrome, Firefox, Edge, Opera, Yandex, DuckDuckGo paa iOS saetter hver
+    // deres egen markoer; Safari saetter ingen af dem.
+    return !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(ua);
   }
   function formatDK(e164) {
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
