@@ -1536,19 +1536,6 @@
       document.getElementById('install-hint').textContent =
         'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.';
     }
-    // MIDLERTIDIG DIAGNOSE 5/9-26 — FJERNES IGEN.
-    // Beskeden ovenfor dukkede op paa en iPhone uden installeret app. Vi ved
-    // ikke hvilket af de to signaler der fyrer, saa skaermen skal selv sige
-    // det. Vises kun naar noget ser standalone ud; ellers ser kunden intet.
-    const ns = window.navigator.standalone;
-    const mm = visesSomApp();
-    if (standalone || ns === true || mm) {
-      const d = document.createElement('p');
-      d.className = 'hint';
-      d.style.cssText = 'font-size:11px;opacity:.7;word-break:break-all;text-align:left';
-      d.textContent = `DIAG ns=${String(ns)} mm=${mm} std=${standalone} ios=${erIOS()} | ${navigator.userAgent}`;
-      document.getElementById('s-8').appendChild(d);
-    }
   }
 
   // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
