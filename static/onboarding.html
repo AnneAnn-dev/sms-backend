@@ -1522,21 +1522,26 @@
 
   // ── Side 8: installer som app ──────────────────────────────────────
   function setupPwa() {
-    // Brug den faelles isStandalone() — den egne kopi her spurgte display-mode
-    // paa iOS og gav falsk positiv i mail-apps' indbyggede browser (5/9-26).
+    // Brug den faelles isStandalone() — den egne kopi her spurgte kun
+    // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
     const standalone = isStandalone();
     if (standalone) {
       // Kører allerede som app — vejledningen er unødig.
       document.getElementById('install-btn').style.display = 'none';
       document.getElementById('install-hint').textContent = 'Du kører allerede Dit Digitale Kontor som app — perfekt.';
+    } else if (erIndbyggetBrowser()) {
+      // Vejledningen kan ikke gennemfoeres her: Del-menuen i den indbyggede
+      // browser har ingen "Foej til hjemmeskaerm". Peg paa vejen ud i stedet.
+      document.getElementById('install-btn').style.display = 'none';
+      document.getElementById('install-hint').textContent =
+        'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.';
     }
     // MIDLERTIDIG DIAGNOSE 5/9-26 — FJERNES IGEN.
     // Beskeden ovenfor dukkede op paa en iPhone uden installeret app. Vi ved
     // ikke hvilket af de to signaler der fyrer, saa skaermen skal selv sige
     // det. Vises kun naar noget ser standalone ud; ellers ser kunden intet.
     const ns = window.navigator.standalone;
-    const mm = !!(window.matchMedia &&
-                  window.matchMedia('(display-mode: standalone)').matches);
+    const mm = visesSomApp();
     if (standalone || ns === true || mm) {
       const d = document.createElement('p');
       d.className = 'hint';
@@ -1748,26 +1753,43 @@
   // ── Hjælpere ───────────────────────────────────────────────────────
   // Kører siden som installeret hjemmeskærms-app?
   //
-  // RETTET 5/9-26: den gamle udgave spurgte OGSÅ display-mode paa iOS, og
-  // det giver falsk positiv. Aabner kunden mail-linket inde i en app (Gmail,
-  // Outlook, Messenger, LinkedIn), henter iOS siden i en WKWebView uden
-  // browser-UI — og den rapporterer '(display-mode: standalone)' som sand,
-  // selv om der hverken er app eller hjemmeskaerms-ikon. Resultatet var
-  // beskeden "Du koerer allerede Dit Digitale Kontor som app" til folk der
-  // ikke gjorde, uanset hvor mange gange de slettede appen.
+  // MAALT 5/9-26 paa iPhone (iOS 18.7 / Safari 26.6.1): aabner kunden
+  // mail-linket inde i Simply Mail, henter iOS siden i en
+  // SFSafariViewController — den indbyggede browser med et X i venstre
+  // hjoerne og et kompas nederst til hoejre. Derinde returnerer
+  // navigator.standalone SAND, selv om der hverken er app eller
+  // hjemmeskaerms-ikon. Det var kilden til beskeden "Du koerer allerede
+  // Dit Digitale Kontor som app", uanset hvor mange gange appen blev
+  // slettet. display-mode svarede korrekt FALSK i samme maaling.
   //
-  // Paa iOS er navigator.standalone det ENESTE paalidelige signal: den er
-  // kun sand i en aegte hjemmeskaerms-app og udefineret i WKWebView.
-  // Andre platforme har ikke flaget og bruger medieforespoergslen.
+  // Derfor: display-mode er grundsignalet paa ALLE platforme, og paa iOS
+  // skal navigator.standalone bekraefte det. En aegte hjemmeskaerms-app
+  // giver begge; den indbyggede browser giver kun flaget; en almindelig
+  // Safari-fane giver ingen af dem.
+  //
+  // Prisen: paa iOS under 17 (ingen display-mode-stoette) svarer en aegte
+  // app FALSK, og kunden ser en installationsvejledning, hun ikke behoever.
+  // Det er den harmloese fejlretning — den modsatte spaerrer for at
+  // installere overhovedet.
   function erIOS() {
     const ua = navigator.userAgent || '';
     return /iPhone|iPad|iPod/i.test(ua) ||
            (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad paa iPadOS
   }
-  function isStandalone() {
-    if (erIOS()) return window.navigator.standalone === true;
+  function visesSomApp() {
     return !!(window.matchMedia &&
               window.matchMedia('(display-mode: standalone)').matches);
+  }
+  function isStandalone() {
+    if (erIOS()) return visesSomApp() && window.navigator.standalone === true;
+    return visesSomApp();
+  }
+  // Den indbyggede browser i en anden app (Simply Mail, Gmail, LinkedIn …).
+  // Praecis det moenster, der narrede os: flaget sat, medieforespoergslen
+  // ikke. Her findes "Foej til hjemmeskaerm" IKKE i Del-menuen — kunden skal
+  // foerst over i Safari, ellers kan hun ikke installere appen.
+  function erIndbyggetBrowser() {
+    return erIOS() && window.navigator.standalone === true && !visesSomApp();
   }
   function formatDK(e164) {
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
