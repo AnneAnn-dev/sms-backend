@@ -1558,7 +1558,12 @@
   // udgave taalte hverken en fane i baggrunden eller en strubet timer, og
   // begge dele sker, netop mens telefonen ringer (se visibilitychange).
   async function pollVerification() {
-    const BUDGET_MS = 70000;
+    const BUDGET_MS = 70000;    // synlig tid — tid i baggrunden taeller ikke
+    // ... men uret maa ikke staa stille for evigt. Tager kunden telefonen,
+    // kommer ben 2 aldrig, og uden loft ville spinderen koere, saa laenge
+    // hun blev i opkaldet (maalt til ca. 2 min 5/9-26). Ben 2 lander efter
+    // 28-30 sek., saa to minutters ur-tid er rigeligt uanset hvad.
+    const LOFT_MS   = 120000;
     const start = Date.now();
     verifikation.aktiv      = true;
     verifikation.skjultIAlt = 0;
@@ -1572,6 +1577,7 @@
       const skjultNu = verifikation.skjultSiden ? Date.now() - verifikation.skjultSiden : 0;
       const synligTid = Date.now() - start - verifikation.skjultIAlt - skjultNu;
       if (synligTid > BUDGET_MS) break;
+      if (Date.now() - start > LOFT_MS) break;
     }
     if (!verifikation.aktiv) return;
 
@@ -1878,10 +1884,14 @@
     return erIOS() && window.navigator.standalone === true && !visesSomApp();
   }
   // Er vi i Safari paa iOS — den ENESTE browser, der kan laegge en aegte PWA
-  // paa hjemmeskaermen? Chrome, Edge og Firefox paa iOS laver et genvejsikon,
-  // og web-push (hele lead-notifikationen) kraever en app installeret fra
-  // Safari. Derfor sendes de videre til Safari i stedet for at faa en
-  // vejledning, der ender i noget ringere.
+  // paa hjemmeskaermen?
+  //
+  // EFTERPROEVET 5/9-26 paa iPhone: "Foej til hjemmeskaerm" fra Chrome giver
+  // et GENVEJSIKON, ikke en standalone-app. Dermed heller ingen egen lagring
+  // og ingen web-push — og push er hele lead-notifikationen, altsaa det
+  // kunden betaler for. En Chrome-vejledning ville foere haandvaerkeren
+  // gennem fem skaerme hen til et ikon, der ikke kan det, appen skal.
+  // Derfor sendes de til Safari i stedet.
   //
   // 5/9-26: startInstall() forgrenede paa STYRESYSTEM (isIOS ? ios : android).
   // Men vejledningen beskriver en BROWSER: Safari har Del-ikonet nederst i
