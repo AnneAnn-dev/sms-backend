@@ -316,6 +316,17 @@ module.exports = (app, supabase) => {
     const email     = customer.email?.toLowerCase().trim();
     const firstName = customer.first_name || "";
     const lastName  = customer.last_name  || "";
+    // ⚠️ D33: `company` er IKKE obligatorisk paa Frisbiis hostede
+    // betalingsside — og det er den side, kunderne faktisk gaar igennem
+    // (bekraeftet 6/9-26). Valideringen i /checkout/start naas derfor aldrig
+    // af en rigtig kunde. Fallbacken nedenfor er altsaa ikke et kanttilfaelde,
+    // men en vej, der ligger aaben hver dag.
+    //
+    // Naar den bruges, kommer firmaet til at hedde PERSONEN. Og navnet er ikke
+    // bare en kolonne: det bliver firms.name, sluggen i SMS-linket,
+    // velkomstmailen og greeting_text — som praerenderes til lyd. Haandvaerkerens
+    // telefonsvarer siger da hans eget navn i stedet for firmaets.
+    const firmanavnMangler = !(customer.company || "").trim();
     const company   = customer.company || `${firstName} ${lastName}`.trim() || email;
 
     // ─── Haandvaerkerens EGET mobilnummer (ikke DDK-nummeret) ────────────────
@@ -439,6 +450,41 @@ module.exports = (app, supabase) => {
       .from("phone_numbers")
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
+
+    // ─── D33: firmanavnet manglede — sig det, i stedet for at substituere tavst ──
+    // Alarmen forhindrer ikke den forkerte provisionering; den goer den SYNLIG.
+    // Det afgoerende er vinduet: greeting_text saettes her, men lyden renderes
+    // foerst, naar kunden gemmer sin besked i onboardingen (side 3). Naar
+    // alarmen frem inden da, koster rettelsen ingenting. Opdages det bagefter,
+    // kraever den en ny TTS-rendering.
+    //
+    // Fejler mailen, maa det aldrig vaelte en provisionering, der ellers
+    // lykkedes — derfor .catch(), som ved de oevrige alarmer.
+    if (firmanavnMangler) {
+      console.warn("⚠️  Firmanavn manglede ved tilmelding — firma opkaldt efter personen:", firm.id, company);
+      await sendAdminAlert({
+        subject: `Firmanavn mangler — firma ${firm.id} hedder nu "${company}"`,
+        text:
+          `En kunde er tilmeldt UDEN firmanavn. Feltet er ikke obligatorisk paa\n` +
+          `Frisbiis hostede betalingsside, og den gaar uden om /checkout/start.\n\n` +
+          `Firma-id:   ${firm.id}\n` +
+          `Navn nu:    ${company}   <-- personens navn, ikke firmaets\n` +
+          `Slug:       ${slug}\n` +
+          `E-mail:     ${maskerMail(email)}\n` +
+          `Frisbii:    ${customer.handle} / ${subHandle}\n\n` +
+          `HVAD DER ER FORKERT NU:\n` +
+          `  firms.name, sluggen i SMS-linket, velkomstmailen (allerede sendt)\n` +
+          `  og greeting_text — den tekst, telefonsvareren laeser op.\n\n` +
+          `TIDSVINDUE — vigtigt:\n` +
+          `  Lyden er IKKE renderet endnu. Den renderes foerst, naar kunden\n` +
+          `  gemmer sin besked paa side 3 i onboardingen. Retter du navnet og\n` +
+          `  greeting_text inden da, koster det ingenting. Bagefter kraever det\n` +
+          `  en ny TTS-rendering.\n\n` +
+          `SLUGGEN kan ogsaa aendres nu — der er endnu ikke sendt en eneste SMS\n` +
+          `med linket. Senere ville det braekke links, der allerede er ude.\n\n` +
+          `Se D33 i risikoregistret.`,
+      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm om manglende firmanavn:", e.message));
+    }
 
     // Advar hvis puljen er ved at loebe toer. Tallet er nu VERIFICEREDE ledige
     // numre — karantaene-numre og spoegelser taeller ikke med. Den gamle
