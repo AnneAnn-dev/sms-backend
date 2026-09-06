@@ -1083,6 +1083,7 @@
       titel: 'Velkommen',
       tekst: 'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.',
       knap:  'Send mig en kode',
+      glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
       kodeord: true,
     },
@@ -1094,22 +1095,47 @@
       titel: 'Log ind her',
       tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
       knap:  'Send mig en kode',
+      glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
       kodeord: true,
     },
     // P7: login VIRKEDE — kontoen kunne ikke findes. Det er ikke et
     // link-problem, og det maa ikke se ud som ét.
+    //
+    // 6/9-26: skaermen var en blindgyde. Uden adgangskodefelt kunne man ikke
+    // proeve igen — og den mest sandsynlige aarsag er netop, at e-mailen er
+    // skrevet forkert, saa den naturlige udvej ER at proeve med den rigtige.
+    // Teksten peger nu paa det, der plejer at vaere galt, i stedet for at
+    // sende kunden ud ad mailvejen efter en konto, der maaske findes.
     kontoMangler: {
       titel: 'Vi mangler din konto',
-      tekst: 'Dit login virkede, men vi kunne ikke finde en konto på det. Skriv din e-mail, så sender vi et nyt link.',
+      tekst: 'Dit login virkede, men der er ingen konto på den e-mail. Tjek at den er skrevet rigtigt, og prøv igen.',
       knap:  'Send nyt link',
+      glemt: 'Har du glemt din adgangskode? Få et nyt link',
       koderSpor: false,
-      kodeord: false,
+      kodeord: true,
     },
   };
 
-  // Er kunden kommet hertil for at LAEGGE APPEN PAA TELEFONEN? Saettes af
-  // init() ud fra ?trin=app i adressen (se appAdresse og kopierAdresse).
+  // Er kunden kommet hertil for at LAEGGE APPEN PAA TELEFONEN?
+  //
+  // Maerket ?trin=app lever kun i adressen, og adressen overlever ikke en
+  // omvej. Bestiller kunden en mail fra adgangsskaermen og trykker paa
+  // LINKET i den, lander hun paa /onboarding?token_hash=… uden maerke — ny
+  // sideindlaesning, hensigten vaek, og hun ryger i dashboardet uden app.
+  // (Koden i mailen har ikke problemet: der bliver hun paa siden.)
+  // Derfor huskes hensigten lokalt, saa den taaler en sideindlaesning i
+  // samme browser. Fundet 6/9-26.
+  //
+  // Den ryddes, saa snart guiden er vist — et flag, der bliver liggende,
+  // ville sende kunden til installationsvejledningen en anden dag, hvor hun
+  // ikke bad om det. localStorage kan kaste i privat tilstand; alt er
+  // pakket ind, og fejler det, opfoerer flowet sig som foer.
+  const INSTALL_FLAG = 'ddk-vil-installere';
+  function saetInstallationshensigt() { try { localStorage.setItem(INSTALL_FLAG, '1'); } catch (_) {} }
+  function harInstallationshensigt() { try { return localStorage.getItem(INSTALL_FLAG) === '1'; } catch (_) { return false; } }
+  function rydInstallationshensigt() { try { localStorage.removeItem(INSTALL_FLAG); } catch (_) {} }
+
   let vilInstallere = false;
 
   let adgangsTilstand = 'udloebet';
@@ -1134,6 +1160,7 @@
     // Én handling ad gangen. Har kunden en adgangskode, er DEN vejen ind, og
     // mailvejen ligger som et diskret link nedenunder. Ellers som foer.
     const medKodeord = !!t.kodeord;
+    setText('ob-glemt', t.glemt || 'Har du glemt din adgangskode?');
     vis('ob-pw-row',     medKodeord);
     vis('ob-glemt',      medKodeord);
     vis('relink-btn',    !medKodeord);
@@ -1182,7 +1209,11 @@
       //
       // Koerer vi allerede som app, er installationen jo overstaaet — saa
       // ignoreres maerket, ellers ville appen sende kunden i ring.
-      vilInstallere = params.get('trin') === 'app' && !isStandalone();
+      if (params.get('trin') === 'app') saetInstallationshensigt();
+      // Koerer vi som app, ER installationen overstaaet: ryd flaget, ellers
+      // ville appen sende kunden i ring gennem sin egen installationsguide.
+      if (isStandalone()) rydInstallationshensigt();
+      vilInstallere = harInstallationshensigt() && !isStandalone();
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1304,6 +1335,7 @@
   // den ville s-8 vise "Naeste" til en kunde i den indbyggede browser, hvor
   // vejledningen ikke kan gennemfoeres.
   function visInstallationsguiden() {
+    rydInstallationshensigt();   // hensigten er indfriet i det oejeblik, guiden staar der
     showScreen('s-8');
     setupPwa();
   }
@@ -1941,10 +1973,15 @@
     status.textContent = '';
 
     try {
+      // Er kunden midt i installationsrejsen, skal LINKET i mailen baere
+      // maerket med. Ellers lander hun i dashboardet, naar hun trykker paa
+      // det — og netop link-vejen er den, hun tager, hvis mailen aabnes i
+      // mail-appen. Serveren hvidlister vaerdien; vi sender den kun, naar
+      // den er sand her.
       await fetch('/onboarding/nyt-link', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email }),
+        body:    JSON.stringify(vilInstallere ? { email, trin: 'app' } : { email }),
       });
     } catch (e) { /* samme svar uanset — se nedenfor */ }
 

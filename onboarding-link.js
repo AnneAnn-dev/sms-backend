@@ -43,7 +43,12 @@ module.exports = (app, supabase) => {
   }
 
   // ─── Byg et prefetch-sikkert login-link (token_hash, ikke action_link) ──────
-  async function buildMagicLink(email) {
+  //
+  // `trin` er valgfri og HVIDLISTET af kalderen til den ene kendte vaerdi,
+  // foer den naar hertil. Vi bygger en URL, der lander i en kundes indbakke;
+  // et frit felt fra klienten maa aldrig kunne skrive i den. Hvidlistning er
+  // den rigtige form for validering her — ikke escaping af noget vilkaarligt.
+  async function buildMagicLink(email, trin) {
     const { data, error } = await supabase.auth.admin.generateLink({
       type:    "magiclink",
       email,
@@ -57,8 +62,15 @@ module.exports = (app, supabase) => {
     // Begge er engangsbrug — bruges den ene, doer den anden. Det er fint.
     const otpCode   = data?.properties?.email_otp || null;
     if (!tokenHash) throw new Error("generateLink gav intet hashed_token");
+    // ?trin=app fortaeller /onboarding, at kunden er midt i at laegge appen
+    // paa telefonen. Uden det lander hun i dashboardet efter et link-login,
+    // fordi firmaet er `active` efter verifikationen — og saa er
+    // installationsguiden uopnaaelig (fundet 6/9-26). Koden i mailen har
+    // ikke problemet, for der bliver kunden paa siden; det er LINKET, der
+    // taber hensigten, og derfor skal maerket med her.
+    const trinDel = trin ? `&trin=${encodeURIComponent(trin)}` : "";
     return {
-      url: `${BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`,
+      url: `${BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email${trinDel}`,
       otpCode,
     };
   }
@@ -66,6 +78,11 @@ module.exports = (app, supabase) => {
   // ─── Endpoint ────────────────────────────────────────────────────────────────
   app.post("/onboarding/nyt-link", async (req, res) => {
     const email = (req.body?.email || "").toLowerCase().trim();
+
+    // Kun ÉN kendt vaerdi accepteres. Alt andet — ogsaa noget der ligner —
+    // bliver til null og ignoreres. Feltet kommer fra klienten og ender i en
+    // URL i en kundes indbakke.
+    const trin = req.body?.trin === "app" ? "app" : null;
 
     // Svar ALTID 200 med samme generiske besked — vi roeber aldrig om en email
     // er kunde eller ej (beskytter mod email-enumeration). Selve afsendelsen
@@ -126,7 +143,7 @@ module.exports = (app, supabase) => {
       }
 
       if (firm) {
-        const { url: loginUrl, otpCode } = await buildMagicLink(email);
+        const { url: loginUrl, otpCode } = await buildMagicLink(email, trin);
         const mailResult = await sendLoginLinkMail({ to: email, loginUrl, otpCode });
         if (mailResult?.blocked) {
           console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
