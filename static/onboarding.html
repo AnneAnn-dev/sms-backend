@@ -1131,10 +1131,47 @@
   // ville sende kunden til installationsvejledningen en anden dag, hvor hun
   // ikke bad om det. localStorage kan kaste i privat tilstand; alt er
   // pakket ind, og fejler det, opfoerer flowet sig som foer.
+  // ── To spoergsmaal om det samme, med hver sin taerskel ──────────────
+  // `isStandalone()` er STRENG (`mm && ns` paa iOS), fordi den bruges til at
+  // PAASTAA noget: "du koerer allerede som app". En falsk positiv dér er en
+  // loegn til kunden — det var fejlen 5/9.
+  //
+  // Her er spoergsmaalet et andet: skal vi sende hende ind i en
+  // installationsvejledning? Dér vender omkostningerne om. En falsk positiv
+  // koster en manglende paamindelse. En falsk negativ sender en kunde, der
+  // ALLEREDE har appen, gennem installationsguiden — hver gang hun aabner
+  // den. Det ramte Anne 6/9-26: hendes telefon er en aegte installeret app,
+  // men `display-mode: standalone` svarer falsk, og `navigator.standalone`
+  // svarer sandt.
+  //
+  // Derfor den EFTERGIVENDE form her. Prisen er kendt og valgt: i
+  // mail-appens indbyggede browser svarer flaget ogsaa sandt, saa dér
+  // omdirigerer vi ikke laengere. Vejledningen kan alligevel ikke
+  // gennemfoeres derinde — den siger kun "tryk paa kompasset" — og et tabt
+  // hint paa en sjaelden genindgang vejer mindre end en daglig faelde for
+  // enhver, der har appen.
+  function maaskeApp() {
+    return isStandalone() || navigator.standalone === true;
+  }
+
   const INSTALL_FLAG = 'ddk-vil-installere';
-  function saetInstallationshensigt() { try { localStorage.setItem(INSTALL_FLAG, '1'); } catch (_) {} }
-  function harInstallationshensigt() { try { return localStorage.getItem(INSTALL_FLAG) === '1'; } catch (_) { return false; } }
+  // Hensigten skal overleve en tur gennem indbakken eller et browserskift —
+  // altsaa minutter, ikke dage. Uden en levetid kan et flag, der af en eller
+  // anden grund ikke bliver ryddet, sende kunden til installationsguiden i
+  // ugevis. Gemmer tidsstemplet frem for '1'.
+  const INSTALL_LEVETID_MS = 30 * 60 * 1000;
+  function saetInstallationshensigt() { try { localStorage.setItem(INSTALL_FLAG, String(Date.now())); } catch (_) {} }
   function rydInstallationshensigt() { try { localStorage.removeItem(INSTALL_FLAG); } catch (_) {} }
+  function harInstallationshensigt() {
+    try {
+      const v = localStorage.getItem(INSTALL_FLAG);
+      if (!v) return false;
+      // '1' er den gamle form uden tidsstempel; behandles som udloebet.
+      const t = Number(v);
+      if (!(t > 0) || Date.now() - t > INSTALL_LEVETID_MS) { rydInstallationshensigt(); return false; }
+      return true;
+    } catch (_) { return false; }
+  }
 
   let vilInstallere = false;
 
@@ -1209,11 +1246,15 @@
       //
       // Koerer vi allerede som app, er installationen jo overstaaet — saa
       // ignoreres maerket, ellers ville appen sende kunden i ring.
+      // ⚠️ Maerket kan vaere BAGT IND i hjemmeskaermsikonet. iOS gemmer den
+      // adresse, siden stod paa ved installationen, og s-8 havde netop skrevet
+      // ?trin=app i den. Derfor baerer appens start-URL maerket ved HVER
+      // aabning — og uden vaernet nedenfor ville den sende kunden i ring
+      // gennem installationsguiden for en app, hun allerede har. Ramte Anne
+      // 6/9-26, hvor `display-mode: standalone` svarer falsk i en aegte app.
       if (params.get('trin') === 'app') saetInstallationshensigt();
-      // Koerer vi som app, ER installationen overstaaet: ryd flaget, ellers
-      // ville appen sende kunden i ring gennem sin egen installationsguide.
-      if (isStandalone()) rydInstallationshensigt();
-      vilInstallere = harInstallationshensigt() && !isStandalone();
+      if (maaskeApp()) rydInstallationshensigt();
+      vilInstallere = harInstallationshensigt() && !maaskeApp();
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1345,6 +1386,11 @@
   function visInstallationsguiden() {
     showScreen('s-8');
     setupPwa();
+    // Hensigten er brugt i det oejeblik, den har sendt kunden hertil. Uden
+    // det her ville setupPwa lige have sat den igen, og saa ville hver
+    // aabning ende samme sted. Har hun brug for guiden senere, kommer hun
+    // hertil gennem flowet — ikke gennem et flag, der aldrig slukkes.
+    rydInstallationshensigt();
   }
 
   // Faelles sti efter et vellykket login paa adgangsskaermen — engangskode
@@ -1847,6 +1893,18 @@
     document.getElementById('verify-spin').style.display = 'none';
   }
 
+  // Hvor mange sider er installationsguiden? iOS har ét trin mere end
+  // Android: "pil ned" (s-9c), som folder den udvidede liste ud, hvor "Foej
+  // til hjemmeskaerm" gemmer sig. Android springer den over (videreFraTrin2).
+  //
+  // Tallet staar to steder — i teksten paa s-8 og i trin-taelleren — og de maa
+  // ikke kunne drive fra hinanden. Derfor hentes det samme sted begge gange.
+  // Det er samme laerdom som D29: to kilder til det samme tal ender med at
+  // sige hver sit.
+  function antalInstallationstrin() {
+    return erIOS() ? 5 : 4;
+  }
+
   // ── Side 8: installer som app ──────────────────────────────────────
   // Linjen under knappen er som regel en lille bemaerkning ("det tager ca.
   // 10 sekunder"). Men i den indbyggede browser BAERER den hele handlingen —
@@ -1863,7 +1921,15 @@
   function setupPwa() {
     // Nulstil foerst, saa funktionen kan koeres igen uden at baere en
     // tidligere grens stoerrelse med over.
-    saetInstallHint('Det tager ca. 10 sekunder.', false);
+    // Annes forslag 6/9-26: sig hvad der venter, foer kunden trykker Naeste.
+    // Hun aabnede appen og landede midt i en guide uden at vide, hvor lang
+    // den var. Tallet kommer fra antalInstallationstrin(), ikke fra en
+    // haandskrevet firer — paa hendes egen iPhone er svaret fem.
+    //
+    // Erstatter "Det tager ca. 10 sekunder", som lovede noget andet: et loefte
+    // om ti sekunder og en opfordring til at laese fem sider igennem kan ikke
+    // staa paa samme skaerm.
+    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', false);
 
     // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
     // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
@@ -1879,8 +1945,8 @@
     // Safari deler hverken session eller localStorage med den indbyggede
     // browser. ADRESSEN er det eneste, der kan baere hensigten over. Derfor
     // skrives maerket ind her, hver gang skaermen vises.
-    if (isStandalone()) {
-      rydInstallationshensigt();          // appen ER installeret; rejsen er slut
+    if (maaskeApp()) {
+      rydInstallationshensigt();          // appen er der (eller vi er i en kontekst, hvor guiden ikke kan gennemfoeres)
     } else {
       saetInstallationshensigt();
       try {
@@ -1959,9 +2025,9 @@
 
   // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
   function startInstall(btn) {
-    const ua    = navigator.userAgent || '';
-    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
-                  (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad på iPadOS
+    // Samme praedikat som erIOS() stod her i en egen kopi. To steder med den
+    // samme regel er én for meget — nu er der én.
+    const isIOS = erIOS();
     installVariant = isIOS ? 'ios' : 'android';
     // Bagud-pilen fra trin 4 (s-10): iOS kommer via "pil ned"-trinnet
     // (s-9c), Android via de tre prikker direkte (s-9b).
@@ -1970,11 +2036,12 @@
     // -> pil ned -> Foej til hjemmeskaerm -> Tilfoej), Android har 4
     // (springer "Del" og "pil ned" over, jf. videreFraTrin2).
     const GUIDE_TITEL = 'Læg appen på din telefon';
-    document.getElementById('inst1-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 1 af 5' : ' · Trin 1 af 4');
-    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 2 af 5' : ' · Trin 2 af 4');
-    document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin 3 af 5';
-    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 4 af 5' : ' · Trin 3 af 4');
-    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 5 af 5' : ' · Trin 4 af 4');
+    const AF = ' af ' + antalInstallationstrin();   // samme kilde som teksten paa s-8
+    document.getElementById('inst1-step').textContent  = GUIDE_TITEL + ' · Trin 1' + AF;
+    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + ' · Trin 2' + AF;
+    document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin 3' + AF;   // kun iOS
+    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 4' : ' · Trin 3') + AF;
+    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 5' : ' · Trin 4') + AF;
     // Trin 1 (20/7 + 26/7): HVOR skal man kigge — og på iOS med det samme
     // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
     // Anns test viste at kigge-trinnet alene ikke gav nok information).
