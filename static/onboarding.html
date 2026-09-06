@@ -1188,34 +1188,6 @@
     eye.textContent = skjult ? 'Skjul' : 'Vis';
   }
 
-  // ── MIDLERTIDIG DIAGNOSE (6/9-26) ──────────────────────────────────
-  // Aktiveres KUN med ?diag=1 i adressen; uden den sker der intet.
-  //
-  // Hvorfor den findes: installationsrejsen endte i dashboardet, og to
-  // hypoteser i traek ramte ved siden af. Samme sted stod vi 5/9, hvor tre
-  // runder gaet gik med isStandalone — og en midlertidig DIAG-linje paa
-  // skaermen afgjorde sagen paa ét forsoeg. Det er billigere at se
-  // vaerdierne end at raesonnere om dem.
-  //
-  // FJERNES sammen med proev-app-start.js, foer prod-toget koerer.
-  const DIAG = new URLSearchParams(location.search).get('diag') === '1';
-  function diag(navn, vaerdi) {
-    if (!DIAG) return;
-    try {
-      let boks = document.getElementById('diag-boks');
-      if (!boks) {
-        boks = document.createElement('pre');
-        boks.id = 'diag-boks';
-        boks.style.cssText =
-          'position:fixed;left:0;right:0;top:0;z-index:9999;margin:0;padding:10px 12px;' +
-          'background:#16232F;color:#8FE3B0;font:12px/1.5 ui-monospace,Menlo,monospace;' +
-          'white-space:pre-wrap;max-height:60vh;overflow:auto';
-        document.body.appendChild(boks);
-      }
-      boks.textContent += navn.padEnd(22) + String(vaerdi) + '\n';
-    } catch (_) {}
-  }
-
   // ── Init ───────────────────────────────────────────────────────────
   // Rettelse efter "usynligt nummer"-fejlen: et token_hash i URL'en vinder
   // ALTID over en gammel session i localStorage. Ellers logges man ind som
@@ -1242,12 +1214,6 @@
       // ville appen sende kunden i ring gennem sin egen installationsguide.
       if (isStandalone()) rydInstallationshensigt();
       vilInstallere = harInstallationshensigt() && !isStandalone();
-
-      diag('adresse', location.pathname + (location.search || ''));
-      diag('trin i adressen', params.get('trin'));
-      diag('flag i localStorage', harInstallationshensigt());
-      diag('isStandalone()', isStandalone());
-      diag('vilInstallere', vilInstallere);
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1279,8 +1245,6 @@
       //    som supabase-js selv parser ved load — tjek én gang til.
       if (!session) session = (await db.auth.getSession()).data.session;
 
-      diag('session fundet', session?.access_token ? 'ja' : 'nej');
-
       if (!session?.access_token) {
         if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
           // Lokal udvikling uden session: demoværdier, så UI'et kan testes.
@@ -1311,7 +1275,6 @@
         const tilstand = tokenHash        ? 'udloebet'
                        : isStandalone()   ? 'appFoersteAabning'
                        :                    'safari';
-        diag('BESLUTNING', 'adgangsskaerm -> ' + tilstand);
         return visAdgangsskaerm(tilstand);
       }
 
@@ -1324,17 +1287,11 @@
         // P7: her VIRKEDE linket — det var kontoen, der manglede. Overskriften
         // "Linket er udloebet" var faktuelt forkert og sendte kunden efter en
         // loesning paa noget, der ikke var i stykker.
-        diag('BESLUTNING', 'adgangsskaerm -> kontoMangler');
         return visAdgangsskaerm('kontoMangler');
       }
 
-      diag('firma', data.firm.name || '(uden navn)');
-      diag('firm.status', data.firm.status);
-
       // Allerede onboardet? Så hører man til i dashboardet.
       if (data.firm.status === 'active' && !vilInstallere) {
-        diag('BESLUTNING', 'dashboard (active, ingen hensigt)');
-        if (DIAG) return;   // med ?diag=1 bliver vi staaende, saa linjerne kan laeses
         window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
         return;
       }
@@ -1345,11 +1302,7 @@
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
       state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
-      if (vilInstallere && data.firm.status === 'active') {
-        diag('BESLUTNING', 'installationsguiden (s-8)');
-        return visInstallationsguiden();
-      }
-      diag('BESLUTNING', 'onboarding fra s-1');
+      if (vilInstallere && data.firm.status === 'active') return visInstallationsguiden();
       startFlow();
     } catch (e) {
       console.warn('Init fejlede:', e);
@@ -1420,23 +1373,12 @@
     // Maerket omdirigerer KUN dashboard-viderestillingen. Er firmaet ikke
     // `active`, er onboardingen ikke faerdig, og saa maa ?trin=app i adressen
     // aldrig kunne springe resten af flowet over.
-    diag('efter login: status', mig.firm.status);
-    diag('efter login: hensigt', vilInstallere);
-    if (mig.firm.status === 'active') {
-      const hvad = vilInstallere ? 'installer' : 'dashboard';
-      diag('BESLUTNING', 'efter login -> ' + hvad);
-      return hvad;
-    }
-    diag('BESLUTNING', 'efter login -> onboarding');
+    if (mig.firm.status === 'active') return vilInstallere ? 'installer' : 'dashboard';
     return 'onboarding';
   }
 
   function udfoerEfterLogin(hvad) {
-    if (hvad === 'dashboard') {
-      if (DIAG) return;   // bliv staaende, saa diagnosen kan laeses
-      window.location.replace('/dashboard#nyt-login');
-      return;
-    }
+    if (hvad === 'dashboard') { window.location.replace('/dashboard#nyt-login'); return; }
     if (hvad === 'installer') { visInstallationsguiden(); return; }
     startFlow();
   }
@@ -1943,7 +1885,7 @@
       saetInstallationshensigt();
       try {
         if (!/[?&]trin=app(&|$)/.test(location.search)) {
-          history.replaceState(null, '', location.pathname + '?trin=app' + (DIAG ? '&diag=1' : ''));
+          history.replaceState(null, '', location.pathname + '?trin=app');
         }
       } catch (_) {}
     }
