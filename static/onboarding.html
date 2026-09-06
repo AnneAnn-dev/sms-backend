@@ -661,7 +661,7 @@
       <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
       <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
-      <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
+      <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
     </section>
 
     <!-- ── SIDE 9: INSTALLATION 1/4 — KIG NED + TRYK PÅ PRIKKER ──
@@ -1390,7 +1390,6 @@
   // den ville s-8 vise "Naeste" til en kunde i den indbyggede browser, hvor
   // vejledningen ikke kan gennemfoeres.
   function visInstallationsguiden() {
-    rydInstallationshensigt();   // hensigten er indfriet i det oejeblik, guiden staar der
     showScreen('s-8');
     setupPwa();
   }
@@ -1923,6 +1922,31 @@
     // Nulstil foerst, saa funktionen kan koeres igen uden at baere en
     // tidligere grens stoerrelse med over.
     saetInstallHint('Det tager ca. 10 sekunder.', false);
+
+    // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
+    // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
+    // ikke noget, vi skal udlede af, hvordan hun kom hertil.
+    //
+    // Rodaarsagen bag "jeg lander i dashboardet" (6/9-26): paa den NORMALE
+    // rejse — velkomstmail -> onboarding -> s-8 -> kompas — har maerket
+    // aldrig vaeret i adressen. Velkomstmailen bygges af frisbii-webhook.js
+    // og baerer intet maerke, og "Kopiér adressen"-knappen, der ellers satte
+    // det, vises ikke i mail-appens browser. Dér er kompasset eneste vej ud,
+    // og det aabner praecis den adresse, der staar i linjen, i Safari.
+    //
+    // Safari deler hverken session eller localStorage med den indbyggede
+    // browser. ADRESSEN er det eneste, der kan baere hensigten over. Derfor
+    // skrives maerket ind her, hver gang skaermen vises.
+    if (isStandalone()) {
+      rydInstallationshensigt();          // appen ER installeret; rejsen er slut
+    } else {
+      saetInstallationshensigt();
+      try {
+        if (!/[?&]trin=app(&|$)/.test(location.search)) {
+          history.replaceState(null, '', location.pathname + '?trin=app' + (DIAG ? '&diag=1' : ''));
+        }
+      } catch (_) {}
+    }
     // Brug den faelles isStandalone() — den egne kopi her spurgte kun
     // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
     const standalone = isStandalone();
@@ -1936,7 +1960,7 @@
       // Kompasset er verificeret i SFSafariViewController 5/9-26.
       document.getElementById('install-btn').style.display = 'none';
       saetInstallHint(
-        'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.',
+        'Først, tryk på kompasset nederst til højre for at åbne siden i Safari.',
         true);   // baerer handlingen: samme stoerrelse som teksten over
     } else if (!erIOSSafari() && erIOS()) {
       // Chrome/Edge/Firefox paa iOS: vejledningens trin passer ikke, og
@@ -1957,6 +1981,15 @@
         'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.',
         false);   // knappen baerer handlingen her, saa teksten forbliver en bemaerkning
     }
+  }
+
+  // "Aabn i browseren" er kundens maade at sige "jeg installerer ikke nu".
+  // Uden at rydde hensigten ville hun blive ved med at lande paa
+  // installationstrinnet, hver gang hun loggede ind — et flag, der aldrig
+  // slukkes, er lige saa forkert som et, der slukkes for tidligt.
+  function aabnIBrowseren() {
+    rydInstallationshensigt();
+    location.href = '/dashboard';
   }
 
   // Udklipsholderen kraever et brugertryk og https — begge dele har vi her.
