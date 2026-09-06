@@ -1222,7 +1222,16 @@
         if (!error && data?.session) {
           session = data.session;
           viaLoginLink = true;
-          history.replaceState(null, '', location.pathname);
+          // Tokenet er forbrugt og skal ud af adressen — men IKKE maerket.
+          // Kompasset i den indbyggede browser aabner praecis den adresse,
+          // der staar i linjen, over i Safari. Blev maerket strippet her,
+          // mistede Safari hensigten, og kunden landede i dashboardet uden
+          // app. Flaget i localStorage redder det ikke: den indbyggede
+          // browser og Safari har hver sin lagring — det er den samme
+          // delt-lager-faelde, kodesporet findes for at loese.
+          // Maerket baerer ingen hemmelighed, saa det maa gerne blive staaende.
+          // Fundet 6/9-26 paa iPhone.
+          history.replaceState(null, '', location.pathname + (vilInstallere ? '?trin=app' : ''));
         } else if (error) {
           // Linket er brugt/udløbet — fald tilbage til en evt. eksisterende session.
           console.warn('verifyOtp fejlede:', error.message);
@@ -1841,21 +1850,37 @@
   }
 
   // ── Side 8: installer som app ──────────────────────────────────────
+  // Linjen under knappen er som regel en lille bemaerkning ("det tager ca.
+  // 10 sekunder"). Men i den indbyggede browser BAERER den hele handlingen —
+  // knappen er skjult, og teksten er det eneste, kunden kan gaa efter. Saa
+  // skal den ogsaa fylde som en besked og ikke som en fodnote (Anns
+  // observation 6/9-26). `sub` er samme stoerrelse som teksten over den.
+  function saetInstallHint(tekst, somBesked) {
+    const el = document.getElementById('install-hint');
+    if (!el) return;
+    el.className   = somBesked ? 'sub' : 'hint';
+    el.textContent = tekst;
+  }
+
   function setupPwa() {
+    // Nulstil foerst, saa funktionen kan koeres igen uden at baere en
+    // tidligere grens stoerrelse med over.
+    saetInstallHint('Det tager ca. 10 sekunder.', false);
     // Brug den faelles isStandalone() — den egne kopi her spurgte kun
     // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
     const standalone = isStandalone();
     if (standalone) {
       // Kører allerede som app — vejledningen er unødig.
       document.getElementById('install-btn').style.display = 'none';
-      document.getElementById('install-hint').textContent = 'Du kører allerede Dit Digitale Kontor som app — perfekt.';
+      saetInstallHint('Du kører allerede Dit Digitale Kontor som app — perfekt.', false);
     } else if (erIndbyggetBrowser()) {
       // Vejledningen kan ikke gennemfoeres her: Del-menuen i den indbyggede
       // browser har ingen "Foej til hjemmeskaerm". Peg paa vejen ud i stedet.
       // Kompasset er verificeret i SFSafariViewController 5/9-26.
       document.getElementById('install-btn').style.display = 'none';
-      document.getElementById('install-hint').textContent =
-        'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.';
+      saetInstallHint(
+        'Åbn siden i Safari først — tryk på kompasset nederst til højre. Så kan du lægge Dit Digitale Kontor på hjemmeskærmen.',
+        true);   // baerer handlingen: samme stoerrelse som teksten over
     } else if (!erIOSSafari() && erIOS()) {
       // Chrome/Edge/Firefox paa iOS: vejledningens trin passer ikke, og
       // resultatet ville uanset hvad blive et genvejsikon uden push.
@@ -1871,8 +1896,9 @@
       const btn = document.getElementById('install-btn');
       btn.textContent = 'Kopiér adressen';
       btn.onclick = () => kopierAdresse(btn);
-      document.getElementById('install-hint').textContent =
-        'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.';
+      saetInstallHint(
+        'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.',
+        false);   // knappen baerer handlingen her, saa teksten forbliver en bemaerkning
     }
   }
 
