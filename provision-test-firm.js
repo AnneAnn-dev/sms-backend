@@ -188,7 +188,11 @@ async function main() {
   requireEnv(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
 
   const name = args.name;
-  const email = args.email;
+  // Normaliseres ved indgangen (5/9-26). Blev foer indsat ordret i
+  // firms.email, og `/onboarding/nyt-link` slaar op med `.eq()` paa en
+  // lowercased vaerdi — ét stort bogstav i --email gjorde derfor
+  // login-redningsvejen tavst virkningsloes for det firma.
+  const email = (args.email || '').toLowerCase().trim();
   const phone = args.phone;
   const voice = (args.voice || 'female').toLowerCase();
   const specificNumber = typeof args.number === 'string' ? args.number : undefined;

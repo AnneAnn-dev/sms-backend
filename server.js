@@ -91,6 +91,7 @@ require("./frisbii-checkout")(app);
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
 
+
 // ─── Push-abonnementer: badge/notifikation med appen lukket (D34) ──────────
 // Registrerer POST /api/push/subscribe + /api/push/unsubscribe. Selve
 // afsendelsen (sendNytLeadPush) kaldes fra POST /formular/:token nedenfor.

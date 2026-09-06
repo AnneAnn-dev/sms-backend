@@ -468,6 +468,26 @@
         <input id="relink-email" type="email" autocomplete="email" placeholder="din@mail.dk"
                onkeydown="if(event.key==='Enter')requestNewLink()">
       </div>
+      <!-- Adgangskode-vejen (6/9-26, Anns fund under telefonrunden).
+           Bruges skaermen MIDT i onboardingen — kunden er kommet over i
+           Safari, eller aabner den installerede app foerste gang — saa HAR
+           hun allerede en adgangskode: den blev sat paa side 2. At sende
+           hende ud ad mailvejen er en omvej paa op til ti minutter (D47)
+           efter noget, hun kan i forvejen.
+           Samme moenster som dashboardets login: kodeord foerst, mailvejen
+           som den lysere redningsvej nedenunder. Skjult paa de tilstande,
+           hvor koden maaske aldrig er sat (udloebet, kontoMangler). -->
+      <div id="ob-pw-row" style="display:none;width:100%">
+        <div class="field">
+          <input id="ob-pw" type="password" autocomplete="current-password"
+                 placeholder="Din adgangskode" aria-label="Din adgangskode"
+                 onkeydown="if(event.key==='Enter')loginMedKodeord()">
+          <button class="toggle-eye" type="button" onclick="togglePwLogin()" id="ob-pw-eye">Vis</button>
+        </div>
+        <button class="btn" id="ob-pw-btn" onclick="loginMedKodeord()">
+          <span id="ob-pw-label">Log ind</span><span class="spinner" id="ob-pw-spin"></span>
+        </button>
+      </div>
       <button class="btn" id="relink-btn" onclick="requestNewLink()">
         <span id="relink-label">Send nyt link</span><span class="spinner" id="relink-spin"></span>
       </button>
@@ -486,6 +506,7 @@
         </button>
       </div>
       <p class="status" id="relink-status"></p>
+      <button class="linklike" id="ob-glemt" style="display:none" onclick="visMailvejen()">Jeg har glemt min adgangskode</button>
       <button class="linklike" id="ob-otp-toggle" onclick="visKodefelt(true)">Har du allerede en engangskode fra mailen?</button>
     </section>
 
@@ -640,7 +661,7 @@
       <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
       <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
       <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
-      <button class="linklike ghost" onclick="location.href='/dashboard'">Åbn i browseren</button>
+      <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
     </section>
 
     <!-- ── SIDE 9: INSTALLATION 1/4 — KIG NED + TRYK PÅ PRIKKER ──
@@ -1028,6 +1049,145 @@
   const SUPABASE_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+  // ── Adgangsskaermen (s-expired): fire situationer, ét sted ─────────
+  // P7 + D48 (5/9-26). Skaermen er den samme markup i fire tilstande, og
+  // hver tilstand skal sige det samme i ALLE TRE elementer — overskrift,
+  // broedtekst og knap. Da de blev sat hver for sig, faldt knappen tilbage
+  // paa "Send nyt link", mens teksten lovede en kode, og kunden ventede paa
+  // en mail, ingen havde bestilt (fundet 5/8). Tabellen fjerner den
+  // fejlmulighed frem for at lappe den: der er ingen vej til at saette to ud
+  // af tre.
+  //
+  // koderSpor: skal kvitteringen tale om en KODE (kunden kan ikke bruge
+  // linket — appen og Safari deler ikke lagring) eller om en MAIL med begge
+  // dele? Det afgoer ordlyden i requestNewLink().
+  //
+  // kodeord: har kunden med sikkerhed en adgangskode paa dette sted i
+  // rejsen? Kun de tilstande, der ligger EFTER side 2, hvor koden saettes.
+  // Paa `udloebet` kan man vaere naaet frem uden nogensinde at have sat en —
+  // fx hvis velkomstlinket doede, foer hun kom i gang — og der skal
+  // kodesporet blive ved med at vaere det primaere.
+  const ADGANGSTEKSTER = {
+    // Kunden klikkede et link, og verifyOtp sagde nej. Engangsbrug: linket,
+    // der lukkede ham ind foerste gang, er doedt bagefter.
+    udloebet: {
+      titel: 'Linket er udløbet',
+      tekst: 'Skriv din e-mail, så sender vi et nyt med det samme.',
+      knap:  'Send nyt link',
+      koderSpor: false,
+      kodeord: false,
+    },
+    // Ikonets allerfoerste aabning. Der er ingen session her, fordi den
+    // installerede app har sin egen lagring — ikke fordi noget er gaaet galt.
+    appFoersteAabning: {
+      titel: 'Velkommen',
+      tekst: 'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.',
+      knap:  'Send mig en kode',
+      glemt: 'Har du glemt din adgangskode? Få en kode på mail',
+      koderSpor: true,
+      kodeord: true,
+    },
+    // D48: kunden fulgte produktets EGEN anvisning — kopiér adressen, aabn
+    // den i Safari — og blev mødt af "Linket er udloebet". Teknisk korrekt,
+    // men det er ikke det, der skete, og skaermen bebrejdede ham noget, han
+    // ikke havde gjort.
+    safari: {
+      titel: 'Log ind her',
+      tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
+      knap:  'Send mig en kode',
+      glemt: 'Har du glemt din adgangskode? Få en kode på mail',
+      koderSpor: true,
+      kodeord: true,
+    },
+    // P7: login VIRKEDE — kontoen kunne ikke findes. Det er ikke et
+    // link-problem, og det maa ikke se ud som ét.
+    //
+    // 6/9-26: skaermen var en blindgyde. Uden adgangskodefelt kunne man ikke
+    // proeve igen — og den mest sandsynlige aarsag er netop, at e-mailen er
+    // skrevet forkert, saa den naturlige udvej ER at proeve med den rigtige.
+    // Teksten peger nu paa det, der plejer at vaere galt, i stedet for at
+    // sende kunden ud ad mailvejen efter en konto, der maaske findes.
+    kontoMangler: {
+      titel: 'Vi mangler din konto',
+      tekst: 'Dit login virkede, men der er ingen konto på den e-mail. Tjek at den er skrevet rigtigt, og prøv igen.',
+      knap:  'Send nyt link',
+      glemt: 'Har du glemt din adgangskode? Få et nyt link',
+      koderSpor: false,
+      kodeord: true,
+    },
+  };
+
+  // Er kunden kommet hertil for at LAEGGE APPEN PAA TELEFONEN?
+  //
+  // Maerket ?trin=app lever kun i adressen, og adressen overlever ikke en
+  // omvej. Bestiller kunden en mail fra adgangsskaermen og trykker paa
+  // LINKET i den, lander hun paa /onboarding?token_hash=… uden maerke — ny
+  // sideindlaesning, hensigten vaek, og hun ryger i dashboardet uden app.
+  // (Koden i mailen har ikke problemet: der bliver hun paa siden.)
+  // Derfor huskes hensigten lokalt, saa den taaler en sideindlaesning i
+  // samme browser. Fundet 6/9-26.
+  //
+  // Den ryddes, saa snart guiden er vist — et flag, der bliver liggende,
+  // ville sende kunden til installationsvejledningen en anden dag, hvor hun
+  // ikke bad om det. localStorage kan kaste i privat tilstand; alt er
+  // pakket ind, og fejler det, opfoerer flowet sig som foer.
+  const INSTALL_FLAG = 'ddk-vil-installere';
+  function saetInstallationshensigt() { try { localStorage.setItem(INSTALL_FLAG, '1'); } catch (_) {} }
+  function harInstallationshensigt() { try { return localStorage.getItem(INSTALL_FLAG) === '1'; } catch (_) { return false; } }
+  function rydInstallationshensigt() { try { localStorage.removeItem(INSTALL_FLAG); } catch (_) {} }
+
+  let vilInstallere = false;
+
+  let adgangsTilstand = 'udloebet';
+
+  // Saetter alle tre tekster og viser skaermen. Roerer ALDRIG statuslinjen —
+  // den baerer svaret paa kundens sidste handling og maa ikke ryddes af en
+  // tilstandsopdatering (loginMedKode saetter en fejl DER, umiddelbart efter
+  // et kald hertil).
+  // Samme vaern som setText: et manglende element maa aldrig vaelte flowet.
+  function vis(id, synlig) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = synlig ? '' : 'none';
+  }
+
+  function visAdgangsskaerm(tilstand) {
+    adgangsTilstand = ADGANGSTEKSTER[tilstand] ? tilstand : 'udloebet';
+    const t = ADGANGSTEKSTER[adgangsTilstand];
+    setText('expired-title', t.titel);
+    setText('expired-msg',   t.tekst);
+    setText('relink-label',  t.knap);
+
+    // Én handling ad gangen. Har kunden en adgangskode, er DEN vejen ind, og
+    // mailvejen ligger som et diskret link nedenunder. Ellers som foer.
+    const medKodeord = !!t.kodeord;
+    setText('ob-glemt', t.glemt || 'Har du glemt din adgangskode?');
+    vis('ob-pw-row',     medKodeord);
+    vis('ob-glemt',      medKodeord);
+    vis('relink-btn',    !medKodeord);
+    vis('ob-otp-toggle', !medKodeord);
+    showScreen('s-expired');
+  }
+
+  // "Jeg har glemt min adgangskode": skift til mailvejen. Adgangskodefeltet
+  // forsvinder, saa der ikke staar to primaerknapper og konkurrerer.
+  function visMailvejen() {
+    vis('ob-pw-row',     false);
+    vis('ob-glemt',      false);
+    vis('relink-btn',    true);
+    vis('ob-otp-toggle', true);
+    const el = document.getElementById('relink-email');
+    if (el && !el.value.trim()) el.focus();
+  }
+
+  function togglePwLogin() {
+    const input = document.getElementById('ob-pw');
+    const eye   = document.getElementById('ob-pw-eye');
+    if (!input || !eye) return;
+    const skjult = input.type === 'password';   // ikke 'vis' — det navn er funktionen ovenfor
+    input.type  = skjult ? 'text' : 'password';
+    eye.textContent = skjult ? 'Skjul' : 'Vis';
+  }
+
   // ── Init ───────────────────────────────────────────────────────────
   // Rettelse efter "usynligt nummer"-fejlen: et token_hash i URL'en vinder
   // ALTID over en gammel session i localStorage. Ellers logges man ind som
@@ -1038,6 +1198,22 @@
       const params    = new URLSearchParams(location.search);
       const tokenHash = params.get('token_hash');
       const type      = params.get('type') || 'email';
+
+      // ?trin=app: kunden er sendt herover for at laegge appen paa telefonen
+      // (s-8 kopierer den adresse). Uden det maerke er installationsguiden
+      // UOPNAAELIG, saa snart verifikationen er gennemfoert — `active` sender
+      // til /dashboard, og dashboardet har ingen indgang til guiden. Det er
+      // standardvejen, ikke et kanttilfaelde: aabner kunden velkomstmailen i
+      // sin mail-app, gennemfoerer hun onboardingen i den indbyggede browser,
+      // og s-8 beder hende SELV om at skifte til Safari. Fundet 6/9-26.
+      //
+      // Koerer vi allerede som app, er installationen jo overstaaet — saa
+      // ignoreres maerket, ellers ville appen sende kunden i ring.
+      if (params.get('trin') === 'app') saetInstallationshensigt();
+      // Koerer vi som app, ER installationen overstaaet: ryd flaget, ellers
+      // ville appen sende kunden i ring gennem sin egen installationsguide.
+      if (isStandalone()) rydInstallationshensigt();
+      vilInstallere = harInstallationshensigt() && !isStandalone();
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1046,7 +1222,16 @@
         if (!error && data?.session) {
           session = data.session;
           viaLoginLink = true;
-          history.replaceState(null, '', location.pathname);
+          // Tokenet er forbrugt og skal ud af adressen — men IKKE maerket.
+          // Kompasset i den indbyggede browser aabner praecis den adresse,
+          // der staar i linjen, over i Safari. Blev maerket strippet her,
+          // mistede Safari hensigten, og kunden landede i dashboardet uden
+          // app. Flaget i localStorage redder det ikke: den indbyggede
+          // browser og Safari har hver sin lagring — det er den samme
+          // delt-lager-faelde, kodesporet findes for at loese.
+          // Maerket baerer ingen hemmelighed, saa det maa gerne blive staaende.
+          // Fundet 6/9-26 paa iPhone.
+          history.replaceState(null, '', location.pathname + (vilInstallere ? '?trin=app' : ''));
         } else if (error) {
           // Linket er brugt/udløbet — fald tilbage til en evt. eksisterende session.
           console.warn('verifyOtp fejlede:', error.message);
@@ -1074,19 +1259,23 @@
         // session fra magic-linket endnu ikke findes i denne kontekst.
         // "Linket er udløbet" er misvisende her; vis en venlig velkomst i
         // stedet og lad kodesporet være vejen ind (se primeren, 19-20/7).
-        if (!tokenHash && isStandalone()) {
-          // Alle TRE elementer skal sige det samme. Stod knappen tilbage paa
-          // "Send nyt link", mens teksten lovede en kode, ventede brugeren paa
-          // en mail, ingen havde bestilt — hullet fundet 5/8-26. I den
-          // installerede app er linket i oevrigt ubrugeligt: det aabner i
-          // Safari, hvilket er praecis den faelde, kodesporet loeser.
-          velkomstTilstand = true;
-          document.getElementById('expired-title').textContent = 'Velkommen';
-          document.getElementById('expired-msg').textContent =
-            'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.';
-          document.getElementById('relink-label').textContent = 'Send mig en kode';
-        }
-        return showScreen('s-expired');
+        // P7 + D48 (5/9-26): skaermen daekker FIRE situationer, ikke to.
+        // Teksterne blev foer sat i haanden tre forskellige steder, og den
+        // situation, der ikke havde sit eget saet, arvede "Linket er
+        // udloebet" — ogsaa naar kunden aldrig havde roert et link. Nu
+        // vaelges tilstanden ét sted, og ADGANGSTEKSTER holder overskrift,
+        // broedtekst og knap samlet, saa de ikke kan komme til at love hver
+        // sin ting (den fejl kostede allerede en runde 5/8).
+        //
+        //   token i URL'en, men verifyOtp sagde nej -> linket er faktisk doedt
+        //   intet token + koerer som app            -> ikonets foerste aabning
+        //   intet token + koerer i en browser       -> kunden er kommet over i
+        //                                              Safari, praecis som vi
+        //                                              selv bad ham om (D48)
+        const tilstand = tokenHash        ? 'udloebet'
+                       : isStandalone()   ? 'appFoersteAabning'
+                       :                    'safari';
+        return visAdgangsskaerm(tilstand);
       }
 
       state.token = session.access_token;
@@ -1095,13 +1284,14 @@
 
       // Rettelse: intet firma må ALDRIG give et tomt UI — vis en klar besked.
       if (!res.ok || !data?.firm) {
-        document.getElementById('expired-msg').textContent =
-          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
-        return showScreen('s-expired');
+        // P7: her VIRKEDE linket — det var kontoen, der manglede. Overskriften
+        // "Linket er udloebet" var faktuelt forkert og sendte kunden efter en
+        // loesning paa noget, der ikke var i stykker.
+        return visAdgangsskaerm('kontoMangler');
       }
 
       // Allerede onboardet? Så hører man til i dashboardet.
-      if (data.firm.status === 'active') {
+      if (data.firm.status === 'active' && !vilInstallere) {
         window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
         return;
       }
@@ -1112,10 +1302,11 @@
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
       state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
+      if (vilInstallere && data.firm.status === 'active') return visInstallationsguiden();
       startFlow();
     } catch (e) {
       console.warn('Init fejlede:', e);
-      showScreen('s-expired');
+      visAdgangsskaerm('udloebet');
     }
   }
 
@@ -1146,6 +1337,52 @@
     showScreen('s-1');
   }
 
+  // Direkte indgang til installationstrinnet. showScreen frem for goTo,
+  // fordi der ikke er en forrige skaerm at fade fra — men setupPwa() SKAL
+  // kaldes eksplicit: goTo er ellers det eneste sted, den koerer, og uden
+  // den ville s-8 vise "Naeste" til en kunde i den indbyggede browser, hvor
+  // vejledningen ikke kan gennemfoeres.
+  function visInstallationsguiden() {
+    showScreen('s-8');
+    setupPwa();
+  }
+
+  // Faelles sti efter et vellykket login paa adgangsskaermen — engangskode
+  // ELLER adgangskode. Laa foer inde i loginMedKode(); da adgangskode-vejen
+  // kom til, ville en kopi have vaeret to steder at rette samme fejl.
+  // Navigerer IKKE selv: den returnerer, hvad der skal ske, saa kalderen kan
+  // naa at saette sin groenne ✓ foerst (flowets rytme).
+  // Returnerer 'ingenKonto' | 'dashboard' | 'installer' | 'onboarding'.
+  async function fortsaetEfterLogin(session) {
+    state.token = session.access_token;
+    const res = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const mig = await res.json().catch(() => null);
+
+    if (!res.ok || !mig?.firm) {
+      visAdgangsskaerm('kontoMangler');   // P7: login virkede — kontoen manglede
+      return 'ingenKonto';
+    }
+
+    state.firmId      = mig.firm.id;
+    state.firmName    = mig.firm.name || '';
+    state.phoneNumber = mig.firm.phone_number || '';
+    state.ownerPhone  = mig.firm.owner_phone || '';
+    state.voice       = mig.firm.voice_gender || 'female';
+    state.greeting    = mig.firm.greeting_text || defaultGreeting(state.firmName);
+
+    // Maerket omdirigerer KUN dashboard-viderestillingen. Er firmaet ikke
+    // `active`, er onboardingen ikke faerdig, og saa maa ?trin=app i adressen
+    // aldrig kunne springe resten af flowet over.
+    if (mig.firm.status === 'active') return vilInstallere ? 'installer' : 'dashboard';
+    return 'onboarding';
+  }
+
+  function udfoerEfterLogin(hvad) {
+    if (hvad === 'dashboard') { window.location.replace('/dashboard#nyt-login'); return; }
+    if (hvad === 'installer') { visInstallationsguiden(); return; }
+    startFlow();
+  }
+
   // ── Tidsmåling: hvor længe er kunden på hver side? ─────────────────
   // Sender (side, sekunder) til vores egen backend, hver gang en side
   // forlades — via fetch med keepalive, så målingen også når frem, når
@@ -1167,14 +1404,35 @@
     } catch (_) {}
   }
 
+  // Tilstand for verifikationstjekket (side 6). Ligger her, fordi
+  // visibilitychange-lytteren nedenfor skal kunne se den.
+  const verifikation = { aktiv: false, skjultSiden: 0, skjultIAlt: 0 };
+
   // Fanger også dem, der forlader flowet midt i det (eller lægger appen i
   // baggrunden): opholdet sendes som en bid, og uret nulstilles — vender de
   // tilbage, tæller næste bid ovenpå. Summér pr. side i analysen.
-  document.addEventListener('visibilitychange', () => {
+  //
+  // 5/9-26: lytteren har nu et job mere. Under verifikationstjekket ringer
+  // telefonen, opkaldsskaermen tager over, og browseren ryger i baggrunden
+  // praecis i de 28-30 sekunder, hvor det viderestillede ben lander. iOS
+  // fryser timere i skjulte faner, saa pollingen stod stille netop mens
+  // svaret kom. Twilio-loggen 5/9 viste syv komplette opkaldspar og NUL
+  // fejlende opkald — telefonien virkede hver gang, browseren saa det bare
+  // ikke. Derfor: mens siden er skjult, taeller tiden ikke med i budgettet,
+  // og i det oejeblik den kommer frem igen, spoerger vi med det samme.
+  document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'hidden') {
       sendSidevisning(currentScreen, Date.now() - maaling.enteredAt);
       maaling.enteredAt = Date.now();
+      if (verifikation.aktiv) verifikation.skjultSiden = Date.now();
+      return;
     }
+    if (!verifikation.aktiv) return;
+    if (verifikation.skjultSiden) {
+      verifikation.skjultIAlt += Date.now() - verifikation.skjultSiden;
+      verifikation.skjultSiden = 0;
+    }
+    if (await erVerificeret()) verifikationLykkedes();
   });
 
   // ── Navigation med 150 ms crossfade ────────────────────────────────
@@ -1183,6 +1441,16 @@
 
   function showScreen(id) {           // første visning — uden udfasning
     const el = document.getElementById(id);
+    // RETTET 5/9-26: funktionen taendte den nye skaerm uden at slukke den
+    // gamle — kun goTo() ryddede op. Efter kode-login gik vejen
+    // loginMedKode -> startFlow -> showScreen('s-1'), mens 's-expired'
+    // stadig stod med .on, og "Linket er udloebet" blev liggende som et laag
+    // oven paa resten af flowet. Ryd ALLE andre taendte skaerme, ikke kun
+    // currentScreen: den variabel er tom ved foerste kald og kan ikke baere
+    // ansvaret alene.
+    document.querySelectorAll('.screen.on').forEach(s => {
+      if (s !== el) s.classList.remove('on', 'visible');
+    });
     el.classList.add('on');
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
     currentScreen = id;
@@ -1473,6 +1741,12 @@
     status.className = 'status';
     status.textContent = 'Telefonen ringer om få sekunder. Lad den ringe ud.';
 
+    // Er tjekket allerede bestaaet, skal der ikke ringes igen. Uden det her
+    // koster et "Ring igen" efter en falsk fejlbesked et opkald paa noget,
+    // der forlaengst var i orden.
+    verifikation.aktiv = true;
+    if (await erVerificeret()) return verifikationLykkedes();
+
     try {
       const res = await fetch('/onboarding/verificer', {
         method:  'POST',
@@ -1482,6 +1756,7 @@
       if (!res.ok) throw new Error('Opkald fejlede');
       await pollVerification();
     } catch (e) {
+      verifikation.aktiv = false;   // ellers tror visibilitychange stadig, vi venter
       status.className = 'status err';
       status.textContent = 'Opkaldet fejlede. Tjek at viderestillingen er sat op, og prøv igen.';
       btn.disabled = false;
@@ -1490,45 +1765,195 @@
     }
   }
 
-  async function pollVerification(attempts = 0) {
-    // ~70 sek. i alt: telefonen ringer 20-30 sek., før operatøren viderestiller,
-    // så det forwardede opkald når typisk først frem efter 30-40 sek.
-    if (attempts > 28) {
-      const status = document.getElementById('verify-status');
-      status.className = 'status err';
-      status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, tryk Ring igen — og lad den ringe ud.';
-      document.getElementById('verify-btn').disabled = false;
-      document.getElementById('verify-label').textContent = 'Ring igen';
-      document.getElementById('verify-spin').style.display = 'none';
-      return;
-    }
-    await new Promise(r => setTimeout(r, 2500));
+  // Ét opslag. Netvaerksfejl er ikke et nej — det er "ved det ikke endnu".
+  async function erVerificeret() {
     try {
       const res  = await fetch('/api/firma/status', { headers: { Authorization: `Bearer ${state.token}` } });
       const data = await res.json();
-      if (data?.verification_status === 'verified') {
-        const status = document.getElementById('verify-status');
-        status.className = 'status ok';
-        status.textContent = 'Klar.';
-        document.getElementById('verify-spin').style.display = 'none';
-        document.getElementById('verify-label').textContent = '✓';
-        document.getElementById('verify-btn').classList.add('ok');
-        setTimeout(() => goTo('s-7'), 1200);
-        return;
-      }
-    } catch (e) { /* fortsæt polling */ }
-    await pollVerification(attempts + 1);
+      return data?.verification_status === 'verified';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Maa kunne kaldes fra to steder (pollingen og visibilitychange) uden at
+  // koere sit indhold to gange.
+  function verifikationLykkedes() {
+    if (!verifikation.aktiv) return;
+    verifikation.aktiv = false;
+    const status = document.getElementById('verify-status');
+    status.className = 'status ok';
+    status.textContent = 'Klar.';
+    document.getElementById('verify-spin').style.display = 'none';
+    document.getElementById('verify-label').textContent = '✓';
+    document.getElementById('verify-btn').classList.add('ok');
+    setTimeout(() => goTo('s-7'), 1200);
+  }
+
+  // Venter paa ben 2 — det viderestillede opkald, der lander 28-30 sek. efter
+  // ben 1. Budgettet er 70 sekunders SYNLIG tid, ikke 28 forsoeg: den gamle
+  // udgave taalte hverken en fane i baggrunden eller en strubet timer, og
+  // begge dele sker, netop mens telefonen ringer (se visibilitychange).
+  async function pollVerification() {
+    const BUDGET_MS = 70000;    // synlig tid — tid i baggrunden taeller ikke
+    // ... men uret maa ikke staa stille for evigt. Tager kunden telefonen,
+    // kommer ben 2 aldrig, og uden loft ville spinderen koere, saa laenge
+    // hun blev i opkaldet (maalt til ca. 2 min 5/9-26). Ben 2 lander efter
+    // 28-30 sek., saa to minutters ur-tid er rigeligt uanset hvad.
+    const LOFT_MS   = 120000;
+    const start = Date.now();
+    verifikation.aktiv      = true;
+    verifikation.skjultIAlt = 0;
+    verifikation.skjultSiden = document.visibilityState === 'hidden' ? Date.now() : 0;
+
+    while (verifikation.aktiv) {
+      await new Promise(r => setTimeout(r, 2500));
+      if (!verifikation.aktiv) return;               // visibilitychange naaede det foerst
+      if (await erVerificeret()) return verifikationLykkedes();
+
+      const skjultNu = verifikation.skjultSiden ? Date.now() - verifikation.skjultSiden : 0;
+      const synligTid = Date.now() - start - verifikation.skjultIAlt - skjultNu;
+      if (synligTid > BUDGET_MS) break;
+      if (Date.now() - start > LOFT_MS) break;
+    }
+    if (!verifikation.aktiv) return;
+
+    // Ét sidste tjek, foer vi paastaar at det gik galt. 5/9-26 sagde skaermen
+    // "vi naaede ikke igennem" om opkald, Twilio havde gennemfoert korrekt.
+    if (await erVerificeret()) return verifikationLykkedes();
+
+    verifikation.aktiv = false;
+    const status = document.getElementById('verify-status');
+    status.className = 'status err';
+    // D39 (5/9-26): beskeden naevnte kun den ENE aarsag — at kunden tog
+    // telefonen — og det er ikke den hyppigste. Haandvaerkeren saetter selv
+    // viderestillingen paa sin egen telefon, saa fejl i netop det trin er den
+    // mest sandsynlige supportsag efter go-live, og produktet gav hverken ham
+    // eller supporten noget at gaa efter. `*#61#` er kontrolkoden: den viser,
+    // om viderestillingen overhovedet er aktiv, saa kunden kan svare paa
+    // spoergsmaalet selv.
+    //
+    // Aarsagerne staar i sandsynlighedsraekkefoelge — den, der oftest er
+    // forklaringen, foerst. Den anden aarsag (browseren mistede svaret, mens
+    // telefonen ringede) er rettet i koden ovenfor og naevnes derfor ikke:
+    // en fejlbesked skal give kunden noget at GOERE.
+    const vsKode = `**61*${state.phoneNumber || ''}#`;
+    status.textContent =
+      'Vi nåede ikke igennem. Som regel skyldes det viderestillingen — tast ' + vsKode +
+      ' på din telefon og prøv igen. Med *#61# kan du se, om den er aktiv. Tog du telefonen, ' +
+      'så læg på og lad den ringe ud næste gang.';
+    document.getElementById('verify-btn').disabled = false;
+    document.getElementById('verify-label').textContent = 'Ring igen';
+    document.getElementById('verify-spin').style.display = 'none';
   }
 
   // ── Side 8: installer som app ──────────────────────────────────────
+  // Linjen under knappen er som regel en lille bemaerkning ("det tager ca.
+  // 10 sekunder"). Men i den indbyggede browser BAERER den hele handlingen —
+  // knappen er skjult, og teksten er det eneste, kunden kan gaa efter. Saa
+  // skal den ogsaa fylde som en besked og ikke som en fodnote (Anns
+  // observation 6/9-26). `sub` er samme stoerrelse som teksten over den.
+  function saetInstallHint(tekst, somBesked) {
+    const el = document.getElementById('install-hint');
+    if (!el) return;
+    el.className   = somBesked ? 'sub' : 'hint';
+    el.textContent = tekst;
+  }
+
   function setupPwa() {
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
+    // Nulstil foerst, saa funktionen kan koeres igen uden at baere en
+    // tidligere grens stoerrelse med over.
+    saetInstallHint('Det tager ca. 10 sekunder.', false);
+
+    // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
+    // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
+    // ikke noget, vi skal udlede af, hvordan hun kom hertil.
+    //
+    // Rodaarsagen bag "jeg lander i dashboardet" (6/9-26): paa den NORMALE
+    // rejse — velkomstmail -> onboarding -> s-8 -> kompas — har maerket
+    // aldrig vaeret i adressen. Velkomstmailen bygges af frisbii-webhook.js
+    // og baerer intet maerke, og "Kopiér adressen"-knappen, der ellers satte
+    // det, vises ikke i mail-appens browser. Dér er kompasset eneste vej ud,
+    // og det aabner praecis den adresse, der staar i linjen, i Safari.
+    //
+    // Safari deler hverken session eller localStorage med den indbyggede
+    // browser. ADRESSEN er det eneste, der kan baere hensigten over. Derfor
+    // skrives maerket ind her, hver gang skaermen vises.
+    if (isStandalone()) {
+      rydInstallationshensigt();          // appen ER installeret; rejsen er slut
+    } else {
+      saetInstallationshensigt();
+      try {
+        if (!/[?&]trin=app(&|$)/.test(location.search)) {
+          history.replaceState(null, '', location.pathname + '?trin=app');
+        }
+      } catch (_) {}
+    }
+    // Brug den faelles isStandalone() — den egne kopi her spurgte kun
+    // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
+    const standalone = isStandalone();
     if (standalone) {
       // Kører allerede som app — vejledningen er unødig.
       document.getElementById('install-btn').style.display = 'none';
-      document.getElementById('install-hint').textContent = 'Du kører allerede Dit Digitale Kontor som app — perfekt.';
+      saetInstallHint('Du kører allerede Dit Digitale Kontor som app — perfekt.', false);
+    } else if (erIndbyggetBrowser()) {
+      // Vejledningen kan ikke gennemfoeres her: Del-menuen i den indbyggede
+      // browser har ingen "Foej til hjemmeskaerm". Peg paa vejen ud i stedet.
+      // Kompasset er verificeret i SFSafariViewController 5/9-26.
+      document.getElementById('install-btn').style.display = 'none';
+      saetInstallHint(
+        'Først, tryk på kompasset nederst til højre for at åbne siden i Safari.',
+        true);   // baerer handlingen: samme stoerrelse som teksten over
+    } else if (!erIOSSafari() && erIOS()) {
+      // Chrome/Edge/Firefox paa iOS: vejledningens trin passer ikke, og
+      // resultatet ville uanset hvad blive et genvejsikon uden push.
+      //
+      // En webside kan IKKE aabne Safari — kompasset i den indbyggede
+      // browser er iOS' egen knap, ikke noget vi tegner. Det naermeste er at
+      // laegge adressen i udklipsholderen, saa kunden kun skal skifte app og
+      // indsaette. Knappen genbruges frem for at tilfoeje markup.
+      //
+      // Sessionen foelger ikke med: Safari har sin egen lagring, saa kunden
+      // lander paa "Linket er udloebet" og skal ind ad kodesporet. Det SKAL
+      // teksten sige — ellers er det bare den naeste overraskelse.
+      const btn = document.getElementById('install-btn');
+      btn.textContent = 'Kopiér adressen';
+      btn.onclick = () => kopierAdresse(btn);
+      saetInstallHint(
+        'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.',
+        false);   // knappen baerer handlingen her, saa teksten forbliver en bemaerkning
+    }
+  }
+
+  // "Aabn i browseren" er kundens maade at sige "jeg installerer ikke nu".
+  // Uden at rydde hensigten ville hun blive ved med at lande paa
+  // installationstrinnet, hver gang hun loggede ind — et flag, der aldrig
+  // slukkes, er lige saa forkert som et, der slukkes for tidligt.
+  function aabnIBrowseren() {
+    rydInstallationshensigt();
+    location.href = '/dashboard';
+  }
+
+  // Udklipsholderen kraever et brugertryk og https — begge dele har vi her.
+  // Fejler den (aeldre browser, afvist tilladelse), siger knappen hvad
+  // kunden selv kan goere. Den maa aldrig bare staa doed.
+  // Adressen, kunden skal aabne i Safari. Maerket ?trin=app fortaeller den
+  // anden browser, at hun er midt i installationsrejsen — uden det lander
+  // hun i dashboardet uden app, fordi firmaet er `active` efter
+  // verifikationen. location.href duer ikke: init() har paa det tidspunkt
+  // ryddet et evt. token ud af adressen, og et forbrugt token skal heller
+  // ikke med over.
+  function appAdresse() {
+    return location.origin + location.pathname + '?trin=app';
+  }
+
+  async function kopierAdresse(btn) {
+    try {
+      await navigator.clipboard.writeText(appAdresse());
+      btn.textContent = 'Kopieret ✓';
+      btn.classList.add('ok');
+    } catch (e) {
+      btn.textContent = 'Kopiér adressen fra adressefeltet';
     }
   }
 
@@ -1554,19 +1979,19 @@
     // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
     // Anns test viste at kigge-trinnet alene ikke gav nok information).
     document.getElementById('inst1-title').textContent = isIOS
-      ? 'Kig ned og tryk på de tre prikker'
+      ? 'Find Del-ikonet'
       : 'Kig øverst på skærmen';
     document.getElementById('inst1-sub').textContent = isIOS
-      ? 'De tre prikker sidder ved adressefeltet, nederst i Safari.'
+      ? 'Firkanten med en pil, der peger op. Kan du ikke se den, så tryk på de tre prikker ved adressefeltet — så ligger den derinde.'
       : 'Oppe ved adressefeltet sidder en lille menuknap.';
     document.getElementById('orient-ios').style.display     = 'none';   // udgaaet fuld-bundlinje-variant, mockup'et staar urørt herover
     document.getElementById('orient-ios26').style.display   = isIOS ? '' : 'none';
     document.getElementById('orient-android').style.display = isIOS ? 'none' : '';
     // Trin 2: iOS -> tryk på "Del" i •••-popup'en (mock-del-ios). Android
     // -> tryk på de tre prikker (uændret, fører direkte til rullemenuen).
-    document.getElementById('inst2-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på de tre prikker';
+    document.getElementById('inst2-title').textContent = isIOS ? 'Kom der en menu frem?' : 'Tryk på de tre prikker';
     document.getElementById('inst2-sub').textContent   = isIOS
-      ? 'Den ligger øverst i menuen, der åbner.'
+      ? 'Så tryk på "Del" øverst i den. Kom delearket frem med det samme, er du allerede videre — tryk Næste.'
       : 'De sidder yderst til højre ved adressefeltet.';
     document.getElementById('mock-del-ios').style.display = isIOS ? '' : 'none';
     document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
@@ -1585,11 +2010,6 @@
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
-  // velkomstTilstand: saettes af boot-koden, naar skaermen bruges som
-  // FOERSTE-AABNING i den installerede app (ikke som udloebet-link).
-  // De to tilstande deler markup men skal sige forskellige ting — uden den
-  // her ville knappen falde tilbage til "Send nyt link" efter foerste tryk.
-  let velkomstTilstand = false;
 
   async function requestNewLink() {
     const input  = document.getElementById('relink-email');
@@ -1611,21 +2031,40 @@
     status.textContent = '';
 
     try {
+      // Er kunden midt i installationsrejsen, skal LINKET i mailen baere
+      // maerket med. Ellers lander hun i dashboardet, naar hun trykker paa
+      // det — og netop link-vejen er den, hun tager, hvis mailen aabnes i
+      // mail-appen. Serveren hvidlister vaerdien; vi sender den kun, naar
+      // den er sand her.
       await fetch('/onboarding/nyt-link', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email }),
+        body:    JSON.stringify(vilInstallere ? { email, trin: 'app' } : { email }),
       });
     } catch (e) { /* samme svar uanset — se nedenfor */ }
 
-    // Samme besked uanset om e-mailen findes (ingen email-enumeration).
+    // D46 (5/9-26): samme besked uanset om e-mailen findes — men MED den
+    // adresse, kunden selv skrev. Svaret er med vilje ens, uanset om kontoen
+    // findes (anti-enumeration i onboarding-link.js), saa en haandvaerker der
+    // taster "gmial.com" faar praecis samme kvittering som en, der taster
+    // rigtigt, og venter derefter paa en mail, ingen har sendt. Adressen kommer
+    // fra hans eget felt, saa der laekkes intet — men fejlen springer i
+    // oejnene. Observeret i staging 5/9 med "ditdigitalekontor.dj".
+    //
+    // BEMAERK: den staar ganske vist ogsaa stadig i feltet ovenfor. Det, det
+    // her koeber, er ikke at AFSLOERE fejlen, men at flytte oejet hen paa den —
+    // ingen genlaeser et felt, de lige har udfyldt.
+    //
+    // textContent, ikke innerHTML: adressen er brugerinput og maa aldrig
+    // kunne baere markup med ind.
+    const t = ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet;
     status.className = 'status ok';
-    status.textContent = velkomstTilstand
-      ? 'Vi har sendt dig en kode. Den kan være et par minutter undervejs — kig også i spam.'
-      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode — koden kan du taste her.';
+    status.textContent = t.koderSpor
+      ? `Vi har sendt en kode til ${email}. Tjek at adressen er skrevet rigtigt — den kan være et par minutter undervejs, kig også i spam.`
+      : `Vi har sendt en mail til ${email} med et login-link og en engangskode — koden kan du taste her. Tjek at adressen er skrevet rigtigt, og kig også i spam.`;
     visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
-    label.textContent = velkomstTilstand ? 'Send mig en kode' : 'Send nyt link';
+    label.textContent = t.knap;
     spin.style.display = 'none';
   }
 
@@ -1688,14 +2127,8 @@
       }
 
       // Frisk session i hånden — samme sti som link-login i init():
-      const session = data.session;
-      state.token = session.access_token;
-      const res  = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const mig  = await res.json().catch(() => null);
-
-      if (!res.ok || !mig?.firm) {
-        document.getElementById('expired-msg').textContent =
-          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
+      const hvad = await fortsaetEfterLogin(data.session);
+      if (hvad === 'ingenKonto') {
         status.className = 'status err';
         status.textContent = 'Koden virkede, men vi kunne ikke finde din konto. Prøv med et nyt link.';
         return;
@@ -1704,21 +2137,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-
-      // Allerede onboardet? Så hører man til i dashboardet — som frisk login.
-      if (mig.firm.status === 'active') {
-        window.location.replace('/dashboard#nyt-login');
-        return;
-      }
-
-      // Ellers: genoptag onboardingen præcis som init() ville.
-      state.firmId      = mig.firm.id;
-      state.firmName    = mig.firm.name || '';
-      state.phoneNumber = mig.firm.phone_number || '';
-      state.ownerPhone  = mig.firm.owner_phone || '';
-      state.voice       = mig.firm.voice_gender || 'female';
-      state.greeting    = mig.firm.greeting_text || defaultGreeting(state.firmName);
-      startFlow();
+      udfoerEfterLogin(hvad);
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
@@ -1731,12 +2150,130 @@
     }
   }
 
+  // Log ind med den adgangskode, kunden satte paa side 2. Dashboardets
+  // loginskaerm goer det samme med signInWithPassword; her manglede vejen
+  // bare, saa kunden blev sendt ud ad mailvejen efter noget, hun kunne i
+  // forvejen — og mailen er op til ti minutter undervejs (D47).
+  async function loginMedKodeord() {
+    const email  = document.getElementById('relink-email').value.trim();
+    const pw     = document.getElementById('ob-pw').value;
+    const status = document.getElementById('relink-status');
+    const btn    = document.getElementById('ob-pw-btn');
+    const label  = document.getElementById('ob-pw-label');
+    const spin   = document.getElementById('ob-pw-spin');
+
+    status.className = 'status';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.className = 'status err';
+      status.textContent = 'Skriv din e-mail i feltet øverst først.';
+      return;
+    }
+    if (!pw) {
+      status.className = 'status err';
+      status.textContent = 'Skriv din adgangskode.';
+      return;
+    }
+
+    btn.disabled = true;
+    label.textContent = 'Logger ind …';
+    spin.style.display = 'block';
+    status.textContent = '';
+    let succes = false;
+
+    try {
+      const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
+      if (error || !data?.session) {
+        // Bevidst ét svar for baade forkert kode og ukendt e-mail: skaermen
+        // maa ikke kunne bruges til at afgoere, om en adresse er kunde.
+        status.className = 'status err';
+        status.textContent = 'Det passer ikke sammen. Tjek e-mail og adgangskode — eller brug "Jeg har glemt min adgangskode".';
+        return;
+      }
+
+      const hvad = await fortsaetEfterLogin(data.session);
+      if (hvad === 'ingenKonto') {
+        status.className = 'status err';
+        status.textContent = 'Du blev logget ind, men vi kunne ikke finde din konto. Prøv med en engangskode i stedet.';
+        return;
+      }
+
+      succes = true;
+      label.textContent = '✓';
+      btn.style.background = 'var(--success)';
+      udfoerEfterLogin(hvad);
+    } catch (e) {
+      status.className = 'status err';
+      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      spin.style.display = 'none';
+      if (!succes) {
+        btn.disabled = false;
+        label.textContent = 'Log ind';
+      }
+    }
+  }
+
   // ── Hjælpere ───────────────────────────────────────────────────────
-  // Kører siden som installeret hjemmeskærms-app? (iOS' egen flag +
-  // standard-medieforespørgslen som backup for Android/andre.)
+  // Kører siden som installeret hjemmeskærms-app?
+  //
+  // MAALT 5/9-26 paa iPhone (iOS 18.7 / Safari 26.6.1): aabner kunden
+  // mail-linket inde i Simply Mail, henter iOS siden i en
+  // SFSafariViewController — den indbyggede browser med et X i venstre
+  // hjoerne og et kompas nederst til hoejre. Derinde returnerer
+  // navigator.standalone SAND, selv om der hverken er app eller
+  // hjemmeskaerms-ikon. Det var kilden til beskeden "Du koerer allerede
+  // Dit Digitale Kontor som app", uanset hvor mange gange appen blev
+  // slettet. display-mode svarede korrekt FALSK i samme maaling.
+  //
+  // Derfor: display-mode er grundsignalet paa ALLE platforme, og paa iOS
+  // skal navigator.standalone bekraefte det. En aegte hjemmeskaerms-app
+  // giver begge; den indbyggede browser giver kun flaget; en almindelig
+  // Safari-fane giver ingen af dem.
+  //
+  // Prisen: paa iOS under 17 (ingen display-mode-stoette) svarer en aegte
+  // app FALSK, og kunden ser en installationsvejledning, hun ikke behoever.
+  // Det er den harmloese fejlretning — den modsatte spaerrer for at
+  // installere overhovedet.
+  function erIOS() {
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/i.test(ua) ||
+           (/Macintosh/.test(ua) && 'ontouchend' in document);   // iPad paa iPadOS
+  }
+  function visesSomApp() {
+    return !!(window.matchMedia &&
+              window.matchMedia('(display-mode: standalone)').matches);
+  }
   function isStandalone() {
-    return window.navigator.standalone === true ||
-      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (erIOS()) return visesSomApp() && window.navigator.standalone === true;
+    return visesSomApp();
+  }
+  // Den indbyggede browser i en anden app (Simply Mail, Gmail, LinkedIn …).
+  // Praecis det moenster, der narrede os: flaget sat, medieforespoergslen
+  // ikke. Her findes "Foej til hjemmeskaerm" IKKE i Del-menuen — kunden skal
+  // foerst over i Safari, ellers kan hun ikke installere appen.
+  function erIndbyggetBrowser() {
+    return erIOS() && window.navigator.standalone === true && !visesSomApp();
+  }
+  // Er vi i Safari paa iOS — den ENESTE browser, der kan laegge en aegte PWA
+  // paa hjemmeskaermen?
+  //
+  // EFTERPROEVET 5/9-26 paa iPhone: "Foej til hjemmeskaerm" fra Chrome giver
+  // et GENVEJSIKON, ikke en standalone-app. Dermed heller ingen egen lagring
+  // og ingen web-push — og push er hele lead-notifikationen, altsaa det
+  // kunden betaler for. En Chrome-vejledning ville foere haandvaerkeren
+  // gennem fem skaerme hen til et ikon, der ikke kan det, appen skal.
+  // Derfor sendes de til Safari i stedet.
+  //
+  // 5/9-26: startInstall() forgrenede paa STYRESYSTEM (isIOS ? ios : android).
+  // Men vejledningen beskriver en BROWSER: Safari har Del-ikonet nederst i
+  // •••-menuen, Chrome har det oeverst i adressefeltet. Alle iOS-browsere fik
+  // Safari-vejledningen — den passede kun i Safari.
+  function erIOSSafari() {
+    if (!erIOS()) return false;
+    const ua = navigator.userAgent || '';
+    // Chrome, Firefox, Edge, Opera, Yandex, DuckDuckGo paa iOS saetter hver
+    // deres egen markoer; Safari saetter ingen af dem.
+    return !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(ua);
   }
   function formatDK(e164) {
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');

@@ -397,8 +397,24 @@
   // i så fald vises hilsenen bare ikke, og intet andet påvirkes.
   (function () {
     try {
-      var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-                       window.navigator.standalone === true;
+      // D45 (5/9-26): stod foer som `mm || ns`. `navigator.standalone` er
+      // SAND i SFSafariViewController — den indbyggede browser, mailapps
+      // aabner links i — hvor der hverken er app eller hjemmeskaermsikon. En
+      // kunde, der aabnede et dashboard-link i sin mail, fik derfor
+      // app-hilsenen "Dit Digitale Kontor er klar" uden at have installeret
+      // noget. Maalt paa iPhone (iOS 18.7): ns=true, mm=false.
+      //
+      // Samme rettelse som i onboarding.html: display-mode er grundsignalet
+      // paa alle platforme, og paa iOS skal flaget bekraefte det. Prisen er
+      // den samme og lige saa bevidst — paa iOS under 17 (ingen
+      // display-mode-stoette) udebliver hilsenen. En manglende hilsen er en
+      // harmloes fejl; en hilsen til en, der ikke har appen, er en loegn.
+      var dbUa  = navigator.userAgent || '';
+      var dbIos = /iPhone|iPad|iPod/i.test(dbUa) ||
+                  (/Macintosh/.test(dbUa) && 'ontouchend' in document);
+      var dbMm  = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      var dbNs  = window.navigator.standalone === true;
+      var standalone = dbIos ? (dbMm && dbNs) : dbMm;
       if (standalone && !localStorage.getItem('ddk-app-hilsen-vist')) {
         localStorage.setItem('ddk-app-hilsen-vist', '1');
         document.getElementById('app-hilsen').style.display = 'flex';
