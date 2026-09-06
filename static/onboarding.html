@@ -468,6 +468,26 @@
         <input id="relink-email" type="email" autocomplete="email" placeholder="din@mail.dk"
                onkeydown="if(event.key==='Enter')requestNewLink()">
       </div>
+      <!-- Adgangskode-vejen (6/9-26, Anns fund under telefonrunden).
+           Bruges skaermen MIDT i onboardingen — kunden er kommet over i
+           Safari, eller aabner den installerede app foerste gang — saa HAR
+           hun allerede en adgangskode: den blev sat paa side 2. At sende
+           hende ud ad mailvejen er en omvej paa op til ti minutter (D47)
+           efter noget, hun kan i forvejen.
+           Samme moenster som dashboardets login: kodeord foerst, mailvejen
+           som den lysere redningsvej nedenunder. Skjult paa de tilstande,
+           hvor koden maaske aldrig er sat (udloebet, kontoMangler). -->
+      <div id="ob-pw-row" style="display:none;width:100%">
+        <div class="field">
+          <input id="ob-pw" type="password" autocomplete="current-password"
+                 placeholder="Din adgangskode" aria-label="Din adgangskode"
+                 onkeydown="if(event.key==='Enter')loginMedKodeord()">
+          <button class="toggle-eye" type="button" onclick="togglePwLogin()" id="ob-pw-eye">Vis</button>
+        </div>
+        <button class="btn" id="ob-pw-btn" onclick="loginMedKodeord()">
+          <span id="ob-pw-label">Log ind</span><span class="spinner" id="ob-pw-spin"></span>
+        </button>
+      </div>
       <button class="btn" id="relink-btn" onclick="requestNewLink()">
         <span id="relink-label">Send nyt link</span><span class="spinner" id="relink-spin"></span>
       </button>
@@ -486,6 +506,7 @@
         </button>
       </div>
       <p class="status" id="relink-status"></p>
+      <button class="linklike" id="ob-glemt" style="display:none" onclick="visMailvejen()">Jeg har glemt min adgangskode</button>
       <button class="linklike" id="ob-otp-toggle" onclick="visKodefelt(true)">Har du allerede en engangskode fra mailen?</button>
     </section>
 
@@ -1040,6 +1061,12 @@
   // koderSpor: skal kvitteringen tale om en KODE (kunden kan ikke bruge
   // linket — appen og Safari deler ikke lagring) eller om en MAIL med begge
   // dele? Det afgoer ordlyden i requestNewLink().
+  //
+  // kodeord: har kunden med sikkerhed en adgangskode paa dette sted i
+  // rejsen? Kun de tilstande, der ligger EFTER side 2, hvor koden saettes.
+  // Paa `udloebet` kan man vaere naaet frem uden nogensinde at have sat en —
+  // fx hvis velkomstlinket doede, foer hun kom i gang — og der skal
+  // kodesporet blive ved med at vaere det primaere.
   const ADGANGSTEKSTER = {
     // Kunden klikkede et link, og verifyOtp sagde nej. Engangsbrug: linket,
     // der lukkede ham ind foerste gang, er doedt bagefter.
@@ -1048,6 +1075,7 @@
       tekst: 'Skriv din e-mail, så sender vi et nyt med det samme.',
       knap:  'Send nyt link',
       koderSpor: false,
+      kodeord: false,
     },
     // Ikonets allerfoerste aabning. Der er ingen session her, fordi den
     // installerede app har sin egen lagring — ikke fordi noget er gaaet galt.
@@ -1056,6 +1084,7 @@
       tekst: 'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.',
       knap:  'Send mig en kode',
       koderSpor: true,
+      kodeord: true,
     },
     // D48: kunden fulgte produktets EGEN anvisning — kopiér adressen, aabn
     // den i Safari — og blev mødt af "Linket er udloebet". Teknisk korrekt,
@@ -1066,6 +1095,7 @@
       tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
       knap:  'Send mig en kode',
       koderSpor: true,
+      kodeord: true,
     },
     // P7: login VIRKEDE — kontoen kunne ikke findes. Det er ikke et
     // link-problem, og det maa ikke se ud som ét.
@@ -1074,8 +1104,13 @@
       tekst: 'Dit login virkede, men vi kunne ikke finde en konto på det. Skriv din e-mail, så sender vi et nyt link.',
       knap:  'Send nyt link',
       koderSpor: false,
+      kodeord: false,
     },
   };
+
+  // Er kunden kommet hertil for at LAEGGE APPEN PAA TELEFONEN? Saettes af
+  // init() ud fra ?trin=app i adressen (se appAdresse og kopierAdresse).
+  let vilInstallere = false;
 
   let adgangsTilstand = 'udloebet';
 
@@ -1083,13 +1118,47 @@
   // den baerer svaret paa kundens sidste handling og maa ikke ryddes af en
   // tilstandsopdatering (loginMedKode saetter en fejl DER, umiddelbart efter
   // et kald hertil).
+  // Samme vaern som setText: et manglende element maa aldrig vaelte flowet.
+  function vis(id, synlig) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = synlig ? '' : 'none';
+  }
+
   function visAdgangsskaerm(tilstand) {
     adgangsTilstand = ADGANGSTEKSTER[tilstand] ? tilstand : 'udloebet';
     const t = ADGANGSTEKSTER[adgangsTilstand];
     setText('expired-title', t.titel);
     setText('expired-msg',   t.tekst);
     setText('relink-label',  t.knap);
+
+    // Én handling ad gangen. Har kunden en adgangskode, er DEN vejen ind, og
+    // mailvejen ligger som et diskret link nedenunder. Ellers som foer.
+    const medKodeord = !!t.kodeord;
+    vis('ob-pw-row',     medKodeord);
+    vis('ob-glemt',      medKodeord);
+    vis('relink-btn',    !medKodeord);
+    vis('ob-otp-toggle', !medKodeord);
     showScreen('s-expired');
+  }
+
+  // "Jeg har glemt min adgangskode": skift til mailvejen. Adgangskodefeltet
+  // forsvinder, saa der ikke staar to primaerknapper og konkurrerer.
+  function visMailvejen() {
+    vis('ob-pw-row',     false);
+    vis('ob-glemt',      false);
+    vis('relink-btn',    true);
+    vis('ob-otp-toggle', true);
+    const el = document.getElementById('relink-email');
+    if (el && !el.value.trim()) el.focus();
+  }
+
+  function togglePwLogin() {
+    const input = document.getElementById('ob-pw');
+    const eye   = document.getElementById('ob-pw-eye');
+    if (!input || !eye) return;
+    const skjult = input.type === 'password';   // ikke 'vis' — det navn er funktionen ovenfor
+    input.type  = skjult ? 'text' : 'password';
+    eye.textContent = skjult ? 'Skjul' : 'Vis';
   }
 
   // ── Init ───────────────────────────────────────────────────────────
@@ -1102,6 +1171,18 @@
       const params    = new URLSearchParams(location.search);
       const tokenHash = params.get('token_hash');
       const type      = params.get('type') || 'email';
+
+      // ?trin=app: kunden er sendt herover for at laegge appen paa telefonen
+      // (s-8 kopierer den adresse). Uden det maerke er installationsguiden
+      // UOPNAAELIG, saa snart verifikationen er gennemfoert — `active` sender
+      // til /dashboard, og dashboardet har ingen indgang til guiden. Det er
+      // standardvejen, ikke et kanttilfaelde: aabner kunden velkomstmailen i
+      // sin mail-app, gennemfoerer hun onboardingen i den indbyggede browser,
+      // og s-8 beder hende SELV om at skifte til Safari. Fundet 6/9-26.
+      //
+      // Koerer vi allerede som app, er installationen jo overstaaet — saa
+      // ignoreres maerket, ellers ville appen sende kunden i ring.
+      vilInstallere = params.get('trin') === 'app' && !isStandalone();
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1171,7 +1252,7 @@
       }
 
       // Allerede onboardet? Så hører man til i dashboardet.
-      if (data.firm.status === 'active') {
+      if (data.firm.status === 'active' && !vilInstallere) {
         window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
         return;
       }
@@ -1182,6 +1263,7 @@
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
       state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
+      if (vilInstallere && data.firm.status === 'active') return visInstallationsguiden();
       startFlow();
     } catch (e) {
       console.warn('Init fejlede:', e);
@@ -1214,6 +1296,52 @@
     }
 
     showScreen('s-1');
+  }
+
+  // Direkte indgang til installationstrinnet. showScreen frem for goTo,
+  // fordi der ikke er en forrige skaerm at fade fra — men setupPwa() SKAL
+  // kaldes eksplicit: goTo er ellers det eneste sted, den koerer, og uden
+  // den ville s-8 vise "Naeste" til en kunde i den indbyggede browser, hvor
+  // vejledningen ikke kan gennemfoeres.
+  function visInstallationsguiden() {
+    showScreen('s-8');
+    setupPwa();
+  }
+
+  // Faelles sti efter et vellykket login paa adgangsskaermen — engangskode
+  // ELLER adgangskode. Laa foer inde i loginMedKode(); da adgangskode-vejen
+  // kom til, ville en kopi have vaeret to steder at rette samme fejl.
+  // Navigerer IKKE selv: den returnerer, hvad der skal ske, saa kalderen kan
+  // naa at saette sin groenne ✓ foerst (flowets rytme).
+  // Returnerer 'ingenKonto' | 'dashboard' | 'installer' | 'onboarding'.
+  async function fortsaetEfterLogin(session) {
+    state.token = session.access_token;
+    const res = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const mig = await res.json().catch(() => null);
+
+    if (!res.ok || !mig?.firm) {
+      visAdgangsskaerm('kontoMangler');   // P7: login virkede — kontoen manglede
+      return 'ingenKonto';
+    }
+
+    state.firmId      = mig.firm.id;
+    state.firmName    = mig.firm.name || '';
+    state.phoneNumber = mig.firm.phone_number || '';
+    state.ownerPhone  = mig.firm.owner_phone || '';
+    state.voice       = mig.firm.voice_gender || 'female';
+    state.greeting    = mig.firm.greeting_text || defaultGreeting(state.firmName);
+
+    // Maerket omdirigerer KUN dashboard-viderestillingen. Er firmaet ikke
+    // `active`, er onboardingen ikke faerdig, og saa maa ?trin=app i adressen
+    // aldrig kunne springe resten af flowet over.
+    if (mig.firm.status === 'active') return vilInstallere ? 'installer' : 'dashboard';
+    return 'onboarding';
+  }
+
+  function udfoerEfterLogin(hvad) {
+    if (hvad === 'dashboard') { window.location.replace('/dashboard#nyt-login'); return; }
+    if (hvad === 'installer') { visInstallationsguiden(); return; }
+    startFlow();
   }
 
   // ── Tidsmåling: hvor længe er kunden på hver side? ─────────────────
@@ -1719,9 +1847,19 @@
   // Udklipsholderen kraever et brugertryk og https — begge dele har vi her.
   // Fejler den (aeldre browser, afvist tilladelse), siger knappen hvad
   // kunden selv kan goere. Den maa aldrig bare staa doed.
+  // Adressen, kunden skal aabne i Safari. Maerket ?trin=app fortaeller den
+  // anden browser, at hun er midt i installationsrejsen — uden det lander
+  // hun i dashboardet uden app, fordi firmaet er `active` efter
+  // verifikationen. location.href duer ikke: init() har paa det tidspunkt
+  // ryddet et evt. token ud af adressen, og et forbrugt token skal heller
+  // ikke med over.
+  function appAdresse() {
+    return location.origin + location.pathname + '?trin=app';
+  }
+
   async function kopierAdresse(btn) {
     try {
-      await navigator.clipboard.writeText(location.href);
+      await navigator.clipboard.writeText(appAdresse());
       btn.textContent = 'Kopieret ✓';
       btn.classList.add('ok');
     } catch (e) {
@@ -1894,13 +2032,8 @@
       }
 
       // Frisk session i hånden — samme sti som link-login i init():
-      const session = data.session;
-      state.token = session.access_token;
-      const res  = await fetch('/api/mig', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const mig  = await res.json().catch(() => null);
-
-      if (!res.ok || !mig?.firm) {
-        visAdgangsskaerm('kontoMangler');   // P7: koden virkede — kontoen manglede
+      const hvad = await fortsaetEfterLogin(data.session);
+      if (hvad === 'ingenKonto') {
         status.className = 'status err';
         status.textContent = 'Koden virkede, men vi kunne ikke finde din konto. Prøv med et nyt link.';
         return;
@@ -1909,21 +2042,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-
-      // Allerede onboardet? Så hører man til i dashboardet — som frisk login.
-      if (mig.firm.status === 'active') {
-        window.location.replace('/dashboard#nyt-login');
-        return;
-      }
-
-      // Ellers: genoptag onboardingen præcis som init() ville.
-      state.firmId      = mig.firm.id;
-      state.firmName    = mig.firm.name || '';
-      state.phoneNumber = mig.firm.phone_number || '';
-      state.ownerPhone  = mig.firm.owner_phone || '';
-      state.voice       = mig.firm.voice_gender || 'female';
-      state.greeting    = mig.firm.greeting_text || defaultGreeting(state.firmName);
-      startFlow();
+      udfoerEfterLogin(hvad);
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
@@ -1932,6 +2051,69 @@
       if (!succes) {
         btn.disabled = false;
         label.textContent = 'Log ind med koden';
+      }
+    }
+  }
+
+  // Log ind med den adgangskode, kunden satte paa side 2. Dashboardets
+  // loginskaerm goer det samme med signInWithPassword; her manglede vejen
+  // bare, saa kunden blev sendt ud ad mailvejen efter noget, hun kunne i
+  // forvejen — og mailen er op til ti minutter undervejs (D47).
+  async function loginMedKodeord() {
+    const email  = document.getElementById('relink-email').value.trim();
+    const pw     = document.getElementById('ob-pw').value;
+    const status = document.getElementById('relink-status');
+    const btn    = document.getElementById('ob-pw-btn');
+    const label  = document.getElementById('ob-pw-label');
+    const spin   = document.getElementById('ob-pw-spin');
+
+    status.className = 'status';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      status.className = 'status err';
+      status.textContent = 'Skriv din e-mail i feltet øverst først.';
+      return;
+    }
+    if (!pw) {
+      status.className = 'status err';
+      status.textContent = 'Skriv din adgangskode.';
+      return;
+    }
+
+    btn.disabled = true;
+    label.textContent = 'Logger ind …';
+    spin.style.display = 'block';
+    status.textContent = '';
+    let succes = false;
+
+    try {
+      const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
+      if (error || !data?.session) {
+        // Bevidst ét svar for baade forkert kode og ukendt e-mail: skaermen
+        // maa ikke kunne bruges til at afgoere, om en adresse er kunde.
+        status.className = 'status err';
+        status.textContent = 'Det passer ikke sammen. Tjek e-mail og adgangskode — eller brug "Jeg har glemt min adgangskode".';
+        return;
+      }
+
+      const hvad = await fortsaetEfterLogin(data.session);
+      if (hvad === 'ingenKonto') {
+        status.className = 'status err';
+        status.textContent = 'Du blev logget ind, men vi kunne ikke finde din konto. Prøv med en engangskode i stedet.';
+        return;
+      }
+
+      succes = true;
+      label.textContent = '✓';
+      btn.style.background = 'var(--success)';
+      udfoerEfterLogin(hvad);
+    } catch (e) {
+      status.className = 'status err';
+      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+    } finally {
+      spin.style.display = 'none';
+      if (!succes) {
+        btn.disabled = false;
+        label.textContent = 'Log ind';
       }
     }
   }
