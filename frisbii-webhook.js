@@ -32,7 +32,16 @@ const crypto = require("crypto");
 const twilio = require("twilio");
 const { sendWelcomeMail, sendAdminAlert } = require("./mail");
 const { uniqueSlug } = require("./slug");
-const { maskerTlf, maskerMail, vaelgLedigtNummer } = require("./phone");
+const { maskerTlf, maskerMail, normalizePhone, vaelgLedigtNummer } = require("./phone");
+
+// Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
+// Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
+// i det — et fastnetnummer, et udenlandsk nummer, en note. Et gaet her ville
+// vaere vaerre end et tomt felt: onboardingen spoerger gerne, men den maa
+// ikke praesentere et forkert nummer som "dit".
+function danskMobil(e164) {
+  return e164 && /^\+45\d{8}$/.test(e164) ? e164 : null;
+}
 
 const FRISBII_API = "https://api.frisbii.com/v1";
 
@@ -309,6 +318,22 @@ module.exports = (app, supabase) => {
     const lastName  = customer.last_name  || "";
     const company   = customer.company || `${firstName} ${lastName}`.trim() || email;
 
+    // ─── Haandvaerkerens EGET mobilnummer (ikke DDK-nummeret) ────────────────
+    // Frisbii har det allerede: `/checkout/start` sender det med som
+    // `create_customer.phone`. Indtil nu blev det liggende hos dem, og
+    // `firms.owner_phone` stod tom for HVER ENESTE Frisbii-kunde. Konsekvensen
+    // sad i onboardingens side 1, som vaelger variant paa `if (state.ownerPhone)`:
+    // bekraeftelses-varianten ("Er det dit nummer?") kunne aldrig vises, saa
+    // alle blev bedt om at taste et nummer, vi havde i forvejen. Varianten var
+    // reelt doed kode og er kun set med `provision-test-firm.js --phone`.
+    // Fundet 5/9-26.
+    //
+    // E.164 via normalizePhone, saa feltet er aebler-mod-aebler med den
+    // From-sammenligning, /opkald laver ved verifikationen. Er nummeret tomt
+    // eller ikke et dansk mobilnummer, saettes det IKKE — saa spoerger
+    // onboardingen, praecis som foer.
+    const ownerPhone = danskMobil(normalizePhone(customer.phone));
+
     if (!email) {
       console.error("❌ Ingen email paa Frisbii-kunde:", customer.handle);
       return;
@@ -376,6 +401,7 @@ module.exports = (app, supabase) => {
         name:                       company,
         slug,
         email,
+        owner_phone:                ownerPhone,   // null = onboardingen spoerger, som foer
         phone_number:               phoneRow.number,
         frisbii_subscription:       subHandle,
         frisbii_customer:           customer.handle,

@@ -1028,6 +1028,70 @@
   const SUPABASE_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
   const db = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+  // ── Adgangsskaermen (s-expired): fire situationer, ét sted ─────────
+  // P7 + D48 (5/9-26). Skaermen er den samme markup i fire tilstande, og
+  // hver tilstand skal sige det samme i ALLE TRE elementer — overskrift,
+  // broedtekst og knap. Da de blev sat hver for sig, faldt knappen tilbage
+  // paa "Send nyt link", mens teksten lovede en kode, og kunden ventede paa
+  // en mail, ingen havde bestilt (fundet 5/8). Tabellen fjerner den
+  // fejlmulighed frem for at lappe den: der er ingen vej til at saette to ud
+  // af tre.
+  //
+  // koderSpor: skal kvitteringen tale om en KODE (kunden kan ikke bruge
+  // linket — appen og Safari deler ikke lagring) eller om en MAIL med begge
+  // dele? Det afgoer ordlyden i requestNewLink().
+  const ADGANGSTEKSTER = {
+    // Kunden klikkede et link, og verifyOtp sagde nej. Engangsbrug: linket,
+    // der lukkede ham ind foerste gang, er doedt bagefter.
+    udloebet: {
+      titel: 'Linket er udløbet',
+      tekst: 'Skriv din e-mail, så sender vi et nyt med det samme.',
+      knap:  'Send nyt link',
+      koderSpor: false,
+    },
+    // Ikonets allerfoerste aabning. Der er ingen session her, fordi den
+    // installerede app har sin egen lagring — ikke fordi noget er gaaet galt.
+    appFoersteAabning: {
+      titel: 'Velkommen',
+      tekst: 'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.',
+      knap:  'Send mig en kode',
+      koderSpor: true,
+    },
+    // D48: kunden fulgte produktets EGEN anvisning — kopiér adressen, aabn
+    // den i Safari — og blev mødt af "Linket er udloebet". Teknisk korrekt,
+    // men det er ikke det, der skete, og skaermen bebrejdede ham noget, han
+    // ikke havde gjort.
+    safari: {
+      titel: 'Log ind her',
+      tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
+      knap:  'Send mig en kode',
+      koderSpor: true,
+    },
+    // P7: login VIRKEDE — kontoen kunne ikke findes. Det er ikke et
+    // link-problem, og det maa ikke se ud som ét.
+    kontoMangler: {
+      titel: 'Vi mangler din konto',
+      tekst: 'Dit login virkede, men vi kunne ikke finde en konto på det. Skriv din e-mail, så sender vi et nyt link.',
+      knap:  'Send nyt link',
+      koderSpor: false,
+    },
+  };
+
+  let adgangsTilstand = 'udloebet';
+
+  // Saetter alle tre tekster og viser skaermen. Roerer ALDRIG statuslinjen —
+  // den baerer svaret paa kundens sidste handling og maa ikke ryddes af en
+  // tilstandsopdatering (loginMedKode saetter en fejl DER, umiddelbart efter
+  // et kald hertil).
+  function visAdgangsskaerm(tilstand) {
+    adgangsTilstand = ADGANGSTEKSTER[tilstand] ? tilstand : 'udloebet';
+    const t = ADGANGSTEKSTER[adgangsTilstand];
+    setText('expired-title', t.titel);
+    setText('expired-msg',   t.tekst);
+    setText('relink-label',  t.knap);
+    showScreen('s-expired');
+  }
+
   // ── Init ───────────────────────────────────────────────────────────
   // Rettelse efter "usynligt nummer"-fejlen: et token_hash i URL'en vinder
   // ALTID over en gammel session i localStorage. Ellers logges man ind som
@@ -1074,19 +1138,24 @@
         // session fra magic-linket endnu ikke findes i denne kontekst.
         // "Linket er udløbet" er misvisende her; vis en venlig velkomst i
         // stedet og lad kodesporet være vejen ind (se primeren, 19-20/7).
-        if (!tokenHash && isStandalone()) {
-          // Alle TRE elementer skal sige det samme. Stod knappen tilbage paa
-          // "Send nyt link", mens teksten lovede en kode, ventede brugeren paa
-          // en mail, ingen havde bestilt — hullet fundet 5/8-26. I den
-          // installerede app er linket i oevrigt ubrugeligt: det aabner i
-          // Safari, hvilket er praecis den faelde, kodesporet loeser.
-          velkomstTilstand = true;
-          document.getElementById('expired-title').textContent = 'Velkommen';
-          document.getElementById('expired-msg').textContent =
-            'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.';
-          document.getElementById('relink-label').textContent = 'Send mig en kode';
-        }
-        return showScreen('s-expired');
+        // P7 + D48 (5/9-26): skaermen daekker FIRE situationer, ikke to.
+        // Teksterne blev foer sat i haanden tre forskellige steder, og den
+        // situation, der ikke havde sit eget saet, arvede "Linket er
+        // udloebet" — ogsaa naar kunden aldrig havde roert et link. Nu
+        // vaelges tilstanden ét sted, og ADGANGSTEKSTER holder overskrift,
+        // broedtekst og knap samlet, saa de ikke kan komme til at love hver
+        // sin ting (den fejl kostede allerede en runde 5/8).
+        //
+        //   token i URL'en, men verifyOtp sagde nej -> linket er faktisk doedt
+        //   intet token + koerer som app            -> ikonets foerste aabning
+        //   intet token + koerer i en browser       -> kunden er kommet over i
+        //                                              Safari, praecis som vi
+        //                                              selv bad ham om (D48)
+        return visAdgangsskaerm(
+          tokenHash        ? 'udloebet'
+          : isStandalone() ? 'appFoersteAabning'
+          :                  'safari'
+        );
       }
 
       state.token = session.access_token;
@@ -1095,9 +1164,10 @@
 
       // Rettelse: intet firma må ALDRIG give et tomt UI — vis en klar besked.
       if (!res.ok || !data?.firm) {
-        document.getElementById('expired-msg').textContent =
-          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
-        return showScreen('s-expired');
+        // P7: her VIRKEDE linket — det var kontoen, der manglede. Overskriften
+        // "Linket er udloebet" var faktuelt forkert og sendte kunden efter en
+        // loesning paa noget, der ikke var i stykker.
+        return visAdgangsskaerm('kontoMangler');
       }
 
       // Allerede onboardet? Så hører man til i dashboardet.
@@ -1115,7 +1185,7 @@
       startFlow();
     } catch (e) {
       console.warn('Init fejlede:', e);
-      showScreen('s-expired');
+      visAdgangsskaerm('udloebet');
     }
   }
 
@@ -1588,7 +1658,23 @@
     verifikation.aktiv = false;
     const status = document.getElementById('verify-status');
     status.className = 'status err';
-    status.textContent = 'Vi nåede ikke igennem. Tog du telefonen? Læg på, tryk Ring igen — og lad den ringe ud.';
+    // D39 (5/9-26): beskeden naevnte kun den ENE aarsag — at kunden tog
+    // telefonen — og det er ikke den hyppigste. Haandvaerkeren saetter selv
+    // viderestillingen paa sin egen telefon, saa fejl i netop det trin er den
+    // mest sandsynlige supportsag efter go-live, og produktet gav hverken ham
+    // eller supporten noget at gaa efter. `*#61#` er kontrolkoden: den viser,
+    // om viderestillingen overhovedet er aktiv, saa kunden kan svare paa
+    // spoergsmaalet selv.
+    //
+    // Aarsagerne staar i sandsynlighedsraekkefoelge — den, der oftest er
+    // forklaringen, foerst. Den anden aarsag (browseren mistede svaret, mens
+    // telefonen ringede) er rettet i koden ovenfor og naevnes derfor ikke:
+    // en fejlbesked skal give kunden noget at GOERE.
+    const vsKode = `**61*${state.phoneNumber || ''}#`;
+    status.textContent =
+      'Vi nåede ikke igennem. Som regel skyldes det viderestillingen — tast ' + vsKode +
+      ' på din telefon og prøv igen. Med *#61# kan du se, om den er aktiv. Tog du telefonen, ' +
+      'så læg på og lad den ringe ud næste gang.';
     document.getElementById('verify-btn').disabled = false;
     document.getElementById('verify-label').textContent = 'Ring igen';
     document.getElementById('verify-spin').style.display = 'none';
@@ -1665,19 +1751,19 @@
     // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
     // Anns test viste at kigge-trinnet alene ikke gav nok information).
     document.getElementById('inst1-title').textContent = isIOS
-      ? 'Kig ned og tryk på de tre prikker'
+      ? 'Find Del-ikonet'
       : 'Kig øverst på skærmen';
     document.getElementById('inst1-sub').textContent = isIOS
-      ? 'De tre prikker sidder ved adressefeltet, nederst i Safari.'
+      ? 'Firkanten med en pil, der peger op. Kan du ikke se den, så tryk på de tre prikker ved adressefeltet — så ligger den derinde.'
       : 'Oppe ved adressefeltet sidder en lille menuknap.';
     document.getElementById('orient-ios').style.display     = 'none';   // udgaaet fuld-bundlinje-variant, mockup'et staar urørt herover
     document.getElementById('orient-ios26').style.display   = isIOS ? '' : 'none';
     document.getElementById('orient-android').style.display = isIOS ? 'none' : '';
     // Trin 2: iOS -> tryk på "Del" i •••-popup'en (mock-del-ios). Android
     // -> tryk på de tre prikker (uændret, fører direkte til rullemenuen).
-    document.getElementById('inst2-title').textContent = isIOS ? 'Tryk på Del-ikonet' : 'Tryk på de tre prikker';
+    document.getElementById('inst2-title').textContent = isIOS ? 'Kom der en menu frem?' : 'Tryk på de tre prikker';
     document.getElementById('inst2-sub').textContent   = isIOS
-      ? 'Den ligger øverst i menuen, der åbner.'
+      ? 'Så tryk på "Del" øverst i den. Kom delearket frem med det samme, er du allerede videre — tryk Næste.'
       : 'De sidder yderst til højre ved adressefeltet.';
     document.getElementById('mock-del-ios').style.display = isIOS ? '' : 'none';
     document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
@@ -1696,11 +1782,6 @@
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
-  // velkomstTilstand: saettes af boot-koden, naar skaermen bruges som
-  // FOERSTE-AABNING i den installerede app (ikke som udloebet-link).
-  // De to tilstande deler markup men skal sige forskellige ting — uden den
-  // her ville knappen falde tilbage til "Send nyt link" efter foerste tryk.
-  let velkomstTilstand = false;
 
   async function requestNewLink() {
     const input  = document.getElementById('relink-email');
@@ -1729,14 +1810,28 @@
       });
     } catch (e) { /* samme svar uanset — se nedenfor */ }
 
-    // Samme besked uanset om e-mailen findes (ingen email-enumeration).
+    // D46 (5/9-26): samme besked uanset om e-mailen findes — men MED den
+    // adresse, kunden selv skrev. Svaret er med vilje ens, uanset om kontoen
+    // findes (anti-enumeration i onboarding-link.js), saa en haandvaerker der
+    // taster "gmial.com" faar praecis samme kvittering som en, der taster
+    // rigtigt, og venter derefter paa en mail, ingen har sendt. Adressen kommer
+    // fra hans eget felt, saa der laekkes intet — men fejlen springer i
+    // oejnene. Observeret i staging 5/9 med "ditdigitalekontor.dj".
+    //
+    // BEMAERK: den staar ganske vist ogsaa stadig i feltet ovenfor. Det, det
+    // her koeber, er ikke at AFSLOERE fejlen, men at flytte oejet hen paa den —
+    // ingen genlaeser et felt, de lige har udfyldt.
+    //
+    // textContent, ikke innerHTML: adressen er brugerinput og maa aldrig
+    // kunne baere markup med ind.
+    const t = ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet;
     status.className = 'status ok';
-    status.textContent = velkomstTilstand
-      ? 'Vi har sendt dig en kode. Den kan være et par minutter undervejs — kig også i spam.'
-      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode — koden kan du taste her.';
+    status.textContent = t.koderSpor
+      ? `Vi har sendt en kode til ${email}. Tjek at adressen er skrevet rigtigt — den kan være et par minutter undervejs, kig også i spam.`
+      : `Vi har sendt en mail til ${email} med et login-link og en engangskode — koden kan du taste her. Tjek at adressen er skrevet rigtigt, og kig også i spam.`;
     visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
-    label.textContent = velkomstTilstand ? 'Send mig en kode' : 'Send nyt link';
+    label.textContent = t.knap;
     spin.style.display = 'none';
   }
 
@@ -1805,8 +1900,7 @@
       const mig  = await res.json().catch(() => null);
 
       if (!res.ok || !mig?.firm) {
-        document.getElementById('expired-msg').textContent =
-          'Vi kunne ikke finde din konto på det login. Skriv din e-mail, så sender vi et nyt link.';
+        visAdgangsskaerm('kontoMangler');   // P7: koden virkede — kontoen manglede
         status.className = 'status err';
         status.textContent = 'Koden virkede, men vi kunne ikke finde din konto. Prøv med et nyt link.';
         return;

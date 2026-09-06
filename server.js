@@ -91,6 +91,11 @@ require("./frisbii-checkout")(app);
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
 
+// MIDLERTIDIG - maaleredskab, ikke en feature. Fjernes sammen med
+// proev-app-start.js, foer prod-toget koerer.
+// Se docs/2026-09-05-smagsproeve-start-url.md
+require("./proev-app-start")(app);
+
 // ─── Push-abonnementer: badge/notifikation med appen lukket (D34) ──────────
 // Registrerer POST /api/push/subscribe + /api/push/unsubscribe. Selve
 // afsendelsen (sendNytLeadPush) kaldes fra POST /formular/:token nedenfor.

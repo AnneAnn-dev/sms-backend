@@ -90,11 +90,40 @@ module.exports = (app, supabase) => {
     try {
       // Findes firmaet? Vi skal kun bruge eksistensen — rescue-mailen
       // indeholder bevidst hverken firmanavn eller telefonnummer.
-      const { data: firm } = await supabase
+      //
+      // ⚠️ VERSALFOELSOMHED (fundet 5/9-26). `.eq()` bliver til `=` i Postgres,
+      // og inputtet er gjort til smaa bogstaver ovenfor. Er raekken skrevet med
+      // stort, rammer opslaget forbi, og endpointet svarer "ukendt email" uden
+      // at nogen kan se det. Eksponeringen er SMALLERE end den lyder:
+      // frisbii-webhook.js lowercaser selv (linje 307), saa en almindelig
+      // kunde er ikke ramt — det er testfirmaer fra provision-test-firm.js
+      // (som indsatte --email ordret) og manuelt oprettede raekker.
+      //
+      // Rettelsen sidder hos SKRIVERNE, ikke her: provision-test-firm.js
+      // normaliserer nu, og migrationen 20260905090000 retter de raekker, der
+      // allerede staar med stort. Laeseren beholder `.eq()`.
+      //
+      // FRAVALGT: `.ilike()`, som ville vaere versal-uafhaengig uden datafix.
+      // `_` og `%` er wildcards i ILIKE, saa "ann_b@x.dk" ville ogsaa matche
+      // "annXb@x.dk" — og korrekt escaping gennem PostgREST er ny
+      // query-semantik paa login-redningsvejen. To dage foer go-live er det
+      // ikke en byttehandel vaerd; datafixet er entydigt og kan efterproeves.
+      const { data: firm, error: opslagFejl } = await supabase
         .from("firms")
         .select("id")
         .eq("email", email)
         .maybeSingle();
+
+      // `error` blev foer kastet vaek i destruktureringen. Fejlede opslaget —
+      // RLS, netvaerk, skema-cache — saa det ud PRAECIS som "ukendt email":
+      // ingen mail, generisk svar til kunden, og en loglinje der paastod noget
+      // forkert. Samme fejlmaade som D23: noget saa faerdigt ud uden at vaere
+      // det. Kunden faar stadig det generiske svar (ingen enumeration), men
+      // loggen siger nu sandheden.
+      if (opslagFejl) {
+        console.error("❌ Firma-opslag fejlede — INGEN mail sendt (kunden fik generisk svar):", opslagFejl.message);
+        return res.status(200).json(generiskSvar);
+      }
 
       if (firm) {
         const { url: loginUrl, otpCode } = await buildMagicLink(email);
