@@ -1945,10 +1945,41 @@
     // Safari deler hverken session eller localStorage med den indbyggede
     // browser. ADRESSEN er det eneste, der kan baere hensigten over. Derfor
     // skrives maerket ind her, hver gang skaermen vises.
+    // Hensigten i localStorage: koerer hun allerede som app, er der ingen
+    // rejse at huske. Her er den eftergivende form rigtig — en falsk positiv
+    // koster en glemt paamindelse, en falsk negativ sender en kunde, der har
+    // appen, gennem guiden hver gang hun aabner den.
     if (maaskeApp()) {
-      rydInstallationshensigt();          // appen er der (eller vi er i en kontekst, hvor guiden ikke kan gennemfoeres)
+      rydInstallationshensigt();
     } else {
       saetInstallationshensigt();
+    }
+
+    // ⚠️ BROEN TIL SAFARI — og den maa IKKE vogtes af maaskeApp().
+    //
+    // maaskeApp() er SAND i mail-appens indbyggede browser, fordi
+    // navigator.standalone lyver dér. (Se kommentaren faa linjer nede: den
+    // retter praecis den samme fejl et andet sted i denne funktion. Vi rettede
+    // den ene og genindfoerte den anden.)
+    //
+    // Konsekvensen, da maerkeskrivningen laa i else-grenen: i den ENE kontekst,
+    // hvor adressen er det eneste, der kan baere hensigten over, blev adressen
+    // aldrig skrevet om. Kompasset aabnede en ren URL i Safari, firmaet var
+    // active, og kunden landede i dashboardet UDEN app — altsaa uden push,
+    // altsaa uden den leadbesked, haandvaerkeren betaler for. Set paa Annes
+    // telefon 6/9-26 kl. 11:51-11:52.
+    //
+    // erIndbyggetBrowser() er den rigtige vagt: maerket skal i adressen
+    // praecis naar der venter et spring til Safari, og ingen andre steder.
+    // Dermed kan det heller ikke bages ind i et hjemmeskaermsikon, som det
+    // gjorde 5/9 — de to fejl er hinandens spejlbillede, og den her form
+    // undgaar dem begge.
+    //
+    // Tre spoergsmaal, tre taerskler — det er hele laerdommen:
+    //   "koerer hun som app?"        -> isStandalone()        (streng)
+    //   "skal hun ind i guiden?"     -> maaskeApp()           (eftergivende)
+    //   "skal maerket i adressen?"   -> erIndbyggetBrowser()  (kontekst)
+    if (erIndbyggetBrowser()) {
       try {
         if (!/[?&]trin=app(&|$)/.test(location.search)) {
           history.replaceState(null, '', location.pathname + '?trin=app');
