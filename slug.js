@@ -12,6 +12,25 @@
 //   const slug = await uniqueSlug(supabase, firmName);
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Sluggen er ren pynt i linket: ruten /:slug/:token slaar KUN tokenet op og
+// ignorerer sluggen. Men den koster plads i kunde-SMS'en, hvor firmanavn og
+// slug deler 46 tegn (resten er fast tekst + domaene + token). Uden loft aad
+// sluggen omtrent lige saa meget som navnet — og aeoeaa bliver til to tegn
+// hver, saa den var tit dyrest. Med et loft er navnets graense ét fast tal i
+// stedet for "mellem 21 og 23, afhaengigt af bogstaverne".
+const SLUG_MAKS = 12;
+
+// Klipper ved en BINDESTREG, saa sluggen ender paa et helt ord: "soerensens"
+// frem for "soerensens-t". Foerste ord laengere end loftet klippes haardt —
+// der er ikke andet at goere, og ingen laeser det alligevel.
+function kapSlug(slug) {
+  if (slug.length <= SLUG_MAKS) return slug;
+  const vindue = slug.slice(0, SLUG_MAKS + 1);
+  const sidste = vindue.lastIndexOf("-");
+  const kort = sidste > 0 ? vindue.slice(0, sidste) : slug.slice(0, SLUG_MAKS);
+  return kort.replace(/-+$/, "") || slug.slice(0, SLUG_MAKS);
+}
+
 function slugify(name) {
   return (name || "")
     .toLowerCase()
@@ -25,7 +44,7 @@ function slugify(name) {
 
 // Returnerer en slug der ikke allerede findes i firms.slug.
 async function uniqueSlug(supabase, name) {
-  const base = slugify(name);
+  const base = kapSlug(slugify(name));
   let slug = base;
   let n = 2;
   // Loop indtil ingen kollision. I praksis 1 forsøg; flere kun ved enslydende navne.
@@ -40,4 +59,4 @@ async function uniqueSlug(supabase, name) {
   }
 }
 
-module.exports = { slugify, uniqueSlug };
+module.exports = { slugify, uniqueSlug, kapSlug, SLUG_MAKS };

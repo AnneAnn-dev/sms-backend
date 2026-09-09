@@ -13,6 +13,7 @@ const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
 const { normalizePhone, maskerTlf, maskerMail } = require("./phone");
+const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
 const { sendAdminAlert } = require("./mail");
@@ -57,6 +58,25 @@ module.exports = function registerOnboarding(app, supabase) {
     }
     return { segments: n <= 160 ? 1 : Math.ceil(n / 153), ucs2: false, tegn: n };
   }
+  // Hvor mange tegn er der plads til i firmanavnet? Tallet UDREGNES af den
+  // aegte skabelon frem for at staa som en konstant — ellers ville en aendret
+  // ordlyd eller et nyt domaene lade graensen blive staaende paa et tal, der
+  // ikke passer laengere. Sluggen regnes med sit loft, tokenet med sine 12.
+  function maksNavnLaengde() {
+    const proeveUrl = `${FORM_BASE}/${"x".repeat(SLUG_MAKS)}/${"x".repeat(12)}`;
+    const fast = gsmSegments(kundeSmsBody("", proeveUrl));
+    if (fast.ucs2 || typeof fast.tegn !== "number") return 0;   // fail-closed
+    return Math.max(0, 160 - fast.tegn);
+  }
+
+  // Passer navnet i én SMS? Proever den AEGTE besked med det AEGTE navn, saa
+  // baade laengde og tegnsaet dommes af samme regel som afsendelsen.
+  function navnPasserISms(navn, slug) {
+    const url = `${FORM_BASE}/${slug}/${"x".repeat(12)}`;
+    const r = gsmSegments(kundeSmsBody(navn, url));
+    return { ok: !r.ucs2 && r.segments === 1, ucs2: !!r.ucs2 };
+  }
+
   function advarHvisFlereSegmenter(body, kontekst) {
     const r = gsmSegments(body);
     if (r.segments > 1 || r.ucs2) {
@@ -465,6 +485,76 @@ module.exports = function registerOnboarding(app, supabase) {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ ok: true });
+  });
+
+  // ─── API: Gem firmanavnet (onboarding side 1) ───────────────────────────
+  // Hvorfor ruten findes: `company` kan IKKE goeres obligatorisk paa Frisbiis
+  // hostede betalingsside, og /checkout/start — hvor valideringen sidder —
+  // naas aldrig af en rigtig kunde. Kommer navnet igennem tomt, opkalder
+  // provisioneringen firmaet efter PERSONEN, og det navn ender i firms.name,
+  // i sluggen, i hver kunde-SMS og i greeting_text, som praerenderes til lyd.
+  // Onboardingens side 1 er det eneste sted, hvor et menneske ser navnet,
+  // mens det stadig er gratis at rette. (D33, fundet i prod 7/9-26.)
+  app.post('/api/firma/opdater-navn', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const navn = ((req.body && req.body.name) || '').trim().replace(/\s+/g, ' ');
+    if (!navn)             return res.status(400).json({ error: 'Mangler firmanavn' });
+    if (navn.length > 200) return res.status(400).json({ error: 'Mangler firmanavn' });  // ren misbrugsspaerre
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms')
+      .select('id, name, slug, greeting_text, greeting_audio_url')
+      .eq('id', firm_id)
+      .single();
+
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    // Uaendret navn: rør ingenting. Ellers ville en kunde, der bare trykker
+    // videre, faa en ny slug og en nulstillet lydfil uden grund.
+    if (navn === firm.name) {
+      return res.json({ ok: true, name: firm.name, slug: firm.slug, greeting_text: firm.greeting_text });
+    }
+
+    const felter = { name: navn, slug: await uniqueSlug(supabase, navn) };
+
+    // GRAENSEN: kunde-SMS'en skal blive i ÉT segment. Sker det ikke, deler
+    // telefonnettet beskeden — og delingen rammer midt i linket, saa kunden
+    // faar "Cannot GET". Det var fejlen 12/7-26, og vagten har kun logget
+    // siden. Her afvises den i stedet, mens et menneske kan rette navnet.
+    const passer = navnPasserISms(navn, felter.slug);
+    if (!passer.ok) {
+      return res.status(400).json({
+        error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
+        maksTegn: maksNavnLaengde(),
+      });
+    }
+
+    // Navnet staar OGSAA inde i telefonbeskeden. Vi bytter det ud frem for at
+    // skrive en ny standardtekst: har kunden allerede rettet i beskeden, maa
+    // den ikke gaa tabt. Findes det gamle navn ikke i teksten, er den skrevet
+    // om i forvejen, og saa lader vi den vaere.
+    if (firm.greeting_text && firm.name && firm.greeting_text.includes(firm.name)) {
+      felter.greeting_text = firm.greeting_text.split(firm.name).join(navn);
+      // En allerede renderet lydfil siger nu det forkerte navn. Vi nulstiller
+      // den frem for at lade den blive: uden fil falder /opkald tilbage paa
+      // Polly og siger det RIGTIGE navn, og side 3 renderer en ny ved gem.
+      // Fejler i den rigtige retning.
+      if (firm.greeting_audio_url) felter.greeting_audio_url = null;
+    }
+
+    const { error } = await supabase.from('firms').update(felter).eq('id', firm_id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    console.log('✏️  Firmanavn rettet i onboarding:', firm.id, '->', felter.slug);
+
+    res.json({
+      ok: true,
+      name: navn,
+      slug: felter.slug,
+      greeting_text: felter.greeting_text || firm.greeting_text,
+    });
   });
 
   // ─── API: Opdater stemme og besked ───────────────────────────────────────
