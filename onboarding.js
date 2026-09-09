@@ -69,6 +69,14 @@ module.exports = function registerOnboarding(app, supabase) {
     return Math.max(0, 160 - fast.tegn);
   }
 
+  // Firmanavnet og SMS-navnet er to ting (9/9-26). Telefonsvareren har ingen
+  // laengdegraense, saa `name` maa vaere saa langt kunden vil — men kunde-SMS'en
+  // skal blive i ÉT segment, og dér deler navnet 46 tegn med sluggen. `sms_navn`
+  // baerer kortformen og er NULL, naar det fulde navn passer. ÉT sted at spoerge.
+  function smsNavn(firm) {
+    return (firm && (firm.sms_navn || firm.name)) || '';
+  }
+
   // Passer navnet i én SMS? Proever den AEGTE besked med det AEGTE navn, saa
   // baade laengde og tegnsaet dommes af samme regel som afsendelsen.
   function navnPasserISms(navn, slug) {
@@ -153,7 +161,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number, owner_phone")
+      .select("id, name, sms_navn, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number, owner_phone")
       .eq("phone_number", toNumber)
       .single();
 
@@ -266,7 +274,7 @@ module.exports = function registerOnboarding(app, supabase) {
             sendSms({
               to:   demoModtager,
               from: toNumber,
-              body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
+              body: advarHvisFlereSegmenter(kundeSmsBody(smsNavn(firm), demoUrl), "demo"),
             }),
           ]).then((udfald) => {
             const navne = ["forklaring", "kopi"];
@@ -362,7 +370,7 @@ module.exports = function registerOnboarding(app, supabase) {
     sendSms({
       to:   fromNumber,
       from: toNumber,
-      body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, formUrl), "kunde"),
+      body: advarHvisFlereSegmenter(kundeSmsBody(smsNavn(firm), formUrl), "kunde"),
     }).catch(err => console.error("❌ SMS fejl:", err));
     
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
@@ -458,7 +466,7 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const { data: firms } = await supabase
       .from('firms')
-      .select('id, name, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
+      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
       .in('id', firmIds);
 
     // Vælg ét firma robust: foretræk det, der er under onboarding (det brugeren
@@ -505,36 +513,38 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const { data: firm, error: hentErr } = await supabase
       .from('firms')
-      .select('id, name, slug, greeting_text, greeting_audio_url')
+      .select('id, name, sms_navn, slug, greeting_text, greeting_audio_url')
       .eq('id', firm_id)
       .single();
 
     if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
 
-    // Uaendret navn: rør ingen FELTER. Ellers ville en kunde, der bare
-    // trykker videre, faa en ny slug og en nulstillet lydfil uden grund.
+    // FIRMANAVNET AFVISES ALDRIG. Det er kundens eget navn, telefonsvareren
+    // siger det, og lyd har ingen laengdegraense. Passer det ikke i SMS'en,
+    // er det SMS-navnet der skal kortes — ikke firmaets. (9/9-26.)
+    //
+    // Uaendret navn: rør ingen felter ud over gaet-flaget. Ellers ville en
+    // kunde, der bare trykker videre, faa en ny slug og en nulstillet lydfil
+    // uden grund. Men SVARET regnes hver gang, ogsaa ved uaendret navn — ⚠️
+    // her stod foer en tidlig `return`, og saa sejlede et for langt navn fra
+    // Frisbii lige igennem. En genvej, der springer et vaern over, er ikke en
+    // optimering; det var samme fejl i BAADE klienten og serveren.
     const uaendret = navn === firm.name;
 
-    // GRAENSEN foerst — OGSAA naar navnet er uaendret. ⚠️ 9/9-26: her stod
-    // en tidlig `return` ved uaendret navn FOER tjekket, og saa sejlede et
-    // for langt navn fra Frisbii lige igennem, hvis kunden bare trykkede
-    // Fortsæt uden at rette. Set i staging: firmaet beholdt sit 38-tegns
-    // navn, og kunde-SMS'en blev to segmenter. En genvej, der springer et
-    // VAERN over, er ikke en optimering.
-    const slug   = uaendret ? firm.slug : await uniqueSlug(supabase, navn);
-    const passer = navnPasserISms(navn, slug);
-    if (!passer.ok) {
-      return res.status(400).json({
-        error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
-        maksTegn: maksNavnLaengde(),
-      });
+    // Kunden har set navnet og trykket videre — saa er det ikke laengere et
+    // gaet fra provisioneringen, uanset om hun rettede i det.
+    const felter = { navn_er_gaettet: false };
+    if (!uaendret) {
+      felter.name = navn;
+      felter.slug = await uniqueSlug(supabase, navn);
+      // Et SMS-navn hoerte til det GAMLE firmanavn. Nulstil, saa det enten
+      // udledes af det nye navn eller spoerges om paa ny.
+      felter.sms_navn = null;
     }
 
-    if (uaendret) {
-      return res.json({ ok: true, name: firm.name, slug: firm.slug, greeting_text: firm.greeting_text });
-    }
-
-    const felter = { name: navn, slug };
+    const slug    = uaendret ? firm.slug : felter.slug;
+    const brugtNu = uaendret ? (firm.sms_navn || navn) : navn;
+    const passer  = navnPasserISms(brugtNu, slug);
 
     // Navnet staar OGSAA inde i telefonbeskeden. Vi bytter det ud frem for at
     // skrive en ny standardtekst: har kunden allerede rettet i beskeden, maa
@@ -552,14 +562,51 @@ module.exports = function registerOnboarding(app, supabase) {
     const { error } = await supabase.from('firms').update(felter).eq('id', firm_id);
     if (error) return res.status(500).json({ error: error.message });
 
-    console.log('✏️  Firmanavn rettet i onboarding:', firm.id, '->', felter.slug);
+    if (!uaendret) console.log('✏️  Firmanavn rettet i onboarding:', firm.id, '->', felter.slug);
 
     res.json({
       ok: true,
       name: navn,
-      slug: felter.slug,
+      slug,
       greeting_text: felter.greeting_text || firm.greeting_text,
+      sms_navn: uaendret ? (firm.sms_navn || null) : null,
+      // Navnet ER gemt. Mangler der et SMS-navn, er det et EKSTRA skridt —
+      // ikke en afvisning. Derfor 200 med et flag og ikke en 400.
+      kraeverSmsNavn: !passer.ok,
+      ugyldigeTegn:   !!passer.ucs2,
+      maksTegn:       maksNavnLaengde(),
     });
+  });
+
+  // ─── API: Gem SMS-navnet (onboarding side 1b) ───────────────────────────
+  // Bruges KUN i kunde-SMS'en. Firmanavnet er allerede gemt uafkortet; det
+  // her er kortformen, der skal kunne vaere i ét segment sammen med linket.
+  app.post('/api/firma/opdater-sms-navn', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const kort = ((req.body && req.body.sms_navn) || '').trim().replace(/\s+/g, ' ');
+    if (!kort)             return res.status(400).json({ error: 'Mangler navn' });
+    if (kort.length > 200) return res.status(400).json({ error: 'Mangler navn' });
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms').select('id, slug').eq('id', firm_id).single();
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    const passer = navnPasserISms(kort, firm.slug);
+    if (!passer.ok) {
+      return res.status(400).json({
+        error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
+        maksTegn: maksNavnLaengde(),
+      });
+    }
+
+    const { error } = await supabase
+      .from('firms').update({ sms_navn: kort }).eq('id', firm_id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    console.log('✏️  SMS-navn gemt for firma:', firm.id);
+    res.json({ ok: true, sms_navn: kort });
   });
 
   // ─── API: Opdater stemme og besked ───────────────────────────────────────

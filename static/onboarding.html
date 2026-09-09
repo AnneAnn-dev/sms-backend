@@ -521,7 +521,7 @@
                placeholder="Dit firmanavn" aria-label="Firmanavn"
                onkeydown="if(event.key==='Enter')saveFirmName()">
       </div>
-      <p class="hint">Navnet er det, dine kunder hører, når de ringer — og det står i den SMS, de får.</p>
+      <p class="hint">Navnet er det, dine kunder hører, når de ringer til dig.</p>
       <p class="error" id="firm-name-error"></p>
       <button class="btn" onclick="saveFirmName()">
         <span id="firm-name-label">Fortsæt</span><span class="spinner" id="firm-name-spin"></span>
@@ -533,10 +533,8 @@
          forkortet, men INTET gemmes af sig selv: feltet er kundens, og
          taelleren viser hvad der er tilbage. -->
     <section class="screen" id="s-0b">
-      <h1>Navnet er lidt for langt</h1>
-      <p class="sub">Dine kunder får en SMS med et link. Der er kun plads til <span id="kort-maks">34</span> tegn i firmanavnet, ellers knækker linket undervejs.</p>
-
-      <p class="question">Hvad skal der stå?</p>
+      <h1>Hvordan skal dit navn stå i SMS'en</h1>
+      <p class="sub" style="font-size:13px">Der er plads til <span id="kort-maks">34</span> tegn.</p>
       <div class="field" id="kort-navn-field">
         <input id="kort-navn-input" type="text" autocomplete="organization"
                aria-label="Kortere firmanavn"
@@ -691,7 +689,6 @@
            placeringen er ny. Den gamle statiske linje ("Laeg Dit Digitale
            Kontor paa din telefon") er droppet, fordi den sagde mindre end
            den, der stod under knappen. -->
-      <p class="sub">Læg Dit Digitale Kontor på telefonen.<br>Så er det altid lige ved hånden.</p>
       <p class="sub" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
       <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
@@ -1037,6 +1034,8 @@
     firmId:      null,
     token:       null,
     firmName:    '',
+    smsNavn:     '',     // kortform, KUN til kunde-SMS'en (tom = brug firmName)
+    navnGaettet: false,  // Frisbii havde intet firmanavn — provisioneringen gaettede
     phoneNumber: '',   // firmaets tildelte nummer
     ownerPhone:  '',   // håndværkerens eget mobilnummer
     voice:       'female',
@@ -1377,6 +1376,8 @@
 
       state.firmId      = data.firm.id;
       state.firmName    = data.firm.name || '';
+      state.smsNavn     = data.firm.sms_navn || '';
+      state.navnGaettet = !!data.firm.navn_er_gaettet;
       state.phoneNumber = data.firm.phone_number || '';
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
@@ -1411,8 +1412,12 @@
     // personens navn — og findes det heller ikke, paa e-mailen. Ingen har et
     // firma, der hedder noget@gmail.com, og en prefill inviterer bare til at
     // trykke videre. Lad feltet staa tomt med sin placeholder i stedet.
+    // Serveren siger, om navnet var et gaet ved provisioneringen. Var det,
+    // staar feltet TOMT: et gaet, der ser ud som et svar, bliver trykket
+    // videre paa. @-tjekket er en rem om livet for rader fra foer flaget.
     const navnFraDb = state.firmName || '';
-    document.getElementById('firm-name-input').value = navnFraDb.includes('@') ? '' : navnFraDb;
+    const erGaet    = state.navnGaettet || navnFraDb.includes('@');
+    document.getElementById('firm-name-input').value = erGaet ? '' : navnFraDb;
 
     // Side 2: nummeret. Samme princip — ét felt, forudfyldt hvis Frisbii havde
     // nummeret med, ellers tomt. Landekoden ligger i praefikset, saa feltet
@@ -1469,6 +1474,8 @@
 
     state.firmId      = mig.firm.id;
     state.firmName    = mig.firm.name || '';
+    state.smsNavn     = mig.firm.sms_navn || '';
+    state.navnGaettet = !!mig.firm.navn_er_gaettet;
     state.phoneNumber = mig.firm.phone_number || '';
     state.ownerPhone  = mig.firm.owner_phone || '';
     state.voice       = mig.firm.voice_gender || 'female';
@@ -1630,24 +1637,19 @@
     label.textContent = 'Gemmer …';
     spin.style.display = 'block';
     try {
-      if (state.firmId && navn !== state.firmName) {
+      // ⚠️ 9/9-26: her stod `&& navn !== state.firmName`. Serverens vagt blev
+      // rettet samme dag, men den hjalp ikke — kaldet forlod aldrig telefonen,
+      // naar kunden bare trykkede Fortsæt. SAMME genvej to lag over hinanden.
+      // Vi kalder derfor ALTID: serveren skriver ikke noget ved uaendret navn,
+      // men den er det eneste sted, graensen kendes, og den skal spoerges.
+      if (state.firmId) {
         const res = await fetch('/api/firma/opdater-navn', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
           body:    JSON.stringify({ name: navn }),
         });
         const svar = await res.json().catch(() => null);
-        if (!res.ok) {
-          // Navnet kan ikke vaere i én SMS. Serveren ejer graensen og sender
-          // den med, saa tallet aldrig staar to steder.
-          if (svar && (svar.error === 'for_langt' || svar.error === 'ugyldige_tegn')) {
-            label.textContent = orig;
-            spin.style.display = 'none';
-            visKortNavn(navn, svar.maksTegn, svar.error === 'ugyldige_tegn');
-            return;
-          }
-          throw new Error('Kunne ikke gemme');
-        }
+        if (!res.ok) throw new Error('Kunne ikke gemme');
         // Serveren ejer baade sluggen og telefonbeskeden: navnet staar OGSAA
         // inde i greeting_text. Uden det her ville side 3 vise den gamle tekst
         // med det gamle navn — og gemme den tilbage igen ved naeste tryk.
@@ -1656,6 +1658,15 @@
           const g = document.getElementById('greeting');
           if (g) g.value = svar.greeting_text;
         }
+        // Firmanavnet ER gemt — det afvises aldrig. Passer det bare ikke i
+        // kunde-SMS'en, mangler der et SMS-navn, og det er et EKSTRA skridt.
+        if (svar && svar.kraeverSmsNavn) {
+          state.firmName = navn;
+          state.smsNavn  = '';
+          visKortNavn(navn, svar.maksTegn, svar.ugyldigeTegn);
+          return;
+        }
+        if (svar) state.smsNavn = svar.sms_navn || '';
       }
       state.firmName = navn;
 
@@ -1674,11 +1685,13 @@
     }
   }
 
-  // ── Side 1b: navnet er for langt til SMS'en ────────────────────────
+  // ── Side 1b: kort navn til SMS'en ──────────────────────────────────
   // Kunde-SMS'en skal blive i ÉT segment: over 160 GSM-tegn deler telefon-
   // nettet beskeden, og delingen rammer midt i linket (fejlen 12/7-26).
-  // Forslaget er navnet klippet efter tegn — bevidst simpelt, saa der ikke
-  // gaettes paa hvilke ORD der betyder noget. Kunden retter frit bagefter.
+  // FIRMANAVNET roeres ikke — telefonsvareren har ingen laengdegraense, og
+  // det er kundens eget navn. Kun `sms_navn` kortes. Forslaget er navnet
+  // klippet efter tegn, bevidst simpelt: saa gaettes der ikke paa hvilke ORD
+  // der betyder noget, og kunden retter frit bagefter.
   let kortNavnMaks = 0;
 
   function visKortNavn(navn, maks, ugyldigeTegn) {
@@ -1719,10 +1732,10 @@
     label.textContent = 'Gemmer …';
     spin.style.display = 'block';
     try {
-      const res = await fetch('/api/firma/opdater-navn', {
+      const res = await fetch('/api/firma/opdater-sms-navn', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-        body:    JSON.stringify({ name: navn }),
+        body:    JSON.stringify({ sms_navn: navn }),
       });
       const svar = await res.json().catch(() => null);
       if (!res.ok) {
@@ -1736,13 +1749,8 @@
         }
         throw new Error('Kunne ikke gemme');
       }
-      if (svar && svar.greeting_text) {
-        state.greeting = svar.greeting_text;
-        const g = document.getElementById('greeting');
-        if (g) g.value = svar.greeting_text;
-      }
-      state.firmName = navn;
-      document.getElementById('firm-name-input').value = navn;
+      // Kun SMS-navnet gemmes her. Firmanavnet er urort — det er hele pointen.
+      state.smsNavn = navn;
 
       label.textContent = '✓';
       spin.style.display = 'none';
