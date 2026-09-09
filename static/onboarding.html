@@ -1566,6 +1566,25 @@
       document.getElementById('owner-input').focus();
       return;
     }
+
+    // VAGT (7/9-26): kunden har lige faaet SIT DDK-nummer i velkomstmailen, og et
+    // felt der spoerger om "dit nummer" faar nogle til at taste netop det. Sker
+    // det, bliver owner_phone lig firmaets eget nummer, og saa faar demo-SMS'en
+    // samme To og From -> Twilio afviser den med 21266. Verifikationen gaar
+    // ALLIGEVEL igennem via sikkerhedsnettet i /opkald, saa fejlen er lydloes:
+    // haandvaerkeren hoerer "det virker" og ser aldrig kunde-SMS'en. Set i prod.
+    // Serveren har samme vagt som bagstopper; den her fanger det, mens kunden
+    // staar med telefonen og selv kan rette.
+    // Sammenlign paa CIFRE — state.phoneNumber er E.164 ("+4540275188") og feltet
+    // er otte cifre, saa formatering og landekode maa ikke kunne skabe et falskt
+    // negativt svar.
+    const egetNummer = (state.phoneNumber || '').replace(/\D/g, '').replace(/^45/, '');
+    if (egetNummer && digits === egetNummer) {
+      field.classList.add('invalid');
+      errEl.textContent = 'Du skrev det nummer du har fået af os. Du skal skrive dit telefonnummer.';
+      document.getElementById('owner-input').focus();
+      return;
+    }
     await saveOwnerPhone('+45' + digits, 'owner-label', 'owner-spin', errEl);
   }
 

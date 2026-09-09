@@ -13,6 +13,9 @@ const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
 const { normalizePhone, maskerTlf, maskerMail } = require("./phone");
+// sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
+// ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
+const { sendAdminAlert } = require("./mail");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -182,18 +185,90 @@ module.exports = function registerOnboarding(app, supabase) {
         // GSM-tegn og blev delt MIDT i linket. Nu: (1) kort forklaring,
         // (2) en NOEJAGTIG kopi af kunde-SMS'en (samme skabelon!) med intakt
         // link — haandvaerkeren ser praecis det, kunden ser.
-        const demoModtager = firm.owner_phone || fromNumber;
-        sendSms({
-          to:   demoModtager,
-          from: toNumber,
-          body: `Sådan ser den SMS ud, dine kunder får, når de ringer, og du ikke svarer:`,
-        }).catch(err => console.error("❌ Demo-SMS (forklaring) fejl:", err));
-        sendSms({
-          to:   demoModtager,
-          from: toNumber,
-          body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
-        }).catch(err => console.error("❌ Demo-SMS (kopi) fejl:", err));
-        console.log("📨 Demo-SMS sendt til håndværker:", maskerTlf(firm.owner_phone || fromNumber));
+        //
+        // ── MODTAGEREN: kun owner_phone, ingen fallback (7/9-26) ────────────
+        // Her stod foer `firm.owner_phone || fromNumber`. Fallbacken var farlig:
+        // paa et VIDERESTILLET opkald er `fromNumber` ofte systemnummeret — det
+        // er praecis derfor sikkerhedsnettet i erVerifikation matcher paa det —
+        // saa demoen kunne ende hos os selv i stedet for hos haandvaerkeren.
+        // Identitet maa ikke udledes af et felt, teleselskabet styrer. Mangler
+        // owner_phone, er det en fejl der skal SES, ikke et hul der skal fyldes
+        // med foerste det bedste nummer.
+        const demoModtager = normalizePhone(firm.owner_phone);
+        const demoAfsender = normalizePhone(toNumber);
+
+        if (!demoModtager) {
+          console.error("🚨 Demo-SMS SPRINGES OVER — firmaet har intet owner_phone:", firm.id);
+          sendAdminAlert({
+            subject: "Demo-SMS sprunget over: firma uden owner_phone",
+            text:
+              `Firma ${firm.id} (${firm.name}) blev verificeret, men har intet owner_phone.\n` +
+              `Demo-SMS'en blev IKKE sendt. Haandvaerkeren hoerte "det virker" i telefonen,\n` +
+              `men ser aldrig hvordan kundens SMS ser ud.\n\n` +
+              `Tjek firms.owner_phone for firmaet, eller bed kunden gennemfoere onboarding trin 1 igen.`,
+          }).catch(err => console.error("⚠️  Alarm om manglende owner_phone kunne ikke sendes:", err.message));
+
+        } else if (demoModtager === demoAfsender) {
+          // Twilio afviser en SMS til afsenderen selv med fejl 21266. Vagten
+          // fanger det FOER kaldet, saa det bliver en alarm med en forklaring i
+          // stedet for en RestException i en fejlgren, ingen laeser.
+          // Set i prod 7/9-26: owner_phone var identisk med firmaets eget
+          // DDK-nummer, og BEGGE demo-beskeder fejlede lydloest.
+          console.error("🚨 Demo-SMS SPRINGES OVER — owner_phone er firmaets EGET nummer:",
+            firm.id, maskerTlf(demoModtager));
+          sendAdminAlert({
+            subject: "Demo-SMS sprunget over: owner_phone = firmaets eget nummer",
+            text:
+              `Firma ${firm.id} (${firm.name}) har owner_phone identisk med sit eget DDK-nummer ` +
+              `(${maskerTlf(demoModtager)}).\n` +
+              `Twilio ville have afvist begge demo-beskeder med fejl 21266 ("To and From cannot be the same").\n\n` +
+              `Sandsynlig aarsag: kunden har tastet det TILDELTE nummer i stedet for sin egen telefon.\n` +
+              `Ret firms.owner_phone til haandvaerkerens EGEN telefon — ellers rammer samme fejl ogsaa senere beskeder.`,
+          }).catch(err => console.error("⚠️  Alarm om selv-SMS kunne ikke sendes:", err.message));
+
+        } else {
+          // ── LOGGEN SKAL FOELGE VIRKELIGHEDEN (7/9-26) ─────────────────────
+          // Kvitteringen stod foer paa linjen EFTER de to kald — men kaldene er
+          // asynkrone, saa "Demo-SMS sendt" blev skrevet, foer nogen af dem var
+          // afgjort. 7/9 fejlede BEGGE beskeder, mens loggen sagde "sendt".
+          // Samme fejlklasse som mail-gaten: en log-linje maa aldrig paastaa
+          // "sendt", naar der ikke blev sendt noget.
+          //
+          // Vi venter bevidst IKKE paa afsendelsen — TwiML-svaret til Twilio maa
+          // ikke forsinkes af to API-kald. Kvitteringen flyttes i stedet ind i
+          // loeftet, saa den skrives naar udfaldet faktisk kendes.
+          Promise.allSettled([
+            sendSms({
+              to:   demoModtager,
+              from: toNumber,
+              body: `Sådan ser den SMS ud, dine kunder får, når de ringer, og du ikke svarer:`,
+            }),
+            sendSms({
+              to:   demoModtager,
+              from: toNumber,
+              body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
+            }),
+          ]).then((udfald) => {
+            const navne = ["forklaring", "kopi"];
+            udfald.forEach((r, i) => {
+              if (r.status === "rejected") console.error(`❌ Demo-SMS (${navne[i]}) fejl:`, r.reason);
+            });
+            const lykkedes = udfald.filter(r => r.status === "fulfilled").length;
+            if (lykkedes === udfald.length) {
+              console.log("📨 Demo-SMS sendt til håndværker:", maskerTlf(demoModtager));
+              return;
+            }
+            console.error(`🚨 Demo-SMS: kun ${lykkedes} af ${udfald.length} beskeder sendt til`,
+              maskerTlf(demoModtager), "— firma:", firm.id);
+            sendAdminAlert({
+              subject: "Demo-SMS fejlede ved verifikation",
+              text:
+                `Firma ${firm.id} (${firm.name}) blev verificeret, men ${udfald.length - lykkedes} af ` +
+                `${udfald.length} demo-beskeder kunne ikke sendes.\n` +
+                `Twilio-fejlkoden staar i Railway-loggen. Haandvaerkeren tror, alt er klar.`,
+            }).catch(err => console.error("⚠️  Alarm om fejlet demo-SMS kunne ikke sendes:", err.message));
+          });
+        }
       } catch (e) {
         console.error("⚠️  Kunne ikke sende demo-SMS (verifikation fortsætter):", e.message);
       }
