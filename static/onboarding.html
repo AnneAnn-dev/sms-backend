@@ -1124,7 +1124,7 @@
     // ikke havde gjort.
     safari: {
       titel: 'Log ind her',
-      tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
+      tekst: 'Safari har sin egen indgang, så du skal lige logge ind en gang til.',
       knap:  'Send mig en kode',
       glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
@@ -1400,7 +1400,12 @@
 
     // Side 1: firmanavnet. Feltet ER redigeringen — kunden retter direkte i
     // det, saa der behoeves hverken en bekraeft-variant eller en "skift"-knap.
-    document.getElementById('firm-name-input').value = state.firmName || '';
+    // Mangler firmanavnet hos Frisbii, falder provisioneringen tilbage paa
+    // personens navn — og findes det heller ikke, paa e-mailen. Ingen har et
+    // firma, der hedder noget@gmail.com, og en prefill inviterer bare til at
+    // trykke videre. Lad feltet staa tomt med sin placeholder i stedet.
+    const navnFraDb = state.firmName || '';
+    document.getElementById('firm-name-input').value = navnFraDb.includes('@') ? '' : navnFraDb;
 
     // Side 2: nummeret. Samme princip — ét felt, forudfyldt hvis Frisbii havde
     // nummeret med, ellers tomt. Landekoden ligger i praefikset, saa feltet
@@ -1455,8 +1460,14 @@
     return 'onboarding';
   }
 
-  function udfoerEfterLogin(hvad) {
-    if (hvad === 'dashboard') { window.location.replace('/dashboard#nyt-login'); return; }
+  // viaMail: kom kunden ind via LINK eller ENGANGSKODE fra mailen? Kun da
+  // giver dashboardets puf mening — det spoerger jo, om hun vil saette en
+  // adgangskode, saa hun slipper for mailvejen naeste gang. Efter et login
+  // MED adgangskoden er beskeden forkert: hun har den allerede og brugte den
+  // lige. Flaget er bevidst uden standardvaerdi, saa et nyt kaldested skal
+  // tage stilling frem for at arve den forkerte opfoersel. (Fundet 9/9-26.)
+  function udfoerEfterLogin(hvad, viaMail) {
+    if (hvad === 'dashboard') { window.location.replace(viaMail ? '/dashboard#nyt-login' : '/dashboard'); return; }
     if (hvad === 'installer') { visInstallationsguiden(); return; }
     startFlow();
   }
@@ -2431,7 +2442,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-      udfoerEfterLogin(hvad);
+      udfoerEfterLogin(hvad, true);   // engangskode fra mailen
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
@@ -2494,7 +2505,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-      udfoerEfterLogin(hvad);
+      udfoerEfterLogin(hvad, false);  // kundens egen adgangskode
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
