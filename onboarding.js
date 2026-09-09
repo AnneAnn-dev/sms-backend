@@ -511,25 +511,30 @@ module.exports = function registerOnboarding(app, supabase) {
 
     if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
 
-    // Uaendret navn: rør ingenting. Ellers ville en kunde, der bare trykker
-    // videre, faa en ny slug og en nulstillet lydfil uden grund.
-    if (navn === firm.name) {
-      return res.json({ ok: true, name: firm.name, slug: firm.slug, greeting_text: firm.greeting_text });
-    }
+    // Uaendret navn: rør ingen FELTER. Ellers ville en kunde, der bare
+    // trykker videre, faa en ny slug og en nulstillet lydfil uden grund.
+    const uaendret = navn === firm.name;
 
-    const felter = { name: navn, slug: await uniqueSlug(supabase, navn) };
-
-    // GRAENSEN: kunde-SMS'en skal blive i ÉT segment. Sker det ikke, deler
-    // telefonnettet beskeden — og delingen rammer midt i linket, saa kunden
-    // faar "Cannot GET". Det var fejlen 12/7-26, og vagten har kun logget
-    // siden. Her afvises den i stedet, mens et menneske kan rette navnet.
-    const passer = navnPasserISms(navn, felter.slug);
+    // GRAENSEN foerst — OGSAA naar navnet er uaendret. ⚠️ 9/9-26: her stod
+    // en tidlig `return` ved uaendret navn FOER tjekket, og saa sejlede et
+    // for langt navn fra Frisbii lige igennem, hvis kunden bare trykkede
+    // Fortsæt uden at rette. Set i staging: firmaet beholdt sit 38-tegns
+    // navn, og kunde-SMS'en blev to segmenter. En genvej, der springer et
+    // VAERN over, er ikke en optimering.
+    const slug   = uaendret ? firm.slug : await uniqueSlug(supabase, navn);
+    const passer = navnPasserISms(navn, slug);
     if (!passer.ok) {
       return res.status(400).json({
         error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
         maksTegn: maksNavnLaengde(),
       });
     }
+
+    if (uaendret) {
+      return res.json({ ok: true, name: firm.name, slug: firm.slug, greeting_text: firm.greeting_text });
+    }
+
+    const felter = { name: navn, slug };
 
     // Navnet staar OGSAA inde i telefonbeskeden. Vi bytter det ud frem for at
     // skrive en ny standardtekst: har kunden allerede rettet i beskeden, maa

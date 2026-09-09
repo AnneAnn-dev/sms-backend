@@ -684,9 +684,16 @@
     <section class="screen" id="s-8">
       <div class="check">✓</div>
       <h1 class="h-xl">Sidste trin</h1>
-      <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
+      <!-- Linjen er flyttet op OVER knappen (9/9-26, Anns beslutning): den
+           siger, hvad der venter, og saa foelger handlingen — samme rytme som
+           resten af flowet, hvor beskeden staar foer knappen. Det er SAMME
+           element som foer, saa saetInstallHint() rammer den uaendret; kun
+           placeringen er ny. Den gamle statiske linje ("Laeg Dit Digitale
+           Kontor paa din telefon") er droppet, fordi den sagde mindre end
+           den, der stod under knappen. -->
+      <p class="sub">Læg Dit Digitale Kontor på telefonen.<br>Så er det altid lige ved hånden.</p>
+      <p class="sub" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
-      <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
     </section>
 
@@ -1423,6 +1430,20 @@
   function visInstallationsguiden() {
     showScreen('s-8');
     setupPwa();
+    // ⚠️ 9/9-26: kunden saa "Sidste trin" i den indbyggede browser, trykkede
+    // paa kompasset — og fik "Sidste trin" igen i Safari. Samme skaerm to
+    // gange foeltes som at gaa i ring midt i en vejledning.
+    //
+    // Vi lander her, fordi ?trin=app staar i adressen, og maerket saettes
+    // KUN af den indbyggede browser lige foer springet. Altsaa HAR kunden
+    // set skaermen; hun skal ind i guiden, ikke laese beskeden igen.
+    //
+    // De to undtagelser er dem, hvor s-8 ikke er en gentagelse men et svar:
+    // koerer hun allerede som app ("perfekt"), eller staar hun stadig i den
+    // indbyggede browser, hvor guiden slet ikke kan gennemfoeres.
+    if (!isStandalone() && !erIndbyggetBrowser()) {
+      startInstall(document.getElementById('install-btn'));
+    }
     // Hensigten er brugt i det oejeblik, den har sendt kunden hertil. Uden
     // det her ville setupPwa lige have sat den igen, og saa ville hver
     // aabning ende samme sted. Har hun brug for guiden senere, kommer hun
@@ -2136,7 +2157,9 @@
     // Erstatter "Det tager ca. 10 sekunder", som lovede noget andet: et loefte
     // om ti sekunder og en opfordring til at laese fem sider igennem kan ikke
     // staa paa samme skaerm.
-    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', false);
+    // somBesked = true: linjen er nu skaermens hovedbesked og skal have
+    // .sub-stoerrelse, ikke .hint — den er ikke laengere en fodnote.
+    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', true);
 
     // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
     // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
