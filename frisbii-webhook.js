@@ -410,6 +410,10 @@ module.exports = (app, supabase) => {
       .from("firms")
       .insert({
         name:                       company,
+        // Var der intet firmanavn hos Frisbii, er `company` et gaet (personens
+        // navn eller e-mailen). Flaget lader onboardingen vise et TOMT felt i
+        // stedet for at foreslaa et navn, ingen har skrevet. (9/9-26.)
+        navn_er_gaettet:            firmanavnMangler,
         slug,
         email,
         owner_phone:                ownerPhone,   // null = onboardingen spoerger, som foer

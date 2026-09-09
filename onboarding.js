@@ -13,6 +13,10 @@ const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
 const { normalizePhone, maskerTlf, maskerMail } = require("./phone");
+const { uniqueSlug, SLUG_MAKS } = require("./slug");
+// sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
+// ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
+const { sendAdminAlert } = require("./mail");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -54,6 +58,33 @@ module.exports = function registerOnboarding(app, supabase) {
     }
     return { segments: n <= 160 ? 1 : Math.ceil(n / 153), ucs2: false, tegn: n };
   }
+  // Hvor mange tegn er der plads til i firmanavnet? Tallet UDREGNES af den
+  // aegte skabelon frem for at staa som en konstant — ellers ville en aendret
+  // ordlyd eller et nyt domaene lade graensen blive staaende paa et tal, der
+  // ikke passer laengere. Sluggen regnes med sit loft, tokenet med sine 12.
+  function maksNavnLaengde() {
+    const proeveUrl = `${FORM_BASE}/${"x".repeat(SLUG_MAKS)}/${"x".repeat(12)}`;
+    const fast = gsmSegments(kundeSmsBody("", proeveUrl));
+    if (fast.ucs2 || typeof fast.tegn !== "number") return 0;   // fail-closed
+    return Math.max(0, 160 - fast.tegn);
+  }
+
+  // Firmanavnet og SMS-navnet er to ting (9/9-26). Telefonsvareren har ingen
+  // laengdegraense, saa `name` maa vaere saa langt kunden vil — men kunde-SMS'en
+  // skal blive i ÉT segment, og dér deler navnet 46 tegn med sluggen. `sms_navn`
+  // baerer kortformen og er NULL, naar det fulde navn passer. ÉT sted at spoerge.
+  function smsNavn(firm) {
+    return (firm && (firm.sms_navn || firm.name)) || '';
+  }
+
+  // Passer navnet i én SMS? Proever den AEGTE besked med det AEGTE navn, saa
+  // baade laengde og tegnsaet dommes af samme regel som afsendelsen.
+  function navnPasserISms(navn, slug) {
+    const url = `${FORM_BASE}/${slug}/${"x".repeat(12)}`;
+    const r = gsmSegments(kundeSmsBody(navn, url));
+    return { ok: !r.ucs2 && r.segments === 1, ucs2: !!r.ucs2 };
+  }
+
   function advarHvisFlereSegmenter(body, kontekst) {
     const r = gsmSegments(body);
     if (r.segments > 1 || r.ucs2) {
@@ -130,7 +161,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find firma baseret på Twilio-nummeret
     const { data: firm } = await supabase
       .from("firms")
-      .select("id, name, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number, owner_phone")
+      .select("id, name, sms_navn, slug, voice_gender, greeting_text, greeting_audio_url, verification_status, status, billing_status, phone_number, owner_phone")
       .eq("phone_number", toNumber)
       .single();
 
@@ -182,18 +213,90 @@ module.exports = function registerOnboarding(app, supabase) {
         // GSM-tegn og blev delt MIDT i linket. Nu: (1) kort forklaring,
         // (2) en NOEJAGTIG kopi af kunde-SMS'en (samme skabelon!) med intakt
         // link — haandvaerkeren ser praecis det, kunden ser.
-        const demoModtager = firm.owner_phone || fromNumber;
-        sendSms({
-          to:   demoModtager,
-          from: toNumber,
-          body: `Sådan ser den SMS ud, dine kunder får, når de ringer, og du ikke svarer:`,
-        }).catch(err => console.error("❌ Demo-SMS (forklaring) fejl:", err));
-        sendSms({
-          to:   demoModtager,
-          from: toNumber,
-          body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, demoUrl), "demo"),
-        }).catch(err => console.error("❌ Demo-SMS (kopi) fejl:", err));
-        console.log("📨 Demo-SMS sendt til håndværker:", maskerTlf(firm.owner_phone || fromNumber));
+        //
+        // ── MODTAGEREN: kun owner_phone, ingen fallback (7/9-26) ────────────
+        // Her stod foer `firm.owner_phone || fromNumber`. Fallbacken var farlig:
+        // paa et VIDERESTILLET opkald er `fromNumber` ofte systemnummeret — det
+        // er praecis derfor sikkerhedsnettet i erVerifikation matcher paa det —
+        // saa demoen kunne ende hos os selv i stedet for hos haandvaerkeren.
+        // Identitet maa ikke udledes af et felt, teleselskabet styrer. Mangler
+        // owner_phone, er det en fejl der skal SES, ikke et hul der skal fyldes
+        // med foerste det bedste nummer.
+        const demoModtager = normalizePhone(firm.owner_phone);
+        const demoAfsender = normalizePhone(toNumber);
+
+        if (!demoModtager) {
+          console.error("🚨 Demo-SMS SPRINGES OVER — firmaet har intet owner_phone:", firm.id);
+          sendAdminAlert({
+            subject: "Demo-SMS sprunget over: firma uden owner_phone",
+            text:
+              `Firma ${firm.id} (${firm.name}) blev verificeret, men har intet owner_phone.\n` +
+              `Demo-SMS'en blev IKKE sendt. Haandvaerkeren hoerte "det virker" i telefonen,\n` +
+              `men ser aldrig hvordan kundens SMS ser ud.\n\n` +
+              `Tjek firms.owner_phone for firmaet, eller bed kunden gennemfoere onboarding trin 1 igen.`,
+          }).catch(err => console.error("⚠️  Alarm om manglende owner_phone kunne ikke sendes:", err.message));
+
+        } else if (demoModtager === demoAfsender) {
+          // Twilio afviser en SMS til afsenderen selv med fejl 21266. Vagten
+          // fanger det FOER kaldet, saa det bliver en alarm med en forklaring i
+          // stedet for en RestException i en fejlgren, ingen laeser.
+          // Set i prod 7/9-26: owner_phone var identisk med firmaets eget
+          // DDK-nummer, og BEGGE demo-beskeder fejlede lydloest.
+          console.error("🚨 Demo-SMS SPRINGES OVER — owner_phone er firmaets EGET nummer:",
+            firm.id, maskerTlf(demoModtager));
+          sendAdminAlert({
+            subject: "Demo-SMS sprunget over: owner_phone = firmaets eget nummer",
+            text:
+              `Firma ${firm.id} (${firm.name}) har owner_phone identisk med sit eget DDK-nummer ` +
+              `(${maskerTlf(demoModtager)}).\n` +
+              `Twilio ville have afvist begge demo-beskeder med fejl 21266 ("To and From cannot be the same").\n\n` +
+              `Sandsynlig aarsag: kunden har tastet det TILDELTE nummer i stedet for sin egen telefon.\n` +
+              `Ret firms.owner_phone til haandvaerkerens EGEN telefon — ellers rammer samme fejl ogsaa senere beskeder.`,
+          }).catch(err => console.error("⚠️  Alarm om selv-SMS kunne ikke sendes:", err.message));
+
+        } else {
+          // ── LOGGEN SKAL FOELGE VIRKELIGHEDEN (7/9-26) ─────────────────────
+          // Kvitteringen stod foer paa linjen EFTER de to kald — men kaldene er
+          // asynkrone, saa "Demo-SMS sendt" blev skrevet, foer nogen af dem var
+          // afgjort. 7/9 fejlede BEGGE beskeder, mens loggen sagde "sendt".
+          // Samme fejlklasse som mail-gaten: en log-linje maa aldrig paastaa
+          // "sendt", naar der ikke blev sendt noget.
+          //
+          // Vi venter bevidst IKKE paa afsendelsen — TwiML-svaret til Twilio maa
+          // ikke forsinkes af to API-kald. Kvitteringen flyttes i stedet ind i
+          // loeftet, saa den skrives naar udfaldet faktisk kendes.
+          Promise.allSettled([
+            sendSms({
+              to:   demoModtager,
+              from: toNumber,
+              body: `Sådan ser den SMS ud, dine kunder får, når de ringer, og du ikke svarer:`,
+            }),
+            sendSms({
+              to:   demoModtager,
+              from: toNumber,
+              body: advarHvisFlereSegmenter(kundeSmsBody(smsNavn(firm), demoUrl), "demo"),
+            }),
+          ]).then((udfald) => {
+            const navne = ["forklaring", "kopi"];
+            udfald.forEach((r, i) => {
+              if (r.status === "rejected") console.error(`❌ Demo-SMS (${navne[i]}) fejl:`, r.reason);
+            });
+            const lykkedes = udfald.filter(r => r.status === "fulfilled").length;
+            if (lykkedes === udfald.length) {
+              console.log("📨 Demo-SMS sendt til håndværker:", maskerTlf(demoModtager));
+              return;
+            }
+            console.error(`🚨 Demo-SMS: kun ${lykkedes} af ${udfald.length} beskeder sendt til`,
+              maskerTlf(demoModtager), "— firma:", firm.id);
+            sendAdminAlert({
+              subject: "Demo-SMS fejlede ved verifikation",
+              text:
+                `Firma ${firm.id} (${firm.name}) blev verificeret, men ${udfald.length - lykkedes} af ` +
+                `${udfald.length} demo-beskeder kunne ikke sendes.\n` +
+                `Twilio-fejlkoden staar i Railway-loggen. Haandvaerkeren tror, alt er klar.`,
+            }).catch(err => console.error("⚠️  Alarm om fejlet demo-SMS kunne ikke sendes:", err.message));
+          });
+        }
       } catch (e) {
         console.error("⚠️  Kunne ikke sende demo-SMS (verifikation fortsætter):", e.message);
       }
@@ -267,7 +370,7 @@ module.exports = function registerOnboarding(app, supabase) {
     sendSms({
       to:   fromNumber,
       from: toNumber,
-      body: advarHvisFlereSegmenter(kundeSmsBody(firm.name, formUrl), "kunde"),
+      body: advarHvisFlereSegmenter(kundeSmsBody(smsNavn(firm), formUrl), "kunde"),
     }).catch(err => console.error("❌ SMS fejl:", err));
     
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
@@ -363,7 +466,7 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const { data: firms } = await supabase
       .from('firms')
-      .select('id, name, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
+      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
       .in('id', firmIds);
 
     // Vælg ét firma robust: foretræk det, der er under onboarding (det brugeren
@@ -390,6 +493,120 @@ module.exports = function registerOnboarding(app, supabase) {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ ok: true });
+  });
+
+  // ─── API: Gem firmanavnet (onboarding side 1) ───────────────────────────
+  // Hvorfor ruten findes: `company` kan IKKE goeres obligatorisk paa Frisbiis
+  // hostede betalingsside, og /checkout/start — hvor valideringen sidder —
+  // naas aldrig af en rigtig kunde. Kommer navnet igennem tomt, opkalder
+  // provisioneringen firmaet efter PERSONEN, og det navn ender i firms.name,
+  // i sluggen, i hver kunde-SMS og i greeting_text, som praerenderes til lyd.
+  // Onboardingens side 1 er det eneste sted, hvor et menneske ser navnet,
+  // mens det stadig er gratis at rette. (D33, fundet i prod 7/9-26.)
+  app.post('/api/firma/opdater-navn', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const navn = ((req.body && req.body.name) || '').trim().replace(/\s+/g, ' ');
+    if (!navn)             return res.status(400).json({ error: 'Mangler firmanavn' });
+    if (navn.length > 200) return res.status(400).json({ error: 'Mangler firmanavn' });  // ren misbrugsspaerre
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms')
+      .select('id, name, sms_navn, slug, greeting_text, greeting_audio_url')
+      .eq('id', firm_id)
+      .single();
+
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    // FIRMANAVNET AFVISES ALDRIG. Det er kundens eget navn, telefonsvareren
+    // siger det, og lyd har ingen laengdegraense. Passer det ikke i SMS'en,
+    // er det SMS-navnet der skal kortes — ikke firmaets. (9/9-26.)
+    //
+    // Uaendret navn: rør ingen felter ud over gaet-flaget. Ellers ville en
+    // kunde, der bare trykker videre, faa en ny slug og en nulstillet lydfil
+    // uden grund. Men SVARET regnes hver gang, ogsaa ved uaendret navn — ⚠️
+    // her stod foer en tidlig `return`, og saa sejlede et for langt navn fra
+    // Frisbii lige igennem. En genvej, der springer et vaern over, er ikke en
+    // optimering; det var samme fejl i BAADE klienten og serveren.
+    const uaendret = navn === firm.name;
+
+    // Kunden har set navnet og trykket videre — saa er det ikke laengere et
+    // gaet fra provisioneringen, uanset om hun rettede i det.
+    const felter = { navn_er_gaettet: false };
+    if (!uaendret) {
+      felter.name = navn;
+      felter.slug = await uniqueSlug(supabase, navn);
+      // Et SMS-navn hoerte til det GAMLE firmanavn. Nulstil, saa det enten
+      // udledes af det nye navn eller spoerges om paa ny.
+      felter.sms_navn = null;
+    }
+
+    const slug    = uaendret ? firm.slug : felter.slug;
+    const brugtNu = uaendret ? (firm.sms_navn || navn) : navn;
+    const passer  = navnPasserISms(brugtNu, slug);
+
+    // Navnet staar OGSAA inde i telefonbeskeden. Vi bytter det ud frem for at
+    // skrive en ny standardtekst: har kunden allerede rettet i beskeden, maa
+    // den ikke gaa tabt. Findes det gamle navn ikke i teksten, er den skrevet
+    // om i forvejen, og saa lader vi den vaere.
+    if (firm.greeting_text && firm.name && firm.greeting_text.includes(firm.name)) {
+      felter.greeting_text = firm.greeting_text.split(firm.name).join(navn);
+      // En allerede renderet lydfil siger nu det forkerte navn. Vi nulstiller
+      // den frem for at lade den blive: uden fil falder /opkald tilbage paa
+      // Polly og siger det RIGTIGE navn, og side 3 renderer en ny ved gem.
+      // Fejler i den rigtige retning.
+      if (firm.greeting_audio_url) felter.greeting_audio_url = null;
+    }
+
+    const { error } = await supabase.from('firms').update(felter).eq('id', firm_id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (!uaendret) console.log('✏️  Firmanavn rettet i onboarding:', firm.id, '->', felter.slug);
+
+    res.json({
+      ok: true,
+      name: navn,
+      slug,
+      greeting_text: felter.greeting_text || firm.greeting_text,
+      sms_navn: uaendret ? (firm.sms_navn || null) : null,
+      // Navnet ER gemt. Mangler der et SMS-navn, er det et EKSTRA skridt —
+      // ikke en afvisning. Derfor 200 med et flag og ikke en 400.
+      kraeverSmsNavn: !passer.ok,
+      ugyldigeTegn:   !!passer.ucs2,
+      maksTegn:       maksNavnLaengde(),
+    });
+  });
+
+  // ─── API: Gem SMS-navnet (onboarding side 1b) ───────────────────────────
+  // Bruges KUN i kunde-SMS'en. Firmanavnet er allerede gemt uafkortet; det
+  // her er kortformen, der skal kunne vaere i ét segment sammen med linket.
+  app.post('/api/firma/opdater-sms-navn', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const kort = ((req.body && req.body.sms_navn) || '').trim().replace(/\s+/g, ' ');
+    if (!kort)             return res.status(400).json({ error: 'Mangler navn' });
+    if (kort.length > 200) return res.status(400).json({ error: 'Mangler navn' });
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms').select('id, slug').eq('id', firm_id).single();
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    const passer = navnPasserISms(kort, firm.slug);
+    if (!passer.ok) {
+      return res.status(400).json({
+        error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
+        maksTegn: maksNavnLaengde(),
+      });
+    }
+
+    const { error } = await supabase
+      .from('firms').update({ sms_navn: kort }).eq('id', firm_id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    console.log('✏️  SMS-navn gemt for firma:', firm.id);
+    res.json({ ok: true, sms_navn: kort });
   });
 
   // ─── API: Opdater stemme og besked ───────────────────────────────────────

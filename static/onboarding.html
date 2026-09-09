@@ -449,9 +449,9 @@
 </head>
 <body>
 
-  <!-- Fem prikker = de fem opgaver efter velkomst. Skjules på ✓-siderne. -->
+  <!-- Seks prikker = de seks opgaver efter velkomst. Skjules på ✓-siderne. -->
   <div class="dots" id="dots" aria-hidden="true">
-    <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div>
+    <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div>
   </div>
 
   <button class="back-btn" id="back-btn" aria-label="Tilbage" onclick="goBack()">
@@ -511,36 +511,60 @@
     </section>
 
     <!-- ── SIDE 1: VELKOMMEN + NUMMER ─────────────────────── -->
-    <section class="screen" id="s-1">
+    <section class="screen" id="s-0">
       <h1 class="h-xl">Velkommen</h1>
       <p class="sub">Lad os sætte Dit Digitale Kontor op.</p>
 
-      <!-- Variant A: nummeret kendes allerede — bekræft det -->
-      <div id="phone-confirm" style="display:none;width:100%">
-        <p class="question">Er det dit nummer?</p>
-        <div class="big-number" id="owner-number-display">+45 12 34 56 78</div>
-        <p class="sub">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
-        <button class="btn" onclick="confirmOwnerPhone()">
-          <span id="confirm-label">Forbind nummeret</span><span class="spinner" id="confirm-spin"></span>
-        </button>
-        <button class="linklike" onclick="showPhoneInput()">Skift nummer</button>
+      <p class="question">Hedder dit firma:</p>
+      <div class="field" id="firm-name-field">
+        <input id="firm-name-input" type="text" autocomplete="organization"
+               placeholder="Dit firmanavn" aria-label="Firmanavn"
+               onkeydown="if(event.key==='Enter')saveFirmName()">
       </div>
+      <p class="hint">Navnet er det, dine kunder hører, når de ringer til dig.</p>
+      <p class="error" id="firm-name-error"></p>
+      <button class="btn" onclick="saveFirmName()">
+        <span id="firm-name-label">Fortsæt</span><span class="spinner" id="firm-name-spin"></span>
+      </button>
+    </section>
 
-      <!-- Variant B: intet nummer endnu — indtast det -->
-      <div id="phone-entry" style="display:none;width:100%">
-        <p class="question">Hvad er dit nummer?</p>
-        <div class="field" id="owner-field">
-          <span class="prefix">+45</span>
-          <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
-                 placeholder="12 34 56 78" aria-label="Dit mobilnummer"
-                 onkeydown="if(event.key==='Enter')submitOwnerPhone()">
-        </div>
-        <p class="hint">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
-        <p class="error" id="owner-error"></p>
-        <button class="btn" onclick="submitOwnerPhone()">
-          <span id="owner-label">Forbind nummeret</span><span class="spinner" id="owner-spin"></span>
-        </button>
+    <!-- ── SIDE 1b: NAVNET ER FOR LANGT TIL SMS'EN ────────── -->
+    <!-- Kun for de faa, hvis navn ikke kan vaere i én SMS. Forslaget er
+         forkortet, men INTET gemmes af sig selv: feltet er kundens, og
+         taelleren viser hvad der er tilbage. -->
+    <section class="screen" id="s-0b">
+      <h1>Hvordan skal dit navn stå i SMS'en</h1>
+      <p class="sub" style="font-size:13px">Der er plads til <span id="kort-maks">34</span> tegn.</p>
+      <div class="field" id="kort-navn-field">
+        <input id="kort-navn-input" type="text" autocomplete="organization"
+               aria-label="Kortere firmanavn"
+               oninput="taelKortNavn()"
+               onkeydown="if(event.key===\'Enter\')saveShortName()">
       </div>
+      <p class="hint" id="kort-navn-taeller"></p>
+      <p class="error" id="kort-navn-error"></p>
+      <button class="btn" onclick="saveShortName()">
+        <span id="kort-navn-label">Fortsæt</span><span class="spinner" id="kort-navn-spin"></span>
+      </button>
+    </section>
+
+    <!-- ── SIDE 2: MOBILNUMMER ────────────────────────────── -->
+    <!-- ÉN skærm, ikke to varianter. Boksen er forudfyldt, hvis Frisbii havde
+         nummeret med, ellers tom — og i begge tilfælde kan kunden bare rette
+         i den. Derfor er "Skift nummer" og bekræft-varianten væk. -->
+    <section class="screen" id="s-1">
+      <h1>Hvad er dit nummer?</h1>
+      <div class="field" id="owner-field">
+        <span class="prefix">+45</span>
+        <input id="owner-input" type="tel" inputmode="numeric" autocomplete="tel-national"
+               placeholder="12 34 56 78" aria-label="Dit mobilnummer"
+               onkeydown="if(event.key==='Enter')submitOwnerPhone()">
+      </div>
+      <p class="hint">Når du ikke svarer, sender dit teleselskab opkaldet videre hertil.</p>
+      <p class="error" id="owner-error"></p>
+      <button class="btn" onclick="submitOwnerPhone()">
+        <span id="owner-label">Forbind nummeret</span><span class="spinner" id="owner-spin"></span>
+      </button>
     </section>
 
     <!-- ── SIDE 2: ADGANGSKODE ────────────────────────────── -->
@@ -658,9 +682,15 @@
     <section class="screen" id="s-8">
       <div class="check">✓</div>
       <h1 class="h-xl">Sidste trin</h1>
-      <p class="sub">Læg Dit Digitale Kontor på din telefon.<br>Så er det altid lige ved hånden.</p>
+      <!-- Linjen er flyttet op OVER knappen (9/9-26, Anns beslutning): den
+           siger, hvad der venter, og saa foelger handlingen — samme rytme som
+           resten af flowet, hvor beskeden staar foer knappen. Det er SAMME
+           element som foer, saa saetInstallHint() rammer den uaendret; kun
+           placeringen er ny. Den gamle statiske linje ("Laeg Dit Digitale
+           Kontor paa din telefon") er droppet, fordi den sagde mindre end
+           den, der stod under knappen. -->
+      <p class="sub" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="btn" id="install-btn" onclick="startInstall(this)">Næste</button>
-      <p class="hint" id="install-hint">Det tager ca. 10 sekunder.</p>
       <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
     </section>
 
@@ -1004,6 +1034,8 @@
     firmId:      null,
     token:       null,
     firmName:    '',
+    smsNavn:     '',     // kortform, KUN til kunde-SMS'en (tom = brug firmName)
+    navnGaettet: false,  // Frisbii havde intet firmanavn — provisioneringen gaettede
     phoneNumber: '',   // firmaets tildelte nummer
     ownerPhone:  '',   // håndværkerens eget mobilnummer
     voice:       'female',
@@ -1012,13 +1044,18 @@
     rendered:    { voice: null, text: null, url: null },
   };
 
-  // Prikker: nummer, kode, stemme+besked, viderestilling, test (0 = ingen fyldt endnu)
-  const DOT_INDEX = { 's-1': 0, 's-2': 1, 's-3': 2, 's-5': 3, 's-6': 4 };
+  // Prikker: firmanavn, nummer, kode, stemme+besked, viderestilling, test
+  // (0 = ingen fyldt endnu). Firmanavnet kom til 9/9-26 og skubbede alle
+  // efterfoelgende én plads — derfor SEKS prikker i markuppen ovenfor.
+  // 's-0b' deler indeks med 's-0': det er et sidespor paa side 1, ikke et
+  // nyt trin — prikkerne maa ikke rykke, fordi et navn var for langt.
+  const DOT_INDEX = { 's-0': 0, 's-0b': 0, 's-1': 1, 's-2': 2, 's-3': 3, 's-5': 4, 's-6': 5 };
 
-  // Tilbage-pil: hvor hver side fører hen. Side 1 har intet før sig, og på
-  // ✓-siderne (7-8) er der ikke længere valg at ændre — dér skjules pilen.
+  // Tilbage-pil: hvor hver side fører hen. Side 1 (s-0, firmanavnet) har intet
+  // før sig, og på ✓-siderne (7-8) er der ikke længere valg at ændre — dér
+  // skjules pilen.
   const BACK_TARGET = {
-    's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
+    's-0b': 's-0', 's-1': 's-0', 's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
     's-9': 's-8', 's-9b': 's-9', 's-9c': 's-9b', 's-10': 's-9b', 's-10b': 's-10', 's-11': 's-10b',
   };
   function goBack() {
@@ -1093,7 +1130,7 @@
     // ikke havde gjort.
     safari: {
       titel: 'Log ind her',
-      tekst: 'Safari har sin egen adgang, så du skal lige ind én gang mere. Skriv din e-mail, så sender vi dig en engangskode.',
+      tekst: 'Safari har sin egen indgang, så du skal lige logge ind en gang til.',
       knap:  'Send mig en kode',
       glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
@@ -1339,6 +1376,8 @@
 
       state.firmId      = data.firm.id;
       state.firmName    = data.firm.name || '';
+      state.smsNavn     = data.firm.sms_navn || '';
+      state.navnGaettet = !!data.firm.navn_er_gaettet;
       state.phoneNumber = data.firm.phone_number || '';
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
@@ -1367,15 +1406,25 @@
     document.getElementById('greeting').value = state.greeting;
     selectVoice(state.voice, true);
 
-    // Side 1: bekræft kendt mobilnummer — eller indtast det
-    if (state.ownerPhone) {
-      setText('owner-number-display', formatDK(state.ownerPhone));
-      document.getElementById('phone-confirm').style.display = 'block';
-    } else {
-      document.getElementById('phone-entry').style.display = 'block';
-    }
+    // Side 1: firmanavnet. Feltet ER redigeringen — kunden retter direkte i
+    // det, saa der behoeves hverken en bekraeft-variant eller en "skift"-knap.
+    // Mangler firmanavnet hos Frisbii, falder provisioneringen tilbage paa
+    // personens navn — og findes det heller ikke, paa e-mailen. Ingen har et
+    // firma, der hedder noget@gmail.com, og en prefill inviterer bare til at
+    // trykke videre. Lad feltet staa tomt med sin placeholder i stedet.
+    // Serveren siger, om navnet var et gaet ved provisioneringen. Var det,
+    // staar feltet TOMT: et gaet, der ser ud som et svar, bliver trykket
+    // videre paa. @-tjekket er en rem om livet for rader fra foer flaget.
+    const navnFraDb = state.firmName || '';
+    const erGaet    = state.navnGaettet || navnFraDb.includes('@');
+    document.getElementById('firm-name-input').value = erGaet ? '' : navnFraDb;
 
-    showScreen('s-1');
+    // Side 2: nummeret. Samme princip — ét felt, forudfyldt hvis Frisbii havde
+    // nummeret med, ellers tomt. Landekoden ligger i praefikset, saa feltet
+    // baerer kun de otte cifre.
+    document.getElementById('owner-input').value = (state.ownerPhone || '').replace(/^\+?45\s*/, '');
+
+    showScreen('s-0');
   }
 
   // Direkte indgang til installationstrinnet. showScreen frem for goTo,
@@ -1386,6 +1435,20 @@
   function visInstallationsguiden() {
     showScreen('s-8');
     setupPwa();
+    // ⚠️ 9/9-26: kunden saa "Sidste trin" i den indbyggede browser, trykkede
+    // paa kompasset — og fik "Sidste trin" igen i Safari. Samme skaerm to
+    // gange foeltes som at gaa i ring midt i en vejledning.
+    //
+    // Vi lander her, fordi ?trin=app staar i adressen, og maerket saettes
+    // KUN af den indbyggede browser lige foer springet. Altsaa HAR kunden
+    // set skaermen; hun skal ind i guiden, ikke laese beskeden igen.
+    //
+    // De to undtagelser er dem, hvor s-8 ikke er en gentagelse men et svar:
+    // koerer hun allerede som app ("perfekt"), eller staar hun stadig i den
+    // indbyggede browser, hvor guiden slet ikke kan gennemfoeres.
+    if (!isStandalone() && !erIndbyggetBrowser()) {
+      startInstall(document.getElementById('install-btn'));
+    }
     // Hensigten er brugt i det oejeblik, den har sendt kunden hertil. Uden
     // det her ville setupPwa lige have sat den igen, og saa ville hver
     // aabning ende samme sted. Har hun brug for guiden senere, kommer hun
@@ -1411,6 +1474,8 @@
 
     state.firmId      = mig.firm.id;
     state.firmName    = mig.firm.name || '';
+    state.smsNavn     = mig.firm.sms_navn || '';
+    state.navnGaettet = !!mig.firm.navn_er_gaettet;
     state.phoneNumber = mig.firm.phone_number || '';
     state.ownerPhone  = mig.firm.owner_phone || '';
     state.voice       = mig.firm.voice_gender || 'female';
@@ -1423,8 +1488,14 @@
     return 'onboarding';
   }
 
-  function udfoerEfterLogin(hvad) {
-    if (hvad === 'dashboard') { window.location.replace('/dashboard#nyt-login'); return; }
+  // viaMail: kom kunden ind via LINK eller ENGANGSKODE fra mailen? Kun da
+  // giver dashboardets puf mening — det spoerger jo, om hun vil saette en
+  // adgangskode, saa hun slipper for mailvejen naeste gang. Efter et login
+  // MED adgangskoden er beskeden forkert: hun har den allerede og brugte den
+  // lige. Flaget er bevidst uden standardvaerdi, saa et nyt kaldested skal
+  // tage stilling frem for at arve den forkerte opfoersel. (Fundet 9/9-26.)
+  function udfoerEfterLogin(hvad, viaMail) {
+    if (hvad === 'dashboard') { window.location.replace(viaMail ? '/dashboard#nyt-login' : '/dashboard'); return; }
     if (hvad === 'installer') { visInstallationsguiden(); return; }
     startFlow();
   }
@@ -1533,24 +1604,170 @@
     if (!(id in DOT_INDEX)) { dots.classList.add('hidden'); return; }
     dots.classList.remove('hidden');
     const filled = DOT_INDEX[id];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 6; i++) {
       document.getElementById('d' + i).classList.toggle('on', i <= filled);
     }
   }
 
-  // ── Side 1: mobilnummer ────────────────────────────────────────────
-  function showPhoneInput() {
-    document.getElementById('phone-confirm').style.display = 'none';
-    document.getElementById('phone-entry').style.display = 'block';
-    const input = document.getElementById('owner-input');
-    input.value = (state.ownerPhone || '').replace(/^\+?45\s*/, '');
-    input.focus();
+  // ── Side 1: firmanavn ──────────────────────────────────────────────
+  // Frisbii kan ikke goere firmanavnet obligatorisk, og /checkout/start — hvor
+  // valideringen sidder — naas aldrig af en rigtig kunde. Kommer navnet
+  // igennem tomt, hedder firmaet PERSONEN, og det navn siger telefonsvareren
+  // og hver eneste kunde-SMS. Her ser et menneske det, mens det er gratis at
+  // rette. (D33, fundet i prod 7/9-26.)
+  async function saveFirmName() {
+    const input = document.getElementById('firm-name-input');
+    const errEl = document.getElementById('firm-name-error');
+    const field = document.getElementById('firm-name-field');
+    const label = document.getElementById('firm-name-label');
+    const spin  = document.getElementById('firm-name-spin');
+
+    errEl.textContent = '';
+    field.classList.remove('invalid');
+
+    const navn = (input.value || '').trim().replace(/\s+/g, ' ');
+    if (!navn) {
+      field.classList.add('invalid');
+      errEl.textContent = 'Skriv navnet på dit firma.';
+      input.focus();
+      return;
+    }
+
+    const orig = label.textContent;
+    label.textContent = 'Gemmer …';
+    spin.style.display = 'block';
+    try {
+      // ⚠️ 9/9-26: her stod `&& navn !== state.firmName`. Serverens vagt blev
+      // rettet samme dag, men den hjalp ikke — kaldet forlod aldrig telefonen,
+      // naar kunden bare trykkede Fortsæt. SAMME genvej to lag over hinanden.
+      // Vi kalder derfor ALTID: serveren skriver ikke noget ved uaendret navn,
+      // men den er det eneste sted, graensen kendes, og den skal spoerges.
+      if (state.firmId) {
+        const res = await fetch('/api/firma/opdater-navn', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+          body:    JSON.stringify({ name: navn }),
+        });
+        const svar = await res.json().catch(() => null);
+        if (!res.ok) throw new Error('Kunne ikke gemme');
+        // Serveren ejer baade sluggen og telefonbeskeden: navnet staar OGSAA
+        // inde i greeting_text. Uden det her ville side 3 vise den gamle tekst
+        // med det gamle navn — og gemme den tilbage igen ved naeste tryk.
+        if (svar && svar.greeting_text) {
+          state.greeting = svar.greeting_text;
+          const g = document.getElementById('greeting');
+          if (g) g.value = svar.greeting_text;
+        }
+        // Firmanavnet ER gemt — det afvises aldrig. Passer det bare ikke i
+        // kunde-SMS'en, mangler der et SMS-navn, og det er et EKSTRA skridt.
+        if (svar && svar.kraeverSmsNavn) {
+          state.firmName = navn;
+          state.smsNavn  = '';
+          visKortNavn(navn, svar.maksTegn, svar.ugyldigeTegn);
+          return;
+        }
+        if (svar) state.smsNavn = svar.sms_navn || '';
+      }
+      state.firmName = navn;
+
+      label.textContent = '✓';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
+      goTo('s-1');
+    } catch (e) {
+      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
+    } finally {
+      label.textContent = orig;
+      spin.style.display = 'none';
+    }
   }
 
-  async function confirmOwnerPhone() {
-    await saveOwnerPhone(state.ownerPhone, 'confirm-label', 'confirm-spin', null);
+  // ── Side 1b: kort navn til SMS'en ──────────────────────────────────
+  // Kunde-SMS'en skal blive i ÉT segment: over 160 GSM-tegn deler telefon-
+  // nettet beskeden, og delingen rammer midt i linket (fejlen 12/7-26).
+  // FIRMANAVNET roeres ikke — telefonsvareren har ingen laengdegraense, og
+  // det er kundens eget navn. Kun `sms_navn` kortes. Forslaget er navnet
+  // klippet efter tegn, bevidst simpelt: saa gaettes der ikke paa hvilke ORD
+  // der betyder noget, og kunden retter frit bagefter.
+  let kortNavnMaks = 0;
+
+  function visKortNavn(navn, maks, ugyldigeTegn) {
+    kortNavnMaks = maks || 0;
+    setText('kort-maks', String(kortNavnMaks));
+    const input = document.getElementById('kort-navn-input');
+    input.value = ugyldigeTegn ? navn : navn.slice(0, kortNavnMaks);
+    document.getElementById('kort-navn-error').textContent = ugyldigeTegn
+      ? 'Navnet indeholder tegn, der ikke kan sendes i en SMS. Prøv uden specialtegn.'
+      : '';
+    taelKortNavn();
+    goTo('s-0b');
   }
 
+  function taelKortNavn() {
+    const input = document.getElementById('kort-navn-input');
+    const tilbage = kortNavnMaks - (input.value || '').trim().length;
+    setText('kort-navn-taeller', tilbage >= 0 ? `${tilbage} tegn tilbage` : `${-tilbage} tegn for meget`);
+    document.getElementById('kort-navn-field').classList.toggle('invalid', tilbage < 0);
+  }
+
+  async function saveShortName() {
+    const input = document.getElementById('kort-navn-input');
+    const errEl = document.getElementById('kort-navn-error');
+    const label = document.getElementById('kort-navn-label');
+    const spin  = document.getElementById('kort-navn-spin');
+    const navn  = (input.value || '').trim().replace(/\s+/g, ' ');
+
+    errEl.textContent = '';
+    if (!navn) {
+      document.getElementById('kort-navn-field').classList.add('invalid');
+      errEl.textContent = 'Skriv navnet på dit firma.';
+      input.focus();
+      return;
+    }
+
+    const orig = label.textContent;
+    label.textContent = 'Gemmer …';
+    spin.style.display = 'block';
+    try {
+      const res = await fetch('/api/firma/opdater-sms-navn', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body:    JSON.stringify({ sms_navn: navn }),
+      });
+      const svar = await res.json().catch(() => null);
+      if (!res.ok) {
+        // Stadig for langt: bliv paa siden, opdater taelleren, sig hvorfor.
+        if (svar && svar.error === 'for_langt') {
+          kortNavnMaks = svar.maksTegn || kortNavnMaks;
+          setText('kort-maks', String(kortNavnMaks));
+          taelKortNavn();
+          errEl.textContent = 'Stadig for langt — der er plads til ' + kortNavnMaks + ' tegn.';
+          return;
+        }
+        throw new Error('Kunne ikke gemme');
+      }
+      // Kun SMS-navnet gemmes her. Firmanavnet er urort — det er hele pointen.
+      state.smsNavn = navn;
+
+      label.textContent = '✓';
+      spin.style.display = 'none';
+      const btnEl = label.closest('button');
+      btnEl.classList.add('ok');
+      await new Promise(r => setTimeout(r, 800));
+      btnEl.classList.remove('ok');
+      goTo('s-1');
+    } catch (e) {
+      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
+    } finally {
+      label.textContent = orig;
+      spin.style.display = 'none';
+    }
+  }
+
+  // ── Side 2: mobilnummer ────────────────────────────────────────────
   async function submitOwnerPhone() {
     const raw   = document.getElementById('owner-input').value;
     const errEl = document.getElementById('owner-error');
@@ -1563,6 +1780,25 @@
     if (digits.length !== 8) {
       field.classList.add('invalid');
       errEl.textContent = 'Skriv de 8 cifre i dit mobilnummer.';
+      document.getElementById('owner-input').focus();
+      return;
+    }
+
+    // VAGT (7/9-26): kunden har lige faaet SIT DDK-nummer i velkomstmailen, og et
+    // felt der spoerger om "dit nummer" faar nogle til at taste netop det. Sker
+    // det, bliver owner_phone lig firmaets eget nummer, og saa faar demo-SMS'en
+    // samme To og From -> Twilio afviser den med 21266. Verifikationen gaar
+    // ALLIGEVEL igennem via sikkerhedsnettet i /opkald, saa fejlen er lydloes:
+    // haandvaerkeren hoerer "det virker" og ser aldrig kunde-SMS'en. Set i prod.
+    // Serveren har samme vagt som bagstopper; den her fanger det, mens kunden
+    // staar med telefonen og selv kan rette.
+    // Sammenlign paa CIFRE — state.phoneNumber er E.164 ("+4540275188") og feltet
+    // er otte cifre, saa formatering og landekode maa ikke kunne skabe et falskt
+    // negativt svar.
+    const egetNummer = (state.phoneNumber || '').replace(/\D/g, '').replace(/^45/, '');
+    if (egetNummer && digits === egetNummer) {
+      field.classList.add('invalid');
+      errEl.textContent = 'Du skrev det nummer du har fået af os. Du skal skrive dit telefonnummer.';
       document.getElementById('owner-input').focus();
       return;
     }
@@ -1929,7 +2165,9 @@
     // Erstatter "Det tager ca. 10 sekunder", som lovede noget andet: et loefte
     // om ti sekunder og en opfordring til at laese fem sider igennem kan ikke
     // staa paa samme skaerm.
-    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', false);
+    // somBesked = true: linjen er nu skaermens hovedbesked og skal have
+    // .sub-stoerrelse, ikke .hint — den er ikke laengere en fodnote.
+    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', true);
 
     // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
     // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
@@ -2235,7 +2473,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-      udfoerEfterLogin(hvad);
+      udfoerEfterLogin(hvad, true);   // engangskode fra mailen
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';
@@ -2298,7 +2536,7 @@
       succes = true;
       label.textContent = '✓';
       btn.style.background = 'var(--success)';
-      udfoerEfterLogin(hvad);
+      udfoerEfterLogin(hvad, false);  // kundens egen adgangskode
     } catch (e) {
       status.className = 'status err';
       status.textContent = 'Noget gik galt. Prøv igen om lidt.';

@@ -9,9 +9,13 @@ name: CI
 # ⚠ GRAENSEN ER SAT TIL "critical", IKKE "high" - og det er et BEVIDST VALG
 #   truffet 27/8-26, ikke en standardvaerdi.
 #
-#   To high-fund staar tilbage, begge fra @opentelemetry/core <2.8.0 inde i
-#   @appsignal/nodejs. AppSignal 3.8.1 er nyeste version og indeholder ikke
-#   rettelsen. npm's egen "fix" ville NEDGRADERE AppSignal til 3.4.2.
+#   Ét high og ét moderate staar tilbage, begge fra @opentelemetry/core <2.8.0
+#   inde i @appsignal/nodejs. AppSignal 3.8.1 er stadig nyeste version
+#   (efterproevet 7/9-26) og indeholder ikke rettelsen. npm's egen "fix"
+#   ville NEDGRADERE AppSignal til 3.4.2.
+#
+#   DET ER DET MODERATE FUND, DER KAN NAAS - ikke det hoeje. Se listen i
+#   trinnet "Kendte, accepterede fund" nedenfor.
 #   Se S22 i RISIKOREGISTER.md for vurdering og re-trigger.
 #
 #   PRISEN VED DET VALG: et NYT high-fund vil ikke blokere. Derfor skal
@@ -59,14 +63,35 @@ jobs:
         run: npm ci --omit=dev
 
       # Staar i hver eneste koersel, saa undtagelsen ikke bliver usynlig.
+      # Listen er sidst efterproevet 7/9-26. @opentelemetry/sdk-node stod her
+      # indtil da; den er lukket hos Dependabot og fjernet herfra samme dag.
       - name: Kendte, accepterede fund
         run: |
-          echo "ACCEPTERET 27/8-26 (S22) - blokerer bevidst ikke:"
-          echo "  @opentelemetry/propagator-jaeger  high  - Jaeger-propagering er ikke aktiveret"
-          echo "  @opentelemetry/sdk-node           high  - paraply over samme rod"
-          echo "  Rod: @opentelemetry/core <2.8.0, inde i @appsignal/nodejs 3.8.1"
-          echo "  RE-TRIGGER: naar AppSignal udgiver en version paa otel-core >=2.8.0,"
-          echo "  saettes --audit-level tilbage til high i denne fil."
+          echo "ACCEPTERET 27/8-26, EFTERPROEVET 7/9-26 (S22) - blokerer bevidst ikke."
+          echo "Rod: @opentelemetry/core <2.8.0, inde i @appsignal/nodejs 3.8.1."
+          echo ""
+          echo "  @opentelemetry/core  moderate  CVE-2026-54285"
+          echo "    DEN ENESTE, DER KAN NAAS. W3C baggage er standardpropagator,"
+          echo "    saa headeren parses paa vej ind i HVER forespoergsel - foer"
+          echo "    Twilio-signaturtjekket. Uafklaret: at extract() rent faktisk"
+          echo "    kaldes, er udledt af advisory og pakketrae, ikke aflaest paa"
+          echo "    en koerende proces."
+          echo ""
+          echo "  @opentelemetry/propagator-jaeger  high  CVE-2026-59892"
+          echo "    IKKE naaelig. Kraever OTEL_PROPAGATORS=jaeger eller et"
+          echo "    setGlobalPropagator-kald. Maalt 7/9: ingen OTEL_* i prods"
+          echo "    miljoe, ingen propagator i appsignal.cjs paa origin/main."
+          echo ""
+          echo "  ALVORSGRADEN ER EN EGENSKAB VED PAKKEN, IKKE VED INSTALLATIONEN."
+          echo "  Den hoeje er den ufarlige her. Laes stien, ikke farven."
+          echo ""
+          echo "  RE-TRIGGER 1: naar AppSignal udgiver en version paa otel-core"
+          echo "                >=2.8.0, saettes --audit-level tilbage til high"
+          echo "                i denne fil."
+          echo "  RE-TRIGGER 2: foerste betalende kunde ELLER 2026-10-05,"
+          echo "                hvad der kommer foerst - derefter maanedligt."
+          echo "                Datoen findes, fordi en betingelse uden dato"
+          echo "                aldrig fyrer af sig selv."
 
       # BLOKERENDE. Se graense-noten oeverst.
       - name: Sikkerhedsgennemgang (blokerende)
