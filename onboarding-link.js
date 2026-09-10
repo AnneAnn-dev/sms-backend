@@ -30,16 +30,28 @@ module.exports = (app, supabase) => {
   const COOLDOWN_MS = Number(process.env.RELINK_COOLDOWN_MS) || 60 * 1000;
   const lastSent = new Map(); // key -> timestamp (ms)
 
-  function rateLimited(key) {
-    const now  = Date.now();
+  // ⚠️ 10/9-26: hed foer rateLimited() og returnerede true/false — og den
+  // afviste bestilling fik SAMME kvittering som en, der lykkedes. Kunden fik
+  // altsaa groent lys paa "Vi har sendt en NY kode", uden at der var sendt
+  // noget, og uden at den forrige kode var doed. Ann ramte det 10/9 kl. 07:02:
+  // hun var sikker paa at have bedt om en kode, og hverken Railway, Supabase
+  // eller Scaleway kendte til den. Den blev slugt her.
+  //
+  // Delt i to, saa et tryk der blokeres af IP-loftet ikke ogsaa braender
+  // e-mail-vinduet: vi KIGGER foerst paa begge, og saetter foerst stemplerne,
+  // naar bestillingen faktisk gaar igennem.
+  function restTid(key) {
     const prev = lastSent.get(key) || 0;
-    if (now - prev < COOLDOWN_MS) return true;
+    return Math.max(0, COOLDOWN_MS - (Date.now() - prev));
+  }
+
+  function markerSendt(key) {
+    const now = Date.now();
     lastSent.set(key, now);
     // Ryd gamle noegler en gang imellem, saa mappet ikke vokser uendeligt.
     if (lastSent.size > 5000) {
       for (const [k, t] of lastSent) if (now - t > COOLDOWN_MS) lastSent.delete(k);
     }
-    return false;
   }
 
   // ─── Byg et prefetch-sikkert login-link (token_hash, ikke action_link) ──────
@@ -100,9 +112,19 @@ module.exports = (app, supabase) => {
     // Cooldown pr. email + pr. IP (foerste IP i x-forwarded-for paa Railway).
     const ip = (req.headers["x-forwarded-for"] || req.ip || "")
       .toString().split(",")[0].trim();
-    if (rateLimited(`email:${email}`) || (ip && rateLimited(`ip:${ip}`))) {
-      return res.status(200).json(generiskSvar);
+    const rest = Math.max(restTid(`email:${email}`), ip ? restTid(`ip:${ip}`) : 0);
+    if (rest > 0) {
+      const sek = Math.ceil(rest / 1000);
+      // Loggen skal kende til en bestilling, der IKKE blev til en mail.
+      // Uden denne linje er en afvisning usynlig for alle — ogsaa for os.
+      console.log("⏳ Nyt-link afvist af cooldown (INGEN mail sendt):", maskerMail(email), `— ${sek}s tilbage`);
+      // `cooldown` roeber ingenting om kontoen: vinduet er sat af kaldernes
+      // EGET forrige tryk, ikke af om e-mailen findes. Enumeration-beskyttelsen
+      // er uroert — beskeden er stadig den generiske.
+      return res.status(200).json({ ...generiskSvar, cooldown: sek });
     }
+    markerSendt(`email:${email}`);
+    if (ip) markerSendt(`ip:${ip}`);
 
     try {
       // Findes firmaet? Vi skal kun bruge eksistensen — rescue-mailen
@@ -148,7 +170,15 @@ module.exports = (app, supabase) => {
         if (mailResult?.blocked) {
           console.log("📧 Login-link-mail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
         } else {
-          console.log("✉️  Nyt login-link sendt til:", maskerMail(email));
+          // Scaleway giver et message-id tilbage, og det blev foer smidt vaek:
+          // loggen sagde "sendt" uden at sige HVAD, saa en savnet mail kunne
+          // kun findes ved at gaette ud fra klokkeslaet. Nu kan den slaas op.
+          const mailId = mailResult?.emails?.[0]?.message_id
+                      || mailResult?.emails?.[0]?.id
+                      || mailResult?.message_id
+                      || mailResult?.id
+                      || "ukendt-id";
+          console.log("✉️  Nyt login-link sendt til:", maskerMail(email), "— Scaleway-id:", mailId);
         }
       } else {
         // Ukendt email: log internt, men svar stadig generisk (ingen laekage).
