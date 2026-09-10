@@ -385,12 +385,37 @@
   
   <button onclick="document.getElementById('app-hilsen').style.display='none'"
           style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Åbn</button>
-  <!-- Bevidst INGEN besked-tilladelse her mere (rettet 20/8): at bede om
-       notifikations-tilladelse i samme åndedrag som "installer app"-rejsen
-       brød med princippet om at det skal være superenkelt at komme i gang
-       med Dit Digitale Kontor — ikke en tælle-fejl, men en unødig forhindring
-       ved første åbning. Beskeder er nu udelukkende en til/fra-mulighed
-       nederst på Profil-siden (#push-card nedenfor). -->
+  <!-- Tilladelsen bedes IKKE om her, men på #push-spoerg nedenfor — en
+       skærm for sig, efter denne. 20/8 blev spørgsmålet fjernet helt, fordi
+       det brød med "superenkelt at komme i gang"; 9/9 blev det genindført,
+       fordi prisen viste sig at være højere den anden vej (se #push-spoerg).
+       De to skærme holdes adskilt, så hilsenen stadig kun er en hilsen. -->
+</div>
+
+<!-- ── 🔔 Tillad notifikationer: vises ved åbning, indtil telefonen er spurgt ──
+     GENINDFØRT 9/9-26, og det ophæver bevidst beslutningen fra 20/8 om at
+     holde tilladelsen ude af første åbning.
+
+     Hvorfor tilbagerulningen: uden et aktivt spørgsmål bliver
+     Notification.permission stående på 'default' hos de fleste. Og badgen —
+     det røde tal, som er hele den betalte værdi — KRÆVER tilladelsen på iOS
+     (se updateBadge/anvendBadge). En kunde, der aldrig bliver spurgt, ser
+     derfor aldrig et rødt tal, uanset hvor mange opgaver der kommer ind.
+     Indvendingen fra 20/8 står ved magt: det ER en forhindring mere. Den
+     betales nu bevidst, og "Ikke nu" gør skærmen billig at komme forbi.
+
+     Selvstændig som app-hilsenen: egen markup, ingen afhængighed af
+     stylesheetet, alt hvad den rører er guardet. Vises FØRST efter login
+     (se onAuthStateChange) — et abonnement kan ikke gemmes uden en session. -->
+<div id="push-spoerg" style="display:none;position:fixed;inset:0;z-index:9998;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
+  <div style="font-size:52px;margin-bottom:16px" aria-hidden="true">🔔</div>
+  <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Få besked om nye opgaver</div>
+  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Om lidt spørger telefonen, om Dit Digitale Kontor må give dig besked.<br><strong style="color:#16232F">Tryk &bdquo;Tillad&ldquo;</strong> — det er sådan du ser det røde tal på ikonet, når der er kommet en ny opgave.</p>
+  <button id="push-spoerg-ja" type="button"
+          style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Ja tak, giv mig besked</button>
+  <button id="push-spoerg-nej" type="button"
+          style="margin-top:14px;min-height:44px;padding:0 16px;border:none;background:none;color:#8A97A5;font-size:15px;font-family:inherit;cursor:pointer;text-decoration:underline">Ikke nu</button>
+  <div id="push-spoerg-status" style="margin-top:18px;font-size:15px;line-height:1.5;color:#5B6B7A;max-width:320px;min-height:20px"></div>
 </div>
 <script>
   // Fejlsikker med vilje: localStorage kan kaste i visse private tilstande —
@@ -415,6 +440,15 @@
       var dbMm  = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
       var dbNs  = window.navigator.standalone === true;
       var standalone = dbIos ? (dbMm && dbNs) : dbMm;
+
+      // 9/9-26: resultatet eksporteres, så spørgeskærmen og push-blokken
+      // kan bruge NØJAGTIG samme svar. Uden det ville D45-rettelsen skulle
+      // skrives af en tredje gang, og en dublet uden afstemning er præcis
+      // det, CLAUDE.md forbyder — det var jo netop to udgaver af det samme
+      // tjek, der gav den falske positiv i første omgang.
+      window.ddkStandalone = standalone;
+      window.ddkIos        = dbIos;
+
       if (standalone && !localStorage.getItem('ddk-app-hilsen-vist')) {
         localStorage.setItem('ddk-app-hilsen-vist', '1');
         document.getElementById('app-hilsen').style.display = 'flex';
@@ -937,6 +971,12 @@
   // om e-mailen findes (ingen email-enumeration), præcis som onboarding-skærmen.
   // Linket lander på /onboarding, som sender allerede-aktive firmaer videre til
   // dashboardet — så brugeren kommer ind uden at kende sin adgangskode.
+  // Se noten i onboarding.html: linket og koden er ét token, og en NY
+  // bestilling doeder den kode, kunden staar med. Skaermen skal sige det —
+  // ellers taster hun koden fra den foerste mail og faar at vide, at den er
+  // forkert. (Anne, 9/9-26.)
+  let kodeBestillinger = 0;
+
   async function sendLoginLink() {
     const email  = document.getElementById('email').value.trim();
     const status = document.getElementById('magic-link-status');
@@ -965,7 +1005,10 @@
     }
 
     // Samme svar uanset om e-mailen findes (ingen email-enumeration)
-    status.textContent = 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
+    kodeBestillinger++;
+    status.textContent = kodeBestillinger > 1
+      ? 'Vi har sendt en NY kode. Den forrige virker ikke længere — brug koden fra den nyeste mail.'
+      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
     btn.disabled = false;
     btn.textContent = original;
 
@@ -1058,6 +1101,12 @@
     // virkningsløst. Tilladelsen bedes nu KUN om via et rigtigt klik —
     // se skiftPushBeskeder() nedenfor.
     opdaterPushKnap();
+    // 9/9-26: og det rigtige klik TILBYDES her, på en skærm for sig, hvis
+    // telefonen aldrig er blevet spurgt. Placeringen er ikke tilfældig —
+    // slaaPushTil() gemmer abonnementet med et Bearer-token, så der SKAL
+    // være en session, før der overhovedet kan spørges. Skærmen spørger,
+    // koden gør intet af sig selv: dialogen kommer først ved et rigtigt tryk.
+    maaskeSpoergOmBeskeder();
   } else if (event === 'SIGNED_OUT') {
     // Logud — også når loadData rydder en død session — viser login igen.
     document.getElementById('app').style.display = 'none';
@@ -1828,19 +1877,50 @@ if ('serviceWorker' in navigator) {
     .catch(err => console.error('Service worker fejl:', err));
 }
 
-// Opdater badge med antal nye leads
-function updateBadge(count) {
-  document.title = count > 0 ? `(${count}) Leads` : 'Leads';
+// ── Badge: det røde tal på ikonet ─────────────────────────────────────────
+//
+// ⚠️ BADGEN ER IKKE PUSH. Den sættes herfra, af den ÅBNE app, hver gang
+// loadData() har hentet leads — helt uden om push_subscriptions og uden om
+// service workeren. På iOS kræver setAppBadge til gengæld notifikations-
+// TILLADELSEN, og det er hele grunden til, at der bliver spurgt om den ved
+// første åbning (#push-spoerg): en kunde med permission 'default' ser aldrig
+// et rødt tal, uanset hvor mange opgaver der kommer ind.
+//
+// ⚠️ FRAVALGET GÆLDER OGSÅ HER (rettet 9/9-26). Før den dato styrede
+// "Slå notifikationer fra" kun push-abonnementet. Badgen tikkede videre —
+// målt på Anns egen telefon: beskeder slået fra, knappen sagde "Slå
+// notifikationer til", og det røde tal talte stadig op ved hver ny opgave.
+// Kortet på Profil-siden lovede begge dele og holdt den ene.
+//
+// `beskederTil` er den delte sandhed, og den sættes ÉT sted:
+// opdaterPushKnap(). Aflæs den aldrig andre steder fra.
+let beskederTil      = null;   // null = endnu ikke afgjort
+let sidsteBadgeAntal = 0;
 
-  if ('setAppBadge' in navigator) {
+function updateBadge(count) {
+  sidsteBadgeAntal = count;
+  document.title = count > 0 ? `(${count}) Leads` : 'Leads';
+  anvendBadge();
+}
+
+// Adskilt fra updateBadge, så tilstanden kan slå igennem uden at der lige er
+// kommet nye leads — fx i det sekund kunden trykker "Slå notifikationer fra".
+function anvendBadge() {
+  if (!('setAppBadge' in navigator)) return;
+  // Endnu ikke afgjort: rør ikke badgen. opdaterPushKnap() kalder herind,
+  // så snart svaret er hentet, og så sættes eller ryddes tallet korrekt.
+  if (beskederTil === null) return;
+  try {
     // setAppBadge/clearAppBadge returnerer et Promise, der kan blive afvist
     // (fx manglende notifikationstilladelse på iOS). Uden fangst fejlede
     // badgen tavst — ingen fejlmeddelelse, intet der fortalte at den ikke
     // blev sat. Se RISIKOREGISTER D34, spor (c).
-    const badgeKald = count > 0
-      ? navigator.setAppBadge(count)
+    const badgeKald = (beskederTil && sidsteBadgeAntal > 0)
+      ? navigator.setAppBadge(sidsteBadgeAntal)
       : navigator.clearAppBadge();
     badgeKald?.catch(err => console.warn('Kunne ikke opdatere app-badge:', err));
+  } catch (err) {
+    console.warn('Kunne ikke opdatere app-badge:', err);
   }
 }
 // ── DAWA Autocomplete ─────────────────────────────────────────────────────
@@ -2027,6 +2107,21 @@ function pushStoettes() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
+// Hvor mange gange spørgeskærmen må vises, før vi holder op og lader
+// Profil-siden om det. Ét tal at skrue på, hvis den er for påtrængende.
+// Erklæret HER — ikke nede ved funktionen — så den er udført, længe før
+// onAuthStateChange kan nå at fyre. En `let` længere nede ville ligge i
+// TDZ og kaste, hvis auth-svaret kom, mens scriptet stadig blev kørt.
+const PUSH_SPOERG_MAKS = 3;
+let pushSpoergVist = false;   // onAuthStateChange kan fyre flere gange pr. åbning
+
+// iOS-svaret er allerede regnet ud ÉN gang, i app-hilsenens blok øverst i
+// filen (D45-rettelsen). Vi genberegner det ikke — en dublet uden afstemning
+// er netop det, der gav den falske positiv i første omgang.
+function erIOS() {
+  return window.ddkIos === true;
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -2045,90 +2140,235 @@ async function hentPushAbonnement() {
   }
 }
 
-// Sætter "Slå notifikationer til/fra"-knappens tekst efter den faktiske tilstand.
-// Kaldes efter login og efter hvert skift — aldrig antaget, altid aflæst.
+// Telefonens dialog kan kun stilles ÉN gang. Er der svaret nej, kan hverken
+// knappen på Profil-siden eller nogen anden linje kode få den frem igen — kun
+// telefonens egne indstillinger. Derfor SKAL vejen derhen stå på skærmen;
+// ellers er kunden strandet med en knap, der ikke kan andet end at fejle.
+function afvistVejledning() {
+  return erIOS()
+    ? 'Beskeder er slået fra i telefonen. Åbn Indstillinger → Beskeder → Dit Digitale Kontor, og slå "Tillad beskeder" til.'
+    : 'Beskeder er slået fra i browserens indstillinger. Åbn indstillingerne for dette websted og tillad beskeder.';
+}
+
+// Skriver til BEGGE steder, der kan vise en status: Profil-kortet og
+// spørgeskærmen ved første åbning. Kunden ser kun det ene ad gangen, og så
+// slipper hvert kaldested for at vide, hvor det blev kaldt fra.
+function sigPushStatus(tekst) {
+  const a = document.getElementById('push-status');
+  const b = document.getElementById('push-spoerg-status');
+  if (a) a.textContent = tekst;
+  if (b) b.textContent = tekst;
+}
+
+function pushKnapArbejder(arbejder) {
+  const btn     = document.getElementById('push-toggle-btn');
+  const spinner = document.getElementById('push-toggle-spinner');
+  const ja      = document.getElementById('push-spoerg-ja');
+  if (btn) btn.disabled = arbejder;
+  if (ja) ja.disabled = arbejder;
+  if (spinner) spinner.style.display = arbejder ? 'inline-block' : 'none';
+}
+
+// Sætter knappens tekst efter den FAKTISKE tilstand — aldrig antaget, altid
+// aflæst — og er samtidig det eneste sted `beskederTil` sættes. Knappen og
+// badgen kan derfor ikke komme til at sige hver sit.
+// Kaldes efter login og efter hvert skift.
 async function opdaterPushKnap() {
-  const label  = document.getElementById('push-toggle-label');
-  const status = document.getElementById('push-status');
-  if (!label) return; // Profil-siden ikke tegnet endnu — intet at opdatere
+  const label = document.getElementById('push-toggle-label');
   try {
     if (!pushStoettes()) {
-      label.textContent = 'Beskeder understøttes ikke her';
-      if (status) status.textContent = 'Virker kun i den installerede app.';
+      beskederTil = false;
+      if (label) label.textContent = 'Beskeder understøttes ikke her';
       return;
     }
     const sub = await hentPushAbonnement();
-    if (sub && Notification.permission === 'granted') {
-      label.textContent = 'Slå notifikationer fra';
-      if (status) status.textContent = 'Beskeder er slået til på denne enhed.';
-    } else {
-      label.textContent = 'Slå notifikationer til';
-      if (status) status.textContent = '';
-    }
+    beskederTil = !!(sub && Notification.permission === 'granted');
+    if (label) label.textContent = beskederTil ? 'Slå notifikationer fra' : 'Slå notifikationer til';
+    // Status-linjen skrives kun, når der er noget at fortælle. Ellers ville
+    // den viske den kvittering ud, som slaaPushFra() lige har sat — knappen
+    // ville skifte tekst, og kunden ville stå uden svar på, om det lykkedes.
+    if (beskederTil) sigPushStatus('Beskeder er slået til på denne enhed.');
+    else if (Notification.permission === 'denied') sigPushStatus(afvistVejledning());
   } catch (err) {
     console.warn('Kunne ikke opdatere push-knap:', err);
+  } finally {
+    anvendBadge();   // badgen følger tilstanden, uanset hvordan vi kom hertil
   }
 }
 
-// Slår beskeder til ELLER fra, alt efter nuværende tilstand. Bruges både af
-// app-hilsens knap og af Profil-sidens knap — samme funktion, samme regler.
-async function skiftPushBeskeder() {
-  if (!pushStoettes()) return;
-  const btn     = document.getElementById('push-toggle-btn');
-  const spinner = document.getElementById('push-toggle-spinner');
-  const status  = document.getElementById('push-status');
-  if (btn) btn.disabled = true;
-  if (spinner) spinner.style.display = 'inline-block';
+// ⚠️ IKKE async — og det er ikke en forglemmelse.
+//
+// WebKit kræver, at Notification.requestPermission() kaldes inden for den
+// ægte brugerhandling. `await navigator.serviceWorker.ready` (inde i
+// hentPushAbonnement) er et rigtigt task-skift, ikke bare en microtask:
+// efter det er aktiveringen brugt op, dialogen kommer ALDRIG frem, og
+// promiset resolver 'default'. Knappen ser død ud, og der står intet i
+// nogen log. Præcis den fælde, kommentaren ved onAuthStateChange advarer
+// mod — og som funktionen her selv trådte i indtil 9/9-26.
+//
+// Derfor: alt herinde læses synkront, og slaaPushTil() kaldes med et tomt
+// kaldsstak-spor bag sig. Læg aldrig et `await` ind foran de kald nedenfor.
+function skiftPushBeskeder() {
+  if (!pushStoettes()) {
+    // Før 9/9 stod her `return;` uden et ord. I en Safari-fane på iOS findes
+    // Notification-API'et slet ikke — kun i den installerede app — så et tryk
+    // gjorde bogstaveligt talt ingenting, og skærmen sagde ikke hvorfor.
+    sigPushStatus(erIOS()
+      ? 'Beskeder virker kun i Dit Digitale Kontor på hjemmeskærmen. Læg appen på telefonen først.'
+      : 'Denne browser kan ikke sende beskeder.');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    sigPushStatus(afvistVejledning());
+    return;
+  }
+  if (Notification.permission === 'default') {
+    slaaPushTil();            // ← spørger. INTET await må stå foran denne linje
+    return;
+  }
+  slaaFraEllerGenabonner();   // tilladelsen er givet; nu må vi gerne vente
+}
 
+// Tilladelsen er allerede på plads. Findes der et abonnement, slår vi fra;
+// gør der ikke (fx ryddet browserdata eller en geninstalleret app), tegner vi
+// et nyt. Her er et await ufarligt: der skal ikke spørges om lov igen.
+async function slaaFraEllerGenabonner() {
+  const sub = await hentPushAbonnement();
+  return sub ? slaaPushFra(sub) : slaaPushTil();
+}
+
+async function slaaPushTil() {
+  pushKnapArbejder(true);
   try {
-    const eksisterende = await hentPushAbonnement();
+    // FØRSTE await i hele kaldekæden — brugerhandlingen er stadig i live.
+    const tilladelse = await Notification.requestPermission();
+    if (tilladelse !== 'granted') {
+      sigPushStatus(tilladelse === 'denied'
+        ? afvistVejledning()
+        : 'Tilladelsen blev ikke givet. Du kan slå beskeder til på Profil-siden, når du vil.');
+      return false;
+    }
 
-    if (eksisterende && Notification.permission === 'granted') {
-      // Slå fra: annullér abonnementet i browseren OG fjern det server-
-      // side, så der ikke ligger et dødt abonnement næste gang der pushes.
-      const endpoint = eksisterende.endpoint;
-      await eksisterende.unsubscribe();
+    const reg       = await navigator.serviceWorker.ready;
+    const publicKey = window.APP_CONFIG?.VAPID_PUBLIC_KEY;
+    if (!publicKey) throw new Error('VAPID_PUBLIC_KEY mangler i /config.js');
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) throw new Error('Ikke logget ind');
+    const r = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    if (!r.ok) throw new Error('Serveren afviste abonnementet');
+
+    sigPushStatus('Beskeder er slået til på denne enhed.');
+    return true;
+  } catch (err) {
+    console.warn('Kunne ikke slå beskeder til:', err);
+    sigPushStatus('Der gik noget galt — prøv igen.');
+    return false;
+  } finally {
+    pushKnapArbejder(false);
+    await opdaterPushKnap();
+  }
+}
+
+async function slaaPushFra(sub) {
+  pushKnapArbejder(true);
+  try {
+    const endpoint = sub.endpoint;
+    await sub.unsubscribe();
+
+    // ⚠️ Svaret SKAL læses. Før 9/9 stod her `.catch(() => {})` og ingen
+    // kontrol af r.ok — så et 401 eller 500 var usynligt: browseren
+    // kvitterede med "Beskeder er slået fra", knappen skiftede tekst, og
+    // rækken levede videre i push_subscriptions. "En leveret rettelse er
+    // ikke en anvendt rettelse" gælder også for et fravalg.
+    let serverOk = false;
+    try {
       const { data: { session } } = await db.auth.getSession();
       if (session) {
-        await fetch('/api/push/unsubscribe', {
+        const r = await fetch('/api/push/unsubscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
           body: JSON.stringify({ endpoint }),
-        }).catch(() => {}); // fail-open: lokalt er den allerede slået fra
+        });
+        serverOk = r.ok;
+        if (!r.ok) console.warn('Afmelding afvist af serveren:', r.status);
+      } else {
+        console.warn('Afmelding kunne ikke sendes: ingen session');
       }
-      if (status) status.textContent = 'Beskeder er slået fra.';
+    } catch (err) {
+      console.warn('Afmelding kunne ikke sendes:', err);
+    }
+
+    sigPushStatus(serverOk
+      ? 'Beskeder er slået fra på denne telefon.'
+      : 'Beskeder er slået fra på denne telefon. Serveren svarede ikke — får du alligevel flere beskeder, så åbn appen igen og prøv en gang til.');
+    return true;
+  } catch (err) {
+    console.warn('Kunne ikke slå beskeder fra:', err);
+    sigPushStatus('Der gik noget galt — prøv igen.');
+    return false;
+  } finally {
+    pushKnapArbejder(false);
+    await opdaterPushKnap();   // sætter beskederTil = false → anvendBadge() rydder tallet
+  }
+}
+
+// ── Spørgeskærmen ved første åbning (#push-spoerg) ────────────────────────
+// Betingelserne er bevidst stramme: kun i den installerede app, kun hvis
+// telefonen aldrig er blevet spurgt, og kun et begrænset antal gange.
+// Skærmen SPØRGER — den kalder ikke selv systemdialogen frem. Den kommer
+// først ved et rigtigt tryk på "Ja tak", og det er både et krav fra WebKit
+// og den eneste rimelige måde at behandle en håndværker på.
+// (PUSH_SPOERG_MAKS og pushSpoergVist er erklæret øverst i blokken.)
+function maaskeSpoergOmBeskeder() {
+  try {
+    if (pushSpoergVist) return;
+    if (window.ddkStandalone !== true) return;          // kun i den installerede app
+    if (!pushStoettes()) return;
+    if (Notification.permission !== 'default') return;  // allerede svaret — spørg aldrig igen
+
+    let gange = 0;
+    try { gange = parseInt(localStorage.getItem('ddk-push-spurgt') || '0', 10) || 0; } catch (_) {}
+    if (gange >= PUSH_SPOERG_MAKS) return;
+
+    const skaerm = document.getElementById('push-spoerg');
+    const ja     = document.getElementById('push-spoerg-ja');
+    const nej    = document.getElementById('push-spoerg-nej');
+    if (!skaerm || !ja || !nej) return;
+
+    pushSpoergVist = true;
+    try { localStorage.setItem('ddk-push-spurgt', String(gange + 1)); } catch (_) {}
+
+    ja.onclick = async () => {
+      const ok = await slaaPushTil();
+      // Kvitteringen skal nå at blive læst, før skærmen forsvinder. Gik det
+      // galt, bliver skærmen stående med beskeden — så kan kunden prøve igen
+      // eller vælge "Ikke nu".
+      if (ok) setTimeout(() => { skaerm.style.display = 'none'; }, 1400);
+    };
+    nej.onclick = () => { skaerm.style.display = 'none'; };
+
+    // To fuldskærmslag oven på hinanden er ingen god første åbning: vises
+    // app-hilsenen, venter vi til den er klikket væk.
+    const hilsen = document.getElementById('app-hilsen');
+    const hilsenVises = !!hilsen && hilsen.style.display === 'flex';
+    if (hilsenVises) {
+      const knap = hilsen.querySelector('button');
+      if (knap) knap.addEventListener('click', () => { skaerm.style.display = 'flex'; }, { once: true });
+      else skaerm.style.display = 'flex';
     } else {
-      const tilladelse = await Notification.requestPermission();
-      if (tilladelse !== 'granted') {
-        if (status) status.textContent = tilladelse === 'denied'
-          ? 'Tilladelse blev afvist. Den kan slås til igen i telefonens indstillinger.'
-          : 'Tilladelse blev ikke givet.';
-        return;
-      }
-      const reg       = await navigator.serviceWorker.ready;
-      const publicKey = window.APP_CONFIG?.VAPID_PUBLIC_KEY;
-      if (!publicKey) throw new Error('VAPID_PUBLIC_KEY mangler i /config.js');
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      });
-      const { data: { session } } = await db.auth.getSession();
-      if (!session) throw new Error('Ikke logget ind');
-      const r = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ subscription: sub.toJSON() }),
-      });
-      if (!r.ok) throw new Error('Serveren afviste abonnementet');
-      if (status) status.textContent = 'Beskeder er slået til på denne enhed.';
+      skaerm.style.display = 'flex';
     }
   } catch (err) {
-    console.warn('Kunne ikke skifte push-beskeder:', err);
-    if (status) status.textContent = 'Der gik noget galt — prøv igen.';
-  } finally {
-    if (btn) btn.disabled = false;
-    if (spinner) spinner.style.display = 'none';
-    opdaterPushKnap();
+    console.warn('Kunne ikke vise spørgeskærmen:', err);
   }
 }
 </script>
