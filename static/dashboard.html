@@ -977,6 +977,38 @@
   // forkert. (Anne, 9/9-26.)
   let kodeBestillinger = 0;
 
+  // ── Nedtaelling paa knappen ────────────────────────────────────────────────
+  // Serveren afviser mere end ét link pr. minut. Foer 10/9-26 saa knappen helt
+  // normal ud imens, saa man trykkede videre — otte tryk gav to mails, og de
+  // seks andre forsvandt lydloest. Knappen skal SELV vise, at der er lukket,
+  // og hvor laenge.
+  //
+  // Der taelles ned mod et TIDSPUNKT, ikke ved at traekke ét fra pr. tik:
+  // laegger telefonen sig til at sove, staar et taellende ur stille og lyver,
+  // naar skaermen kommer tilbage. Et tidspunkt er sandt uanset hvad der skete
+  // imens.
+  var nedtaellingUr = null;
+
+  function startNedtaelling(sekunder, btn, saetTekst, sluttekst) {
+    if (nedtaellingUr) clearInterval(nedtaellingUr);
+    const slut = Date.now() + sekunder * 1000;
+    btn.disabled = true;
+
+    const tik = () => {
+      const tilbage = Math.ceil((slut - Date.now()) / 1000);
+      if (tilbage <= 0) {
+        clearInterval(nedtaellingUr);
+        nedtaellingUr = null;
+        saetTekst(sluttekst);
+        btn.disabled = false;
+        return;
+      }
+      saetTekst(`Vent ${tilbage} sek.`);
+    };
+    tik();
+    nedtaellingUr = setInterval(tik, 1000);
+  }
+
   async function sendLoginLink() {
     const email  = document.getElementById('email').value.trim();
     const status = document.getElementById('magic-link-status');
@@ -995,11 +1027,25 @@
     btn.textContent = 'Sender…';
 
     try {
-      await fetch('/onboarding/nyt-link', {
+      const svar = await fetch('/onboarding/nyt-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
+      // Serveren har et loft paa ét link pr. minut og sender INGEN mail, naar
+      // det rammes. Uden denne blok kvitterer skaermen alligevel med "Vi har
+      // sendt en NY kode" — en groen loegn, der samtidig faar kunden til at tro,
+      // at koden hun allerede har er doed. Den ER i live, netop fordi der ikke
+      // blev bestilt en ny; derfor tælles kodeBestillinger heller ikke op her.
+      // Samme rettelse som i onboarding.html — denne skaerm har sin EGEN
+      // login-rude, og det var den, fejlen blev set paa 10/9-26.
+      const krop = await svar.json().catch(() => ({}));
+      if (krop && krop.cooldown) {
+        status.style.color = 'var(--ink-muted)';
+        status.textContent = 'Koden fra den seneste mail virker stadig.';
+        startNedtaelling(krop.cooldown, btn, (t) => { btn.textContent = t; }, original);
+        return;
+      }
     } catch (e) {
       console.warn('Kunne ikke sende login-link:', e);
     }

@@ -2419,13 +2419,17 @@
       // saa den forrige er stadig i live, og det skal teksten sige.
       if (krop && krop.cooldown) {
         status.className = 'status ok';
-        status.textContent =
-          `Vent ${krop.cooldown} sekunder, så kan du bestille en ny kode. `
-          + `Koden fra den seneste mail virker stadig.`;
+        // Selve ventetiden staar paa knappen. Her staar KUN det, kunden skal
+        // goere imens — og at hun ikke har mistet noget.
+        status.textContent = 'Koden fra den seneste mail virker stadig.';
         visKodefelt(true);
-        btn.disabled = false;
-        label.textContent = (ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet).knap;
         spin.style.display = 'none';
+        startNedtaelling(
+          krop.cooldown,
+          btn,
+          (t) => { label.textContent = t; },
+          (ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet).knap
+        );
         return;
       }
     } catch (e) { /* samme svar uanset — se nedenfor */ }
@@ -2474,6 +2478,38 @@
   }
 
   // ── Kodesporet på udløbet-skærmen (20/7, kodeopgave 1d) ────────────
+  // ── Nedtaelling paa knappen ────────────────────────────────────────────────
+  // Serveren afviser mere end ét link pr. minut. Foer 10/9-26 saa knappen helt
+  // normal ud imens, saa man trykkede videre — otte tryk gav to mails, og de
+  // seks andre forsvandt lydloest. Knappen skal SELV vise, at der er lukket,
+  // og hvor laenge.
+  //
+  // Der taelles ned mod et TIDSPUNKT, ikke ved at traekke ét fra pr. tik:
+  // laegger telefonen sig til at sove, staar et taellende ur stille og lyver,
+  // naar skaermen kommer tilbage. Et tidspunkt er sandt uanset hvad der skete
+  // imens.
+  var nedtaellingUr = null;
+
+  function startNedtaelling(sekunder, btn, saetTekst, sluttekst) {
+    if (nedtaellingUr) clearInterval(nedtaellingUr);
+    const slut = Date.now() + sekunder * 1000;
+    btn.disabled = true;
+
+    const tik = () => {
+      const tilbage = Math.ceil((slut - Date.now()) / 1000);
+      if (tilbage <= 0) {
+        clearInterval(nedtaellingUr);
+        nedtaellingUr = null;
+        saetTekst(sluttekst);
+        btn.disabled = false;
+        return;
+      }
+      saetTekst(`Vent ${tilbage} sek.`);
+    };
+    tik();
+    nedtaellingUr = setInterval(tik, 1000);
+  }
+
   function visKodefelt(fokus) {
     document.getElementById('ob-otp-row').style.display = 'block';
     document.getElementById('ob-otp-toggle').style.display = 'none';
