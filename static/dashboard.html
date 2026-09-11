@@ -460,6 +460,9 @@
 <div id="login-screen">
   <div class="login-card">
     <h1>Log ind</h1>
+    <!-- Underrubrikken BLIVER staaende (Anns beslutning 11/9-26). Resten af
+         ruden er gjort ens med onboardingens, men her siger den noget, den
+         anden ikke kan: dette er vejen til opgaveoversigten. -->
     <p class="sub">Din opgaveoversigt</p>
     <!-- Felter i onboardingens .field-stil: placeholder + aria-label baerer
          betydningen (som paa onboardingens skaerme), ingen VERSAL-labels.
@@ -476,7 +479,7 @@
 
     <!-- Redningsvej: send et login-link hvis man ikke kan sin adgangskode -->
     <button type="button" id="magic-link-btn" class="link-btn" onclick="sendLoginLink()">
-      Kan du ikke logge ind? Send mig et login-link
+      Jeg har glemt min adgangskode
     </button>
     <div class="login-note" id="magic-link-status"></div>
 
@@ -485,9 +488,8 @@
          naar der er bestilt en mail. autocomplete="one-time-code" faar iOS til
          at foreslaa koden direkte fra Mail-appen over tastaturet. -->
     <div id="otp-row" style="display:none;margin-top:14px">
-      <label for="otp-code">Engangskode fra mailen</label>
       <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
-             maxlength="10" placeholder="123456"
+             maxlength="10" placeholder="Engangskode fra mailen" aria-label="Engangskode fra mailen"
              onkeydown="if(event.key==='Enter')loginWithOtp()">
       <button class="btn" type="button" id="otp-btn" onclick="loginWithOtp()">Log ind med koden</button>
     </div>
@@ -1073,7 +1075,22 @@
     // kodefelt -> status -> gensend-knap.
     const statusEl = document.getElementById('magic-link-status');
     otpRow.after(statusEl);
-    statusEl.after(document.getElementById('magic-link-btn'));
+    const gensend = document.getElementById('magic-link-btn');
+    statusEl.after(gensend);
+
+    // 10/9-26: gensend-elementet blev flyttet, men beholdt sin diskrete
+    // link-stil. Er der bestilt en kode, ER det handlingen — og naar loftet
+    // saetter ind, skal nedtaellingen staa paa en knap, der tydeligt er
+    // slukket, ligesom i onboardingen. En understreget linje nede paa siden,
+    // der taeller ned, ligner ikke noget, man har trykket paa.
+    //
+    // Den er FORTSAT et link, indtil man har bedt om en kode: paa den
+    // uberoerte skaerm er adgangskoden vejen ind, og to blaa knapper ville
+    // konkurrere om den plads.
+    gensend.classList.remove('link-btn');
+    gensend.classList.add('btn');
+    gensend.textContent = 'Send mig en kode';
+
     document.getElementById('otp-code').focus();
   }
 

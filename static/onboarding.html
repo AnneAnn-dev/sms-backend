@@ -1152,9 +1152,16 @@
     // skrevet forkert, saa den naturlige udvej ER at proeve med den rigtige.
     // Teksten peger nu paa det, der plejer at vaere galt, i stedet for at
     // sende kunden ud ad mailvejen efter en konto, der maaske findes.
+    //
+    // 10/9-26: overskriften hed "Vi mangler din konto" og teksten forklarede,
+    // at loginnet virkede, men at der ikke laa en konto paa e-mailen. Det er
+    // korrekt set indefra og forvirrende set udefra: kunden hoerer "I har
+    // mistet min konto". Skaermen siger nu det, kunden kan HANDLE paa — de to
+    // felter hun lige har udfyldt — i stedet for at forklare, hvilken halvdel
+    // af opslaget der slog fejl.
     kontoMangler: {
-      titel: 'Vi mangler din konto',
-      tekst: 'Dit login virkede, men der er ingen konto på den e-mail. Tjek at den er skrevet rigtigt, og prøv igen.',
+      titel: 'Du kunne ikke logge ind',
+      tekst: 'Tjek at e-mail og kode er skrevet rigtigt, og prøv igen.',
       knap:  'Send nyt link',
       glemt: 'Har du glemt din adgangskode? Få et nyt link',
       koderSpor: false,
