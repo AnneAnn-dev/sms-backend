@@ -952,7 +952,7 @@
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   async function login() {
-    const email = document.getElementById('email').value;
+    const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
     const { error } = await db.auth.signInWithPassword({ email, password });
     if (error) {
