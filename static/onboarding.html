@@ -694,6 +694,53 @@
       <button class="linklike ghost" onclick="aabnIBrowseren()">Åbn i browseren</button>
     </section>
 
+    <!-- ── SIDE 8b: HVILKEN KNAP SER DU? (kun iOS) ─────────────────
+         Tilføjet 12/9-26. Afløser hedgingen fra 10/9, hvor trin 1 ledte efter
+         dele-ikonet og tilføjede "ser du i stedet tre prikker, så tryk på
+         dem". Den formulering var robust, fordi den dækkede begge — men den
+         bad også kunden om selv at afgøre, hvad vejledningen handlede om,
+         midt i det trin hun skulle udføre.
+
+         Vi kan ikke vide det fra koden: der findes intet API for Safaris
+         værktøjslinje, og en forgrening på iOS-version ville ramme forkert
+         hos enhver, der selv har skiftet layout i Safaris indstillinger.
+         Så vi spørger. Ét tryk, to billeder, og resten af guiden ved
+         bagefter, hvad kunden faktisk står med.
+
+         Gevinsten er ikke kun præcision: svaret "dele-ikon" springer s-9b
+         over ("kom der en menu frem? tryk Del"), som kun findes, fordi vi
+         ikke vidste det. iOS-guiden går fra fem trin til fire for dem.
+
+         Målingen følger med: fordelingen kan aflæses i
+         onboarding_sidevisninger, så I får at vide, hvad jeres kunder har,
+         i stedet for at gætte. ⚠️ Kræver 's-8b' i GYLDIGE_SIDER i
+         onboarding.js, ellers afvises den med 400 — tavst. -->
+    <section class="screen" id="s-8b">
+      <h1>Hvad kan du se?</h1>
+      <p class="sub">Kig nederst på skærmen, ved siden af adressen.<br>Tryk på det, du kan se.</p>
+      <div style="display:flex;gap:12px;width:100%;margin-top:10px">
+        <button type="button" id="valg-del" onclick="vaelgIOSKnap('del', this)"
+                style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:132px;padding:18px 10px;border:1.5px solid var(--line);border-radius:16px;background:#fff;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;transition:border-color .15s ease,background .15s ease">
+          <svg width="34" height="40" viewBox="0 0 34 40" fill="none" aria-hidden="true">
+            <rect x="5" y="14" width="24" height="22" rx="4.5" stroke="#2C6B9E" stroke-width="2.2" fill="none"/>
+            <path d="M17 24V5" stroke="#2C6B9E" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M11 11l6-6 6 6" stroke="#2C6B9E" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>En firkant<br>med en pil op</span>
+        </button>
+        <button type="button" id="valg-prikker" onclick="vaelgIOSKnap('prikker', this)"
+                style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:132px;padding:18px 10px;border:1.5px solid var(--line);border-radius:16px;background:#fff;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;transition:border-color .15s ease,background .15s ease">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <circle cx="10" cy="20" r="3.4" fill="#2C6B9E"/>
+            <circle cx="20" cy="20" r="3.4" fill="#2C6B9E"/>
+            <circle cx="30" cy="20" r="3.4" fill="#2C6B9E"/>
+          </svg>
+          <span>Tre prikker</span>
+        </button>
+      </div>
+      <button class="linklike" onclick="vaelgIOSKnap('prikker', null)">Jeg er ikke sikker</button>
+    </section>
+
     <!-- ── SIDE 9: INSTALLATION 1/4 — KIG NED + TRYK PÅ PRIKKER ──
          26/7 (Anns test paa rigtig iPhone): iOS' gamle to-trins-start (kig
          ned, TRYK saa paa Del) er lagt sammen til ét trin, da det kompakte
@@ -759,6 +806,33 @@
           </g>
           <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
         </svg>
+        <!-- Samme bundlinje, men med de tre prikker fremhaevet. Vises naar
+             kunden paa s-8b har svaret "tre prikker" (12/9-26). -->
+        <svg id="orient-ios-prikker" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
+          <g opacity=".35">
+            <rect x="24" y="10" width="222" height="12" rx="6" fill="#DDE3EA"/>
+            <rect x="24" y="32" width="180" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
+            <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
+          </g>
+          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
+          <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
+          <path d="M29 123l-5 6 5 6" stroke="#9AA6B2" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="48" y="115" width="164" height="28" rx="14" fill="#F0F3F7"/>
+          <rect x="62" y="123.5" width="7" height="8" rx="1.5" fill="none" stroke="#9AA6B2" stroke-width="1.1"/>
+          <path d="M63.5 127.3h4" stroke="#9AA6B2" stroke-width="1.1"/>
+          <text x="126" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
+          <path d="M191 124a5.5 5.5 0 1 1-2 -3.8M189 118l2 2-2.6 1.4" stroke="#9AA6B2" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          <circle cx="236" cy="129" r="14" fill="#F0F3F7"/>
+          <g fill="#5B6B7A">
+            <circle cx="230" cy="129" r="2"/>
+            <circle cx="236" cy="129" r="2"/>
+            <circle cx="242" cy="129" r="2"/>
+          </g>
+          <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
+        </svg>
         <!-- Android: siden daempet, toplinjen fremhaevet -->
         <svg id="orient-android" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
           <rect x="8" y="34" width="254" height="34" rx="10" fill="#F0F3F7"/>
@@ -779,7 +853,7 @@
           </g>
         </svg>
       </div>
-      <button class="btn" onclick="bekraeftOgVidere(this, 's-9b')">Næste</button>
+      <button class="btn" onclick="videreFraTrin1(this)">Næste</button>
     </section>
 
     <!-- ── SIDE 9b: INSTALLATION 2/4 — TRYK PÅ DEL-IKONET ──── -->
@@ -1061,6 +1135,9 @@
   // skjules pilen.
   const BACK_TARGET = {
     's-0b': 's-0', 's-1': 's-0', 's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
+    's-8b': 's-8',
+    // s-9, s-9c og s-10 saettes af opsaetInstallationstekster(): hvor pilen
+    // foerer hen afhaenger af, hvilken gren kunden er i.
     's-9': 's-8', 's-9b': 's-9', 's-9c': 's-9b', 's-10': 's-9b', 's-10b': 's-10', 's-11': 's-10b',
   };
   function goBack() {
@@ -2161,8 +2238,16 @@
   // ikke kunne drive fra hinanden. Derfor hentes det samme sted begge gange.
   // Det er samme laerdom som D29: to kilder til det samme tal ender med at
   // sige hver sit.
+  // Hvilken knap viser kundens Safari? Saettes paa s-8b, ikke gaettet.
+  // null = endnu ikke spurgt. Erklaeret HER, langt foer nogen laeser den.
+  let iosKnap = null;
+
   function antalInstallationstrin() {
-    return erIOS() ? 5 : 4;
+    if (!erIOS()) return 4;
+    // Dele-ikonet aabner delearket med det samme, saa "kom der en menu frem?
+    // tryk Del" (s-9b) er overfloedig. Den skaerm findes kun, fordi vi foer
+    // 12/9 ikke vidste, hvad kunden havde trykket paa.
+    return iosKnap === 'del' ? 4 : 5;
   }
 
   // ── Side 8: installer som app ──────────────────────────────────────
@@ -2191,7 +2276,14 @@
     // staa paa samme skaerm.
     // somBesked = true: linjen er nu skaermens hovedbesked og skal have
     // .sub-stoerrelse, ikke .hint — den er ikke laengere en fodnote.
-    saetInstallHint('Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.', true);
+    // ⚠️ 12/9-26: paa iOS kender vi IKKE tallet her. Det afhaenger af, hvilken
+    // knap kundens Safari viser, og det spoerger vi foerst om paa s-8b. Et tal
+    // her ville modsige trin-taelleren to skaerme senere — og et loefte, der
+    // skifter undervejs, er vaerre end intet loefte. Android er entydig (4).
+    saetInstallHint(erIOS()
+      ? 'Se de næste sider igennem, så du ved hvordan du lægger appen på din telefon.'
+      : 'Se de næste ' + antalInstallationstrin() + ' sider igennem, så du ved hvordan du lægger appen på din telefon.',
+      true);
 
     // ── Hensigten saettes HER, ikke ved kopiér-knappen ──────────────────
     // Staar kunden paa denne skaerm, ER hun paa installationsrejsen. Det er
@@ -2317,65 +2409,133 @@
   }
 
   // Trin 1-2 tilpasses enheden: Del-ikonet i Safari eller ⋮-menuen i Chrome.
+  //
+  // ⚠️ 12/9-26: paa iOS GAETTER vi ikke laengere paa, hvilken knap kunden
+  // ser. Der findes intet API for Safaris vaerktoejslinje, og en forgrening
+  // paa iOS-version rammer forkert hos enhver, der selv har skiftet layout i
+  // Safaris indstillinger — eller drejer telefonen. Samme laerdom som 5/9,
+  // hvor "hvilket styresystem?" blev stillet, hvor spoergsmaalet var "hvilken
+  // browser?". Her er spoergsmaalet "hvilken knap?", og kun kunden kan svare.
+  // Derfor: iOS gaar via s-8b, Android direkte videre (dér er der intet valg).
   function startInstall(btn) {
     // Samme praedikat som erIOS() stod her i en egen kopi. To steder med den
     // samme regel er én for meget — nu er der én.
     const isIOS = erIOS();
     installVariant = isIOS ? 'ios' : 'android';
-    // Bagud-pilen fra trin 4 (s-10): iOS kommer via "pil ned"-trinnet
-    // (s-9c), Android via de tre prikker direkte (s-9b).
+    if (isIOS) {
+      iosKnap = null;                  // et tidligere svar maa ikke haenge ved
+      bekraeftOgVidere(btn, 's-8b');
+      return;
+    }
+    opsaetInstallationstekster();
+    bekraeftOgVidere(btn, 's-9');
+  }
+
+  // Kundens svar paa s-8b. `btn` er null, naar hun trykker "Jeg er ikke
+  // sikker" — saa er der ingen knap at kvittere paa. Det svar sendes ad den
+  // LANGE vej (prikker): den rummer et ekstra trin, som ogsaa daekker den,
+  // der ramte dele-ikonet alligevel. At gaette forkert den anden vej ville
+  // springe et trin over, hun havde brug for.
+  let valgLaast = false;
+  function vaelgIOSKnap(knap, btn) {
+    if (valgLaast) return;             // dobbelttryk maa ikke starte to gange
+    valgLaast = true;
+    iosKnap = knap;
+    opsaetInstallationstekster();
+    if (btn) {
+      btn.style.borderColor = 'var(--accent)';
+      btn.style.background  = 'var(--tint)';
+    }
+    setTimeout(() => {
+      goTo('s-9');
+      valgLaast = false;
+      if (btn) {
+        btn.style.borderColor = 'var(--line)';
+        btn.style.background  = '#fff';
+      }
+    }, 500);
+  }
+
+  // s-9 -> naeste skaerm. Trykkede kunden paa dele-ikonet, er delearket
+  // allerede fremme, og s-9b ("kom der en menu frem? saa tryk Del") er en
+  // skaerm om noget, der ikke skal ske. Den springes over.
+  function videreFraTrin1(btn) {
+    const springOver = installVariant === 'ios' && iosKnap === 'del';
+    bekraeftOgVidere(btn, springOver ? 's-9c' : 's-9b');
+  }
+
+  // Al tekst og alle tegninger i guiden saettes ÉT sted. Kaldes fra
+  // startInstall() (Android) og vaelgIOSKnap() (iOS). Alle vaerdier saettes
+  // absolut, aldrig betinget — saa kan kunden gaa tilbage til s-8b, skifte
+  // svar, og guiden er konsekvent bagefter. En gren, der kun retter "sin
+  // egen" halvdel, efterlader den anden halvdels tekst staaende.
+  function opsaetInstallationstekster() {
+    const isIOS = installVariant === 'ios';
+    const erDel = isIOS && iosKnap === 'del';
+
+    // Bagud-pilen: hvor hver skaerm foerer hen afhaenger af grenen.
+    //   Android:        s-8  -> s-9 -> s-9b        -> s-10 -> s-10b
+    //   iOS · prikker:  s-8b -> s-9 -> s-9b -> s-9c -> s-10 -> s-10b
+    //   iOS · del:      s-8b -> s-9         -> s-9c -> s-10 -> s-10b
+    BACK_TARGET['s-9']  = isIOS ? 's-8b' : 's-8';
+    BACK_TARGET['s-9c'] = erDel ? 's-9' : 's-9b';
     BACK_TARGET['s-10'] = isIOS ? 's-9c' : 's-9b';
-    // Faelles overskrift for alle trin. iOS har 5 trin (kig+prikker -> Del
-    // -> pil ned -> Foej til hjemmeskaerm -> Tilfoej), Android har 4
-    // (springer "Del" og "pil ned" over, jf. videreFraTrin2).
+
+    // Faelles overskrift for alle trin. Trin-numrene er ikke faste: iOS med
+    // dele-ikonet har fire trin, iOS med prikkerne fem, Android fire.
     const GUIDE_TITEL = 'Læg appen på din telefon';
     const AF = ' af ' + antalInstallationstrin();   // samme kilde som teksten paa s-8
+    const nrTo   = erDel ? null : 2;                // s-9b  (springes over ved dele-ikon)
+    const nrTob  = erDel ? 2 : 3;                   // s-9c  (kun iOS)
+    const nrTre  = isIOS ? (erDel ? 3 : 4) : 3;     // s-10
+    const nrFire = isIOS ? (erDel ? 4 : 5) : 4;     // s-10b
     document.getElementById('inst1-step').textContent  = GUIDE_TITEL + ' · Trin 1' + AF;
-    document.getElementById('inst2-step').textContent  = GUIDE_TITEL + ' · Trin 2' + AF;
-    document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin 3' + AF;   // kun iOS
-    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 4' : ' · Trin 3') + AF;
-    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + (isIOS ? ' · Trin 5' : ' · Trin 4') + AF;
-    // Trin 1 (20/7 + 26/7): HVOR skal man kigge — og på iOS med det samme
-    // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
-    // Anns test viste at kigge-trinnet alene ikke gav nok information).
-    // ⚠️ 10/9-26: teksten og tegningen pegede hver sin vej. Overskriften ledte
-    // efter Del-ikonet, mens mockup'et fremhaevede de TRE PRIKKER — og prikkerne
-    // er det, iPhones med kompakt Safari-bundlinje faktisk viser. Nu leder
-    // teksten efter det, tegningen peger paa, og dele-ikonet staar som
-    // alternativet i samme linje.
-    //
-    // Vi forgrener IKKE paa iOS-version: layoutet kan skiftes i Safaris egne
-    // indstillinger, saa en UA-gaet ville ramme forkert paa en telefon, vi
-    // aldrig ser. Én skaerm, der naevner begge, er robust for begge.
+    if (nrTo) document.getElementById('inst2-step').textContent = GUIDE_TITEL + ' · Trin ' + nrTo + AF;
+    document.getElementById('inst2b-step').textContent = GUIDE_TITEL + ' · Trin ' + nrTob + AF;   // kun iOS
+    document.getElementById('inst3-step').textContent  = GUIDE_TITEL + ' · Trin ' + nrTre + AF;
+    document.getElementById('inst4-step').textContent  = GUIDE_TITEL + ' · Trin ' + nrFire + AF;
+
+    // Trin 1 (s-9): HVOR skal man kigge, og hvad skal man trykke paa.
+    // Teksten og tegningen skal pege SAMME vej — de gjorde det ikke foer
+    // 10/9, og det kostede en skaerm, ingen kunne foelge. Nu findes der én
+    // tegning pr. svar, og hedgingen ("ser du i stedet tre prikker …") er
+    // vaek: kunden har lige selv sagt, hvad hun ser.
     document.getElementById('inst1-title').textContent = isIOS
-      ? 'Find dele-ikonet'
+      ? (erDel ? 'Tryk på dele-ikonet' : 'Tryk på de tre prikker')
       : 'Kig øverst på skærmen';
     document.getElementById('inst1-sub').textContent = isIOS
-      ? 'Det sidder nederst til højre ved adressefeltet — en firkant med en pil op. Ser du i stedet tre prikker, så tryk på dem.'
+      ? (erDel
+          ? 'Firkanten med pilen op, nederst ved adressefeltet.'
+          : 'De tre prikker sidder nederst ved adressefeltet.')
       : 'Oppe ved adressefeltet sidder en lille menuknap.';
-    document.getElementById('orient-ios').style.display     = 'none';   // udgaaet fuld-bundlinje-variant, mockup'et staar urørt herover
-    document.getElementById('orient-ios26').style.display   = isIOS ? '' : 'none';
-    document.getElementById('orient-android').style.display = isIOS ? 'none' : '';
-    // Trin 2: iOS -> tryk på "Del" i •••-popup'en (mock-del-ios). Android
-    // -> tryk på de tre prikker (uændret, fører direkte til rullemenuen).
+    document.getElementById('orient-ios').style.display        = 'none';   // udgaaet fuld-bundlinje-variant
+    document.getElementById('orient-ios26').style.display      = (isIOS && erDel) ? '' : 'none';
+    document.getElementById('orient-ios-prikker').style.display= (isIOS && !erDel) ? '' : 'none';
+    document.getElementById('orient-android').style.display    = isIOS ? 'none' : '';
+
+    // Trin 2 (s-9b): iOS -> tryk "Del" i •••-popup'en. Android -> tryk paa de
+    // tre prikker. Skaermen naas kun i de to grene; ved dele-ikonet springes
+    // den over (videreFraTrin1), men teksten saettes alligevel, saa et skift
+    // af svar ikke efterlader den forrige grens ord.
     document.getElementById('inst2-title').textContent = isIOS ? 'Kom der en menu frem?' : 'Tryk på de tre prikker';
     document.getElementById('inst2-sub').textContent   = isIOS
       ? 'Så tryk på "Del" øverst i den. Kom delearket frem med det samme, er du allerede videre — tryk Næste.'
       : 'De sidder yderst til højre ved adressefeltet.';
     document.getElementById('mock-del-ios').style.display = isIOS ? '' : 'none';
     document.getElementById('mock-android').style.display = isIOS ? 'none' : '';
-    // Trin 4 (s-10): den udfoldede liste — "Føj til hjemmeskærm"/"...startskærm".
+
+    // s-10: den udfoldede liste — "Føj til hjemmeskærm"/"...startskærm".
     document.getElementById('inst3-title').textContent = isIOS ? 'Tryk på "Føj til hjemmeskærm"' : 'Menuen folder sig ud';
     document.getElementById('inst3-name').textContent = isIOS ? 'Føj til hjemmeskærm' : 'Føj til startskærm';
     document.getElementById('menu-ios').style.display     = isIOS ? '' : 'none';
     document.getElementById('menu-android').style.display = isIOS ? 'none' : '';
-    // Trin 5 (s-10b): TILFØJ-dialogen.
+
+    // s-10b: TILFØJ-dialogen.
     document.getElementById('inst4-sub').textContent = isIOS
       ? 'Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.'
       : 'Telefonen spørger, om Dit Digitale Kontor må ligge på din startskærm.';
     document.getElementById('add-ios').style.display     = isIOS ? '' : 'none';
     document.getElementById('add-android').style.display = isIOS ? 'none' : '';
-    bekraeftOgVidere(btn, 's-9');
   }
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
