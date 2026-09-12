@@ -805,10 +805,11 @@ module.exports = function registerOnboarding(app, supabase) {
   // Kun kendte side-navne accepteres, og sekunder klippes til 0-3600 —
   // saa kan hverken fejl eller fusk forurene tallene.
   const GYLDIGE_SIDER = new Set([
-    's-1', 's-2', 's-3', 's-5', 's-6', 's-7', 's-8', 's-9', 's-10', 's-11', 's-expired',
-  ]);
+  's-1', 's-2', 's-3', 's-5', 's-6', 's-7', 's-8', 's-8b',
+  's-9', 's-9b', 's-9c', 's-10', 's-10b', 's-11', 's-expired',
+]);
 
-  app.post('/onboarding/sidevisning', async (req, res) => {
+app.post('/onboarding/sidevisning', async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);
     if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
 
