@@ -149,7 +149,17 @@ async function sendLoginLinkMail({ to, loginUrl, otpCode }) {
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
-    subject:   "Dit login-link til Dit Digitale Kontor",
+    // Koden i emnet, naar der ER en kode. To grunde, og den anden er den
+    // vigtige:
+    //   1. Kunden kan laese koden i notifikationen uden at aabne mailen.
+    //   2. Emnet bliver UNIKT pr. bestilling. Med et fast emne folder
+    //      mailklienten bestillingerne sammen i én traad, og bestilling nr. 2
+    //      lander inde i en traad, kunden allerede har aabnet — usynlig.
+    //      Praecis det skete 10/9-26: Scaleway sagde Delivered paa alle tre,
+    //      og mail nr. 2 blev alligevel meldt savnet.
+    subject:   otpCode
+      ? `${otpCode} er din kode til Dit Digitale Kontor`
+      : "Dit login-link til Dit Digitale Kontor",
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
         <h1 style="font-size:22px;margin-bottom:8px">Hej!</h1>

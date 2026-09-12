@@ -749,8 +749,13 @@
           <text x="126" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
           <path d="M191 124a5.5 5.5 0 1 1-2 -3.8M189 118l2 2-2.6 1.4" stroke="#9AA6B2" stroke-width="1.3" fill="none" stroke-linecap="round"/>
           <circle cx="236" cy="129" r="14" fill="#F0F3F7"/>
-          <g fill="#5B6B7A">
-            <circle cx="229" cy="129" r="1.7"/><circle cx="236" cy="129" r="1.7"/><circle cx="243" cy="129" r="1.7"/>
+          <!-- Dele-ikonet: firkant aaben foroven med en pil ud af den. Byttet
+               fra tre prikker 10/9-26, saa tegningen peger samme vej som
+               teksten. Prikkerne naevnes som alternativet i inst1-sub. -->
+          <g stroke="#5B6B7A" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M231.5 129.5v6a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-6"/>
+            <path d="M236 121.5v11"/>
+            <path d="M232.8 124.7 236 121.5l3.2 3.2"/>
           </g>
           <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
         </svg>
@@ -1117,8 +1122,11 @@
     // Ikonets allerfoerste aabning. Der er ingen session her, fordi den
     // installerede app har sin egen lagring — ikke fordi noget er gaaet galt.
     appFoersteAabning: {
-      titel: 'Velkommen',
-      tekst: 'Skriv din e-mail, så sender vi dig en engangskode, du skriver her i appen.',
+      titel: 'Log ind',
+      // Tom med vilje. Her stod "Sidste login." — et loefte, vi ikke kan holde,
+      // saa laenge iOS giver app, Safari og indbygget browser hvert sit lager.
+      // En underrubrik, der lyver, er vaerre end ingen underrubrik.
+      tekst: '',
       knap:  'Send mig en kode',
       glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
@@ -1144,9 +1152,16 @@
     // skrevet forkert, saa den naturlige udvej ER at proeve med den rigtige.
     // Teksten peger nu paa det, der plejer at vaere galt, i stedet for at
     // sende kunden ud ad mailvejen efter en konto, der maaske findes.
+    //
+    // 10/9-26: overskriften hed "Vi mangler din konto" og teksten forklarede,
+    // at loginnet virkede, men at der ikke laa en konto paa e-mailen. Det er
+    // korrekt set indefra og forvirrende set udefra: kunden hoerer "I har
+    // mistet min konto". Skaermen siger nu det, kunden kan HANDLE paa — de to
+    // felter hun lige har udfyldt — i stedet for at forklare, hvilken halvdel
+    // af opslaget der slog fejl.
     kontoMangler: {
-      titel: 'Vi mangler din konto',
-      tekst: 'Dit login virkede, men der er ingen konto på den e-mail. Tjek at den er skrevet rigtigt, og prøv igen.',
+      titel: 'Du kunne ikke logge ind',
+      tekst: 'Tjek at e-mail og kode er skrevet rigtigt, og prøv igen.',
       knap:  'Send nyt link',
       glemt: 'Har du glemt din adgangskode? Få et nyt link',
       koderSpor: false,
@@ -1229,6 +1244,7 @@
     const t = ADGANGSTEKSTER[adgangsTilstand];
     setText('expired-title', t.titel);
     setText('expired-msg',   t.tekst);
+    vis('expired-msg', !!t.tekst);   // tom tekst maa ikke efterlade et luftrum
     setText('relink-label',  t.knap);
 
     // Én handling ad gangen. Har kunden en adgangskode, er DEN vejen ind, og
@@ -1350,9 +1366,17 @@
         //   intet token + koerer i en browser       -> kunden er kommet over i
         //                                              Safari, praecis som vi
         //                                              selv bad ham om (D48)
-        const tilstand = tokenHash        ? 'udloebet'
-                       : isStandalone()   ? 'appFoersteAabning'
-                       :                    'safari';
+        // ⚠️ 10/9-26: her stod isStandalone(), som paa iOS kraever BAADE
+        // display-mode OG navigator.standalone. Den strenge proeve hoerer til,
+        // hvor den spaerrer for noget — men her vaelger den kun EN TEKST, og
+        // saa er den forkerte vej dyrest: Ann sad i den installerede app og
+        // fik Safari-teksten om at "logge ind en gang til", som intet havde
+        // med hendes situation at goere. maaskeApp() er den eftergivende
+        // proeve (jf. de tre taerskler i setupPwa): rammer den forkert, ser en
+        // Safari-bruger app-teksten, og det er en bagatel ved siden af.
+        const tilstand = tokenHash      ? 'udloebet'
+                       : maaskeApp()    ? 'appFoersteAabning'
+                       :                  'safari';
         return visAdgangsskaerm(tilstand);
       }
 
@@ -2314,11 +2338,20 @@
     // Trin 1 (20/7 + 26/7): HVOR skal man kigge — og på iOS med det samme
     // OGSÅ tryk på de tre prikker (de to gamle trin er lagt sammen, efter
     // Anns test viste at kigge-trinnet alene ikke gav nok information).
+    // ⚠️ 10/9-26: teksten og tegningen pegede hver sin vej. Overskriften ledte
+    // efter Del-ikonet, mens mockup'et fremhaevede de TRE PRIKKER — og prikkerne
+    // er det, iPhones med kompakt Safari-bundlinje faktisk viser. Nu leder
+    // teksten efter det, tegningen peger paa, og dele-ikonet staar som
+    // alternativet i samme linje.
+    //
+    // Vi forgrener IKKE paa iOS-version: layoutet kan skiftes i Safaris egne
+    // indstillinger, saa en UA-gaet ville ramme forkert paa en telefon, vi
+    // aldrig ser. Én skaerm, der naevner begge, er robust for begge.
     document.getElementById('inst1-title').textContent = isIOS
-      ? 'Find Del-ikonet'
+      ? 'Find dele-ikonet'
       : 'Kig øverst på skærmen';
     document.getElementById('inst1-sub').textContent = isIOS
-      ? 'Firkanten med en pil, der peger op. Kan du ikke se den, så tryk på de tre prikker ved adressefeltet — så ligger den derinde.'
+      ? 'Det sidder nederst til højre ved adressefeltet — en firkant med en pil op. Ser du i stedet tre prikker, så tryk på dem.'
       : 'Oppe ved adressefeltet sidder en lille menuknap.';
     document.getElementById('orient-ios').style.display     = 'none';   // udgaaet fuld-bundlinje-variant, mockup'et staar urørt herover
     document.getElementById('orient-ios26').style.display   = isIOS ? '' : 'none';
@@ -2347,6 +2380,13 @@
 
   // ── "Linket virker ikke": bed om et nyt (egen backend + Scaleway) ──
 
+  // Linket og engangskoden i mailen er ÉT token i to former: bruges linket,
+  // doer koden, og omvendt. Og en NY bestilling ugyldiggoer den kode, kunden
+  // staar med. Anne loeb ind i det 9/9-26 — to bestillinger ni minutter fra
+  // hinanden, hvorefter koden fra den foerste mail umuligt kunne virke.
+  // Skaermen sagde intet. Nu goer den.
+  let kodeBestillinger = 0;
+
   async function requestNewLink() {
     const input  = document.getElementById('relink-email');
     const btn    = document.getElementById('relink-btn');
@@ -2372,11 +2412,33 @@
       // det — og netop link-vejen er den, hun tager, hvis mailen aabnes i
       // mail-appen. Serveren hvidlister vaerdien; vi sender den kun, naar
       // den er sand her.
-      await fetch('/onboarding/nyt-link', {
+      const svar = await fetch('/onboarding/nyt-link', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(vilInstallere ? { email, trin: 'app' } : { email }),
       });
+      const krop = await svar.json().catch(() => ({}));
+      // Serveren har et loft paa ét link pr. minut. Rammer vi det, sendes der
+      // INGEN mail — og foer 10/9-26 sagde skaermen alligevel "Vi har sendt en
+      // NY kode". Kunden sad og ventede paa en mail, ingen havde sendt, mens
+      // den kode hun allerede havde stadig var gyldig. Vent-beskeden er den
+      // eneste her, der ikke oeger taelleren: der ER ikke bestilt en ny kode,
+      // saa den forrige er stadig i live, og det skal teksten sige.
+      if (krop && krop.cooldown) {
+        status.className = 'status ok';
+        // Selve ventetiden staar paa knappen. Her staar KUN det, kunden skal
+        // goere imens — og at hun ikke har mistet noget.
+        status.textContent = 'Koden fra den seneste mail virker stadig.';
+        visKodefelt(true);
+        spin.style.display = 'none';
+        startNedtaelling(
+          krop.cooldown,
+          btn,
+          (t) => { label.textContent = t; },
+          (ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet).knap
+        );
+        return;
+      }
     } catch (e) { /* samme svar uanset — se nedenfor */ }
 
     // D46 (5/9-26): samme besked uanset om e-mailen findes — men MED den
@@ -2393,11 +2455,20 @@
     //
     // textContent, ikke innerHTML: adressen er brugerinput og maa aldrig
     // kunne baere markup med ind.
+    kodeBestillinger++;
     const t = ADGANGSTEKSTER[adgangsTilstand] || ADGANGSTEKSTER.udloebet;
     status.className = 'status ok';
-    status.textContent = t.koderSpor
-      ? `Vi har sendt en kode til ${email}. Tjek at adressen er skrevet rigtigt — den kan være et par minutter undervejs, kig også i spam.`
-      : `Vi har sendt en mail til ${email} med et login-link og en engangskode — koden kan du taste her. Tjek at adressen er skrevet rigtigt, og kig også i spam.`;
+    // ⚠️ 10/9-26: her stod et `return` efter beskeden — og de fire linjer
+    // NEDENFOR blev dermed sprunget over, saa knappen blev haengende paa
+    // "Sender ..." ved anden bestilling. Foerste bestilling virkede, og det
+    // var praecis derfor det ikke blev opdaget. En tidlig `return` midt i en
+    // funktion springer dens hale over; vaelg teksten, spring aldrig
+    // oprydningen.
+    status.textContent = kodeBestillinger > 1
+      ? `Vi har sendt en NY kode til ${email}. Den forrige virker ikke længere — brug koden fra den nyeste mail.`
+      : t.koderSpor
+        ? `Vi har sendt en kode til ${email}. Tjek at adressen er skrevet rigtigt — den kan være et par minutter undervejs, kig også i spam.`
+        : `Vi har sendt en mail til ${email} med et login-link og en engangskode — koden kan du taste her. Tjek at adressen er skrevet rigtigt, og kig også i spam.`;
     visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
     label.textContent = t.knap;
@@ -2414,6 +2485,38 @@
   }
 
   // ── Kodesporet på udløbet-skærmen (20/7, kodeopgave 1d) ────────────
+  // ── Nedtaelling paa knappen ────────────────────────────────────────────────
+  // Serveren afviser mere end ét link pr. minut. Foer 10/9-26 saa knappen helt
+  // normal ud imens, saa man trykkede videre — otte tryk gav to mails, og de
+  // seks andre forsvandt lydloest. Knappen skal SELV vise, at der er lukket,
+  // og hvor laenge.
+  //
+  // Der taelles ned mod et TIDSPUNKT, ikke ved at traekke ét fra pr. tik:
+  // laegger telefonen sig til at sove, staar et taellende ur stille og lyver,
+  // naar skaermen kommer tilbage. Et tidspunkt er sandt uanset hvad der skete
+  // imens.
+  var nedtaellingUr = null;
+
+  function startNedtaelling(sekunder, btn, saetTekst, sluttekst) {
+    if (nedtaellingUr) clearInterval(nedtaellingUr);
+    const slut = Date.now() + sekunder * 1000;
+    btn.disabled = true;
+
+    const tik = () => {
+      const tilbage = Math.ceil((slut - Date.now()) / 1000);
+      if (tilbage <= 0) {
+        clearInterval(nedtaellingUr);
+        nedtaellingUr = null;
+        saetTekst(sluttekst);
+        btn.disabled = false;
+        return;
+      }
+      saetTekst(`Vent ${tilbage} sek.`);
+    };
+    tik();
+    nedtaellingUr = setInterval(tik, 1000);
+  }
+
   function visKodefelt(fokus) {
     document.getElementById('ob-otp-row').style.display = 'block';
     document.getElementById('ob-otp-toggle').style.display = 'none';
