@@ -4,6 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kom i gang</title>
+  <!-- ⚠️ TILFOEJET 13/9-26 — UDEN DE TO LINJER KAN GUIDEN IKKE VIRKE.
+       iOS laeser manifestet og `apple-mobile-web-app-capable` fra DEN SIDE,
+       kunden staar paa, naar hun vaelger "Foej til hjemmeskaerm". Guiden
+       koerer paa /onboarding, og den side havde ingen af delene — kun
+       titlen. Resultatet var et almindeligt GENVEJSIKON, ikke en standalone
+       app: ingen egen lagring, ingen web-push, ingen badge.
+       Maalt 13/9 med DIAG-linjen, aabnet fra ikonet: mm=false, br=true.
+       `dashboard.html` har haft begge linjer hele tiden — derfor virkede en
+       app, der var lagt paa fra dashboardet, mens en lagt paa fra guiden
+       ikke gjorde. -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Dit Kontor">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">

@@ -518,6 +518,29 @@
     </div>
   </div>
 
+  <!-- ── Paamindelse: appen er ikke paa telefonen ──────────────────────
+       Tilfoejet 13/9-26. Indtil da laa "mangler stadig at installere" i
+       browseren, og den viden overlevede ikke springet fra mailens
+       indbyggede browser til Safari — Anne landede direkte her uden
+       nogensinde at se guiden. Nu staar svaret paa firmaet, og det her er
+       sikkerhedsnettet for alle de veje, vi ikke har taenkt paa.
+
+       Vises KUN paa en telefon. Man kan ikke laegge en iPhone-app paa
+       hjemmeskaermen fra en Windows-maskine, og den, der sidder ved
+       computeren, sidder der for at arbejde — dér er kortet bare i vejen. -->
+  <div id="app-nudge" style="display:none;background:var(--tint);border-radius:14px;padding:16px;margin-bottom:14px;color:var(--ink)">
+    <div style="font-weight:600;margin-bottom:4px">Læg Dit Digitale Kontor på din telefon</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:12px">
+      Så får du besked, når der kommer en ny opgave — også når appen er lukket.
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-sm" style="background:var(--accent);border-color:var(--accent);color:#fff"
+              onclick="location.href='/onboarding?trin=app'">Vis mig hvordan</button>
+      <button class="btn-sm" style="background:transparent;border:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px"
+              onclick="document.getElementById('app-nudge').style.display='none'">Ikke nu</button>
+    </div>
+  </div>
+
   <!-- Side: Opgaver -->
   <div class="page active" id="page-opgaver">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -947,6 +970,30 @@
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
   }
 
+  // Kun en telefon kan laegge appen paa en hjemmeskaerm. `ddkIos` kommer fra
+  // app-hilsenens blok oeverst i filen — samme udregning ét sted, ingen
+  // tredje kopi af UA-tjekket.
+  function erTelefon() {
+    if (window.ddkIos === true) return true;
+    return /Android|Mobile/i.test(navigator.userAgent || '');
+  }
+
+  // Skriver beviset til firmaet: appen KOERER, altsaa er den installeret.
+  // Fail-open — lykkes det ikke, ser kunden bare kortet igen naeste gang.
+  async function bekraeftAppPaaServeren() {
+    try {
+      const h = await authHeader();
+      if (!h.Authorization) return;
+      await fetch('/api/firma/app-status', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body:    JSON.stringify({ bekraeftet: true }),
+      });
+    } catch (err) {
+      console.warn('Kunne ikke bekræfte app-status:', err);
+    }
+  }
+
   let allLeads = [];
   let currentFilter = 'all';
 
@@ -1193,7 +1240,7 @@
 
     const { data: firmUser } = await db
     .from("firm_users")
-    .select("firms(id, name, status, greeting_text, voice_gender, phone_number)")
+    .select("firms(id, name, status, greeting_text, voice_gender, phone_number, app_bekraeftet_at, app_valgt_fra_at)")
     .eq("user_id", user.id)
     .single();
 
@@ -1210,6 +1257,32 @@
 
   const firm = firmUser?.firms;
   document.getElementById("firm-name").textContent = firm?.name || "Dashboard";
+
+  // ── Er appen paa telefonen? ─────────────────────────────────────────
+  // To ting paa én gang, og de haenger sammen:
+  //
+  //  1) Koerer vi standalone, ER appen paa telefonen. Det er et BEVIS, ikke
+  //     en paastand — modsat knappen i guiden, som kunden kan trykke uden at
+  //     have gjort det. Derfor skrives det til firmaet herfra, og derfor
+  //     retter tilstanden sig selv, ogsaa naar kunden sprang knappen over.
+  //  2) Gør vi ikke, og firmaet aldrig har bekraeftet appen, saa mangler hun
+  //     den — og saa vises kortet. Det gaelder OGSAA, hvis hun har trykket
+  //     "Åbn i browseren": det valg slukker omdirigeringen til guiden, ikke
+  //     paamindelsen. Uden appen er der ingen push, og uden push faar hun
+  //     ikke at vide, at der er kommet en opgave.
+  //
+  // Selvstaendig blok i try/catch, jf. moenstret fra app-hilsen: fejler den,
+  // maa resten af dashboardet aldrig maerke det.
+  try {
+    if (window.ddkStandalone === true) {
+      if (firm && !firm.app_bekraeftet_at) bekraeftAppPaaServeren();
+    } else if (firm && !firm.app_bekraeftet_at && erTelefon()) {
+      const kort = document.getElementById('app-nudge');
+      if (kort) kort.style.display = 'block';
+    }
+  } catch (err) {
+    console.warn('Kunne ikke afgøre app-status:', err);
+  }
   // Viderestilling: vis firmaets nummer og byg koderne (profilsiden)
   const vsNr = firm?.phone_number || '';
   if (vsNr) {

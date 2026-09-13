@@ -60,4 +60,64 @@ if [ $STATUS -ne 0 ]; then
   exit 1
 fi
 
+# -----------------------------------------------------------------------------
+# S17: tilbud/ er en OFFENTLIG mappe
+#
+# server.js serverer hele mappen paa /tilbud med express.static. Alt, der
+# lander her, kan hentes af enhver, der gaetter filnavnet - ingen login,
+# ingen token, ingen RLS.
+#
+# Reglen staar i tilbud/README.md. DETTE er vagten, der haandhaever den.
+# S17 formulerer selv hvorfor begge dele skal findes:
+#   "et vaern frem for en hukommelsesregel - reglen svigter, naar man er traet."
+#
+# Falsk alarm? Skriv filens sti i .s17-undtagelser (en pr. linje) MED en
+# kommentar om hvorfor - samme moenster som .gitleaks.toml.
+# -----------------------------------------------------------------------------
+
+S17_MOENSTER='process\.env|require\(|prompt'
+S17_UNDTAG=".s17-undtagelser"
+S17_TMP=".git/s17-liste-$$"
+
+git diff --cached --name-only --diff-filter=ACM -- 'tilbud/*' > "$S17_TMP" 2>/dev/null
+S17_FEJL=0
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  [ "$f" = "tilbud/README.md" ] && continue
+  if [ -f "$S17_UNDTAG" ] && grep -qxF "$f" "$S17_UNDTAG" 2>/dev/null; then
+    continue
+  fi
+  if git show ":$f" 2>/dev/null | grep -qE "$S17_MOENSTER"; then
+    if [ "$S17_FEJL" -eq 0 ]; then
+      echo ""
+      echo "COMMIT AFVIST: tilbud/ er en OFFENTLIG mappe."
+      echo ""
+    fi
+    S17_FEJL=1
+    echo "  $f"
+    git show ":$f" 2>/dev/null | grep -nE "$S17_MOENSTER" | head -3 | sed 's/^/      linje /'
+  fi
+done < "$S17_TMP"
+
+rm -f "$S17_TMP"
+
+if [ "$S17_FEJL" -ne 0 ]; then
+  echo ""
+  echo "Filerne ovenfor ligger i tilbud/ og indeholder process.env, require("
+  echo "eller ordet prompt. De serveres direkte paa /tilbud."
+  echo ""
+  echo "Saadan gaar du videre:"
+  echo "  1) Er det serverkode, en promptskabelon, prislogik eller kvotelogik?"
+  echo "     Flyt filen UD af tilbud/ og hent den gennem et endpoint."
+  echo "  2) Er det klient-JS, hvor ordet indgaar uskyldigt?"
+  echo "     Omdoeb variablen - eller skriv stien i .s17-undtagelser"
+  echo "     med en kommentar om HVORFOR."
+  echo ""
+  echo "Brug ikke --no-verify. Det er den vane, vagten findes imod."
+  echo "Se tilbud/README.md og S17 i docs/RISIKOREGISTER.md."
+  echo ""
+  exit 1
+fi
+
 exit 0
