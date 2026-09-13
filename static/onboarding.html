@@ -1099,7 +1099,7 @@
           <path d="M130 103l6 5-6 5" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <button class="btn" onclick="bekraeftOgVidere(this, 's-11')">Jeg har lagt den på min telefon</button>
+      <button class="btn" onclick="bekraeftAppLagtPaa(this)">Jeg har lagt den på min telefon</button>
     </section>
 
     <!-- ── SIDE 11: FÆRDIG — ÅBN FRA IKONET ───────────────── -->
@@ -1292,29 +1292,74 @@
   // hint paa en sjaelden genindgang vejer mindre end en daglig faelde for
   // enhver, der har appen.
   function maaskeApp() {
+    // ⚠️ 13/9-26: den indbyggede browser udelukkes EKSPLICIT.
+    // `navigator.standalone` er SAND i SFSafariViewController — maalt 5/9
+    // (ns=true, mm=false) — saa uden linjen her svarer funktionen "hun har
+    // vist appen" i praecis den kontekst, hvor hun med sikkerhed ikke har
+    // den. Samme fejlfamilie som D45, tredje forekomst.
+    if (erIndbyggetBrowser()) return false;
     return isStandalone() || navigator.standalone === true;
   }
 
-  const INSTALL_FLAG = 'ddk-vil-installere';
-  // Hensigten skal overleve en tur gennem indbakken eller et browserskift —
-  // altsaa minutter, ikke dage. Uden en levetid kan et flag, der af en eller
-  // anden grund ikke bliver ryddet, sende kunden til installationsguiden i
-  // ugevis. Gemmer tidsstemplet frem for '1'.
-  const INSTALL_LEVETID_MS = 30 * 60 * 1000;
-  function saetInstallationshensigt() { try { localStorage.setItem(INSTALL_FLAG, String(Date.now())); } catch (_) {} }
-  function rydInstallationshensigt() { try { localStorage.removeItem(INSTALL_FLAG); } catch (_) {} }
-  function harInstallationshensigt() {
-    try {
-      const v = localStorage.getItem(INSTALL_FLAG);
-      if (!v) return false;
-      // '1' er den gamle form uden tidsstempel; behandles som udloebet.
-      const t = Number(v);
-      if (!(t > 0) || Date.now() - t > INSTALL_LEVETID_MS) { rydInstallationshensigt(); return false; }
-      return true;
-    } catch (_) { return false; }
+  // ── Installationshensigten bor ikke laengere i browseren (13/9-26) ──────
+  //
+  // Her stod et flag i localStorage (`ddk-vil-installere`). FJERNET, fordi
+  // det ikke kunne baere det, det skulle: localStorage deles ikke mellem
+  // mailens indbyggede browser og Safari. Anne gennemfoerte onboardingen i
+  // mailens browser, skiftede til Safari, loggede ind med engangskoden — og
+  // landede direkte i dashboardet. Guiden blev aldrig vist.
+  //
+  // Sandheden ligger nu paa FIRMAET: `app_bekraeftet_at` og
+  // `app_valgt_fra_at` (migration 20260913090000). Serveren er det eneste,
+  // de to browsere deler.
+  //
+  // `?trin=app` findes stadig, men betyder noget andet nu: en ANMODNING om
+  // at se guiden — fra kompasset, fra den kopierede adresse, eller fra
+  // paamindelsen i dashboardet. Det er ikke svaret paa, om kunden mangler
+  // appen.
+  let vilInstallere = false;
+
+  // ⚠️⚠️ DEN VIGTIGSTE LINJE I FILEN — LOOPET 13/9-26.
+  //
+  // Firmaets svar SLAAR adressen. Maerket ?trin=app kan vaere BAGT IND i
+  // ikonets start-URL ved installationen, og saa beder adressen om guiden
+  // ved HVER eneste aabning, resten af telefonens levetid. Det eneste
+  // gamle vaern var maaskeApp() — men den svarer FALSK for et genvejsikon,
+  // og et genvejsikon er praecis det, en kunde faar, hvis hun installerede
+  // foer manifest-rettelsen. Resultat paa Annes telefon: appen sendte hende
+  // tilbage i installationsguiden hver gang, hun aabnede den.
+  //
+  // Har firmaet bekraeftet appen, vises guiden ALDRIG — uanset adressen,
+  // uanset hvad maaskeApp() mener. Et maerke i et ikon kan ikke laengere
+  // sende nogen i ring.
+  function skalViseGuiden(firm) {
+    if (!firm) return false;
+    if (firm.app_bekraeftet_at) return false;          // beviset slaar alt
+    return vilInstallere || manglerApp(firm);
   }
 
-  let vilInstallere = false;
+  // Mangler kunden appen? Ét sted at spoerge, saa kaldestederne ikke kan
+  // svare hver sit. Valgt fra taeller som besvaret: hun har taget stilling,
+  // og saa skal hun ikke tvinges igen. Paamindelsen i dashboardet bliver
+  // staaende — "ikke nu", ikke "aldrig".
+  function manglerApp(firm) {
+    if (maaskeApp()) return false;                     // koerer vi som app, HAR hun den
+    return !!firm && !firm.app_bekraeftet_at && !firm.app_valgt_fra_at;
+  }
+
+  // Fortaeller serveren, at appen er paa telefonen, eller at kunden valgte
+  // browseren. Fail-open: lykkes kaldet ikke, maa det ALDRIG staa i vejen —
+  // hun ser bare guiden igen naeste gang, og det er den billige fejl.
+  async function saetAppStatus(felter) {
+    if (!state.token) return;
+    try {
+      await fetch('/api/firma/app-status', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body:    JSON.stringify(felter),
+      });
+    } catch (_) {}
+  }
 
   let adgangsTilstand = 'udloebet';
 
@@ -1394,9 +1439,9 @@
       // aabning — og uden vaernet nedenfor ville den sende kunden i ring
       // gennem installationsguiden for en app, hun allerede har. Ramte Anne
       // 6/9-26, hvor `display-mode: standalone` svarer falsk i en aegte app.
-      if (params.get('trin') === 'app') saetInstallationshensigt();
-      if (maaskeApp()) rydInstallationshensigt();
-      vilInstallere = harInstallationshensigt() && !maaskeApp();
+      // Koerer hun allerede som app, ignoreres anmodningen. Firmaets
+      // bekraeftelse i skalViseGuiden() er det egentlige vaern — se der.
+      vilInstallere = params.get('trin') === 'app' && !maaskeApp();
       let   session   = null;
 
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
@@ -1481,8 +1526,9 @@
         return visAdgangsskaerm('kontoMangler');
       }
 
-      // Allerede onboardet? Så hører man til i dashboardet.
-      if (data.firm.status === 'active' && !vilInstallere) {
+      // Allerede onboardet? Så hører man til i dashboardet — medmindre
+      // appen stadig mangler. Det afgoer FIRMAET, ikke browseren.
+      if (data.firm.status === 'active' && !skalViseGuiden(data.firm)) {
         window.location.replace(viaLoginLink ? '/dashboard#nyt-login' : '/dashboard');
         return;
       }
@@ -1495,7 +1541,7 @@
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
       state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
-      if (vilInstallere && data.firm.status === 'active') return visInstallationsguiden();
+      if (data.firm.status === 'active' && skalViseGuiden(data.firm)) return visInstallationsguiden();
       startFlow();
     } catch (e) {
       console.warn('Init fejlede:', e);
@@ -1562,11 +1608,9 @@
     if (!isStandalone() && !erIndbyggetBrowser()) {
       startInstall(document.getElementById('install-btn'));
     }
-    // Hensigten er brugt i det oejeblik, den har sendt kunden hertil. Uden
-    // det her ville setupPwa lige have sat den igen, og saa ville hver
-    // aabning ende samme sted. Har hun brug for guiden senere, kommer hun
-    // hertil gennem flowet — ikke gennem et flag, der aldrig slukkes.
-    rydInstallationshensigt();
+    // (Her ryddedes localStorage-hensigten. Unoedvendig 13/9-26: guiden
+    // holder op med at komme frem, naar FIRMAET siger, at appen er paa
+    // plads — ikke naar et flag i browseren slukkes.)
   }
 
   // Faelles sti efter et vellykket login paa adgangsskaermen — engangskode
@@ -1597,7 +1641,12 @@
     // Maerket omdirigerer KUN dashboard-viderestillingen. Er firmaet ikke
     // `active`, er onboardingen ikke faerdig, og saa maa ?trin=app i adressen
     // aldrig kunne springe resten af flowet over.
-    if (mig.firm.status === 'active') return vilInstallere ? 'installer' : 'dashboard';
+    // ⚠️ HER FALDT ANNE IGENNEM 13/9. Hun loggede ind med engangskoden i
+    // Safari, hvor browser-flaget aldrig havde vaeret, og blev sendt i
+    // dashboardet uden nogensinde at se installationsguiden.
+    if (mig.firm.status === 'active') {
+      return skalViseGuiden(mig.firm) ? 'installer' : 'dashboard';
+    }
     return 'onboarding';
   }
 
@@ -2315,11 +2364,14 @@
     // rejse at huske. Her er den eftergivende form rigtig — en falsk positiv
     // koster en glemt paamindelse, en falsk negativ sender en kunde, der har
     // appen, gennem guiden hver gang hun aabner den.
-    if (maaskeApp()) {
-      rydInstallationshensigt();
-    } else {
-      saetInstallationshensigt();
-    }
+    // (Her stod saet/ryd af localStorage-hensigten. Fjernet 13/9-26 —
+    // sandheden ligger paa firmaet. Adressemaerket nedenfor er stadig
+    // noedvendigt: det er den eneste maade, en anmodning kan foelge med over
+    // i Safari, naar kunden trykker kompasset.)
+    //
+    // Og koerer vi som app, saa HAR hun den — skriv det til firmaet, saa
+    // ingen adresse eller noget gammelt ikon kan sende hende i ring igen.
+    if (maaskeApp() && state.firmId) saetAppStatus({ bekraeftet: true });
 
     // ⚠️ BROEN TIL SAFARI — og den maa IKKE vogtes af maaskeApp().
     //
@@ -2393,7 +2445,11 @@
   // installationstrinnet, hver gang hun loggede ind — et flag, der aldrig
   // slukkes, er lige saa forkert som et, der slukkes for tidligt.
   function aabnIBrowseren() {
-    rydInstallationshensigt();
+    // "Ikke nu", ikke "aldrig": det slukker omdirigeringen til guiden, men
+    // IKKE paamindelsen i dashboardet. Uden appen faar haandvaerkeren ingen
+    // besked om sine leads. Ingen await — kunden skal ikke vente paa et kald,
+    // hvis eneste opgave er at huske noget.
+    saetAppStatus({ valgtFra: true });
     location.href = '/dashboard';
   }
 
@@ -2471,6 +2527,14 @@
   // s-9 -> naeste skaerm. Trykkede kunden paa dele-ikonet, er delearket
   // allerede fremme, og s-9b ("kom der en menu frem? saa tryk Del") er en
   // skaerm om noget, der ikke skal ske. Den springes over.
+  // Kundens egen bekraeftelse. Det er en PAASTAND — dashboardet leverer
+  // beviset, naar det aabner standalone. Vi tager begge: paastanden faar
+  // hende videre nu, beviset retter op, hvis hun trykkede i blinde.
+  function bekraeftAppLagtPaa(btn) {
+    saetAppStatus({ bekraeftet: true });
+    bekraeftOgVidere(btn, 's-11');
+  }
+
   function videreFraTrin1(btn) {
     const springOver = installVariant === 'ios' && iosKnap === 'del';
     bekraeftOgVidere(btn, springOver ? 's-9c' : 's-9b');
