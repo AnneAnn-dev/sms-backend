@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dashboard-v23';   // <-- bump dette tal ved hver deploy
+const CACHE_NAME = 'dashboard-v24';   // <-- bump dette tal ved hver deploy
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OMSKREVET 13/7-26 efter hvid skærm-fejlfindingen. Den gamle version havde to

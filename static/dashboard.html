@@ -449,41 +449,6 @@
       window.ddkStandalone = standalone;
       window.ddkIos        = dbIos;
 
-      // ══════════════════════════════════════════════════════════════
-      // ⚠️ MIDLERTIDIG DIAG-LINJE — FJERNES IGEN FØR PR TIL main ⚠️
-      //
-      // Maalingen, der har vaeret udestaaende siden 5/9-26. Dokumentet
-      // `2026-09-05-onboarding-pwa.md` afsnit 4 forudsagde praecis det,
-      // Ann observerede 13/9: app-hilsenen fyrede paa ET signal, men den
-      // strenge form kraever BEGGE — og hvis det sande signal var `ns`,
-      // svarer isStandalone() falsk INDE i den installerede app.
-      //
-      // Symptomerne 13/9 passer: kortet "Laeg appen paa din telefon" vises
-      // ogsaa inde i appen, app_bekraeftet_at bliver aldrig skrevet, og
-      // notifikations-spoergsmaalet har aldrig vist sig. Alle tre haenger
-      // paa window.ddkStandalone.
-      //
-      // "Vi ved, at ét signal er sandt. Vi ved ikke hvilket." — nu gør vi.
-      // ══════════════════════════════════════════════════════════════
-      try {
-        var dbFs  = !!(window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches);
-        var dbMu  = !!(window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches);
-        var dbBr  = !!(window.matchMedia && window.matchMedia('(display-mode: browser)').matches);
-        var linje = document.createElement('div');
-        linje.id = 'ddk-diag';
-        linje.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;' +
-          'background:#16232F;color:#7FE3B0;font:600 12px/1.5 ui-monospace,Menlo,monospace;' +
-          'padding:6px 10px;text-align:center;letter-spacing:.02em';
-        linje.textContent =
-          'DIAG  mm=' + dbMm + '  ns=' + dbNs + '  ios=' + dbIos +
-          '  standalone=' + standalone +
-          '  | fs=' + dbFs + ' mu=' + dbMu + ' br=' + dbBr;
-        document.addEventListener('DOMContentLoaded', function () {
-          document.body.appendChild(linje);
-        });
-        if (document.readyState !== 'loading') document.body && document.body.appendChild(linje);
-      } catch (_) {}
-
       if (standalone && !localStorage.getItem('ddk-app-hilsen-vist')) {
         localStorage.setItem('ddk-app-hilsen-vist', '1');
         document.getElementById('app-hilsen').style.display = 'flex';
