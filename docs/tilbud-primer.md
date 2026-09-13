@@ -272,6 +272,49 @@ betalingsintegration til fakturaer findes.
 — ikke kun i applikationskoden. Rart for leads, nødvendigt for tilbud, hvis
 kunde og håndværker bliver uenige om en pris.
 
+## Referatet er et UDKAST — besluttet 13/9 (bundgrænsen i D36)
+
+Dette afsnit er bindende for grænsefladen. Det bygger på en måling af hele kæden på
+syv rigtige indtalinger; grundlaget står i `docs/BESLUTNINGSGRUNDLAG-fase1.md`.
+
+**Referatet præsenteres ALDRIG som færdigt.** Det hedder **udkast** i overskrift, i
+knaptekst og i alt, hvad brugeren ser — indtil han selv har gemt det. Gem forudsætter,
+at han har læst det igennem.
+
+**Hvorfor det står i primeren og ikke kun i registret:** det er ikke en ordlyd, det er
+en egenskab ved produktet. Målingen viste, at referattrinnet retter de *synlige* fejl
+(volapyk som "undertallet" og "guldlæggerne") og bevarer de *usynlige* — rigtige ord
+på forkert plads, som "USB-plader" for OSB. **Resultatet er en velskrevet tekst med
+fejl, der er sværere at få øje på end i den rå transskription.** Et dokument, der ser
+færdigt ud, bliver godkendt uden at blive læst. Ordet "udkast" er det, der holder
+læserens opmærksomhed oppe, og det er derfor en del af værnet, ikke en høflighedsfrase.
+
+**Outputkontrakten** (S6's "struktureret JSON, ikke fri tekst"):
+
+```json
+{"overskrift": "kort titel, under 100 tegn",
+ "punkter": ["kort punkt", "kort punkt"],
+ "fritekst": "sammenhængende referat i prosa"}
+```
+
+Tre felter, ingen andre. **Ingen `dato`** — systemet sætter datoen ved upload, aldrig
+modellen (se afsnittet om håndskrevne noter). Formvalideringen (P5) tjekker, at JSON
+kan parses efter strippede kodeblok-hegn, at de tre felter findes og ikke er tomme, at
+der ikke er opfundet et fjerde felt, at overskriften er under 100 tegn, og at svaret er
+dansk. **Rammer et af tjekkene: retry én gang, ellers dansk fejlbesked — aldrig halvt
+parset data gemt.**
+
+**Markering af modellens tilføjelser er release-blokerende for Fase 1.** Referatet
+sammenlignes maskinelt med transskriptionen, og alt i referatet, der ikke findes i
+transskriptionen, markeres for brugeren. Det er deterministisk og kræver ingen tillid
+til modellen. Det fanger den ene fejlklasse, der handler om mennesker og aftaler — i
+målingen blev "Bulve" (gulve) til "møbler", og ét firma med et ødelagt navn blev til to
+mødedeltagere.
+
+Bed ikke modellen om selv at markere sine valg. Den kan kun rapportere den tvivl, den
+har, og den havde ingen tvivl om "USB-plader" — en selvrapporteret liste ville se
+udtømmende ud og gøre referatet mere troværdigt, ikke mindre.
+
 ## Frontend — besluttet
 
 - Ny side i den eksisterende PWA. Tips-siden viger midlertidigt (Annes beslutning;
