@@ -466,7 +466,7 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const { data: firms } = await supabase
       .from('firms')
-      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status')
+      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status, app_bekraeftet_at, app_valgt_fra_at')
       .in('id', firmIds);
 
     // Vælg ét firma robust: foretræk det, der er under onboarding (det brugeren
@@ -476,6 +476,59 @@ module.exports = function registerOnboarding(app, supabase) {
     if (!firm) return res.status(404).json({ error: 'Ingen firma fundet' });
 
     res.json({ firm });
+  });
+
+  // ─── API: Appens status paa kundens telefon (13/9-26) ───────────────────
+  // HVORFOR SERVEREN: indtil i dag laa "mangler stadig at installere" i
+  // browseren — localStorage plus maerket ?trin=app. Ingen af delene
+  // overlever springet fra mailens indbyggede browser til Safari, og derfor
+  // landede Anne direkte i dashboardet uden nogensinde at se guiden.
+  // Serveren er det ENESTE, de to browsere deler.
+  //
+  // To felter, to betydninger:
+  //   bekraeftet: appen ER paa telefonen. Saettes af knappen paa sidste
+  //               guide-skaerm OG af dashboardet, naar det aabner standalone.
+  //               Det sidste er et bevis og retter sig selv.
+  //   valgtFra:   kunden trykkede "Aabn i browseren". Slukker omdirigeringen
+  //               til guiden, men IKKE paamindelsen i dashboardet.
+  //
+  // Idempotent med vilje: foerste gang vinder. Aabner kunden appen hver dag,
+  // skal tidsstemplet blive staaende paa den dag, hun faktisk installerede —
+  // ellers kan man ikke bagefter se, hvor lang tid det tog.
+  app.post('/api/firma/app-status', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const bekraeftet = req.body?.bekraeftet === true;
+    const valgtFra   = req.body?.valgtFra === true;
+    if (!bekraeftet && !valgtFra) {
+      return res.status(400).json({ error: 'Ingenting at saette' });
+    }
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms')
+      .select('app_bekraeftet_at, app_valgt_fra_at')
+      .eq('id', firm_id)
+      .single();
+
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    const naa = new Date().toISOString();
+    const felter = {};
+    if (bekraeftet && !firm.app_bekraeftet_at) felter.app_bekraeftet_at = naa;
+    if (valgtFra   && !firm.app_valgt_fra_at)  felter.app_valgt_fra_at  = naa;
+
+    // Allerede sat: intet at goere, og det er ikke en fejl.
+    if (!Object.keys(felter).length) return res.json({ ok: true, uaendret: true });
+
+    const { error } = await supabase.from('firms').update(felter).eq('id', firm_id);
+    if (error) {
+      console.error('\u274c app-status:', error.message);
+      return res.status(500).json({ error: 'Kunne ikke gemme' });
+    }
+
+    console.log('\ud83d\udcf1 App-status sat for firma:', firm_id, Object.keys(felter).join(', '));
+    res.json({ ok: true });
   });
 
   // ─── API: Gem håndværkerens eget mobilnummer ────────────────────────────
