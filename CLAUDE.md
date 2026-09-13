@@ -31,6 +31,14 @@ Der findes to kopier af `docs/`, og kun den ene er sand:
 
 **Før du skriver i `RISIKOREGISTER.md`:** udfyld "Redigeres nu"-linjen øverst med dato, klokkeslæt og en kort markering (fx "S6 skrives ind"), og ryd den igen straks efter skrivning. Står den udfyldt af en anden session, så vent eller spørg Ann.
 
+**Skriver du i master, så commit med det samme — også når det kun er to linjer.** En ugemt ændring i `docs/` blokerer `sync-docs.ps1` for alle andre: scriptet nægter at kopiere hen over noget, git aldrig har set, og det er den rigtige opførsel. Men det betyder, at én glemt commit sætter dokumentsporet i stå for enhver anden, der skal skrive bagefter — og kun den, der efterlod ændringen, kan vide, hvad den indeholder.
+
+Det skete **fem gange mellem 28/8 og 13/9**. Hver gang var indholdet i orden; det var rækkefølgen, der manglede.
+
+**"Redigeres nu"-linjen fanger det ikke.** Den bor inde i filen, og filen findes to steder — en lås sat i arbejdskopien er usynlig i master og omvendt. Den er et høflighedsskilt mellem sessioner, der læser den *samme* fil. **Git er det eneste, der fanger det på tværs.**
+
+Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet.
+
 ## Stack & konventioner
 
 - Node.js / Express 5, **CommonJS — ingen ESM**. Flad filstruktur.
