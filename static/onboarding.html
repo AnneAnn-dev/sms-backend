@@ -461,6 +461,40 @@
 </head>
 <body>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     ENGANGSNOEGLE FRA FRAGMENTET (14/9-26, D60 trin 2)
+     Kunden er netop hoppet fra mail-appens indbyggede browser ud i Safari
+     via kompasset, og noeglen kom med i adressens fragment (#n=...).
+     Maalt 13/9-26: fragmentet overlever springet — og et fragment sendes
+     ALDRIG til serveren, saa noeglen kan ikke havne i en HTTP-log.
+
+     HVORFOR DEN LAESES HER OG IKKE I init():
+       1. init() kalder history.replaceState og ville have ryddet hash'en,
+          foer vi naaede at se den. Det er ikke en teori — praecis det skete
+          for PRØVE-maalingen 13/9, og derfor stod den ogsaa oeverst.
+       2. supabase-js parser selv adressen, naar klienten oprettes laengere
+          nede. Vi skal vaere foerst.
+
+     ⚠️ OG DEN RYDDES MED DET SAMME. Om et oejeblik trykker kunden
+     "Foej til hjemmeskaerm", og iOS bager DEN adresse, der staar i linjen,
+     ind i ikonet for evigt. Blev noeglen staaende, laa den i ikonet paa
+     hendes telefon resten af telefonens levetid. Det er D63 igen — samme
+     fejl, men med en noegle i stedet for et harmloest maerke.
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+  window.DDK_NOEGLE = null;
+  (function () {
+    try {
+      var m = location.hash.match(/[#&]n=([A-Za-z0-9_-]{32,128})(?:&|$)/);
+      if (!m) return;
+      window.DDK_NOEGLE = m[1];
+      // Ryd fragmentet OEJEBLIKKELIGT — search og sti roeres ikke, for
+      // ?trin=app skal blive staaende: det er hensigten om installationen.
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch (_) {}
+  })();
+</script>
+
   <!-- Seks prikker = de seks opgaver efter velkomst. Skjules på ✓-siderne. -->
   <div class="dots" id="dots" aria-hidden="true">
     <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div>
@@ -1444,6 +1478,52 @@
       vilInstallere = params.get('trin') === 'app' && !maaskeApp();
       let   session   = null;
 
+      // 0) Engangsnoegle fra fragmentet? Byt den til en session (D60 trin 2).
+      //    Den behandles som et link, IKKE som en fallback: den er kundens
+      //    eksplicitte handling lige nu, og en gammel session i denne browser
+      //    kan tilhoere en anden bruger. Det er noejagtig samme regel som for
+      //    token_hash nedenfor, og den regel stammer fra "usynligt
+      //    nummer"-fejlen, hvor en gammel session vandt og viste det forkerte
+      //    firma. Vi bygger ikke en ny loginvej: serveren giver os et
+      //    token_hash tilbage, og saa er vi i den kode, der allerede virker.
+      //
+      //    Fejler noget som helst — udloebet noegle, ingen forbindelse,
+      //    serveren nede — falder vi bare igennem til punkt 1 og 2, og kunden
+      //    ser adgangsskaermen med kodevejen praecis som foer. Det her maa
+      //    aldrig kunne goere situationen vaerre, end da noeglen ikke fandtes.
+      if (!tokenHash && window.DDK_NOEGLE) {
+        try {
+          const svar = await fetch('/api/engangsnoegle/indloes', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ noegle: window.DDK_NOEGLE }),
+          });
+          if (svar.ok) {
+            const nd = await svar.json().catch(() => null);
+            if (nd?.token_hash) {
+              const { data, error } = await db.auth.verifyOtp({
+                token_hash: nd.token_hash,
+                type:       nd.type || 'email',
+              });
+              if (!error && data?.session) {
+                session      = data.session;
+                viaLoginLink = true;
+              } else if (error) {
+                console.warn('Engangsnoegle: verifyOtp fejlede:', error.message);
+              }
+            }
+          } else {
+            console.warn('Engangsnoegle blev afvist —', svar.status);
+          }
+        } catch (e) {
+          console.warn('Engangsnoegle kunne ikke indloeses:', e?.message || e);
+        } finally {
+          // Uanset udfaldet: noeglen er forbrugt eller doed. Den maa ikke
+          // ligge i en variabel og blive proevet igen ved naeste kald.
+          window.DDK_NOEGLE = null;
+        }
+      }
+
       // 1) Link i URL'en? Verificér det FØRST — det er brugerens eksplicitte valg.
       if (tokenHash) {
         const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type });
@@ -2403,6 +2483,10 @@
           history.replaceState(null, '', location.pathname + '?trin=app');
         }
       } catch (_) {}
+      // Og saa noeglen, der sparer hende for login nummer to (D60 trin 2).
+      // Ingen await: skrivningen i adressen sker, naar svaret kommer, og
+      // kunden skal hverken vente paa den eller kunne maerke, at den fejler.
+      laegNoegleIAdressen();
     }
     // Brug den faelles isStandalone() — den egne kopi her spurgte kun
     // display-mode ELLER flaget, og flaget lyver i den indbyggede browser.
@@ -2438,6 +2522,40 @@
         'Appen kan kun lægges på hjemmeskærmen fra Safari. Kopiér adressen, åbn Safari og indsæt den — dér logger du ind med en engangskode. Eller fortsæt i browseren og gem appen til senere.',
         false);   // knappen baerer handlingen her, saa teksten forbliver en bemaerkning
     }
+  }
+
+  // ── Noeglen, der fjerner login nr. 2 (14/9-26, D60 trin 2) ──────────
+  // Kunden staar i mail-appens indbyggede browser og skal om lidt trykke paa
+  // kompasset. Kompasset aabner PRAECIS den adresse, der staar i linjen, over
+  // i Safari — og Safari har hverken hendes session eller hendes localStorage.
+  // Derfor skal beviset paa, hvem hun er, med over I ADRESSEN.
+  //
+  // Det skal i FRAGMENTET (#n=...), ikke i query-strengen. Maalt 13/9-26:
+  // fragmentet overlever springet, og et fragment sendes aldrig til serveren.
+  // En noegle i query-strengen ville staa i Railways HTTP-log.
+  //
+  // Fejler kaldet, sker der ingenting: adressen beholder bare sit ?trin=app,
+  // og kunden logger ind med en kode i Safari som hidtil. Derfor ingen
+  // fejlbesked paa skaermen — der er intet, hun kan goere ved det, og en
+  // advarsel midt i en installationsvejledning ville kun forvirre.
+  async function laegNoegleIAdressen() {
+    if (!state.token) return;
+    try {
+      const svar = await fetch('/api/engangsnoegle/udsted', {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      if (!svar.ok) return;
+      const data = await svar.json().catch(() => null);
+      if (!data?.noegle) return;
+      // Skriv den ind UDEN at roere sti eller query. encodeURIComponent er
+      // ikke noedvendig (base64url er allerede URL-sikker), men den koster
+      // ingenting og beskytter mod, at formatet en dag laves om.
+      history.replaceState(
+        null, '',
+        location.pathname + location.search + '#n=' + encodeURIComponent(data.noegle)
+      );
+    } catch (_) {}
   }
 
   // "Aabn i browseren" er kundens maade at sige "jeg installerer ikke nu".

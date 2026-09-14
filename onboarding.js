@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express    = require("express");
+const crypto     = require("crypto");
 const twilio     = require("twilio");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
@@ -529,6 +530,204 @@ module.exports = function registerOnboarding(app, supabase) {
 
     console.log('\ud83d\udcf1 App-status sat for firma:', firm_id, Object.keys(felter).join(', '));
     res.json({ ok: true });
+  });
+
+  // ─── Engangsnoegler: faerre logins i onboardingen (14/9-26, D60 trin 2) ──
+  //
+  // PROBLEMET, DE LOESER
+  // Kunden aabner velkomstmailen i sin mail-app og gennemfoerer onboardingen
+  // i mail-appens INDBYGGEDE browser. Skal appen paa telefonen, er hun noedt
+  // til ud i Safari (kompasset) — og Safari deler hverken session eller
+  // localStorage med den indbyggede browser. Derfor maatte hun logge ind
+  // IGEN med en engangskode fra mailen. Det er login nr. 2 ud af 3.
+  //
+  // LOESNINGEN
+  // Foer springet henter siden en engangsnoegle her og laegger den i
+  // adressens FRAGMENT (#n=...). Maalt 13/9-26: fragmentet overlever
+  // kompas-springet, og — det afgoerende — et fragment sendes ALDRIG til
+  // serveren. Noeglen kan derfor ikke havne i Railways HTTP-log, sådan som
+  // velkomstlinkets token_hash gør, fordi det staar i query-strengen.
+  //
+  // ⚠️ KENDT BIVIRKNING, SKREVET NED MED VILJE
+  // Indloesningen bruger admin.generateLink for at lave en rigtig session.
+  // Supabase har ÉT levende engangstoken pr. bruger, saa det kald DRAEBER en
+  // ubrugt 6-cifret kode i hendes indbakke. I praksis er hun allerede logget
+  // ind paa det tidspunkt, saa det gaar ikke ud over noget — men det er
+  // NOEJAGTIG samme mekanik, der gjorde Annes "tre koder foer én virkede"
+  // uforklarlig i flere dage (se registret 13/9). Den slags skal staa
+  // skrevet ét sted, ikke opdages forfra.
+  //
+  // Fejler noget som helst her, falder kunden tilbage til kodevejen praecis
+  // som i dag. Ingen af de to endpoints maa kunne goere tingene vaerre end
+  // foer de fandtes.
+
+  // 10 minutter: noeglen skrives i adressen, MENS kunden laeser
+  // installationsvejledningen igennem, og der gaar typisk et par minutter,
+  // foer hun trykker paa kompasset. Kortere ville udloebe under naesen paa
+  // hende; laengere ville vaere en noegle, der ligger og flyder i en
+  // adresselinje paa en telefon.
+  const NOEGLE_LEVETID_MS = 10 * 60 * 1000;
+
+  // Kun hash'en gemmes. Serveren ser den raa noegle to gange i dens levetid
+  // — ved udstedelse og ved indloesning — og den maa aldrig i en log.
+  function hashNoegle(raa) {
+    return crypto.createHash("sha256").update(raa).digest("hex");
+  }
+
+  // Til logning: noeglen selv maa ALDRIG staa der, men uden et spor kan man
+  // ikke koble en udstedelse til en indloesning bagefter. Otte tegn af
+  // hash'en er nok til at parre to linjer og alt for lidt til at gaette.
+  function noeglespor(hash) {
+    return hash.slice(0, 8);
+  }
+
+  // POST /api/engangsnoegle/udsted
+  // Kraever et gyldigt login. Det er hele adgangskontrollen: kan du bede om
+  // en noegle, er du allerede inde — noeglen giver dig ikke mere, end du
+  // har. Den flytter blot din adgang over i en anden browser.
+  app.post("/api/engangsnoegle/udsted", async (req, res) => {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Ikke logget ind" });
+
+    const { data: { user }, error: brugerFejl } = await supabase.auth.getUser(token);
+    if (brugerFejl || !user) return res.status(401).json({ error: "Ugyldig session" });
+
+    // IKKE .single(): den vaelter med 406, hvis brugeren er koblet til mere
+    // end ét firma (sker ved gentagne testkoersler paa samme e-mail). Samme
+    // begrundelse som i /api/mig — og her ville et vaeltet opslag betyde, at
+    // kunden blev bedt om en kode alligevel.
+    const { data: links } = await supabase
+      .from("firm_users")
+      .select("firm_id")
+      .eq("user_id", user.id);
+
+    const firmId = links?.[0]?.firm_id || null;
+    if (!firmId) return res.status(404).json({ error: "Ingen firma fundet" });
+
+    const raa  = crypto.randomBytes(32).toString("base64url");
+    const hash = hashNoegle(raa);
+
+    // Ét levende noegle ad gangen pr. bruger. Trykker kunden frem og tilbage
+    // i guiden, udsteder siden en ny — og de gamle skal doe med det samme,
+    // ikke ligge og vente paa at udloebe. En ubrugt noegle er en aaben doer.
+    await supabase
+      .from("engangsnoegler")
+      .delete()
+      .eq("user_id", user.id)
+      .is("brugt_kl", null);
+
+    // Opportunistisk oprydning: alt, der udloeb for over et doegn siden, er
+    // hverken brugbart eller interessant. Ingen cron noedvendig — tabellen
+    // roeres kun her, og her er den alligevel aaben.
+    const doegnSiden = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from("engangsnoegler")
+      .delete()
+      .lt("udloeber_kl", doegnSiden);
+
+    const udloeberKl = new Date(Date.now() + NOEGLE_LEVETID_MS).toISOString();
+
+    const { error } = await supabase.from("engangsnoegler").insert({
+      noegle_hash: hash,
+      user_id:     user.id,
+      firm_id:     firmId,
+      udloeber_kl: udloeberKl,
+    });
+
+    if (error) {
+      console.error("❌ Kunne ikke udstede engangsnoegle:", error.message);
+      // 500 og ikke noget vaerre: klienten springer bare noeglen over og
+      // sender kunden videre ad den gamle vej.
+      return res.status(500).json({ error: "Kunne ikke udstede noegle" });
+    }
+
+    console.log("🔑 Engangsnoegle udstedt:", noeglespor(hash), "firma:", firmId);
+
+    // Eneste sted den raa noegle forlader serveren. Over https, i en
+    // svar-body — aldrig i en URL, aldrig i en log.
+    res.json({ noegle: raa, udloeberKl });
+  });
+
+  // POST /api/engangsnoegle/indloes
+  // Ingen Authorization-header: det er hele pointen — kalderen er den
+  // browser, der netop IKKE er logget ind endnu. Noeglen er beviset.
+  app.post("/api/engangsnoegle/indloes", async (req, res) => {
+    const raa = typeof req.body?.noegle === "string" ? req.body.noegle : "";
+
+    // Laengden er kendt (32 tilfaeldige bytes i base64url). Alt andet er
+    // stoej eller nogen, der proever sig frem — afvis uden opslag.
+    if (raa.length < 32 || raa.length > 128 || !/^[A-Za-z0-9_-]+$/.test(raa)) {
+      return res.status(400).json({ error: "Ugyldig noegle" });
+    }
+
+    const hash = hashNoegle(raa);
+
+    const { data: raekker } = await supabase
+      .from("engangsnoegler")
+      .select("id, user_id, firm_id, udloeber_kl, brugt_kl")
+      .eq("noegle_hash", hash)
+      .limit(1);
+
+    const noegle = raekker?.[0] || null;
+
+    // Samme svar i alle tre afvisninger. Findes den ikke, er den brugt, eller
+    // er den udloebet — det rager ikke kalderen, og forskellen ville vaere en
+    // hjaelpsom besked til den forkerte.
+    if (!noegle || noegle.brugt_kl || new Date(noegle.udloeber_kl) < new Date()) {
+      console.warn("🔒 Engangsnoegle afvist:", noeglespor(hash));
+      return res.status(401).json({ error: "Noeglen kan ikke bruges" });
+    }
+
+    // Forbrug foerst, log ind bagefter. `.is("brugt_kl", null)` gør det til
+    // et kapløb, databasen afgør: kommer to kald samtidig (kunden trykker
+    // to gange, eller en browser genafspiller kaldet), vinder ét af dem, og
+    // det andet faar nul raekker tilbage og bliver afvist. Uden den vagt
+    // ville "engangs" kun vaere en hensigt.
+    const { data: forbrugt } = await supabase
+      .from("engangsnoegler")
+      .update({ brugt_kl: new Date().toISOString() })
+      .eq("id", noegle.id)
+      .is("brugt_kl", null)
+      .select("id");
+
+    if (!forbrugt || !forbrugt.length) {
+      console.warn("🔒 Engangsnoegle var allerede brugt:", noeglespor(hash));
+      return res.status(401).json({ error: "Noeglen kan ikke bruges" });
+    }
+
+    // Brugerens e-mail slaas op NU i stedet for at ligge i tabellen. En
+    // tabel med kundeadresser er personoplysninger, der skal passes paa;
+    // et opslag er gratis og efterlader ingenting.
+    const { data: brugerSvar, error: brugerFejl } =
+      await supabase.auth.admin.getUserById(noegle.user_id);
+    const email = brugerSvar?.user?.email || null;
+
+    if (brugerFejl || !email) {
+      console.error("❌ Engangsnoegle: bruger findes ikke:", noegle.user_id);
+      return res.status(401).json({ error: "Noeglen kan ikke bruges" });
+    }
+
+    // ⚠️ Her draebes en evt. ubrugt kode i kundens indbakke — se noten
+    // oeverst. Samme kald som velkomstmailen bruger (onboarding-link.js),
+    // saa det er en vej, der allerede er kørt tusindvis af gange.
+    const { data: link, error: linkFejl } = await supabase.auth.admin.generateLink({
+      type:  "magiclink",
+      email,
+    });
+
+    const tokenHash = link?.properties?.hashed_token || null;
+
+    if (linkFejl || !tokenHash) {
+      console.error("❌ Engangsnoegle: generateLink fejlede:", linkFejl?.message || "intet hashed_token");
+      return res.status(500).json({ error: "Kunne ikke logge ind" });
+    }
+
+    console.log("🔑 Engangsnoegle indloest:", noeglespor(hash), "firma:", noegle.firm_id, maskerMail(email));
+
+    // Klienten bytter selv token_hash til en session med verifyOtp — samme
+    // kode, der i forvejen haandterer velkomstlinket. Vi opfinder ikke en
+    // ny loginvej; vi giver den eksisterende et nyt startpunkt.
+    res.json({ token_hash: tokenHash, type: "email" });
   });
 
   // ─── API: Gem håndværkerens eget mobilnummer ────────────────────────────
