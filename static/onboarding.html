@@ -461,38 +461,6 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     ⚠️ MIDLERTIDIG MÅLING 13/9-26 — FJERNES IGEN FØR PR TIL main
-     Spørgsmålet, hele trin 2 hviler på: overlever et FRAGMENT (#...)
-     springet fra mailens indbyggede browser ud i Safari? Kompasset er
-     iOS' egen knap, og det kan ikke læses ud af koden, hvad den tager med.
-     Gør det ikke, falder fragment-varianten, og alternativet er en nøgle i
-     query-strengen — som havner i Railways log, imod vores egen regel.
-     Adressen fanges HER, øverst, fordi init() senere kalder replaceState
-     og dermed ville have ryddet hash'en, før vi nåede at se den.
-     ═══════════════════════════════════════════════════════════════════ -->
-<script>
-  window.DDK_PROEVE = { hash: location.hash, search: location.search };
-  (function () {
-    try {
-      var ns = window.navigator.standalone === true;
-      var mm = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-      var ctx = mm ? 'APP' : (ns ? 'INDBYGGET BROWSER' : 'SAFARI');
-      var p = window.DDK_PROEVE;
-      var fragOk = p.hash.indexOf('proeve=') !== -1;
-      var bar = document.createElement('div');
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;' +
-        'background:#16232F;color:' + (fragOk ? '#7FE3B0' : '#FF9B9B') + ';' +
-        'font:600 12px/1.45 ui-monospace,Menlo,monospace;padding:6px 10px;text-align:center';
-      bar.textContent = 'PRØVE  ' + ctx + '  |  fragment: ' + (fragOk ? 'KOM MED' : 'VÆK') +
-        '  |  hash="' + p.hash + '"  search="' + p.search + '"';
-      var saet = function () { document.body && document.body.appendChild(bar); };
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', saet);
-      else saet();
-    } catch (_) {}
-  })();
-</script>
-
   <!-- Seks prikker = de seks opgaver efter velkomst. Skjules på ✓-siderne. -->
   <div class="dots" id="dots" aria-hidden="true">
     <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div>
@@ -2431,13 +2399,8 @@
     //   "skal maerket i adressen?"   -> erIndbyggetBrowser()  (kontekst)
     if (erIndbyggetBrowser()) {
       try {
-        // ⚠️ MIDLERTIDIG MÅLING 13/9-26 — `#proeve=` skal fjernes igen.
-        // Maerket ?trin=app er det rigtige; fragmentet er kun med for at se,
-        // om det overlever springet. Begge skrives i ÉN replaceState.
-        var harTrin   = /[?&]trin=app(&|$)/.test(location.search);
-        var harProeve = location.hash.indexOf('proeve=') !== -1;
-        if (!harTrin || !harProeve) {
-          history.replaceState(null, '', location.pathname + '?trin=app#proeve=' + Date.now());
+        if (!/[?&]trin=app(&|$)/.test(location.search)) {
+          history.replaceState(null, '', location.pathname + '?trin=app');
         }
       } catch (_) {}
     }
