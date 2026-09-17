@@ -150,6 +150,35 @@ Gælder al kode i modulet. Er én af dem ikke opfyldt, er opgaven ikke færdig.
 ## Kodeleverancer
 
 - **Komplette, kørbare filer — aldrig diffs eller udsnit** når en fil ændres uden for Claude Codes egne edits. ⚠️ Undtagelse: har Ann selv ændret filen, siden du sidst så den, må du ikke levere en komplet fil bygget på din gamle udgave — så ville du rulle hendes arbejde tilbage i stilhed. Bed om den aktuelle fil, eller lever ændringen som en præcis instruktion.
+
+### ⚠️ Hent filen på ny — hver gang, lige før du leverer (13/9-26)
+
+Reglen ovenfor er ikke nok, for den handler om, hvad ANN har gjort. Fælden er,
+hvad DU har gjort: at bygge videre på en kopi, du selv hentede tidligere i
+samme session.
+
+**Sådan gik det galt 13/9.** `onboarding.html` blev leveret med trin 1.
+Timer senere skulle der en enkelt linje i `<head>`. Jeg kopierede filen fra en
+**tidligere** hentning i stedet for at hente den igen — den kopi var fra før
+trin 1 — lagde manifestet i den, og skrev den hen over min egen nyere udgave.
+Trin 1's onboarding-halvdel forsvandt og nåede i produktion som ingenting,
+mens dashboardets halvdel kørte videre og skrev en tilstand, ingen læste.
+Anne løb ind i et loop, og det kostede en halv dag at finde, fordi vi ledte
+efter en logikfejl i kode, der slet ikke var deployet.
+
+**Tre regler, der lukker den:**
+
+1. **Hent filen umiddelbart før hver levering.** Aldrig fra noget, du hentede
+   tidligere i samtalen — heller ikke for ti minutter siden. Én linjes ændring
+   kræver samme friske hentning som hundrede.
+2. **Tidsstempel-vagten beskytter ikke mod det her.** Den siger kun, at FILEN
+   ikke er ændret, siden du hentede den — ikke at DIN kopi er den nyeste. Den
+   kan bestå, mens du leverer forældet indhold. En bestået vagt er ikke et
+   bevis for, at leveringen er rigtig.
+3. **Bekræft leveringen med et tjek, der ville fejle, hvis den var forkert.**
+   Ét `Select-String` på en streng, der kun findes i den nye udgave, tager fem
+   sekunder. Det er samme disciplin som "min ændring er med i deployet",
+   anvendt ét led tidligere — på selve filen.
 - Konkrete, holdningsstærke anbefalinger + proaktiv risiko-flagging. Forklar *hvorfor* før *hvordan* ved arkitekturvalg.
 - Fejlhåndtering: fail-closed på miljø/sikkerhed, fail-open (ikke-fatalt) på analyse/logning — analyse må aldrig genere kunden.
 - Går noget galt undervejs — forkert miljø ramt, hemmelighed eksponeret, utilsigtet skrivning: **sig det med det samme**, og noter det i `docs/HAENDELSESLOG.md`.
