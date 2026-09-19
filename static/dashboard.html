@@ -1147,8 +1147,19 @@
     status.textContent = kodeBestillinger > 1
       ? 'Vi har sendt en NY kode. Den forrige virker ikke længere — brug koden fra den nyeste mail.'
       : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
-    btn.disabled = false;
-    btn.textContent = original;
+    // Onboardingens ✓-rytme (19/9-26). Knappen er den eneste kvittering,
+    // kunden kan se med det samme — statuslinjen under den er lang, og paa en
+    // telefon staar den tit under tastaturet. Uden et svar PAA knappen ser
+    // trykket ud, som om det ikke skete, og saa trykker hun igen: en ny
+    // bestilling draeber den forrige kode, og saa er hun i Annes tre-koder-
+    // problem fra 13/9. Den groenne haek er altsaa ikke pynt her.
+    btn.textContent = '✓ Sendt';
+    btn.style.color = 'var(--success)';
+    setTimeout(() => {
+      btn.textContent  = original;
+      btn.style.color  = '';
+      btn.disabled     = false;
+    }, 1500);
 
     // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
     // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
@@ -2618,7 +2629,11 @@ async function gemFoersteKode() {
     } catch (_) {}
 
     kodeMangler = false;
-    status.textContent = 'Gemt ✓';
+    status.textContent = '';
+    // Samme ✓-rytme som de to login-knapper: kvitteringen hoerer til PAA
+    // knappen, ikke i en linje under den.
+    gem.textContent = '✓';
+    gem.style.background = 'var(--success)';
     // Kvitteringen skal nå at blive læst, før skærmen forsvinder — og FØRST
     // dér spørges om beskeder. Hun har nu en vej ind, der ikke afhænger af
     // en mail; så kan vi bede om noget.
@@ -2630,8 +2645,12 @@ async function gemFoersteKode() {
     console.warn('Kunne ikke gemme adgangskoden:', err);
     status.textContent = 'Kunne ikke gemme adgangskoden. Tjek din forbindelse og prøv igen.';
   } finally {
-    gem.disabled = false;
-    gem.textContent = 'Gem adgangskode';
+    // Samme vagt som i loginWithOtp: gik det godt, staar der ✓, og saa maa
+    // finally ikke viske kvitteringen ud igen, foer skaermen naar at lukke.
+    if (gem.textContent !== '✓') {
+      gem.disabled = false;
+      gem.textContent = 'Gem adgangskode';
+    }
   }
 }
 
