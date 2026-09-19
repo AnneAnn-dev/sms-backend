@@ -142,17 +142,86 @@ I praksis bliver det til nogle få markerede steder pr. referat. Det forvandler 
 hele med skepsis"* til *"kig på de her fem steder"* — og det er forskellen på et råd og
 et værktøj.
 
-### C. Whisper-konfidens ❓ Skal undersøges — kan være det eneste, der fanger 2b
+### C. Whisper-konfidens ⛔ MÅLT 14/9 — forkastet
 
 Whisper kan levere konfidens pr. segment. **"USB-plader" er formentlig et sted, hvor
 modellen akustisk var usikker, selvom teksten ser fin ud.** Er den information
 tilgængelig gennem Scaleways endpoint, kan usikre passager markeres, før de overhovedet
 bliver til et referat.
 
-Det er den eneste af de fire teknikker, der kan ramme den farligste kategori. **Det er én
-test værd**, og den kan køres på det sæt, der allerede ligger.
+**Den blev målt, og den duer ikke.** `05-konfidens.ps1`, 189 segmenter, 23 kendte fejl
+delt i volapyk (2a) og rigtigt-ord-forkert-plads (2b):
 
-### D. Kildevisning ✅ Billig, men kun sammen med B
+| | `avg_logprob`, median |
+|---|---|
+| Segmenter uden kendt fejl | −0,158 |
+| Alle segmenter | −0,160 |
+| 2a — volapyk, synligt for øjet | −0,182 |
+| 2b — rigtigt ord, forkert plads | −0,172 |
+
+De fire tal ligger oven i hinanden. **Konfidensen ser ikke engang volapyk.**
+
+Man behøver ikke statistik for at afgøre det. Segmentet med **"USB-plader"** har
+`avg_logprob` = **−0,103**; medianen for alle segmenter er **−0,160**. For at fange den
+fejl skal tærsklen sættes *højere end medianen* — altså markere over halvdelen af
+referatet. Og **"finpusses"** har **−0,075**, den højeste konfidens blandt alle tretten
+fejlsegmenter: whisper var mest sikker dér, hvor den tog fejl.
+
+**Hvorfor:** whisper var ikke i tvivl. Den hørte en sekvens og skrev et rigtigt dansk ord
+— bare det forkerte. Fejlen opstod i sprogmodellen, ikke i lytningen, så konfidensen er
+normal. Det er ikke en mangel ved API'et; det er en egenskab ved fejlklassen.
+
+Fuld måling: `docs/RESULTAT-03-teknik-c.md`.
+
+### E. To modellers uenighed ⛔ MÅLT 19/9 — forkastet
+
+Idéen kom fra Ann: whisper er fuldstændig men rammer forkert på fagsprog; Hviske rammer
+fagsproget men taber indhold. Kan de to holdes op mod hinanden, så uenighed bliver
+markeringen?
+
+**Den er principielt stærkere end C**, fordi den ikke spørger en model om den selv. To
+modeller med forskellig arkitektur hører den samme lyd; uenighed er bevis udefra.
+
+Målt i to omgange på det materiale, der allerede lå — ingen API-kald, ingen udgift:
+
+| | 06 (ordsammenligning) | 07 (aligneret) |
+|---|---|---|
+| Markerede ord pr. optagelse | 76 | **47** |
+| Fanget af de 18 fejl, der faktisk stod i teksten | 17 | **15** |
+
+47 markeringer på en optagelse med ca. 375 ord er **hvert ottende ord.** Det er ikke en
+markering, det er "læs det hele" med gult på.
+
+**Og prisen for at skære støjen ned var rigtige fejl.** 07 strammede tre ting — ingen
+længdegrænse (06 sorterede "USB" fra, fordi det er tre tegn), korrekt beregnet tæthed, og
+kun ord hvor Hviske har *et andet ord på samme plads*. Støjen faldt en tredjedel. Men
+træfsikkerheden faldt med.
+
+**Den vigtigste erkendelse ligger i, hvad der forsvandt.** "fliseklip" røg ud, fordi
+murer-optagelsens vindue blev sprunget over — Hviske havde tabt indholdet dér. Filtret
+gjorde det rigtige. Men:
+
+> **De to fejltyper overlapper. Hviske kan ikke være vidne i de vinduer, hvor Hviske selv
+> er gået i sort** — og murer-optagelsen er netop den, hvor fugeinstruktionen vendte om.
+
+Der, hvor vi mest har brug for et vidne, er vidnet blindt. Det kan intet filter rette.
+
+**Sætningsniveau er også lukket**, og det behøver ikke prøves: 328 markeringer fordelt på
+158 vinduer er godt to pr. vindue. Næsten hver sætning ville blive markeret.
+
+Støjen kan skæres yderligere ved at normalisere tal og forkortelser — "2 styks" mod "to
+styks", "ca." mod "cirka" ligger i toppen af listen. Det ville nok give 25-30. **Det
+ændrer ikke svaret:** 25 er ikke 10, og træfsikkerheden er begrænset af Hviskes
+indholdstab, ikke af hvordan vi tæller.
+
+**Sidegevinst, der skal bruges:** 10 steder hvor whisper har ord og Hviske intet har,
+plus 30 vinduer for tynde til at bruge — på syv optagelser. Det er første gang, Hviskes
+indholdstab er et tal pr. optagelse i stedet for "9-49 % færre tegn". Det hører i
+opfølgningen til syv.ai.
+
+Fuld måling: `docs/RESULTAT-04-uenighed.md`.
+
+### F. Kildevisning ✅ Billig, men kun sammen med B
 
 Håndværkeren kan slå op i den rå tekst. Alene er det uden effekt — ingen læser en
 rodet transskription frivilligt. Koblet til B er det stærkt: markeret sted → vis, hvad
@@ -163,6 +232,24 @@ gemmes. Vil I den vej, er det en selvstændig beslutning med opbevaringsfrist �
 hører tidligst i Fase 2.
 
 ---
+
+### Mønsteret på tværs af A, C og E
+
+Tre veje er prøvet til at markere 2b maskinelt. Alle tre faldt, og de faldt af samme
+grund:
+
+| | Spørgsmålet | Hvorfor den faldt |
+|---|---|---|
+| **A** | Hvad valgte du? | Kræver tvivl. Modellen havde ingen. |
+| **C** | Hvor sikker var du? | Sikkerheden var normal eller høj ved fejlene. |
+| **E** | Er I to enige? | Enige nok — og uenige overalt ellers. |
+
+> **Et ord, der lyder rigtigt og står på den forkerte plads, efterlader ingen maskinelt
+> læsbare spor.** Målt tre gange, på tre forskellige måder.
+
+Det er ikke tre uheld, og det er grunden til, at bundgrænsen i D36 accepterer
+fagtermfejl i stedet for at love et værn mod dem. **Teknik B er ikke det bedste, vi har —
+det er det eneste, der virker.**
 
 ## 5. Strukturen, der fjerner problemet i Fase 2
 
@@ -189,10 +276,12 @@ Det er samme princip som P5's "mennesket bekræfter altid tallet", anvendt på o
    aftaler.
 3. **ASR-adapteren bygges efter kravene i 6d fra første linje** — især at den
    returnerer segmenter og ikke kun tekst. Det er det eneste krav på listen, der ikke
-   kan eftermonteres billigt.
-4. **Teknik C afprøves** på det eksisterende sæt før release: kør `04-tidslinje.ps1`
-   mod Scaleway og se, om whisper returnerer segmenter og `no_speech_prob` — og om
-   konfidensen er lav netop dér, hvor den skrev "USB-plader".
+   kan eftermonteres billigt. Grænsefladen er skrevet ud i `docs/asr-adapter.md`.
+4. ~~**Teknik C afprøves**~~ — **UDFØRT 14/9. Udfaldet var nr. 2 af de tre forudsete:
+   konfidensen ligner resten.** Scaleway returnerer `avg_logprob`, `compression_ratio`
+   og `no_speech_prob` pr. segment, så målingen kunne laves — men tallene skiller ikke
+   fejl fra ikke-fejl. Betingelsen bortfalder derfor som krav. **Det, der skal bygges,
+   er teknik B (punkt 2), og den er release-blokerende.**
 
 **Begrundelsen for at acceptere fejlene i 2b:** referatet er håndværkerens egen note om
 noget, han selv lige har sagt. Han ved, det hedder OSB. Fejlen står i hans eget
@@ -413,8 +502,13 @@ filer, kun adressen skiftede. Det er beviset på, at adapteren er tynd.
 **Fem krav, hver med en grund fra målingerne:**
 
 **1. Adapteren returnerer segmenter, ikke kun tekst.** Det er det krav, der er lettest
-at overse og dyrest at rette. Returnerer adapteren kun en streng, kan tæthedsværnet
-(afsnit 4C) aldrig bygges bagefter uden at rive den op. `verbose_json` giver
+at overse og dyrest at rette. **⚠ Begrundelsen skiftede 14/9 — og kravet står stadig.**
+Før hed det: segmenter skal med, så teknik C kan bygges. Teknik C er død. Nu er det et
+**målbarhedskrav**: segmenter skal med, så den næste leverandør kan måles med
+`04-tidslinje.ps1`, `05-konfidens.ps1` og `07-uenighed-alignet.ps1` uden at rive
+adapteren op — og så tæthedsværnet kan bygges den dag, Hviske bliver aktuel igen. Den,
+der læser 6d om et år, skal ikke bygge et værn på et tal, vi har målt ubrugeligt.
+**`konfidens` gemmes, men vises aldrig for brugeren.** `verbose_json` giver
 `segments` med `start`, `end`, `text` og `no_speech_prob` — **lad det være
 adapterens returtype fra dag ét**, også selvom Fase 1 kun bruger teksten.
 
@@ -452,10 +546,19 @@ tabel at sammenligne. De syv filer og facit-listerne er dermed ikke testmaterial
   om kvaliteten er god nok til en fremmed bruger. Lukkes med to-tre andre stemmer.
 - **`llama-3.3-70b-instruct` er ikke målt** som alternativ referatmodel.
 - **Hviske med ordliste er ikke målt.** Ordliste-funktionen findes; den blev bevidst
-  ikke brugt, for ikke at ændre to ting på én gang. Den er interessant igen, når
-  omissionsfejlen er afklaret.
-- **Tæthedsværnet er ikke bygget** — og det er ikke afprøvet, om Scaleways whisper
-  overhovedet returnerer segmenter og `no_speech_prob`.
+  ikke brugt, for ikke at ændre to ting på én gang. **Rækkefølgen er bindende** (se J9):
+  tætheden måles først, ordlisten prøves bagefter — ellers måles en forbedring på den
+  akse, der ikke var problemet.
+- **Markering af fagtermfejl er opgivet for Fase 1.** Tre teknikker målt og forkastet
+  (A, C, E). Det er ikke en mangel på listen, det er en afgjort sag — se mønsteret i
+  afsnit 4.
+- **Tæthedsværnet er ikke bygget.** Om Scaleway returnerer segmenter er derimod
+  afklaret (14/9): den giver `id, seek, start, end, text, tokens, temperature,
+  avg_logprob, compression_ratio, no_speech_prob`. **Og værnet har en fælde, som
+  målingen fandt:** fem af seks lavdensitets-fund var det *første* segment i en
+  optagelse — tilløbet, før der bliver talt. Regnes tætheden på segmentets varighed
+  alene, markerer værnet hver eneste optagelse ved starten. Udenfor tilløbet gav det ét
+  fund på 189 segmenter, og dén støjrate kan man leve med.
 - **Fotovejen er ikke prøvet.** `pixtral-12b-2409` findes i projektet, men er den mindste
   model på listen, og håndskrift er sværere end tale.
 - **P5's grænse på 20 punkter** skal hæves eller erstattes.
