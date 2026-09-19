@@ -408,9 +408,8 @@
      stylesheetet, alt hvad den rører er guardet. Vises FØRST efter login
      (se onAuthStateChange) — et abonnement kan ikke gemmes uden en session. -->
 <div id="push-spoerg" style="display:none;position:fixed;inset:0;z-index:9998;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
-  <div style="font-size:52px;margin-bottom:16px" aria-hidden="true">🔔</div>
   <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Få besked om nye opgaver</div>
-  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Om lidt spørger telefonen, om Dit Digitale Kontor må give dig besked.<br><strong style="color:#16232F">Tryk &bdquo;Tillad&ldquo;</strong> — det er sådan du ser det røde tal på ikonet, når der er kommet en ny opgave.</p>
+  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Om lidt bliver du spurgt, om du vil tillade notifikationer.<br><strong style="color:#16232F">Tryk &bdquo;Tillad&ldquo;.</strong><br>Så får du et badge med et tal, der viser nye opgaver.</p>
   <button id="push-spoerg-ja" type="button"
           style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Ja tak, giv mig besked</button>
   <button id="push-spoerg-nej" type="button"
@@ -437,7 +436,6 @@
      Selvstaendig som de to andre fuldskaermslag: egen markup, ingen
      afhaengighed af stylesheetet, alt hvad den roerer er guardet. -->
 <div id="kode-vaelg" style="display:none;position:fixed;inset:0;z-index:9997;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
-  <div style="font-size:52px;margin-bottom:16px" aria-hidden="true">&#128273;</div>
   <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Vælg din adgangskode</div>
   <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Den bruger du, næste gang du logger ind på Dit Digitale Kontor.</p>
   <div style="display:flex;align-items:center;gap:8px;margin-top:24px;width:100%;max-width:320px">
@@ -498,6 +496,12 @@
          ruden er gjort ens med onboardingens, men her siger den noget, den
          anden ikke kan: dette er vejen til opgaveoversigten. -->
     <p class="sub">Din opgaveoversigt</p>
+    <!-- 19/9-26: linjen kom til, da adgangskoden flyttede ind i appen (D65).
+         En NY kunde har ingen kode, naar hun staar her foerste gang — hun
+         proever, det slaar fejl, og saa skal hun selv gaette, at vejen ind
+         er en kode paa mail. Ann gik praecis den tur 19/9. Skaermen skal
+         sige det, foer hun proever forgaeves. -->
+    <p class="login-note" style="margin-top:6px">Første gang? Få en kode på mail — så vælger du din adgangskode inde i appen.</p>
     <!-- Felter i onboardingens .field-stil: placeholder + aria-label baerer
          betydningen (som paa onboardingens skaerme), ingen VERSAL-labels.
          autocomplete email/current-password er FREDET (runbook kodeopgave 1b:
@@ -512,8 +516,13 @@
     <div class="error" id="login-error"></div>
 
     <!-- Redningsvej: send et login-link hvis man ikke kan sin adgangskode -->
+    <!-- 19/9-26: hed "Jeg har glemt min adgangskode". Efter D65 har en ny
+         kunde ALDRIG haft en, saa ordet "glemt" sendte hende efter en
+         loesning paa noget, der ikke var i stykker — samme fejltype som P7.
+         Knappen goer det samme som foer; den siger nu, hvad den goer, og
+         daekker begge kunder: den, der har glemt, og den, der aldrig fik en. -->
     <button type="button" id="magic-link-btn" class="link-btn" onclick="sendLoginLink()">
-      Jeg har glemt min adgangskode
+      Send mig en kode på mail
     </button>
     <div class="login-note" id="magic-link-status"></div>
 
@@ -1245,12 +1254,20 @@
     // virkningsløst. Tilladelsen bedes nu KUN om via et rigtigt klik —
     // se skiftPushBeskeder() nedenfor.
     opdaterPushKnap();
-    // 9/9-26: og det rigtige klik TILBYDES her, på en skærm for sig, hvis
-    // telefonen aldrig er blevet spurgt. Placeringen er ikke tilfældig —
-    // slaaPushTil() gemmer abonnementet med et Bearer-token, så der SKAL
-    // være en session, før der overhovedet kan spørges. Skærmen spørger,
-    // koden gør intet af sig selv: dialogen kommer først ved et rigtigt tryk.
-    maaskeSpoergOmBeskeder();
+    // 9/9-26: det rigtige klik TILBYDES paa en skærm for sig, hvis telefonen
+    // aldrig er blevet spurgt. slaaPushTil() gemmer abonnementet med et
+    // Bearer-token, så der SKAL være en session, før der kan spørges.
+    // Skærmen spørger; koden gør intet af sig selv: systemdialogen kommer
+    // først ved et rigtigt tryk.
+    //
+    // ⚠️ 19/9-26: kaldet stod HER og er flyttet ned i loadData(). Årsagen er
+    // rækkefølgen, ikke ryddelighed. Herfra kunne vi ikke vide, om kunden
+    // også mangler at vælge adgangskode — det står i firmaet, som loadData()
+    // først henter et øjeblik senere — og så kom beskedskærmen først.
+    // Ann prøvede flowet 19/9: log ind → virker ikke (ingen kode endnu) →
+    // bestil kode → ind → "må vi sende dig beskeder?" → "vælg adgangskode".
+    // Hullet, hun lige var faldet i, blev lukket sidst. Nu afgør loadData()
+    // rækkefølgen ét sted: kode først, beskeder bagefter.
   } else if (event === 'SIGNED_OUT') {
     // Logud — også når loadData rydder en død session — viser login igen.
     document.getElementById('app').style.display = 'none';
@@ -1326,10 +1343,15 @@
   try {
     if (firm && 'kode_valgt_at' in firm && !firm.kode_valgt_at) {
       kodeMangler = true;
-      visKodeSkaerm();
+      visKodeSkaerm();            // spørger selv om beskeder, når den er færdig
+    } else {
+      maaskeSpoergOmBeskeder();
     }
   } catch (err) {
     console.warn('Kunne ikke afgøre kode-status:', err);
+    // Fail-open: gik noget galt her, må beskedskærmen ikke falde med.
+    // Uden tilladelsen ser hun aldrig badgen, og badgen er hele pointen.
+    maaskeSpoergOmBeskeder();
   }
   // Viderestilling: vis firmaets nummer og byg koderne (profilsiden)
   const vsNr = firm?.phone_number || '';
@@ -2518,14 +2540,9 @@ function visKodeSkaerm() {
   try {
     if (!kodeMangler || kodeSkaermVist) return;
 
-    // To fuldskærmslag oven på hinanden er ingen god første åbning. Vises
-    // spørgeskærmen, har den ordet — den kalder selv herind, når den lukkes.
-    const push = document.getElementById('push-spoerg');
-    if (push && push.style.display === 'flex') return;
-
-    // Samme hensyn til app-hilsenen, og samme greb som spørgeskærmen bruger.
-    // Nødvendigt, fordi spørgeskærmen kan udeblive helt (tilladelsen er
-    // allerede givet eller nægtet) — og så er det os, der står i kø bag den.
+    // To fuldskærmslag oven på hinanden er ingen god første åbning: vises
+    // app-hilsenen, venter vi til den er klikket væk. Samme greb som
+    // spørgeskærmen bruger — den står nu i kø bag OS.
     const hilsen = document.getElementById('app-hilsen');
     if (hilsen && hilsen.style.display === 'flex') {
       const knap = hilsen.querySelector('button');
@@ -2536,7 +2553,11 @@ function visKodeSkaerm() {
     const input  = document.getElementById('kode-vaelg-input');
     const gem    = document.getElementById('kode-vaelg-gem');
     const vis    = document.getElementById('kode-vaelg-vis');
-    if (!skaerm || !input || !gem || !vis) return;
+    if (!skaerm || !input || !gem || !vis) {
+      // Kan skærmen ikke tegnes, må beskederne ikke gå tabt med den.
+      maaskeSpoergOmBeskeder();
+      return;
+    }
 
     kodeSkaermVist = true;
     gem.onclick = () => gemFoersteKode();
@@ -2549,6 +2570,7 @@ function visKodeSkaerm() {
     skaerm.style.display = 'flex';
   } catch (err) {
     console.warn('Kunne ikke vise kode-skærmen:', err);
+    maaskeSpoergOmBeskeder();
   }
 }
 
@@ -2597,8 +2619,13 @@ async function gemFoersteKode() {
 
     kodeMangler = false;
     status.textContent = 'Gemt ✓';
-    // Kvitteringen skal nå at blive læst, før skærmen forsvinder.
-    setTimeout(() => { skaerm.style.display = 'none'; }, 900);
+    // Kvitteringen skal nå at blive læst, før skærmen forsvinder — og FØRST
+    // dér spørges om beskeder. Hun har nu en vej ind, der ikke afhænger af
+    // en mail; så kan vi bede om noget.
+    setTimeout(() => {
+      skaerm.style.display = 'none';
+      maaskeSpoergOmBeskeder();
+    }, 900);
   } catch (err) {
     console.warn('Kunne ikke gemme adgangskoden:', err);
     status.textContent = 'Kunne ikke gemme adgangskoden. Tjek din forbindelse og prøv igen.';
@@ -2639,10 +2666,9 @@ function maaskeSpoergOmBeskeder() {
       // Kvitteringen skal nå at blive læst, før skærmen forsvinder. Gik det
       // galt, bliver skærmen stående med beskeden — så kan kunden prøve igen
       // eller vælge "Ikke nu".
-      // Giv ordet videre til kode-skaermen, naar denne er lukket (D60 niveau 1).
-      if (ok) setTimeout(() => { skaerm.style.display = 'none'; visKodeSkaerm(); }, 1400);
+      if (ok) setTimeout(() => { skaerm.style.display = 'none'; }, 1400);
     };
-    nej.onclick = () => { skaerm.style.display = 'none'; visKodeSkaerm(); };
+    nej.onclick = () => { skaerm.style.display = 'none'; };
 
     // To fuldskærmslag oven på hinanden er ingen god første åbning: vises
     // app-hilsenen, venter vi til den er klikket væk.
