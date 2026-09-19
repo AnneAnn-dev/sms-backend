@@ -417,6 +417,40 @@
           style="margin-top:14px;min-height:44px;padding:0 16px;border:none;background:none;color:#8A97A5;font-size:15px;font-family:inherit;cursor:pointer;text-decoration:underline">Ikke nu</button>
   <div id="push-spoerg-status" style="margin-top:18px;font-size:15px;line-height:1.5;color:#5B6B7A;max-width:320px;min-height:20px"></div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VAELG ADGANGSKODE VED FOERSTE AABNING (19/9-26, D60 niveau 1)
+     Koden blev foer valgt paa `s-2` i Safari, flere skaerme foer den skulle
+     bruges — to browsere, to lagringer, og et felt hvor iOS kunne gemme en
+     kode i noeglering, som kunden aldrig selv saa. Nu spoerges her, hvor
+     koden faktisk skal bruges, og af en app hun lige har aabnet.
+
+     Ingen "ikke nu": springer hun over, er engangskoden i mailen hendes
+     eneste vej ind for altid, og saa haenger hele hendes adgang i, at
+     mailen kommer frem. Det er en byrde, der bliver stoerre med tiden, ikke
+     mindre. Valgt bevidst 19/9.
+
+     z-index 9997 — ét lag UNDER #push-spoerg. Skulle begge staa taendt,
+     skal tilladelsen spoerges foerst: den kraever et rigtigt tryk, og hun er
+     mest villig, mens appen er ny.
+
+     Selvstaendig som de to andre fuldskaermslag: egen markup, ingen
+     afhaengighed af stylesheetet, alt hvad den roerer er guardet. -->
+<div id="kode-vaelg" style="display:none;position:fixed;inset:0;z-index:9997;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
+  <div style="font-size:52px;margin-bottom:16px" aria-hidden="true">&#128273;</div>
+  <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Vælg din adgangskode</div>
+  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Den bruger du, næste gang du logger ind på Dit Digitale Kontor.</p>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:24px;width:100%;max-width:320px">
+    <input id="kode-vaelg-input" type="password" autocomplete="new-password" placeholder="Mindst 8 tegn"
+           aria-label="Adgangskode"
+           style="flex:1;min-height:54px;padding:0 14px;border:1px solid #D6DEE6;border-radius:14px;font-size:17px;font-family:inherit;color:#16232F;background:#fff">
+    <button id="kode-vaelg-vis" type="button"
+            style="min-height:54px;padding:0 14px;border:none;background:none;color:#5B6B7A;font-size:15px;font-family:inherit;cursor:pointer;text-decoration:underline">Vis</button>
+  </div>
+  <button id="kode-vaelg-gem" type="button"
+          style="margin-top:20px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Gem adgangskode</button>
+  <div id="kode-vaelg-status" style="margin-top:18px;font-size:15px;line-height:1.5;color:#5B6B7A;max-width:320px;min-height:20px"></div>
+</div>
 <script>
   // Fejlsikker med vilje: localStorage kan kaste i visse private tilstande —
   // i så fald vises hilsenen bare ikke, og intet andet påvirkes.
@@ -1240,7 +1274,7 @@
 
     const { data: firmUser } = await db
     .from("firm_users")
-    .select("firms(id, name, status, greeting_text, voice_gender, phone_number, app_bekraeftet_at, app_valgt_fra_at)")
+    .select("firms(id, name, status, greeting_text, voice_gender, phone_number, app_bekraeftet_at, app_valgt_fra_at, kode_valgt_at)")
     .eq("user_id", user.id)
     .single();
 
@@ -1282,6 +1316,20 @@
     }
   } catch (err) {
     console.warn('Kunne ikke afgøre app-status:', err);
+  }
+
+  // ── Mangler hun stadig at vaelge en adgangskode? (D60 niveau 1) ─────
+  // `'kode_valgt_at' in firm` er ikke pedanteri: er feltet ikke med i
+  // svaret, er `undefined` falsy, og saa ville HVER kunde faa spaerre-
+  // skaermen. En manglende oplysning skal give "spoerg ikke", aldrig
+  // "spoerg alle" — fail-open, som alt andet paa denne side.
+  try {
+    if (firm && 'kode_valgt_at' in firm && !firm.kode_valgt_at) {
+      kodeMangler = true;
+      visKodeSkaerm();
+    }
+  } catch (err) {
+    console.warn('Kunne ikke afgøre kode-status:', err);
   }
   // Viderestilling: vis firmaets nummer og byg koderne (profilsiden)
   const vsNr = firm?.phone_number || '';
@@ -2457,6 +2505,109 @@ async function slaaPushFra(sub) {
   }
 }
 
+// ── Vælg adgangskode ved første åbning (#kode-vaelg) ──────────────────────
+// Sættes af loadData(), som er det eneste sted firmaets felter læses.
+let kodeMangler    = false;
+let kodeSkaermVist = false;
+
+// Kaldes to steder: fra loadData(), og igen når #push-spoerg lukkes. Den, der
+// kommer sidst, vinder — og rækkefølgen mellem dem er ikke til at forudsige,
+// for loadData() er asynkron, mens spørgeskærmen tegnes med det samme.
+// Derfor må funktionen kunne kaldes hvor mange gange som helst uden skade.
+function visKodeSkaerm() {
+  try {
+    if (!kodeMangler || kodeSkaermVist) return;
+
+    // To fuldskærmslag oven på hinanden er ingen god første åbning. Vises
+    // spørgeskærmen, har den ordet — den kalder selv herind, når den lukkes.
+    const push = document.getElementById('push-spoerg');
+    if (push && push.style.display === 'flex') return;
+
+    // Samme hensyn til app-hilsenen, og samme greb som spørgeskærmen bruger.
+    // Nødvendigt, fordi spørgeskærmen kan udeblive helt (tilladelsen er
+    // allerede givet eller nægtet) — og så er det os, der står i kø bag den.
+    const hilsen = document.getElementById('app-hilsen');
+    if (hilsen && hilsen.style.display === 'flex') {
+      const knap = hilsen.querySelector('button');
+      if (knap) { knap.addEventListener('click', visKodeSkaerm, { once: true }); return; }
+    }
+
+    const skaerm = document.getElementById('kode-vaelg');
+    const input  = document.getElementById('kode-vaelg-input');
+    const gem    = document.getElementById('kode-vaelg-gem');
+    const vis    = document.getElementById('kode-vaelg-vis');
+    if (!skaerm || !input || !gem || !vis) return;
+
+    kodeSkaermVist = true;
+    gem.onclick = () => gemFoersteKode();
+    input.onkeydown = (e) => { if (e.key === 'Enter') gemFoersteKode(); };
+    vis.onclick = () => {
+      const skjult = input.type === 'password';
+      input.type = skjult ? 'text' : 'password';
+      vis.textContent = skjult ? 'Skjul' : 'Vis';
+    };
+    skaerm.style.display = 'flex';
+  } catch (err) {
+    console.warn('Kunne ikke vise kode-skærmen:', err);
+  }
+}
+
+async function gemFoersteKode() {
+  const input  = document.getElementById('kode-vaelg-input');
+  const gem    = document.getElementById('kode-vaelg-gem');
+  const status = document.getElementById('kode-vaelg-status');
+  const skaerm = document.getElementById('kode-vaelg');
+  if (!input || !gem || !status || !skaerm) return;
+
+  const pw = input.value;
+  if (pw.length < 8) {
+    status.textContent = 'Mindst 8 tegn.';
+    input.focus();
+    return;
+  }
+
+  gem.disabled = true;
+  gem.textContent = 'Gemmer …';
+  status.textContent = '';
+  try {
+    // 1) Selve koden. Den går direkte til Supabase og rører aldrig vores
+    //    egen server — den skal ikke kunne se den, og skal derfor ikke.
+    const { error } = await db.auth.updateUser({ password: pw });
+    // Samme kode som sidst (fx efter et mislykket flueben, se nedenfor) giver
+    // "should be different" fra Supabase. Koden ER sat — det er ikke en fejl.
+    if (error && !/different|samme|same/i.test(error.message || '')) {
+      throw new Error(error.message);
+    }
+
+    // 2) Fluebenet på serveren, så appen ikke spørger igen. ALTID i denne
+    //    rækkefølge: fejler fluebenet, har hun stadig sin kode, og skærmen
+    //    kommer bare igen næste gang — hvorefter trin 1 siger "samme kode"
+    //    og trin 2 får en chance til. Omvendt rækkefølge kunne sætte
+    //    fluebenet for en kode, der aldrig blev gemt, og så stod hun uden
+    //    adgangskode uden at vide det.
+    try {
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        await fetch('/api/firma/kode-valgt', {
+          method:  'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+      }
+    } catch (_) {}
+
+    kodeMangler = false;
+    status.textContent = 'Gemt ✓';
+    // Kvitteringen skal nå at blive læst, før skærmen forsvinder.
+    setTimeout(() => { skaerm.style.display = 'none'; }, 900);
+  } catch (err) {
+    console.warn('Kunne ikke gemme adgangskoden:', err);
+    status.textContent = 'Kunne ikke gemme adgangskoden. Tjek din forbindelse og prøv igen.';
+  } finally {
+    gem.disabled = false;
+    gem.textContent = 'Gem adgangskode';
+  }
+}
+
 // ── Spørgeskærmen ved første åbning (#push-spoerg) ────────────────────────
 // Betingelserne er bevidst stramme: kun i den installerede app, kun hvis
 // telefonen aldrig er blevet spurgt, og kun et begrænset antal gange.
@@ -2488,9 +2639,10 @@ function maaskeSpoergOmBeskeder() {
       // Kvitteringen skal nå at blive læst, før skærmen forsvinder. Gik det
       // galt, bliver skærmen stående med beskeden — så kan kunden prøve igen
       // eller vælge "Ikke nu".
-      if (ok) setTimeout(() => { skaerm.style.display = 'none'; }, 1400);
+      // Giv ordet videre til kode-skaermen, naar denne er lukket (D60 niveau 1).
+      if (ok) setTimeout(() => { skaerm.style.display = 'none'; visKodeSkaerm(); }, 1400);
     };
-    nej.onclick = () => { skaerm.style.display = 'none'; };
+    nej.onclick = () => { skaerm.style.display = 'none'; visKodeSkaerm(); };
 
     // To fuldskærmslag oven på hinanden er ingen god første åbning: vises
     // app-hilsenen, venter vi til den er klikket væk.

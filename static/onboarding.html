@@ -497,7 +497,7 @@
 
   <!-- Seks prikker = de seks opgaver efter velkomst. Skjules på ✓-siderne. -->
   <div class="dots" id="dots" aria-hidden="true">
-    <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div>
+    <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div>
   </div>
 
   <button class="back-btn" id="back-btn" aria-label="Tilbage" onclick="goBack()">
@@ -610,22 +610,6 @@
       <p class="error" id="owner-error"></p>
       <button class="btn" onclick="submitOwnerPhone()">
         <span id="owner-label">Forbind nummeret</span><span class="spinner" id="owner-spin"></span>
-      </button>
-    </section>
-
-    <!-- ── SIDE 2: ADGANGSKODE ────────────────────────────── -->
-    <section class="screen" id="s-2">
-      <h1>Adgangskode</h1>
-      <p class="sub">Den bruger du næste gang du logger ind.</p>
-      <div class="field" id="pw-field">
-        <input id="pw-input" type="password" autocomplete="new-password"
-               placeholder="Mindst 8 tegn" aria-label="Adgangskode"
-               onkeydown="if(event.key==='Enter')savePassword()">
-        <button class="toggle-eye" type="button" onclick="togglePw()" id="pw-eye">Vis</button>
-      </div>
-      <p class="error" id="pw-error"></p>
-      <button class="btn" onclick="savePassword()">
-        <span id="pw-label">Gem adgangskode</span><span class="spinner" id="pw-spin"></span>
       </button>
     </section>
 
@@ -1174,13 +1158,16 @@
   // efterfoelgende én plads — derfor SEKS prikker i markuppen ovenfor.
   // 's-0b' deler indeks med 's-0': det er et sidespor paa side 1, ikke et
   // nyt trin — prikkerne maa ikke rykke, fordi et navn var for langt.
-  const DOT_INDEX = { 's-0': 0, 's-0b': 0, 's-1': 1, 's-2': 2, 's-3': 3, 's-5': 4, 's-6': 5 };
+  // 19/9-26: adgangskoden (s-2) er flyttet ind i appen, saa der er fem
+  // opgaver tilbage — og saa skal der vaere FEM prikker. En prik for et
+  // trin, der ikke findes, lover kunden en side mere, end hun faar.
+  const DOT_INDEX = { 's-0': 0, 's-0b': 0, 's-1': 1, 's-3': 2, 's-5': 3, 's-6': 4 };
 
   // Tilbage-pil: hvor hver side fører hen. Side 1 (s-0, firmanavnet) har intet
   // før sig, og på ✓-siderne (7-8) er der ikke længere valg at ændre — dér
   // skjules pilen.
   const BACK_TARGET = {
-    's-0b': 's-0', 's-1': 's-0', 's-2': 's-1', 's-3': 's-2', 's-5': 's-3', 's-6': 's-5',
+    's-0b': 's-0', 's-1': 's-0', 's-3': 's-1', 's-5': 's-3', 's-6': 's-5',
     's-8b': 's-8',
     // s-9, s-9c og s-10 saettes af opsaetInstallationstekster(): hvor pilen
     // foerer hen afhaenger af, hvilken gren kunden er i.
@@ -1846,7 +1833,7 @@
     if (!(id in DOT_INDEX)) { dots.classList.add('hidden'); return; }
     dots.classList.remove('hidden');
     const filled = DOT_INDEX[id];
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 5; i++) {
       document.getElementById('d' + i).classList.toggle('on', i <= filled);
     }
   }
@@ -2070,7 +2057,9 @@
       btnEl.classList.add('ok');
       await new Promise(r => setTimeout(r, 800));
       btnEl.classList.remove('ok');
-      goTo('s-2');
+      // 19/9-26: gik foer til s-2, adgangskoden. Det trin er flyttet ind i
+      // appen (D60 niveau 1) — koden vaelges nu dér, hvor den skal bruges.
+      goTo('s-3');
     } catch (e) {
       if (errEl) errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
       else alert('Noget gik galt. Tjek din forbindelse og prøv igen.');
@@ -2080,58 +2069,22 @@
     }
   }
 
-  // ── Side 2: adgangskode ────────────────────────────────────────────
-  function togglePw() {
-    const input = document.getElementById('pw-input');
-    const eye   = document.getElementById('pw-eye');
-    const show  = input.type === 'password';
-    input.type = show ? 'text' : 'password';
-    eye.textContent = show ? 'Skjul' : 'Vis';
-  }
-
-  async function savePassword() {
-    const pw    = document.getElementById('pw-input').value;
-    const errEl = document.getElementById('pw-error');
-    const field = document.getElementById('pw-field');
-    const label = document.getElementById('pw-label');
-    const spin  = document.getElementById('pw-spin');
-    errEl.textContent = '';
-    field.classList.remove('invalid');
-
-    if (pw.length < 8) {
-      field.classList.add('invalid');
-      errEl.textContent = 'Minimum 8 tegn.';
-      document.getElementById('pw-input').focus();
-      return;
-    }
-
-    label.textContent = 'Gemmer …';
-    spin.style.display = 'block';
-    try {
-      if (state.firmId) {
-        const { error } = await db.auth.updateUser({ password: pw });
-        // Samme kode som før (fx efter et hop tilbage) giver "skal være anderledes"
-        // fra Supabase — den er allerede sat, så vi går bare videre.
-        if (error && !/different|samme|same/i.test(error.message || '')) {
-          errEl.textContent = 'Kunne ikke gemme adgangskoden. Prøv igen.';
-          return;
-        }
-      }
-      // Kort ✓-bekræftelse, før vi glider videre
-      label.textContent = '✓';
-      spin.style.display = 'none';
-      const btnEl = label.closest('button');
-      btnEl.classList.add('ok');
-      await new Promise(r => setTimeout(r, 800));
-      btnEl.classList.remove('ok');
-      goTo('s-3');
-    } catch (e) {
-      errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
-    } finally {
-      label.textContent = 'Gem adgangskode';
-      spin.style.display = 'none';
-    }
-  }
+  // ── Side 2: adgangskode — FJERNET 19/9-26 (D60 niveau 1) ───────────
+  // Her laa kode-skaermens to funktioner. Kunden valgte sin adgangskode i
+  // Safari og skulle foerst bruge den, naar hun aabnede appen: to browsere,
+  // to lagringer, og et `autocomplete="new-password"`-felt, hvor iOS kan
+  // have gemt en kode i noeglering, som hun aldrig selv har set. Koden
+  // vaelges nu INDE I APPEN ved foerste aabning, hvor den skal bruges, paa
+  // samme runde som notifikations-tilladelsen. Se `dashboard.html`
+  // (#kode-vaelg) og `POST /api/firma/kode-valgt`.
+  //
+  // ⚠️ Konsekvens, skrevet ned med vilje: indtil niveau 3 er bygget, er
+  // ENGANGSKODEN i mailen den eneste vej ind i appen foerste gang. Det er
+  // forsvarligt, fordi D47 er maalt og lukket (mailen er fremme paa 1-2
+  // sekunder) — men det er en bevidst afvejning, ikke en bivirkning.
+  //
+  // `togglePwLogin()` laengere oppe er en ANDEN funktion: den hoerer til
+  // login-feltet paa adgangsskaermen og skal blive.
 
   // ── Side 3: stemme ─────────────────────────────────────────────────
   function selectVoice(gender, silent) {
