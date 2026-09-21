@@ -1044,14 +1044,16 @@
   async function login() {
     const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
+    loginKvittering = true;            // FOER kaldet — lytteren fyrer inde i det
     const { error } = await db.auth.signInWithPassword({ email, password });
     if (error) {
+      loginKvittering = false;
       document.getElementById('login-error').textContent = 'Forkert email eller adgangskode';
     } else {
       // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over.
       const btn = document.getElementById('login-btn');
       btn.textContent = '✓';
-      btn.style.background = 'var(--success)';
+      btn.style.background = 'var(--success, #2E7D52)';
       btn.disabled = true;
       document.getElementById('login-error').textContent = '';
     }
@@ -1147,20 +1149,6 @@
     status.textContent = kodeBestillinger > 1
       ? 'Vi har sendt en NY kode. Den forrige virker ikke længere — brug koden fra den nyeste mail.'
       : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
-    // Onboardingens ✓-rytme (19/9-26). Knappen er den eneste kvittering,
-    // kunden kan se med det samme — statuslinjen under den er lang, og paa en
-    // telefon staar den tit under tastaturet. Uden et svar PAA knappen ser
-    // trykket ud, som om det ikke skete, og saa trykker hun igen: en ny
-    // bestilling draeber den forrige kode, og saa er hun i Annes tre-koder-
-    // problem fra 13/9. Den groenne haek er altsaa ikke pynt her.
-    btn.textContent = '✓ Sendt';
-    btn.style.color = 'var(--success)';
-    setTimeout(() => {
-      btn.textContent  = original;
-      btn.style.color  = '';
-      btn.disabled     = false;
-    }, 1500);
-
     // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
     // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
     // E-mail-feltet BLIVER staaende: verifyOtp skal bruge det. Fortryder man,
@@ -1190,7 +1178,26 @@
     // konkurrere om den plads.
     gensend.classList.remove('link-btn');
     gensend.classList.add('btn');
-    gensend.textContent = 'Send mig en kode';
+
+    // Onboardingens ✓-rytme (19/9-26, rettet 21/9). Knappen er den eneste
+    // kvittering, kunden kan se med det samme — statuslinjen er lang, og paa
+    // en telefon staar den tit under tastaturet. Uden et svar PAA knappen ser
+    // trykket ud, som om det ikke skete, og saa trykker hun igen: en ny
+    // bestilling draeber den forrige kode, og saa er hun i Annes tre-koder-
+    // problem fra 13/9. Den groenne haek er altsaa ikke pynt.
+    //
+    // ⚠️ Den SKAL staa her, efter omdannelsen til knap — ikke hoejere oppe.
+    // 19/9 stod den foer, og linjen over overskrev teksten i samme oejeblik,
+    // saa kvitteringen aldrig naaede skaermen. Og timeren satte bagefter den
+    // gamle LINK-tekst tilbage paa det, der nu var en blaa knap.
+    gensend.textContent      = '✓ Sendt';
+    gensend.style.background = 'var(--success, #2E7D52)';
+    gensend.disabled         = true;
+    setTimeout(() => {
+      gensend.textContent      = 'Send mig en kode';
+      gensend.style.background = '';
+      gensend.disabled         = false;
+    }, 1500);
 
     document.getElementById('otp-code').focus();
   }
@@ -1223,15 +1230,17 @@
     const original = btn.textContent;
     btn.textContent = 'Logger ind…';
     try {
+      loginKvittering = true;          // FOER kaldet — lytteren fyrer inde i det
       const { error } = await db.auth.verifyOtp({ email, token: code, type: 'email' });
       if (error) {
+        loginKvittering = false;
         status.style.color = 'var(--danger)';
         status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
       } else {
         // Onboardingens ✓-rytme: kort groen kvittering, mens appen tager over
         // (onAuthStateChange skjuler login og loader dashboardet).
         btn.textContent = '✓';
-        btn.style.background = 'var(--success)';
+        btn.style.background = 'var(--success, #2E7D52)';
         status.textContent = '';
         return;   // ingen nulstilling — skaermen forsvinder om et oejeblik
       }
@@ -1253,18 +1262,41 @@
     document.getElementById('login-screen').style.display = 'flex';
   }
 
+  // ── Login-kvittering (21/9-26) ─────────────────────────────────────────
+  // Begge login-knapper satte en groen ✓ — men skaermen forsvandt i SAMME
+  // oejeblik, saa ingen nogensinde saa den. Supabase kalder denne lytter
+  // INDE i signInWithPassword/verifyOtp, foer kalderens await vender tilbage.
+  // Derfor saetter knappen flaget FOER kaldet, og lytteren venter 800 ms —
+  // samme rytme som onboardingens knapper — foer den gaar ind i appen.
+  //
+  // `var`, ikke `let`: lytteren kan fyre med det samme ved sideindlaesning
+  // (INITIAL_SESSION), og en `let` er utilgaengelig, indtil linjen er naaet.
+  // Samme faelde som PUSH_SPOERG_MAKS laengere nede.
+  var loginKvittering = false;
+
   db.auth.onAuthStateChange((event, session) => {
   if (session) {
-    document.getElementById('login-screen').style.display = 'none';
-    // App vises først når loadData har bekræftet onboarding er gennemført
-    loadData();
+    const gaaInd = () => {
+      document.getElementById('login-screen').style.display = 'none';
+      // App vises først når loadData har bekræftet onboarding er gennemført
+      loadData();
+      opdaterPushKnap();
+    };
+    // Kun naar en knap lige har logget ind. Aabner hun appen med en gemt
+    // session, er der ingen knap at kvittere paa, og saa skal hun ikke vente.
+    if (loginKvittering) {
+      loginKvittering = false;
+      setTimeout(gaaInd, 800);
+      return;
+    }
+    gaaInd();
+    return;
     // Push-tilladelsen bedes IKKE om her længere — et automatisk, asynkront
     // Notification-kald ved login var netop kilden til den hvide skærm på
     // mobil 13/7 (se primerens "Web-API'er skal guardes"), og selv med
     // guarden kan iOS's krav om en ægte brugerhandling gøre kaldet
     // virkningsløst. Tilladelsen bedes nu KUN om via et rigtigt klik —
-    // se skiftPushBeskeder() nedenfor.
-    opdaterPushKnap();
+    // se skiftPushBeskeder() nedenfor. (opdaterPushKnap() kaldes nu i gaaInd.)
     // 9/9-26: det rigtige klik TILBYDES paa en skærm for sig, hvis telefonen
     // aldrig er blevet spurgt. slaaPushTil() gemmer abonnementet med et
     // Bearer-token, så der SKAL være en session, før der kan spørges.
@@ -2633,7 +2665,7 @@ async function gemFoersteKode() {
     // Samme ✓-rytme som de to login-knapper: kvitteringen hoerer til PAA
     // knappen, ikke i en linje under den.
     gem.textContent = '✓';
-    gem.style.background = 'var(--success)';
+    gem.style.background = 'var(--success, #2E7D52)';
     // Kvitteringen skal nå at blive læst, før skærmen forsvinder — og FØRST
     // dér spørges om beskeder. Hun har nu en vej ind, der ikke afhænger af
     // en mail; så kan vi bede om noget.
@@ -2685,7 +2717,14 @@ function maaskeSpoergOmBeskeder() {
       // Kvitteringen skal nå at blive læst, før skærmen forsvinder. Gik det
       // galt, bliver skærmen stående med beskeden — så kan kunden prøve igen
       // eller vælge "Ikke nu".
-      if (ok) setTimeout(() => { skaerm.style.display = 'none'; }, 1400);
+      if (ok) {
+        // Samme ✓-rytme som resten (21/9-26). Knappen slukkes ogsaa: tilladelsen
+        // er givet, og et tryk mere ville bare tegne abonnementet forfra.
+        ja.textContent      = '✓';
+        ja.style.background = 'var(--success, #2E7D52)';
+        ja.disabled         = true;
+        setTimeout(() => { skaerm.style.display = 'none'; }, 1400);
+      }
     };
     nej.onclick = () => { skaerm.style.display = 'none'; };
 
