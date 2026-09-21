@@ -541,7 +541,7 @@ tabel at sammenligne. De syv filer og facit-listerne er dermed ikke testmaterial
 
 ## 7. Det, der stadig ikke er afgjort
 
-- **Bundgrænsen er ikke formelt sat.** Dette dokument er et forslag, ikke en beslutning.
+- ~~**Bundgrænsen er ikke formelt sat.**~~ **Godkendt af Ann og Anne 19/9.** Se afsnit 8.
 - **Sættet har kun Anns stemme.** Det kan afgøre, hvilken model der er bedst, men ikke
   om kvaliteten er god nok til en fremmed bruger. Lukkes med to-tre andre stemmer.
 - **`llama-3.3-70b-instruct` er ikke målt** som alternativ referatmodel.
@@ -567,9 +567,9 @@ tabel at sammenligne. De syv filer og facit-listerne er dermed ikke testmaterial
 
 ## 8. Beslutningen
 
-Alt ovenstående er målt. Det eneste, der mangler, er et ja eller et nej.
+Alt ovenstående er målt. **Der er sagt ja.**
 
-> **Bundgrænse for Fase 1 — forslag til godkendelse**
+> **Bundgrænse for Fase 1 — ✅ GODKENDT AF ANN OG ANNE 19/9-2026**
 >
 > Et referat må vises til en pilotkunde, når:
 >
@@ -588,14 +588,36 @@ Alt ovenstående er målt. Det eneste, der mangler, er et ja eller et nej.
 > terminologien være rigtig — eller et ord fra referatet må aldrig automatisk blive
 > til en tilbudslinje (afsnit 5).
 
-**Godkendt af Ann:** _____________  **dato:** _____________
+**Godkendt af Ann og Anne — 19. september 2026.**
 
-**Siges der ja, er undersøgelsessporet lukket.** Næste skridt er Spike 0 —
-mikrofonen i den installerede PWA på en rigtig iPhone — og derefter `TILBUD_AKTIV`
-og det første endpoint.
+**Hvad godkendelsen ikke dækker.** Skrevet ned her, så ingen senere læser den som et
+kvalitetsmål, den ikke er:
 
-**Siges der nej, ved vi præcis hvad der skal ske først:** ordlisten ved
-transskriptionen, eller Hviske igen, når syv.ai har svaret.
+- **"Korrekte" og "genkendelige" er bedømt af et menneske.** Ann har læst syv referater
+  igennem. Det er en rimelig fremgangsmåde, men der findes ingen automatisk prøve, der
+  bagefter kan sige "dette referat er under grænsen".
+- **"100 %" er syv optagelser i én stemme** — Anns egen. Det er ikke et statistisk tal,
+  det er "der blev ikke fundet fejl i de syv". Sættets hul står i afsnit 9, og den
+  billigste ægte håndværkerstemme er pilotkunden selv.
+- **Kriterium 4 har ingen øvre grænse.** Et referat kan som formuleret være fuldt af
+  forkerte fagtermer og stadig opfylde bundgrænsen. Det er et bevidst valg — han læser
+  sin egen note — og der er ikke opfundet et tal, vi ikke har målt.
+
+**Undersøgelsessporet er dermed lukket.** Det løb fra 28/8, hvor manglen på kriterier
+blev påpeget, til 19/9.
+
+**Næste skridt, i rækkefølge:**
+
+1. **Spike 0** — mikrofonen i den installerede PWA på en rigtig iPhone. Den er billig og
+   den er først, fordi hele Fase 1 falder, hvis optagelse i en hjemmeskærms-app ikke
+   virker.
+2. **Teknik B** — den maskinelle markering. **Release-blokerende.** Uden den er
+   bundgrænsen ikke opfyldt.
+3. `TILBUD_AKTIV` og `/api/tilbud/referat` — efter ASR-adapteren i `docs/asr-adapter.md`.
+
+**Det, der ikke længere står i vejen:** ordliste ved transskriptionen og Hviske hører
+begge til J9's re-trigger, ikke til Fase 1. De venter på syv.ais svar om det tabte
+indhold og blokerer ingenting.
 
 ---
 
