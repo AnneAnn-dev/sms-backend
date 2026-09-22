@@ -467,7 +467,7 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const { data: firms } = await supabase
       .from('firms')
-      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status, app_bekraeftet_at, app_valgt_fra_at')
+      .select('id, name, sms_navn, navn_er_gaettet, phone_number, owner_phone, voice_gender, greeting_text, status, verification_status, app_bekraeftet_at, app_valgt_fra_at, kode_valgt_at')
       .in('id', firmIds);
 
     // Vælg ét firma robust: foretræk det, der er under onboarding (det brugeren
@@ -728,6 +728,49 @@ module.exports = function registerOnboarding(app, supabase) {
     // kode, der i forvejen haandterer velkomstlinket. Vi opfinder ikke en
     // ny loginvej; vi giver den eksisterende et nyt startpunkt.
     res.json({ token_hash: tokenHash, type: "email" });
+  });
+
+  // ─── API: Kunden har valgt sin adgangskode (19/9-26, D60 niveau 1) ──────
+  //
+  // Selve koden saettes i browseren med db.auth.updateUser({ password }).
+  // Den gaar ALDRIG gennem dette endpoint, og serveren ser den aldrig — det
+  // her er kun et flueben, saa appen ved, om den skal spoerge igen.
+  //
+  // HVORFOR SERVEREN: kunden vaelger nu sin kode INDE I APPEN, og appen er
+  // en anden browser end den, hun kom fra. Et flag i localStorage ville doe
+  // paa vejen — praecis den faelde, app-status blev bygget for at komme ud
+  // af 13/9. Serveren er det eneste, de to browsere deler.
+  //
+  // Idempotent: foerste skrivning vinder. Skifter hun kode igen senere paa
+  // profilsiden, skal tidsstemplet blive staaende paa den dag, hun valgte
+  // den foerste — ellers kan man ikke bagefter se, hvornaar hun kom i gang.
+  app.post('/api/firma/kode-valgt', async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { data: firm, error: hentErr } = await supabase
+      .from('firms')
+      .select('kode_valgt_at')
+      .eq('id', firm_id)
+      .single();
+
+    if (hentErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    // Allerede sat: intet at goere, og det er ikke en fejl.
+    if (firm.kode_valgt_at) return res.json({ ok: true, uaendret: true });
+
+    const { error } = await supabase
+      .from('firms')
+      .update({ kode_valgt_at: new Date().toISOString() })
+      .eq('id', firm_id);
+
+    if (error) {
+      console.error('❌ kode-valgt:', error.message);
+      return res.status(500).json({ error: 'Kunne ikke gemme' });
+    }
+
+    console.log('🔐 Adgangskode valgt i appen for firma:', firm_id);
+    res.json({ ok: true });
   });
 
   // ─── API: Gem håndværkerens eget mobilnummer ────────────────────────────

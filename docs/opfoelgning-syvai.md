@@ -45,6 +45,21 @@ Tre praktiske spørgsmål, hvis svaret er "ja, det er kendt":
 3. Vil I have vores materiale? Syv lydfiler, begge sæt transskriptioner, den fulde
    `verbose_json` og facitlister pr. optagelse. I må frit bruge det.
 
+## Et mere konkret tal, siden sidst
+
+Jeg har siden stillet jeres og whispers segmenter op mod hinanden i tid, ord for ord. Det
+giver tabet som et antal i stedet for en procentdel:
+
+**På syv optagelser à 2½ minut er der 10 steder, hvor whisper har ord, og Hviske intet
+har — og 30 vinduer, hvor jeres tekst er så tynd i forhold til jeres egen median, at de
+ikke kan bruges til sammenligning overhovedet.**
+
+Det er ikke stilforskel eller komprimering. Det er de steder, hvor indholdet er væk.
+
+Til sammenligning ramte I 11 ud af 12 fagtermer rigtigt, hvor whisper fejlede. **Det er
+derfor, jeg bliver ved med at spørge:** I er bedre end whisper på det, der er svært, og
+det er det tabte indhold, der står i vejen — ikke kvaliteten af det, der kommer igennem.
+
 Hvis svaret er, at det ikke er kendt, siger I bare til — så laver jeg et minimalt
 eksempel med én fil og de præcise tidsstempler, så det er til at reproducere.
 
