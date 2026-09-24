@@ -1,27 +1,26 @@
-name: CI
-
 # S11 - forsyningskaede.
 #
 # Formaalet er ET tjek, der kun kan blive roedt af en aegte grund. Moderate og
 # lavere rapporteres, men blokerer ikke - et tjek der er roedt hele tiden laerer
-# én at ignorere roedt (samme laerdom som noeglescanningen 19/8).
+# en at ignorere roedt (samme laerdom som noeglescanningen 19/8).
 #
-# ⚠ GRAENSEN ER SAT TIL "critical", IKKE "high" - og det er et BEVIDST VALG
-#   truffet 27/8-26, ikke en standardvaerdi.
+# OBS: GRAENSEN ER SAT TIL "high" - og det er et BEVIDST VALG, ikke en
+#   standardvaerdi.
 #
-#   Ét high og ét moderate staar tilbage, begge fra @opentelemetry/core <2.8.0
-#   inde i @appsignal/nodejs. AppSignal 3.8.1 er stadig nyeste version
-#   (efterproevet 7/9-26) og indeholder ikke rettelsen. npm's egen "fix"
-#   ville NEDGRADERE AppSignal til 3.4.2.
+#   HISTORIK: graensen stod paa "critical" fra 27/8-26 til 24/9-26. Aarsagen
+#   var S22: fund i @opentelemetry/core <2.8.0 inde i @appsignal/nodejs 3.8.1,
+#   hvor npm's egen "fix" ville NEDGRADERE AppSignal til 3.4.2.
 #
-#   DET ER DET MODERATE FUND, DER KAN NAAS - ikke det hoeje. Se listen i
-#   trinnet "Kendte, accepterede fund" nedenfor.
-#   Se S22 i RISIKOREGISTER.md for vurdering og re-trigger.
+#   S22 ER LUKKET 24/9-26. AppSignal 3.9.1 (PR #62) bruger otel-core 2.10.0,
+#   og de to fund er dermed ude af traeet. Det var praecis den re-trigger,
+#   undtagelsen var skrevet til at vente paa. Listen over accepterede fund er
+#   derfor fjernet - der er ingen tilbage. "npm audit --omit=dev" gav 0 fund
+#   paa PR #62's laasefil.
 #
-#   PRISEN VED DET VALG: et NYT high-fund vil ikke blokere. Derfor skal
-#   "Fuld rapport"-trinnet nedenfor LAESES, ikke bare koeres. Naar AppSignal
-#   udgiver rettelsen, saettes graensen tilbage til "high" - det er selve
-#   re-triggeren.
+#   HVIS EN NY UNDTAGELSE BLIVER NOEDVENDIG: saenk ikke graensen i stilhed.
+#   Skriv fundet ind i RISIKOREGISTER.md med en re-trigger og en dato, og
+#   genindfoer trinnet "Kendte, accepterede fund", saa undtagelsen staar i
+#   hver eneste koersel i stedet for kun i denne kommentar.
 
 on:
   push:
@@ -45,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       # Node-versionen laeses af "engines" i package.json - samme felt som
-      # Railpack bruger til at vaelge Node paa Railway. Ét tal, to forbrugere,
+      # Railpack bruger til at vaelge Node paa Railway. Et tal, to forbrugere,
       # ingen dublet (AA2).
       - name: Node - samme version som produktion
         uses: actions/setup-node@v4
@@ -62,43 +61,40 @@ jobs:
       - name: Installer praecis det, laasefilen siger
         run: npm ci --omit=dev
 
-      # Staar i hver eneste koersel, saa undtagelsen ikke bliver usynlig.
-      # Listen er sidst efterproevet 7/9-26. @opentelemetry/sdk-node stod her
-      # indtil da; den er lukket hos Dependabot og fjernet herfra samme dag.
-      - name: Kendte, accepterede fund
-        run: |
-          echo "ACCEPTERET 27/8-26, EFTERPROEVET 7/9-26 (S22) - blokerer bevidst ikke."
-          echo "Rod: @opentelemetry/core <2.8.0, inde i @appsignal/nodejs 3.8.1."
-          echo ""
-          echo "  @opentelemetry/core  moderate  CVE-2026-54285"
-          echo "    DEN ENESTE, DER KAN NAAS. W3C baggage er standardpropagator,"
-          echo "    saa headeren parses paa vej ind i HVER forespoergsel - foer"
-          echo "    Twilio-signaturtjekket. Uafklaret: at extract() rent faktisk"
-          echo "    kaldes, er udledt af advisory og pakketrae, ikke aflaest paa"
-          echo "    en koerende proces."
-          echo ""
-          echo "  @opentelemetry/propagator-jaeger  high  CVE-2026-59892"
-          echo "    IKKE naaelig. Kraever OTEL_PROPAGATORS=jaeger eller et"
-          echo "    setGlobalPropagator-kald. Maalt 7/9: ingen OTEL_* i prods"
-          echo "    miljoe, ingen propagator i appsignal.cjs paa origin/main."
-          echo ""
-          echo "  ALVORSGRADEN ER EN EGENSKAB VED PAKKEN, IKKE VED INSTALLATIONEN."
-          echo "  Den hoeje er den ufarlige her. Laes stien, ikke farven."
-          echo ""
-          echo "  RE-TRIGGER 1: naar AppSignal udgiver en version paa otel-core"
-          echo "                >=2.8.0, saettes --audit-level tilbage til high"
-          echo "                i denne fil."
-          echo "  RE-TRIGGER 2: foerste betalende kunde ELLER 2026-10-05,"
-          echo "                hvad der kommer foerst - derefter maanedligt."
-          echo "                Datoen findes, fordi en betingelse uden dato"
-          echo "                aldrig fyrer af sig selv."
-
       # BLOKERENDE. Se graense-noten oeverst.
       - name: Sikkerhedsgennemgang (blokerende)
-        run: npm audit --omit=dev --audit-level=critical
+        run: npm audit --omit=dev --audit-level=high
 
-      # IKKE-BLOKERENDE, men SKAL laeses: her dukker et nyt high op, som
-      # graensen ovenfor bevidst lader passere.
+      # IKKE-BLOKERENDE, men SKAL laeses: her dukker moderate og lavere op,
+      # som graensen ovenfor bevidst lader passere.
       - name: Fuld rapport (blokerer aldrig - men laes den)
         if: always()
         run: npm audit --omit=dev || true
+
+  # SPIKE-VAGT (21/9-26, Spike 0).
+  #
+  # Testsider til spikes (static/spike*, tilbud/spike*) maa ligge paa staging,
+  # men ALDRIG naa main. Dette job fejler en PR mod main, hvis bare en af dem
+  # stadig findes i resultatet af merget. Paa PR mod staging og ved push
+  # springes den over (vises som "skipped", som taeller som groen).
+  #
+  # ENDNU IKKE SAT SOM PAAKRAEVET TJEK i main's ruleset (24/9-26). Indtil det
+  # sker, er roedt kun en advarsel, og en PR med spike-filer kan merges alligevel.
+  spike-vagt:
+    name: Ingen spike-filer i main
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v4
+
+      - name: Afvis spike-filer
+        run: |
+          fund=$(git ls-files 'static/spike*' 'tilbud/spike*')
+          if [ -n "$fund" ]; then
+            echo "STOP: spike-filer maa ikke med til main:"
+            echo "$fund"
+            echo "Slet dem paa staging foerst, og opdater PR'en."
+            exit 1
+          fi
+          echo "OK: ingen spike-filer."
