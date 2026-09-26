@@ -66,6 +66,7 @@
     this._afbrudt = false;
     this._afbrudtAarsag = "";
     this._wakeLock = null;
+    this._paaSynlighed = null;
     this._loefte = null;
   };
 
@@ -125,6 +126,17 @@
       mig._log("start", "optagelse startet");
 
       mig._tagWakeLock();      // VÆRN 2 — må aldrig kunne vælte optagelsen
+
+      // iOS SLIPPER wake lock, hver gang siden skjules, og giver den ikke
+      // tilbage af sig selv. Målt 26/9: efter ét app-skift kørte resten af
+      // optagelsen uden beskyttelse mod skærmlås. Derfor tages den igen,
+      // hver gang vi er fremme.
+      mig._paaSynlighed = function () {
+        if (document.visibilityState === "visible" && mig.tilstand === "optager" && !mig._wakeLock) {
+          mig._tagWakeLock();
+        }
+      };
+      document.addEventListener("visibilitychange", mig._paaSynlighed);
       return true;
     });
   };
@@ -156,7 +168,10 @@
     navigator.wakeLock.request("screen").then(function (l) {
       mig._wakeLock = l;
       mig._log("wakelock", "skærmen holdes tændt");
-      l.addEventListener("release", function () { mig._log("wakelock", "sluppet"); });
+      l.addEventListener("release", function () {
+        mig._glemWakeLock();
+        mig._log("wakelock", "sluppet" + (mig.tilstand === "optager" ? " — tages igen, naar appen er fremme" : ""));
+      });
     }).catch(function (e) {
       // Fail-open: en manglende wake lock er ikke en grund til at afvise en
       // optagelse. Den gør bare den hyppigste årsag mere sandsynlig.
@@ -170,7 +185,16 @@
     this._wakeLock = null;
   };
 
+  // Wake lock'en kan slippes af systemet uden at vi beder om det. Feltet skal
+  // derfor nulstilles, naar det sker — ellers tror vi, vi stadig har den, og
+  // tager den aldrig igen.
+  Optager.prototype._glemWakeLock = function () { this._wakeLock = null; };
+
   Optager.prototype._ryd = function () {
+    if (this._paaSynlighed) {
+      document.removeEventListener("visibilitychange", this._paaSynlighed);
+      this._paaSynlighed = null;
+    }
     if (this._strom) {
       this._strom.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
       this._strom = null;

@@ -46,6 +46,8 @@
 <h1>Prøv optageren</h1>
 <div class="mut">Prøvebænk for <code>optager.js</code>. Intet sendes over nettet.</div>
 
+<div id="advarsel"></div>
+
 <div class="kort">
   <h2>Tilstand</h2>
   <div class="fakta" id="tilstand"></div>
@@ -99,6 +101,19 @@
     ["Grænse", "2 sek. eller 2 % — det mindste"],
     ["Browser", navigator.userAgent]
   ]);
+  // Maalt 26/9: i Safari tager iOS IKKE mikrofonen, naar man skifter app.
+  // Det goer den i den installerede app. En proeve koert i Safari beviser
+  // derfor intet om vaern 1 — og det skal man ikke kunne overse.
+  if (!standalone) {
+    var adv = document.getElementById("advarsel");
+    adv.className = "kort";
+    adv.style.background = "#FBE9E7";
+    adv.style.color = "#B42318";
+    adv.style.fontWeight = "600";
+    adv.textContent = "Du kører i Safari, ikke i den installerede app. " +
+      "Forsøg 1, 2 og 5 gælder. Forsøg 3 og 4 (app-skift og skærmlås) tæller IKKE — " +
+      "i Safari beholder iOS mikrofonen. Læg siden på hjemmeskærmen først.";
+  }
   log("SIDE ÅBNET. standalone=" + standalone);
   log("UA: " + navigator.userAgent);
 
