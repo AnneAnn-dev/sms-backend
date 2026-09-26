@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Prøv optageren</title>
+<link rel="manifest" href="/spike-optager-manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Optager">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  /* Prøvebænk for optager-modulet. Kun staging. Slettes eller flyttes til
+     tilbud/, når routes/tilbud findes. Siden sender intet over nettet. */
+  :root { --bg:#F4F7FA; --fg:#1A2530; --mut:#5A6B7B; --kort:#fff; --rod:#B42318; --blaa:#1A3A5C; --gron:#1E7B45; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.4 -apple-system, system-ui, sans-serif;
+         padding:max(16px, env(safe-area-inset-top)) 16px 40px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .mut { color:var(--mut); font-size:14px; }
+  .kort { background:var(--kort); border-radius:12px; padding:14px; margin:12px 0;
+          box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  button { font:inherit; font-weight:600; border:0; border-radius:10px; padding:14px;
+           width:100%; margin:6px 0; background:var(--blaa); color:#fff; }
+  button:disabled { opacity:.4; }
+  button.rod { background:var(--rod); }
+  button.lys { background:#E4EAF0; color:var(--fg); }
+  .ur { font:700 40px/1 ui-monospace, Menlo, monospace; text-align:center; margin:8px 0; }
+  .fakta { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:14px; }
+  .fakta b { font-weight:600; }
+  .fakta span { word-break:break-all; }
+  .dom { border-radius:10px; padding:12px; margin-top:10px; font-weight:600; }
+  .dom.ja { background:#E7F4EC; color:var(--gron); }
+  .dom.nej { background:#FBE9E7; color:var(--rod); }
+  #log { font:12px/1.35 ui-monospace, Menlo, monospace; white-space:pre-wrap;
+         max-height:260px; overflow:auto; background:#0F1720; color:#D6E2EE;
+         padding:10px; border-radius:8px; }
+  audio { width:100%; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<h1>Prøv optageren</h1>
+<div class="mut">Prøvebænk for <code>optager.js</code>. Intet sendes over nettet.</div>
+
+<div class="kort">
+  <h2>Tilstand</h2>
+  <div class="fakta" id="tilstand"></div>
+</div>
+
+<div class="kort">
+  <h2>Optag</h2>
+  <div class="ur" id="ur">0:00</div>
+  <div class="mut" id="besked" style="text-align:center">Klar</div>
+  <button id="start">Start</button>
+  <button id="stop" class="rod" disabled>Stop</button>
+  <div id="resultat"></div>
+</div>
+
+<div class="kort">
+  <h2>Logbog</h2>
+  <button class="lys" id="kopier">Kopier logbog</button>
+  <div id="log"></div>
+</div>
+
+<script src="/spike-optager.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var linjer = [], logEl = document.getElementById("log");
+  function tid() {
+    var d = new Date();
+    function p(n, l) { n = String(n); while (n.length < (l || 2)) n = "0" + n; return n; }
+    return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + p(d.getMilliseconds(), 3);
+  }
+  function log(t) {
+    linjer.push(tid() + "  " + t);
+    logEl.textContent = linjer.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function fakta(el, par) {
+    el.innerHTML = "";
+    par.forEach(function (p) {
+      var b = document.createElement("b"); b.textContent = p[0];
+      var s = document.createElement("span"); s.textContent = p[1];
+      el.appendChild(b); el.appendChild(s);
+    });
+  }
+
+  var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+                   window.navigator.standalone === true;
+  fakta(document.getElementById("tilstand"), [
+    ["Hjemmeskærm", standalone ? "JA (installeret app)" : "NEJ (åbnet i Safari)"],
+    ["Wake Lock", (navigator.wakeLock && navigator.wakeLock.request) ? "findes" : "MANGLER"],
+    ["Grænse", "2 sek. eller 2 % — det mindste"],
+    ["Browser", navigator.userAgent]
+  ]);
+  log("SIDE ÅBNET. standalone=" + standalone);
+  log("UA: " + navigator.userAgent);
+
+  document.addEventListener("visibilitychange", function () { log("SYNLIGHED: " + document.visibilityState); });
+
+  var btnStart = document.getElementById("start");
+  var btnStop  = document.getElementById("stop");
+  var urEl     = document.getElementById("ur");
+  var beskedEl = document.getElementById("besked");
+  var resEl    = document.getElementById("resultat");
+  var urTimer  = null, t0 = 0;
+
+  var optager = new Optager({
+    paaHaendelse: function (h) { log("[" + h.type + "] " + h.tekst); },
+    // Sådan vil Referat-fanen bruge den: én funktion, der viser beskeden.
+    paaAfbrydelse: function (aarsag) {
+      beskedEl.textContent = "AFBRUDT: " + aarsag;
+      beskedEl.className = "";
+      beskedEl.style.color = "#B42318";
+      beskedEl.style.fontWeight = "600";
+    }
+  });
+
+  function mmss(s) { s = Math.round(s); return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60); }
+
+  btnStart.onclick = function () {
+    resEl.innerHTML = "";
+    beskedEl.textContent = "Optager ...";
+    beskedEl.style.color = ""; beskedEl.style.fontWeight = "";
+    optager.start().then(function () {
+      btnStart.disabled = true; btnStop.disabled = false;
+      t0 = Date.now();
+      urTimer = setInterval(function () { urEl.textContent = mmss((Date.now() - t0) / 1000); }, 250);
+    }).catch(function (e) {
+      log("START FEJLEDE: " + (e.kode || e.name) + " — " + e.message);
+      beskedEl.textContent = "Kunne ikke starte: " + e.message;
+    });
+  };
+
+  btnStop.onclick = function () { if (!btnStop.disabled) afslut(); };
+
+  // Modulet stopper også selv ved afbrydelse. Derfor spørger vi på uret,
+  // om den er holdt op, i stedet for at antage at brugeren trykkede.
+  setInterval(function () {
+    if (!btnStop.disabled && optager.tilstand !== "optager") afslut();
+  }, 400);
+
+  function afslut() {
+    btnStop.disabled = true;
+    clearInterval(urTimer);
+    var loefte = (optager.tilstand === "optager") ? optager.stop() : optager.stop().catch(function () { return null; });
+    loefte.then(vis).catch(function (e) { log("STOP FEJLEDE: " + e.message); btnStart.disabled = false; });
+  }
+
+  function vis(r) {
+    btnStart.disabled = false;
+    if (!r) return;
+    var boks = document.createElement("div");
+    boks.className = "fakta"; boks.style.marginTop = "10px";
+    resEl.appendChild(boks);
+    fakta(boks, [
+      ["Fil", r.filnavn],
+      ["Format", r.mimeType || "(tom)"],
+      ["Størrelse", Math.round(r.bytes / 1024) + " KB"],
+      ["Vægur", r.vaegurSek + " s"],
+      ["Lydlængde", r.varighedSek === null ? "kunne ikke måles" : r.varighedSek + " s"],
+      ["Tab", r.tabSek === null ? "—" : r.tabSek + " s"],
+      ["Grænse", r.graenseSek + " s"]
+    ]);
+
+    var dom = document.createElement("div");
+    dom.className = "dom " + (r.ok ? "ja" : "nej");
+    dom.textContent = r.ok ? "GODKENDT — filen må sendes til referat"
+                           : "AFVIST (" + r.aarsag + ") — " + r.forklaring;
+    resEl.appendChild(dom);
+    beskedEl.textContent = r.ok ? "Færdig" : "Afvist";
+
+    if (r.bytes > 0) {
+      var lyd = document.createElement("audio");
+      lyd.controls = true; lyd.src = URL.createObjectURL(r.blob);
+      resEl.appendChild(lyd);
+    }
+  }
+
+  document.getElementById("kopier").onclick = function () {
+    var t = linjer.join("\n");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { log("logbog kopieret"); }).catch(vaelg);
+    } else { vaelg(); }
+    function vaelg() {
+      var r = document.createRange(); r.selectNodeContents(logEl);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      log("markér og kopiér selv");
+    }
+  };
+})();
+</script>
+</body>
+</html>
