@@ -34,6 +34,11 @@
                           det, der blev sagt, er en hel tanke og godt nok i sig selv.
      - `afbrudt_med_tab`  der mangler lyd INDE i optagelsen. Intet at spoerge om.
 
+   FLERE DELE: en afbrudt diktering fortsaettes med `fortsaet()`. Delene ligger
+   i `optager.dele`, og `optager.samlet()` giver det samlede billede — hvilke
+   dele der kan bruges, hvilke der er kasseret, og den samlede lydlaengde, som
+   kvoten skal regne paa.
+
    Lyd persisteres ikke. Modulet giver blobben videre og holder intet selv.
    ─────────────────────────────────────────────────────────────────────────── */
 
@@ -56,6 +61,7 @@
     this.paaAfbrydelse = typeof valg.paaAfbrydelse === "function" ? valg.paaAfbrydelse : function () {};
 
     this.tilstand = "klar";   // klar · optager · stopper · faerdig
+    this.dele = [];           // en diktering kan bestaa af flere dele, se nedenfor
     this._nulstil();
   }
 
@@ -87,8 +93,32 @@
     return Math.min(this.maxTabSek, pct);
   };
 
-  /* ── Start ────────────────────────────────────────────────────────────── */
+  /* ── Start og fortsaet ────────────────────────────────────────────────────
+
+     EN DIKTERING KAN BESTAA AF FLERE DELE. Naar iOS har lukket sporet, kan den
+     samme optagelse ikke genoptages, og to MP4-filer kan ikke limes sammen uden
+     omkodning paa serveren (ffmpeg — den afhaengighed slap vi netop for, se
+     RESULTAT-05). Derfor: hver afbrydelse afslutter en DEL, og `fortsaet()`
+     starter den naeste.
+
+     Det koster ikke mere. Scaleway afregner pr. lydminut, ikke pr. kald, saa tre
+     dele a ét minut koster som ét stykke paa tre. Hver del transskriberes for
+     sig, og teksterne saettes sammen i raekkefoelge, FOER referatmodellen ser
+     dem — den ved ikke, at det kom i bidder.
+
+     `start()` begynder forfra. `fortsaet()` beholder de dele, der allerede er.
+     ─────────────────────────────────────────────────────────────────────────── */
   Optager.prototype.start = function () {
+    this.dele = [];
+    return this._begynd();
+  };
+
+  Optager.prototype.fortsaet = function () {
+    if (this.tilstand === "optager") return Promise.reject(new Error("optager allerede"));
+    return this._begynd();
+  };
+
+  Optager.prototype._begynd = function () {
     var mig = this;
     if (mig.tilstand === "optager") return Promise.reject(new Error("optager allerede"));
     mig._nulstil();
@@ -221,12 +251,12 @@
       mig._rec.onstop = function () {
         mig._ryd();
         mig.tilstand = "faerdig";
-        ok(mig._vurder(vaegurSek));
+        ok(mig._vurder(vaegurSek).then(function (svar) { return mig._gemDel(svar); }));
       };
       try { mig._rec.stop(); } catch (e) {
         mig._ryd();
         mig.tilstand = "faerdig";
-        ok(mig._vurder(vaegurSek));
+        ok(mig._vurder(vaegurSek).then(function (svar) { return mig._gemDel(svar); }));
       }
     });
     return mig._loefte;
@@ -316,6 +346,31 @@
       mig._log("afvist", svar.forklaring);
       return svar;
     });
+  };
+
+  /* ── Delene ───────────────────────────────────────────────────────────── */
+  Optager.prototype._gemDel = function (svar) {
+    svar.del = this.dele.length + 1;
+    this.dele.push(svar);
+    svar.samlet = this.samlet();
+    return svar;
+  };
+
+  // En del er brugbar, hvis den er godkendt, eller hvis den blev stoppet med
+  // lyden hel. En del med tab INDE i sig kasseres — vi ved ikke, hvad der
+  // forsvandt, og resten af dikteringen er stadig god.
+  Optager.prototype.samlet = function () {
+    var brugbare = this.dele.filter(function (d) { return d.ok || d.kanBruges; });
+    var kasserede = this.dele.filter(function (d) { return !d.ok && !d.kanBruges; });
+    var sek = 0;
+    brugbare.forEach(function (d) { sek += (d.varighedSek || 0); });
+    return {
+      antalDele: this.dele.length,
+      brugbare: brugbare,
+      kasserede: kasserede,
+      antalKasserede: kasserede.length,
+      samletVarighedSek: Math.round(sek * 10) / 10   // grundlaget for kvoten
+    };
   };
 
   /* ── Hjælpere ─────────────────────────────────────────────────────────── */

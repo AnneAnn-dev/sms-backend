@@ -143,11 +143,11 @@
 
   function mmss(s) { s = Math.round(s); return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60); }
 
-  btnStart.onclick = function () {
+  function igangsaet(loefte, tekst) {
     resEl.innerHTML = "";
-    beskedEl.textContent = "Optager ...";
+    beskedEl.textContent = tekst;
     beskedEl.style.color = ""; beskedEl.style.fontWeight = "";
-    optager.start().then(function () {
+    loefte.then(function () {
       btnStart.disabled = true; btnStop.disabled = false;
       t0 = Date.now();
       urTimer = setInterval(function () { urEl.textContent = mmss((Date.now() - t0) / 1000); }, 250);
@@ -155,6 +155,11 @@
       log("START FEJLEDE: " + (e.kode || e.name) + " — " + e.message);
       beskedEl.textContent = "Kunne ikke starte: " + e.message;
     });
+  }
+
+  btnStart.onclick = function () {
+    btnStart.textContent = "Start forfra";
+    igangsaet(optager.start(), "Optager ...");
   };
 
   btnStop.onclick = function () { if (!btnStop.disabled) afslut(); };
@@ -195,16 +200,46 @@
     resEl.appendChild(dom);
     beskedEl.textContent = r.ok ? "Færdig" : (r.kanBruges ? "Stoppet" : "Afvist");
 
-    // Saadan vil fanen spoerge. Her kun for at se, at valget tilbydes i
-    // netop de tilfaelde, hvor lyden er hel — og aldrig i de andre.
+    // Delene. En diktering kan bestaa af flere — se kommentaren i modulet.
+    var samlet = r.samlet;
+    if (samlet && samlet.antalDele > 1) {
+      var liste = document.createElement("div");
+      liste.className = "fakta"; liste.style.marginTop = "10px";
+      var raekker = [];
+      optager.dele.forEach(function (d, i) {
+        raekker.push(["Del " + (i + 1),
+          (d.ok ? "godkendt" : (d.kanBruges ? "stoppet, lyden hel" : "KASSERET — " + d.aarsag)) +
+          " · " + d.varighedSek + " s"]);
+      });
+      raekker.push(["I alt", samlet.samletVarighedSek + " s i " + samlet.brugbare.length + " brugbare dele" +
+                            (samlet.antalKasserede ? " (" + samlet.antalKasserede + " kasseret)" : "")]);
+      fakta(liste, raekker);
+      resEl.appendChild(liste);
+    }
+
+    // Saadan vil fanen spoerge. Fortsaet foerst: det er dét, haandvaerkeren
+    // oftest vil — han blev afbrudt og har mere at sige.
     if (!r.ok && r.kanBruges) {
-      var spoerg = document.createElement("button");
-      spoerg.textContent = "Lav referat af de " + r.varighedSek + " sekunder alligevel";
-      spoerg.onclick = function () {
-        log("[valg] brugeren bruger den afbrudte optagelse (" + r.varighedSek + " s)");
-        spoerg.disabled = true;
+      var fortsaet = document.createElement("button");
+      fortsaet.textContent = "Fortsæt dikteringen";
+      fortsaet.onclick = function () {
+        log("[valg] fortsætter som del " + (optager.dele.length + 1));
+        igangsaet(optager.fortsaet(), "Optager del " + (optager.dele.length + 1) + " ...");
       };
-      resEl.appendChild(spoerg);
+      resEl.appendChild(fortsaet);
+    }
+
+    if (samlet && samlet.brugbare.length > 0) {
+      var faerdig = document.createElement("button");
+      faerdig.className = "lys";
+      faerdig.textContent = "Lav referat af " + samlet.samletVarighedSek + " sekunder" +
+                            (samlet.brugbare.length > 1 ? " (" + samlet.brugbare.length + " dele)" : "");
+      faerdig.onclick = function () {
+        log("[valg] laver referat af " + samlet.samletVarighedSek + " s i " +
+            samlet.brugbare.length + " del(e) — de sendes hver for sig og saettes sammen i raekkefoelge");
+        faerdig.disabled = true;
+      };
+      resEl.appendChild(faerdig);
     }
 
     if (r.bytes > 0) {
