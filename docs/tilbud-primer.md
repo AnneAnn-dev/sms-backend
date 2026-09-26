@@ -83,9 +83,44 @@ filtrere listen og gemme resten, skrives om til eksplicitte delete-kald.
   konsollen, skal der et transkodningstrin (fx ffmpeg på Railway) ind mellem upload
   og transskription. Det er nyt arbejde, en ny afhængighed, og det ændrer
   succeskriteriet for Spike 0. **Skal afklares før endpointet designes.**
+  ✅ **AFKLARET 26/9-26 — der skal INTET transkodningstrin.** Spike 0 sendte
+  iPhonens egen fil (`audio/mp4; codecs=mp4a.40.2`, 2 min 41 sek., 3,7 MB) rå til
+  `whisper-large-v3`: HTTP 200 på 8,8 sekunder, dansk tekst retur. API-referencens
+  formatliste er altså ikke udtømmende. **Ingen ffmpeg, ingen ny afhængighed.**
+  Tallene står i `RESULTAT-05-spike0.md`. ⚠️ Og en fælde til koden: på iOS er
+  `recorder.mimeType` en TOM streng — formatet findes kun på den færdige blob.
+  Bygges filnavnet i multipart på recorderens felt, sendes filen uden endelse.
 - **Lyd gemmes ALDRIG.** Optag → transskribér → smid lydfilen væk. Kun tekst og
   referat består. Det er vores vigtigste GDPR-håndtag (ingen arkiv af
   stemmeoptagelser af tredjeparter).
+
+### En diktering kan bestå af flere DELE — besluttet 26/9-26
+
+Baggrunden er D66: iOS tager mikrofonen, når appen går i baggrunden, og sporet kan
+ikke genoptages. To MP4-filer kan heller ikke limes sammen uden omkodning på
+serveren — altså ffmpeg, altså præcis den afhængighed, afklaringen ovenfor sparede
+os for. Derfor fortsætter håndværkeren i stedet i en NY del.
+
+- **Hver afbrydelse afslutter en del. "Fortsæt" starter den næste.** Målt 26/9:
+  tre dele (25,4 + 26,7 + 13,6 sek.), to afbrydelser, tab 0,0 hele vejen.
+  `Fortsæt` koster 304 ms og spørger ikke om mikrofonen igen.
+- **Hver del transskriberes FOR SIG, og teksterne sættes sammen i rækkefølge,
+  før referatmodellen ser dem.** Referatmodellen får én sammenhængende tekst og
+  må aldrig vide, at den kom i bidder.
+- **Det koster ikke mere.** Scaleway afregner pr. lydminut, ikke pr. kald: tre
+  dele à ét minut koster som ét stykke på tre.
+- **Kvoten tæller den samlede lydtid på tværs af dele** (Ø2). Ikke pr. kald, og
+  ikke kun den sidste del.
+- **En del med tab INDE i sig kasseres og tælles ikke med.** Resten af
+  dikteringen beholdes. Vi ved ikke, hvad der forsvandt i den ene del, men de
+  andre er hele. Brugeren får at vide, hvilken del der mangler.
+- **En afbrudt del, hvor lyden er hel frem til afbrydelsen, afvises IKKE —
+  brugeren spørges**, om der skal laves referat af det, han nåede. Fanen er
+  egen-diktering (J8), så det talte er en hel tanke, ikke en halv samtale.
+- Modulet, der håndhæver det, er `optager.js` (bygget og målt 26/9, ligger
+  indtil videre som `static/spike-optager.js` på staging). Det leverer
+  `dele[]` og `samlet()`; sammensætningen af teksten hører til i
+  `/api/tilbud/referat`, ikke i ASR-adapteren.
 
 ## Samtykke og afgrænsning — besluttet (J8)
 

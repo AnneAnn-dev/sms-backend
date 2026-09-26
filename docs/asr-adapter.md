@@ -54,6 +54,17 @@ adapteren til at fejle — de sættes til `null`, og det, der læser dem, tåler
 
 ---
 
+## Adapteren kender ÉN fil — med vilje
+
+En diktering kan bestå af flere dele (D66, besluttet 26/9 — se `tilbud-primer.md`).
+**Det er ikke adapterens problem.** Den tager én lydfil ind og giver én tekst ud.
+Sammensætningen af delenes tekster hører til i kaldekoden (`/api/tilbud/referat`).
+
+Grunden er den samme som ovenfor: adapteren skal være tynd nok til, at et
+leverandørskifte er en eftermiddag. Bygger nogen multifil-understøttelse ned i
+den, er den holdt op med at være en adapter. **Det ligner en mangel. Det er en
+grænse.**
+
 ## Ind i adapteren
 
 ```js
