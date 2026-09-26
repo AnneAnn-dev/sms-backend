@@ -290,6 +290,13 @@ Testes i den **installerede** app på ægte iPhone (ikke kun Safari). Verificér
 permission-flow, optagelse, mp4-blob, upload. Fejler dette, ændres planen NU
 (fx upload af lydfil optaget i iPhones egen app som fallback) — ikke i uge 4.
 
+**✅ KØRT 26/9-26 — GO.** Resultatet står i `RESULTAT-05-spike0.md`; konsekvenserne
+for arkitekturen i `tilbud-primer.md`. Kort: mikrofonen virker fra hjemmeskærmen,
+formatet (`audio/mp4`, AAC) går **rå** til Scaleway uden omkodning, og fotovejen
+giver JPEG. Fundet, der ændrede planen: **iOS tager mikrofonen, når appen går i
+baggrunden** (D66) — derfor er der bygget et optager-modul med tre værn, og en
+diktering kan bestå af flere dele.
+
 ## Trin 3 — Skive 1: referatflowet ende-til-ende
 
 Mål: Anne kan oprette kunde+opgave, optage/uploade lyd, få transskript, få
@@ -306,6 +313,20 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her
 - [ ] Datafunktioner for kunder/opgaver/referater (per-række CRUD bag Annes navne)
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
+- [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
+      (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
+      26/9 — se D66. Fanen kalder `start()`, `fortsaet()`, `stop()` og handler på
+      `ok` / `kanBruges`.
+- [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
+      sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
+      lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
+- [ ] ⚠️ **MÅL PERMISSION-FLOWET IGEN i dashboardets egen app.** iOS husker
+      mikrofon-tilladelsen **pr. installeret app**, og Spike 0 blev målt i to
+      andre installationer (`/spike0.html` og prøvebænken). Det, vi ved derfra,
+      gælder ikke automatisk her. **Målingen:** installer dashboardet på
+      hjemmeskærmen, luk appen helt, åbn den, og start én optagelse. Spørger den
+      om lov? Og spørger den igen ved næste optagelse? Svaret afgør onboarding-
+      teksten — og det er dyrt at opdage dagen før frigivelse.
 - [ ] Anne QA på staging → derefter prod
 
 ## Trin 4 — Skive 2: tilbudsflowet
