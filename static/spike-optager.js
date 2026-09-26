@@ -177,7 +177,7 @@
       mig._log("wakelock", "skærmen holdes tændt");
       l.addEventListener("release", function () {
         mig._glemWakeLock();
-        mig._log("wakelock", "sluppet" + (mig.tilstand === "optager" ? " — tages igen, naar appen er fremme" : ""));
+        mig._log("wakelock", "sluppet" + (mig.tilstand === "optager" ? " — tages igen, når appen er fremme" : ""));
       });
     }).catch(function (e) {
       // Fail-open: en manglende wake lock er ikke en grund til at afvise en
@@ -289,7 +289,7 @@
         svar.aarsag = svar.helIndtilAfbrydelse ? "afbrudt_men_hel" : "afbrudt_med_tab";
         svar.forklaring = svar.helIndtilAfbrydelse
           ? ("Optagelsen stoppede efter " + svar.varighedSek + " sekunder, fordi appen kom i " +
-             "baggrunden (" + mig._afbrudtAarsag + "). Alt det, du naaede at sige, er med.")
+             "baggrunden (" + mig._afbrudtAarsag + "). Alt det, du nåede at sige, er med.")
           : ("Optagelsen blev afbrudt: " + mig._afbrudtAarsag + ". Der mangler " +
              svar.tabSek + " sekunder lyd inde i optagelsen.");
       } else if (svar.tabSek > svar.graenseSek) {
@@ -301,7 +301,9 @@
         svar.ok = true;
       }
 
-      mig._log(svar.ok ? "godkendt" : "afvist",
+      // Logbogen skal sige det samme som skaermen: en optagelse, brugeren kan
+      // vaelge at bruge, er ikke "afvist".
+      mig._log(svar.ok ? "godkendt" : (svar.kanBruges ? "stoppet" : "afvist"),
                "vægur " + svar.vaegurSek + " s · lyd " + svar.varighedSek + " s · tab " +
                svar.tabSek + " s · grænse " + svar.graenseSek + " s" +
                (svar.ok ? "" : " — " + svar.forklaring));

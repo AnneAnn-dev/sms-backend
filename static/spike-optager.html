@@ -35,6 +35,10 @@
   .dom { border-radius:10px; padding:12px; margin-top:10px; font-weight:600; }
   .dom.ja { background:#E7F4EC; color:var(--gron); }
   .dom.nej { background:#FBE9E7; color:var(--rod); }
+  /* Tre udfald, tre farver. Gul er "du bestemmer" — optagelsen fejler ikke,
+     den venter paa et svar. Roed paa noget brugbart faar folk til at lade
+     vaere med at trykke. */
+  .dom.maaske { background:#FDF2DC; color:#8A5A00; }
   #log { font:12px/1.35 ui-monospace, Menlo, monospace; white-space:pre-wrap;
          max-height:260px; overflow:auto; background:#0F1720; color:#D6E2EE;
          padding:10px; border-radius:8px; }
@@ -185,7 +189,7 @@
     ]);
 
     var dom = document.createElement("div");
-    dom.className = "dom " + (r.ok ? "ja" : "nej");
+    dom.className = "dom " + (r.ok ? "ja" : (r.kanBruges ? "maaske" : "nej"));
     dom.textContent = r.ok ? "GODKENDT — filen må sendes til referat"
                            : (r.kanBruges ? "STOPPET — " : "AFVIST (" + r.aarsag + ") — ") + r.forklaring;
     resEl.appendChild(dom);
