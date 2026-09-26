@@ -123,9 +123,23 @@ Grænsen kunne lægges hvor som helst mellem 0 og 4,9 sekunder uden at ramme for
 Den blev valgt, mens den stadig kunne falde ud til begge sider — samme regel som
 bundgrænsen i D36.
 
-En fjerde ting, som testen ikke svarer på: **hvor ofte sker det i virkeligheden?** En
-håndværker med telefonen på bordet under et kundemøde er ikke den samme som Ann, der med
-vilje skifter app. Det tal kommer kun fra pilotkunden.
+⛔ **Rettelse 26/9, samme dag:** ovenstående blev først skrevet med et kundemøde som
+billede. Det er forkert. **Referat-fanen er afgrænset til egen-diktering** — besluttet
+19/8, se J8 i registret. Håndværkeren taler selv ind i telefonen; der sidder ingen kunde
+og taler imens.
+
+Det ændrer to ting. Risikoen er mindre, end afsnittet ovenfor antyder: han holder
+telefonen og taler ind i den, i stedet for at lægge den fra sig. Og en afbrudt diktering
+er **brugbar** — det, han nåede at sige, er en hel tanke, ikke halvdelen af en samtale,
+hvor modparten mangler.
+
+Derfor blev værnet bygget med to udfald: er lyden hel frem til afbrydelsen, spørges
+brugeren, om der skal laves referat af det, han nåede. Mangler der lyd *inde i*
+optagelsen, er der intet at spørge om.
+
+En fjerde ting, som testen ikke svarer på: **hvor ofte sker det i virkeligheden?** Ann,
+der med vilje skifter app, er ikke det samme som en håndværker, der dikterer på en
+byggeplads. Det tal kommer kun fra pilotkunden.
 
 ## Grænser for denne test
 
