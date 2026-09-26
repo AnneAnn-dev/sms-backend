@@ -104,10 +104,24 @@ Tre værn, alle tre før frigivelse (nyt punkt **D66** i registret):
 3. **Længdetjek som port.** Afkod filen, og hold lydens længde op mod uret, før den
    sendes. Afviger de for meget, går den ikke videre uden en advarsel.
 
-**Åben beslutning:** hvor stort må tabet være, før optagelsen afvises? Intervallet, der
-blev foreslået, er 2-5 % af varigheden. **Tallet skal fastsættes, før værnet bygges** —
-samme regel som bundgrænsen i D36. Fastsættes det bagefter, bliver det sat, så det, vi
-allerede har målt, lige akkurat slipper igennem.
+**Grænsen — besluttet 26/9 af Ann og Anne, før værnet bygges:** en optagelse afvises,
+hvis tabet er **over 2 sekunder eller over 2 % af varigheden — det, der er mindst.**
+
+Begge dele, fordi de fanger hver sin ende: en ren procentgrænse er for slap på en lang
+optagelse (2 % af ti minutter er tolv sekunder væk), og en ren sekundgrænse er for stram,
+hvis en lang fil har en lille naturlig afvigelse i afkodningen.
+
+Tallet kunne sættes trygt, fordi målingerne ikke har nogen gråzone:
+
+| Optagelser | Afvigelse mellem lyd og vægur |
+|---|---|
+| Tre uafbrudte (31,3 s · 40,9 s · 161,1 s) | **0,0 s** |
+| Fem afbrudte | 4,9 - 6,6 s |
+| Det snedige tilfælde | 48,0 s |
+
+Grænsen kunne lægges hvor som helst mellem 0 og 4,9 sekunder uden at ramme forkert.
+Den blev valgt, mens den stadig kunne falde ud til begge sider — samme regel som
+bundgrænsen i D36.
 
 En fjerde ting, som testen ikke svarer på: **hvor ofte sker det i virkeligheden?** En
 håndværker med telefonen på bordet under et kundemøde er ikke den samme som Ann, der med

@@ -37,7 +37,7 @@ Det skete **fem gange mellem 28/8 og 13/9**. Hver gang var indholdet i orden; de
 
 **"Redigeres nu"-linjen fanger det ikke.** Den bor inde i filen, og filen findes to steder — en lås sat i arbejdskopien er usynlig i master og omvendt. Den er et høflighedsskilt mellem sessioner, der læser den *samme* fil. **Git er det eneste, der fanger det på tværs.**
 
-Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet.
+Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet. Hele kæden — også for kode — står under **Kodeleverancer**: *hent → skriv → commit → push → bekræft*.
 
 ## Stack & konventioner
 
@@ -179,6 +179,21 @@ efter en logikfejl i kode, der slet ikke var deployet.
    Ét `Select-String` på en streng, der kun findes i den nye udgave, tager fem
    sekunder. Det er samme disciplin som "min ændring er med i deployet",
    anvendt ét led tidligere — på selve filen.
+
+### Kæden, i én linje: **hent → skriv → commit → push → bekræft**
+
+Gælder både dokumenter og kode. Hvert led lukker en fejl, der er sket i virkeligheden:
+
+| Led | Hvad det betyder | Fejlen det lukker |
+|---|---|---|
+| **hent** | Hent filen lige før levering. Aldrig fra en tidligere hentning i samme samtale | `onboarding.html` 13/9: trin 1 skrevet væk af en ældre kopi · `ci.yml` 24/9: `--audit-level` rullet fra `high` tilbage til `critical` af en kopi fra 7/9 |
+| **skriv** | I arbejdskopien, aldrig i master. Sæt "Redigeres nu" i registret først | 13/8 og 13/9: to sessioner skrev fra hver sin kopi, tre skrivninger tabt |
+| **commit** | Med det samme, også når det kun er to linjer | Fem gange 28/8-13/9: en ugemt ændring i `docs/` blokerede `sync-docs.ps1` for alle andre |
+| **push** | Straks efter commit | Registret er beslutningshistorik, der kun findes ét sted, indtil det er pushet |
+| **bekræft** | Ét `Select-String` på en streng, der kun findes i den nye udgave | En bestået tidsstempel-vagt beviser ikke, at indholdet er det rigtige |
+
+**Tidsstempel-vagten og "Redigeres nu" er høflighed, ikke beviser.** Kun sidste led — et
+tjek, der ville fejle, hvis leveringen var forkert — er et bevis.
 - Konkrete, holdningsstærke anbefalinger + proaktiv risiko-flagging. Forklar *hvorfor* før *hvordan* ved arkitekturvalg.
 - Fejlhåndtering: fail-closed på miljø/sikkerhed, fail-open (ikke-fatalt) på analyse/logning — analyse må aldrig genere kunden.
 - Går noget galt undervejs — forkert miljø ramt, hemmelighed eksponeret, utilsigtet skrivning: **sig det med det samme**, og noter det i `docs/HAENDELSESLOG.md`.
