@@ -187,9 +187,21 @@
     var dom = document.createElement("div");
     dom.className = "dom " + (r.ok ? "ja" : "nej");
     dom.textContent = r.ok ? "GODKENDT — filen må sendes til referat"
-                           : "AFVIST (" + r.aarsag + ") — " + r.forklaring;
+                           : (r.kanBruges ? "STOPPET — " : "AFVIST (" + r.aarsag + ") — ") + r.forklaring;
     resEl.appendChild(dom);
-    beskedEl.textContent = r.ok ? "Færdig" : "Afvist";
+    beskedEl.textContent = r.ok ? "Færdig" : (r.kanBruges ? "Stoppet" : "Afvist");
+
+    // Saadan vil fanen spoerge. Her kun for at se, at valget tilbydes i
+    // netop de tilfaelde, hvor lyden er hel — og aldrig i de andre.
+    if (!r.ok && r.kanBruges) {
+      var spoerg = document.createElement("button");
+      spoerg.textContent = "Lav referat af de " + r.varighedSek + " sekunder alligevel";
+      spoerg.onclick = function () {
+        log("[valg] brugeren bruger den afbrudte optagelse (" + r.varighedSek + " s)");
+        spoerg.disabled = true;
+      };
+      resEl.appendChild(spoerg);
+    }
 
     if (r.bytes > 0) {
       var lyd = document.createElement("audio");

@@ -27,6 +27,13 @@
    FÆLDE, MÅLT SAMME DAG: `recorder.mimeType` er TOM STRENG på iOS. Formatet
    findes kun på den færdige blob. Læs det aldrig fra recorderen.
 
+   TO SLAGS AFBRYDELSE — forskellen betyder noget for brugeren:
+     - `afbrudt_men_hel`  lyden er hel frem til afbrydelsen. Fanen SKAL spoerge
+                          brugeren, om den skal bruges alligevel (`kanBruges`).
+                          Fanen er afgraenset til egen-diktering (J8, 19/8), saa
+                          det, der blev sagt, er en hel tanke og godt nok i sig selv.
+     - `afbrudt_med_tab`  der mangler lyd INDE i optagelsen. Intet at spoerge om.
+
    Lyd persisteres ikke. Modulet giver blobben videre og holder intet selv.
    ─────────────────────────────────────────────────────────────────────────── */
 
@@ -246,7 +253,9 @@
       tabSek: null,
       graenseSek: rund(mig.graenseSek(vaegurSek)),
       afbrudt: mig._afbrudt,
-      afbrudtAarsag: mig._afbrudtAarsag
+      afbrudtAarsag: mig._afbrudtAarsag,
+      helIndtilAfbrydelse: false,  // saettes ved afbrydelse: er lyden hel frem til den?
+      kanBruges: false             // true = ok at bruge, HVIS brugeren siger ja
     };
 
     if (blob.size === 0) {
@@ -265,8 +274,24 @@
         svar.forklaring = "Optagelsen er kun " + svar.varighedSek + " sekunder lang.";
       } else if (mig._afbrudt) {
         svar.aarsag = "afbrudt";
-        svar.forklaring = "Optagelsen blev afbrudt: " + mig._afbrudtAarsag +
-                          ". Der mangler " + svar.tabSek + " sekunder.";
+        // Maalt 26/9 i den installerede app: `mute` kommer ca. 2 sekunder FOER
+        // appen er skjult, saa vi naar at stoppe, mens lyden er hel. Derfor er
+        // tabet typisk 0, og beskeden maa ikke sige "der mangler 0 sekunder".
+        // Skelnen er vigtig for brugeren: er lyden hel indtil afbrydelsen, er
+        // der noget at bruge — ellers er der ikke.
+        svar.helIndtilAfbrydelse = svar.tabSek <= svar.graenseSek;
+        // Fanen er afgraenset til EGEN-DIKTERING (besluttet 19/8, se J8). Det,
+        // haandvaerkeren naaede at sige, er derfor en hel tanke — ikke halvdelen
+        // af en samtale, hvor modparten mangler. Er lyden hel frem til
+        // afbrydelsen, er den brugbar, og valget er brugerens. Er der lyd VAEK
+        // inde i optagelsen, er den ikke brugbar, og der er intet at spoerge om.
+        svar.kanBruges = svar.helIndtilAfbrydelse;
+        svar.aarsag = svar.helIndtilAfbrydelse ? "afbrudt_men_hel" : "afbrudt_med_tab";
+        svar.forklaring = svar.helIndtilAfbrydelse
+          ? ("Optagelsen stoppede efter " + svar.varighedSek + " sekunder, fordi appen kom i " +
+             "baggrunden (" + mig._afbrudtAarsag + "). Alt det, du naaede at sige, er med.")
+          : ("Optagelsen blev afbrudt: " + mig._afbrudtAarsag + ". Der mangler " +
+             svar.tabSek + " sekunder lyd inde i optagelsen.");
       } else if (svar.tabSek > svar.graenseSek) {
         svar.aarsag = "for_stort_tab";
         svar.forklaring = "Der mangler " + svar.tabSek + " sekunder lyd i forhold til " +
