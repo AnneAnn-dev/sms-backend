@@ -94,6 +94,45 @@ filtrere listen og gemme resten, skrives om til eksplicitte delete-kald.
   referat består. Det er vores vigtigste GDPR-håndtag (ingen arkiv af
   stemmeoptagelser af tredjeparter).
 
+### Referatmodellen RETTER IKKE — besluttet 27/9-26 (Ann og Anne)
+
+Modellen må forkorte, udelade gentagelser og samle indholdet i punkter. Den må
+**ikke** bytte ordene ud. Materialer, fagudtryk, navne, mål og mængder gengives
+ordret — også når de ser forkerte ud.
+
+**Begrundelsen er brugeren, ikke teknikken.** Håndværkerne er ikke trænede
+læsere. En pæn tekst bliver læst hurtigt og godkendt; "bosvand" midt i referatet
+bliver set. Det er beslutningsgrundlagets afsnit 3 taget alvorligt: *poleringen
+fjerner de synlige fejl og bevarer de usynlige.*
+
+Målt 27/9 på de syv referater: den gamle prompt rettede ti af whispers fejl i
+stilhed (*undertallet* → undertag, *bosvand* → brugsvand, *slipning* → slibning).
+Den ordnære lader dem stå. **Prisen er taget med:** 25 % længere referater,
+volapyk i teksten, og de gode rettelser går tabt.
+
+Prompten står i `03b-referat-ordnaert.ps1` i prøvebænken. I produktet bor den i
+`server/prompts/referat.js`.
+
+### Værnet mod tilføjelser er SNÆVERT — besluttet 27/9-26 efter måling
+
+Teknik B markerer **kun tal, navne og forkortelser**, der ikke står i
+transskriptionen. Ikke alle nye ord.
+
+Den brede udgave — *alt i referatet, der ikke findes i transskriptionen* — er
+målt og forkastet: **median 51 markeringer pr. referat, en femtedel af teksten.**
+Årsagen er, at referatet er en omskrivning, ikke et uddrag. Tallene og de tre
+forkastede alternativer står i `RESULTAT-06-teknik-b.md`.
+
+- **Markeringerne må aldrig præsenteres som "her er fejlene."** De er *"det her
+  stod ikke i det, du sagde."* Et værn, der ligner en fuldstændig fejlliste, gør
+  referatet mere troværdigt — og det var grunden til, at teknik A faldt.
+- **Sikkerhedsventil:** overstiger markeringerne 10 % af referatets ord, vises
+  der ikke enkeltsteder, men én besked om at læse hele referatet igennem.
+- **Tætheden logges** pr. referat (markeringer pr. 100 ord). Efter tredive rigtige
+  referater er det et mål for, hvordan modellen klarer ægte stemmer.
+- **Re-trigger:** skiftes transskriptionsmodel, tages både dette og prompt-reglen
+  ovenfor op igen. Begge hviler på, at whisper fejler synligt. Se J9.
+
 ### En diktering kan bestå af flere DELE — besluttet 26/9-26
 
 Baggrunden er D66: iOS tager mikrofonen, når appen går i baggrunden, og sporet kan
