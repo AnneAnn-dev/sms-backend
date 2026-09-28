@@ -316,9 +316,25 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       arkiverede kunder ikke blokerer). Leveret ud over planen: `leads.firm_id`,
       `leads.titel`, `updated_at` + trigger, og `mine_firmaer()`-helperen.
       Se Skema-status ovenfor.
+- [x] **ASR-adapteren — BYGGET OG KALDT RIGTIGT 28/9.** `asr-adapter.js` +
+      `proev-asr-adapter.js` (25 tørkørselstjek). Første rigtige kald: 163 sek.
+      lyd, **6,09 øre**, svartid 9,3 sek. (forhold 1 : 17), 29 segmenter.
+      **Prisenheden er dermed bekræftet mod en faktureret handling**, ikke mod en
+      prisside — `kvote.js` kan regne på adapteren. Tal og konsekvenser i
+      `asr-adapter.md`. Nøglen er `SCW_ASR_SECRET_KEY` (egen nøgle, ikke mailens).
+- [ ] **Monter modulet:** `routes/tilbud/index.js` (tom, én statusrute) + tænd
+      `TILBUD_AKTIV` i staging. Prøveplanen kræver, at rollback-håndtaget prøves
+      **i begge retninger** — og at crash-påstanden i `server.js` (appen dør, hvis
+      flaget tændes uden mappen) efterprøves, mens mappen endnu mangler.
 - [ ] Transskriptions-endpoint (Scaleway, multipart webm+mp4, lyd slettes efter brug).
       ✅ **mp4 tages RÅT imod — byg ikke et omkodningstrin** (målt 26/9, `RESULTAT-05`).
       Læs formatet fra selve blobben: `recorder.mimeType` er tom streng på iOS.
+      **Kvoten tjekkes på SAMLET lydtid, før første kald** — ikke pr. del, ellers
+      kan en flerdelt diktering køre halvvejs og stoppe midt i.
+      **Skalerer ventetiden:** tre dele ≈ 30 sekunders ventetid, så siden skal have
+      en synlig arbejdstilstand og en knap, der slår sig fra ved første tryk —
+      ellers sendes dikteringen to gange (dobbelt betaling, to referater).
+      **Åbent:** skal adapterens timeout følge lydens længde? Se `asr-adapter.md`.
 - [ ] Claude-proxy-endpoint (generisk; body-limit, billing-gate, dagsloft,
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her.
       **Prompten er den ORDNÆRE** (besluttet 27/9): modellen må forkorte og
