@@ -324,8 +324,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       `asr-adapter.md`. Nøglen er `SCW_ASR_SECRET_KEY` (egen nøgle, ikke mailens).
 - [ ] **Monter modulet:** `routes/tilbud/index.js` (tom, én statusrute) + tænd
       `TILBUD_AKTIV` i staging. Prøveplanen kræver, at rollback-håndtaget prøves
-      **i begge retninger** — og at crash-påstanden i `server.js` (appen dør, hvis
-      flaget tændes uden mappen) efterprøves, mens mappen endnu mangler.
+      **i begge retninger**. ✅ **Crash-påstanden i `server.js` er efterprøvet
+      28/9:** tændes flaget uden mappen, dør processen på `server.js:111` med
+      `MODULE_NOT_FOUND` — **før `app.listen`**, så der tages aldrig en
+      forespørgsel imod. Bemærk at de øvrige moduler har registreret sig og
+      skrevet i loggen først: den ægte prøve på en lykkelig opstart er linjen
+      `Tilbudsmodul: TAENDT`, ikke emoji-linjerne.
 - [ ] Transskriptions-endpoint (Scaleway, multipart webm+mp4, lyd slettes efter brug).
       ✅ **mp4 tages RÅT imod — byg ikke et omkodningstrin** (målt 26/9, `RESULTAT-05`).
       Læs formatet fra selve blobben: `recorder.mimeType` er tom streng på iOS.

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tilbudsmodul — monteringstjek</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #F4F7FA; color: #1C2A38;
+         padding: 32px 16px; max-width: 460px; margin: 0 auto; line-height: 1.6; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .lille { color: #4A5D6E; font-size: 14px; }
+  pre { background: #fff; border: 1px solid #DDE4EC; border-radius: 10px;
+        padding: 14px; font-size: 13px; overflow-x: auto; margin-top: 20px; }
+  .advarsel { background: #FFF4E5; border: 1px solid #E8C99B; border-radius: 10px;
+              padding: 12px 14px; font-size: 14px; margin-top: 24px; }
+</style>
+</head>
+<body>
+  <h1>Tilbudsmodulet er monteret</h1>
+  <p class="lille">Denne side beviser to ting, og kun to: at
+  <code>TILBUD_AKTIV</code> er tændt, og at <code>/tilbud/</code> bliver serveret.
+  Der er ingen funktion her endnu.</p>
+
+  <pre id="svar">henter /api/tilbud/status …</pre>
+
+  <div class="advarsel">
+    <strong>Midlertidig.</strong> Denne fil erstattes af referatmaskinens
+    egen side. Ser du den i staging efter det, er noget gået galt i en
+    udrulning — ikke i modulet.
+  </div>
+
+<script>
+  // Hentes fra siden selv, saa monteringen kan tjekkes fra telefonen uden
+  // vaerktoej. Fejler kaldet, staar fejlen paa skaermen - ikke i konsollen,
+  // hvor ingen ser den paa en iPhone.
+  fetch("/api/tilbud/status")
+    .then(function (r) { return r.text().then(function (t) { return r.status + " " + t; }); })
+    .then(function (t) { document.getElementById("svar").textContent = t; })
+    .catch(function (e) { document.getElementById("svar").textContent = "FEJL: " + e.message; });
+</script>
+</body>
+</html>

@@ -1,9 +1,51 @@
 # Runbook: Nøglerotation
 
-> Sidst opdateret: 2026-07-24
+> Sidst opdateret: 2026-09-28
 > Gælder: Scaleway TEM, Simply.com, VAPID, Frisbii, Supabase, Twilio — udvid med flere services efterhånden.
 > Princippet er altid det samme: **opret ny nøgle → skift den ind → verificér → slet den gamle.**
 > Slet ALDRIG den gamle nøgle, før den nye er bekræftet i drift i alle miljøer.
+
+---
+
+## ⏳ Nøgler, der dør af sig selv
+
+**ALLE Scaleway-nøgler udløber efter ét år** (Ann, 28/9-2026). Det gælder altså
+ikke kun transskriptionsnøglen — det gælder også TEM-nøglen, der sender
+rescue-mails og onboarding-links.
+
+Det er en anden fejlmåde end resten af denne runbook. Alt andet herunder roteres,
+fordi vi beslutter det: der er en arbejdsliste, et script og en rækkefølge. En
+nøgle med udløbsdato vender det om. Den fejler ikke ved et deploy, hvor nogen
+kigger på loggen. **Den fejler en tilfældig tirsdag, i drift, med et 401, der
+ligner en tastefejl.**
+
+| Udløber | Variabel | Service | Hvad der holder op med at virke |
+|---|---|---|---|
+| **2027-09-28** | `SCW_ASR_SECRET_KEY` | Generative APIs (IAM-application `ddk-transskription`) | Transskriptionen i tilbudsmodulet. Dikteringen fejler med 401 |
+| **? — LÆS I KONSOLLEN** | `SCW_SECRET_KEY` | TEM (mail) | `/onboarding/nyt-link` (glemt adgangskode) og onboarding-mails. **I BEGGE miljøer**, fordi nøglen er delt |
+
+**Den anden række er et åbent hul.** TEM-nøglen blev oprettet 24/7-2026
+(rotationsloggen nederst). Er der ét års levetid på den, udløber den omkring
+**24/7-2027** — men datoen står ikke nogen steder, og den skal læses af i
+IAM-konsollen, ikke regnes ud her. Indtil den står i tabellen, ved vi ikke, hvad
+der sker først.
+
+**Konsekvensen er værre end transskriptionens.** Dikteringen er et modul bag et
+flag; rescue-mailen er den vej, en kunde kommer ind, når hun har glemt sin
+adgangskode. Og fordi nøglen er delt mellem staging og prod, knækker begge
+miljøer samtidigt — det står allerede som en faldgrube i TEM-afsnittet nedenfor.
+
+**Sæt påmindelsen en måned før, ikke på dagen.** Rotationen kræver en ny
+IAM-nøgle, indskiftning i staging OG prod, og en verifikation med en rigtig
+handling — ikke noget man gør på en eftermiddag, hvor tjenesten allerede er nede.
+
+**Symptomet er 401, ikke 403.** 401 = nøglen gælder ikke længere (udløbet eller
+slettet). 403 = nøglen gælder, men policyen mangler. Det står som regel 7
+nedenfor, men er værd at kunne udenad netop her: **en udløbet nøgle ser ikke ud
+som en udløbet nøgle i loggen.**
+
+*Datoerne føres desuden i Anns årshjul. Denne tabel er stedet, hvor det står,
+HVAD der knækker — årshjulet er stedet, hvor det står, HVORNÅR der skal handles.*
 
 ---
 
@@ -68,6 +110,12 @@ red ændringerne over i masterfilen, før de går tabt.
 SMTP-passwordet ER secret key'en på API-nøglen, der hører til TEM-projektet.
 Brugernavn = Project ID (ændres aldrig ved rotation).
 
+> ⏳ **Denne nøgle udløber også.** Alle Scaleway-nøgler har ét års levetid.
+> Nøglen her er fra 24/7-2026, og udløbsdatoen mangler i tabellen øverst —
+> læs den af i IAM-konsollen og skriv den ind. Udløber den ubemærket, fejler
+> rescue-mails og onboarding-mails i BEGGE miljøer samtidigt, fordi nøglen er
+> delt.
+
 ### Trin
 
 1. **Find IAM-applicationen**
@@ -125,6 +173,46 @@ Brugernavn = Project ID (ændres aldrig ved rotation).
   handler om DNS (SPF/DKIM/MX/DMARC), ikke om nøgler.
 - Behold den gamle nøgle, til begge miljøer har sendt en mail med den nye.
   Så længe den lever, er rollback = sæt den gamle værdi tilbage i Railway.
+
+---
+
+## Scaleway Generative APIs (transskription)
+
+**Egen nøgle, adskilt fra TEM med vilje** (besluttet 27/9-2026). TEM-mailen
+bruger `SCW_SECRET_KEY`; transskriptionen bruger `SCW_ASR_SECRET_KEY`. To formål,
+to nøgler: en rotation af mailnøglen må ikke slå dikteringen ud, og et læk af den
+ene må ikke give begge dele.
+
+- **Bæres af:** IAM-application `ddk-transskription`, scoped til projektet hvor
+  Generative APIs kører.
+- **Udløber 2027-09-28** (ét år er Scaleways maksimum). Se tabellen øverst.
+- **Adressen indeholder projekt-id'et, ikke access key'en:**
+  `TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1`. Projekt-id er et
+  UUID og ændres ikke ved rotation — det er kun secret key'en, der skiftes.
+
+### Trin
+
+1. Opret ny IAM-nøgle på samme application (ikke en ny application — så bliver
+   policyen ved med at passe).
+2. Skift `SCW_ASR_SECRET_KEY` i `.env.staging`, kør `skift-staging.ps1`.
+3. **Verificér med et rigtigt kald** — ikke med en opstartslog:
+   `node proev-asr-adapter.js "<en lydfil>"`. Koster ca. 6 øre.
+   Lærdommen fra 27/7: en nøgle kan være gyldig og alligevel magtesløs.
+4. Samme i `.env.prod` + Railway prod.
+5. Først derefter: slet den gamle nøgle.
+
+### Faldgruber
+
+- **404 `ROUTE NOT FOUND` er ikke nøglen** — det er adressen. Står access key'en
+  (`SCW…`) i `TILBUD_ASR_URL` i stedet for projekt-id'et, svarer Scaleway 404, og
+  fejlen ligner en forkert sti. Kostede tid 27/9. `asr-adapter.js` afviser nu
+  adressen, før der ringes.
+- **`$env:`-variabler vinder over `.env`, tavst.** `dotenv` overskriver aldrig en
+  variabel, der allerede findes i processen — den springer linjen over uden at
+  sige det. Er en variabel sat i PowerShell-vinduet eller med `setx`, kan
+  `.env.staging` rettes ti gange uden virkning. Tjek `$env:TILBUD_ASR_URL` og
+  `[Environment]::GetEnvironmentVariable('TILBUD_ASR_URL','User')`, før du leder
+  efter fejlen i filen.
 
 ---
 
@@ -384,6 +472,7 @@ og `SUPABASE_ANON_KEY`.
 | 2026-07-24 | Frisbii | API-nøgle + webhook-secret, begge konti. |
 | 2026-07-24 | Supabase | Migreret til sb_publishable/sb_secret, legacy deaktiveret, begge projekter. |
 | 2026-07-24 | Twilio | Auth-token roteret via sekundært token, begge konti. |
+| 2026-09-27 | Scaleway Generative APIs | **Ny** nøgle oprettet: IAM-application `ddk-transskription`, `SCW_ASR_SECRET_KEY`, adskilt fra TEM. **Udløber 2027-09-28.** Verificeret med et rigtigt kald 28/9. |
 | 2026-07-27 | Scaleway TEM | ⚠️ Efterspil: 403 permissions_denied — den nye applications policy manglede. Rescue-mails fejlede i begge miljøer indtil `TransactionalEmailFullAccess` blev tilknyttet. Lærdom: verificér med en RIGTIG mail. |
 
 Baggrund: `.env` lå i git-historikken tidligt i projektet (fjernet flere
