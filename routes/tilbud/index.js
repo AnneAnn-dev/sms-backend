@@ -1,47 +1,227 @@
-// routes/tilbud/index.js — tilbudsmodulets monteringspunkt.
+// routes/tilbud/index.js — tilbudsmodulets ruter.
 //
-// HVORFOR DEN ER TOM: server.js linje 110-113 kalder denne fil, når
-// TILBUD_AKTIV er true. Findes filen ikke, crasher appen ved opstart — med
-// vilje, og kun i staging, fordi prod står slukket. Denne udgave gør derfor
-// præcis én ting: den lader flaget blive tændt, uden at der endnu findes en
-// rute, der kan tage skade. Selve transskriptions-endpointet er opgave 4.
+// Monteres fra server.js linje 110-113, kun når TILBUD_AKTIV er true.
+// Signaturen er bundet af kaldet: require("./routes/tilbud")(app, supabase).
 //
-// SIGNATUREN ER BUNDET af kaldet i server.js:
-//   require("./routes/tilbud")(app, supabase)
-// Ændres den her, crasher opstarten — også det er den rigtige måde at fejle på.
+// TRE RUTER:
+//   GET  /api/tilbud/status        modulets eget sundhedstjek
+//   GET  /api/tilbud/kvote         hvad er der tilbage — SPØRGES FØR optagelsen
+//   POST /api/tilbud/transskriber  lyd ind, tekst ud
 //
-// HVORFOR DER ER ÉN RUTE OG IKKE NUL: /health svarer allerede, om FLAGET er
-// tændt (server.js linje 38). Den kan ikke svare, om routeren faktisk blev
-// monteret — og en monteret rute, der alligevel giver 404, er den fejlmåde,
-// der har ramt to gange før (onboarding-linket og checkout-knappen, se D23).
-// Derfor udstiller modulet sin egen tilstand, så røgtesten kan SPØRGE i
-// stedet for at gætte. Samme begrundelse som /health's egen kommentar.
+// LYD PERSISTERES ALDRIG. multer holder filerne i hukommelsen, de skrives
+// ingen steder, og hverken lyd eller tekst logges (CLAUDE.md, Sikkerhed).
 
 "use strict";
 
-// Ruterne samles her, så status-svaret ikke kan komme til at lyve om, hvad
-// der findes. Tilføjes en rute nedenfor uden at stå på listen, er listen
-// forkert — og det er listen, røgtesten tror på.
-const RUTER = ["/api/tilbud/status"];
+const multer = require("multer");
+const { sendError } = require("@appsignal/nodejs");
+const { firmIdFromToken } = require("../../auth");
+const asr = require("../../asr-adapter");
+const kvote = require("../../kvote");
+
+const RUTER = ["/api/tilbud/status", "/api/tilbud/kvote", "/api/tilbud/transskriber"];
+
+// ─── Grænserne for ét kald ───────────────────────────────────────────────────
+// Kaldsloftet (AI_KALD_LOFT_DKK) kan kun holdes, hvis inputtet er begrænset.
+// Derfor er tallene herunder ikke vilkårlige — de er REGNESTYKKET bag loftet.
+//
+//   25 MB i alt, og en konservativ bundgrænse på 3 KB/sek. (24 kbit/s) giver
+//   højst 8.333 lydsekunder = 139 minutter = 3,11 kr hos Scaleway.
+//   Under kaldsloftet på 5 kr, med luft.
+//
+//   Til sammenligning: den MÅLTE bitrate 28/9 var 17 KB/sek., så 25 MB er i
+//   virkeligheden ca. 24 minutters lyd til 55 øre. Bundgrænsen er sat lavt
+//   med vilje — den skal overvurdere prisen, aldrig undervurdere den.
+//
+// ⚠️ Prisen REGNES, den antages ikke. Skiftes modellen til en dyrere, stiger
+// det beregnede værste tilfælde af sig selv, og kaldet afvises — højlydt — i
+// stedet for i stilhed at koste mere. Det er hele grunden til, at adapteren
+// leverer prisen som en enhed og ikke som en konstant.
+const MAX_DELE = 5;
+const MAX_BYTES_PR_DEL = 10 * 1024 * 1024;
+const MAX_BYTES_I_ALT = 25 * 1024 * 1024;
+const LAVESTE_BYTES_PR_SEK = 3000;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_BYTES_PR_DEL, files: MAX_DELE },
+});
+
+function værsteFaldOere(bytes) {
+  return asr.prisOere(bytes / LAVESTE_BYTES_PR_SEK);
+}
 
 module.exports = function (app, supabase) {
-  // supabase tages imod, fordi server.js sender den, og fordi opgave 3 og 4
-  // får brug for den (ai_forbrug, kvoten). Den bruges bevidst ikke endnu.
-  void supabase;
-
-  // ─── Modulets eget sundhedstjek ──────────────────────────────────────────
+  // ─── Status ────────────────────────────────────────────────────────────────
   // Bevidst tom for logik, som /health: den skal kunne fejle NÅR modulet ikke
-  // er monteret, ikke når noget andet er i vejen. Ingen database, ingen
-  // leverandør, ingen nøgler — så et grønt svar her betyder én ting og kun
-  // én: koden i denne fil kører.
+  // er monteret, ikke når noget andet er i vejen.
   app.get("/api/tilbud/status", (req, res) =>
     res.status(200).json({
       ok: true,
       modul: "tilbud",
       ruter: RUTER,
-      // Hvad der ENDNU IKKE findes. Står her, så en fremtidig læser kan se
-      // forskel på "ikke bygget" og "gik i stykker".
-      mangler: ["POST /api/tilbud/transskriber", "kvote"],
+      mangler: ["POST /api/tilbud/referat", "den snaevre teknik B", "fotovejen"],
     })
   );
+
+  // ─── Kvotestatus — spørges FØR han trykker optag ───────────────────────────
+  // Besluttet 29/9: han skal have besked, INDEN han har talt i to et halvt
+  // minut. En databaseforespørgsel er gratis; en tabt optagelse er ikke.
+  app.get("/api/tilbud/kvote", async (req, res) => {
+    const firmId = await firmIdFromToken(supabase, req);
+    if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
+    try {
+      res.json(await kvote.status({ firmId }, supabase));
+    } catch (e) {
+      // Fail-closed: kan kvoten ikke læses, siges der ikke "alt er fint".
+      sendError(e);
+      res.status(503).json({
+        error: "kvote_utilgaengelig",
+        besked: "Vi kan ikke se dit forbrug lige nu. Prøv igen om lidt.",
+      });
+    }
+  });
+
+  // ─── Transskription ────────────────────────────────────────────────────────
+  // ÉT kald med ALLE dele. Kvoten tælles på den samlede lydtid, ikke pr. del —
+  // ellers kan en flerdelt diktering køre halvvejs og stoppe midt i.
+  //
+  // Delene transskriberes hver for sig og sættes sammen i den rækkefølge,
+  // klienten sendte dem. Adapteren kender kun ÉN fil, med vilje
+  // (docs/asr-adapter.md); sammensætningen hører til her.
+  app.post("/api/tilbud/transskriber", (req, res) => {
+    upload.array("dele", MAX_DELE)(req, res, async (multerFejl) => {
+      if (multerFejl) {
+        const forStor = multerFejl.code === "LIMIT_FILE_SIZE";
+        return res.status(413).json({
+          error: forStor ? "del_for_stor" : "upload_afvist",
+          besked: forStor
+            ? "En af delene er for stor. Del optagelsen op i flere stykker."
+            : "Optagelsen kunne ikke modtages. Prøv igen.",
+        });
+      }
+
+      const firmId = await firmIdFromToken(supabase, req);
+      if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
+
+      const dele = req.files || [];
+      if (!dele.length) {
+        return res.status(400).json({ error: "ingen_lyd", besked: "Der var ingen optagelse med." });
+      }
+
+      const bytesIAlt = dele.reduce((n, f) => n + f.size, 0);
+      if (bytesIAlt > MAX_BYTES_I_ALT) {
+        return res.status(413).json({
+          error: "for_meget_lyd",
+          besked: "Optagelsen er for lang til at behandles i ét stykke. Del den op.",
+        });
+      }
+
+      // ── Kvoten, FØR der ringes ──────────────────────────────────────────
+      let dom;
+      try {
+        dom = await kvote.tjek({ firmId, maxPrisOere: værsteFaldOere(bytesIAlt) }, supabase);
+      } catch (e) {
+        // Konfigurations- eller læsefejl er VORES problem, ikke brugerens.
+        // Fail-closed: vi gætter ikke på, at der er plads.
+        console.error("❌ kvoten kunne ikke afgøres:", e.kode, e.message);
+        sendError(e);
+        return res.status(503).json({
+          error: "kvote_utilgaengelig",
+          besked: "Vi kan ikke behandle optagelsen lige nu. Den er gemt her på telefonen — prøv igen om lidt.",
+        });
+      }
+
+      if (!dom.tilladt) {
+        // ⚠️ BREMSEN SKAL LARME. En kvoteafvisning er ikke en fejl i koden, men
+        // den er en hændelse, du skal vide om FØR kunden ringer. Den koster en
+        // linje i AppSignals fejlliste — det er prisen for at opdage, at en
+        // kunde har været spærret i tre uger, uden at nogen så det.
+        // Se driftrunbookens Del 3b, "Bremserne".
+        const h = new Error(`Kvoteafvisning: ${dom.aarsag}`);
+        h.name = "Kvoteafvisning";
+        console.warn("⚠️ KVOTE afviste", { firmId, aarsag: dom.aarsag,
+          forbrugtOere: dom.forbrugtOere, loftOere: dom.loftOere });
+        sendError(h);
+        return res.status(402).json({ error: dom.aarsag, besked: dom.besked,
+          naesteNulstilling: dom.naesteNulstilling });
+      }
+
+      // ── Kaldene ─────────────────────────────────────────────────────────
+      const svar = [];
+      const tekster = [];          // holdes adskilt fra svar[], saa teksten aldrig
+                                   // kan komme med i en log-linje ved et uheld
+      let forbrugtFoer = dom.forbrugtOere;
+      let prisIAlt = 0;
+
+      for (let i = 0; i < dele.length; i++) {
+        const fil = dele[i];
+        let del;
+        try {
+          del = await asr.transskriber({
+            lyd: fil.buffer,
+            filnavn: fil.originalname || `del-${i + 1}.m4a`,
+            sprog: "da",
+          });
+        } catch (e) {
+          // Delen fejlede. Det, der ALLEREDE er betalt, er bogført nedenfor i
+          // løkken — vi lader ikke et forbrug forsvinde, fordi en senere del
+          // knækkede.
+          //
+          // Og vi returnerer IKKE en halv transskription. Et referat med et
+          // manglende stykke, som ingen kan se mangler, er præcis den fejl,
+          // hele D66-arbejdet handler om. Hellere en tydelig fejl og en
+          // optagelse, der stadig ligger på telefonen.
+          console.error(`❌ transskription fejlede paa del ${i + 1}/${dele.length}:`, e.kode, e.message);
+          sendError(e);
+          return res.status(502).json({
+            error: "transskription_fejlede",
+            del: i + 1, afDele: dele.length,
+            besked: `Del ${i + 1} af ${dele.length} kunne ikke behandles. Din optagelse er gemt her på telefonen — prøv igen.`,
+          });
+        }
+
+        const prisOere = asr.prisOere(del.lydsekunder);
+        prisIAlt += prisOere;
+
+        // Bogføres PR. KALD, fordi det er pr. kald, leverandøren afregner.
+        await kvote.bogfoer({
+          firmId, formaal: "transskription",
+          leverandoer: del.leverandoer, model: del.model,
+          enhed: "lydsekund", maengde: del.lydsekunder, prisOere,
+        }, supabase);
+
+        // Varslet siges til ÉN gang — netop når grænsen krydses.
+        if (kvote.krydsedeVarsel(forbrugtFoer, prisOere, dom.loftOere)) {
+          const v = new Error(`Kvotevarsel: firmaet har passeret ${kvote.VARSEL_ANDEL * 100} % af sit maanedsloft`);
+          v.name = "Kvotevarsel";
+          console.warn("⚠️ KVOTE 80 %", { firmId, loftOere: dom.loftOere });
+          sendError(v);
+        }
+        forbrugtFoer += prisOere;
+
+        tekster.push(del.tekst);
+        // Kun tal. Aldrig teksten — den er persondata.
+        svar.push({ nr: i + 1, tegn: del.tekst.length, lydsekunder: del.lydsekunder });
+      }
+
+      // Delene sættes sammen i den rækkefølge, klienten sendte dem. Der er
+      // bevidst ingen omsortering her: rækkefølgen er optagerens ansvar, og to
+      // steder, der begge tror, de bestemmer den, er én for mange.
+      const lydsekunderIAlt = svar.reduce((n, d) => n + (d.lydsekunder || 0), 0);
+
+      res.json({
+        ok: true,
+        // Teksten gaar RETUR til hans egen browser og gemmes ikke her. Den
+        // hoerer til i referater.transskript, naar han gemmer referatet -
+        // ikke i denne rute, som ikke ved hvilken opgave det drejer sig om.
+        tekst: tekster.join("\n\n"),
+        dele: svar,
+        lydsekunderIAlt,
+        prisOere: Math.round(prisIAlt * 100) / 100,
+        // Saa fanen kan sige det til ham med det samme, uden et kald mere.
+        restOere: Math.max(0, dom.loftOere - forbrugtFoer),
+      });
+    });
+  });
 };

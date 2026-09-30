@@ -158,6 +158,15 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   const s4 = await k.status({ firmId: "F1" }, attrap({ raekker: [oere(1200, IDAG)] }), LOFTER_DRIFT);
   lig("dagsloftet alene giver ogsaa spaerret", s4.spaerret, true);
 
+  console.log("\nVARSLET VED 80 % — siges til ÉN gang, uden at gemme noget");
+  const L = 7000; // 70 kr i oere
+  lig("krydser 80 % netop nu", k.krydsedeVarsel(5500, 200, L), true);
+  lig("var der allerede - ingen gentagelse", k.krydsedeVarsel(5700, 200, L), false);
+  lig("naaede det ikke", k.krydsedeVarsel(5000, 200, L), false);
+  lig("rammer graensen praecis", k.krydsedeVarsel(5599, 1, L), true);
+  lig("springer forbi i ét kald", k.krydsedeVarsel(100, 6900, L), true);
+  lig("uden loft varsles der ikke", k.krydsedeVarsel(100, 100, 0), false);
+
   console.log(`\n${bestaaet} bestaaet, ${fejlet} fejlet.`);
   if (fejlet) process.exit(1);
   console.log("\nNAESTE: migrationen paa staging, og saa kobles kvote.js paa");

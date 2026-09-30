@@ -27,6 +27,16 @@ app.get("/sw.js", (req, res) =>
   res.sendFile(__dirname + "/static/sw.js")
 );
 
+// Kvoten er en BREMSE (driftrunbookens Del 3b): den kan stoppe produktet for
+// en kunde, uden at noget er i stykker. Derfor udstilles det HER, om den
+// overhovedet er konfigureret — så et manglende loft ses ved hvert deploy i
+// stedet for som en uforklarlig afvisning tre uger senere.
+// null = modulet er slukket, så spørgsmålet er ikke relevant.
+function kvoteKonfigureret() {
+  if (!TILBUD_AKTIV) return null;
+  try { require("./kvote")._hentLofter(); return true; } catch { return false; }
+}
+
 // ─── Sundhedstjek: bruges af roegtesten (smoke.js) ─────────────────────
 // Svarer 200 saa laenge processen lever og Express svarer. Bevidst tom for
 // logik: den skal kunne fejle NAAR appen er nede, ikke naar noget andet er.
@@ -36,6 +46,7 @@ app.get("/health", (req, res) =>
   res.status(200).json({
     ok: true,
     tilbud: TILBUD_AKTIV,
+        kvote: kvoteKonfigureret(),
     opkaldSignatur: process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log",
   })
 );

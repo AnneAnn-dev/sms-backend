@@ -551,10 +551,66 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 
 ## Del 3 — Hvis det brænder (incident)
 
+0. **Er det overhovedet i stykker?** Løb Del 3b igennem først. Flere af de ting,
+   der ligner et nedbrud, er bremser, vi selv har bygget — og de er hurtigere at
+   udelukke end at feilsøge.
 1. Kunde melder fejl → tjek **health-check**, **Railway-logs** og de **tre webhooks**.
 2. **Rollback koden først** — det er det hurtigste tilbage til en kendt god tilstand.
 3. DB-fejl (forkert data/migration) → vurder **PITR-gendannelse**. Husk: prod er **utilgængelig under restore**, og varigheden vokser med DB-størrelsen — meld evt. kort driftsstop.
 4. Tjek Twilio- og Frisbii-status hvis opkald/betaling driller.
+
+---
+
+## Del 3b — Bremserne: det, der stopper produktet MED VILJE
+
+*Skrevet 29/9-26, da kvoten blev bygget.*
+
+**Hvorfor denne liste findes.** Vi har nu flere mekanismer, der kan få produktet
+til at holde op med at virke for en kunde, uden at noget er gået i stykker. De er
+alle sammen bevidste, de er alle sammen rigtige — og de ser alle sammen ud som en
+fejl, når man står med en håndværker i røret, der siger *"den svarer ikke"*.
+
+**Led efter symptomet, ikke efter mekanismen.** Du husker ikke, at der findes et
+månedsloft. Du husker, at han siger, den ikke svarer.
+
+| Symptom | Bremse | Spørg sådan | Slip den sådan |
+|---|---|---|---|
+| `/api/tilbud/*` og `/tilbud/*` giver 404, som om modulet ikke findes | `TILBUD_AKTIV=false` | `GET /health` → `"tilbud"` | Variablen i Railway + genstart |
+| Opkald når ikke frem, men Twilio siger, de er sendt | `OPKALD_SIGNATUR=haandhaev` afviser opkald med forkert signatur | `GET /health` → `"opkaldSignatur"` | Se opkaldsafsnittet — rul ikke bare tilbage til `log` |
+| Det virkede, og så holdt det op midt i en arbejdsgang. Svaret er 429 | `ratelimit.js` (S12) | Railway-loggen + grænserne i `ratelimit.js` | Grænsen hæves i koden, ikke i en variabel |
+| Ét firma kan ikke lave referater. Beskeden nævner **måneden** | Firmaets månedsloft er nået | `GET /api/tilbud/kvote` → `spaerret` | `firma_profil.ai_maanedsloft_dkk` hæves med én linje SQL |
+| Ét firma kan ikke lave referater. Beskeden nævner **i dag** | Firmaets dagsloft er nået | Samme | `firma_profil.ai_dagsloft_dkk`, eller vent til i morgen |
+| Én bestemt lang optagelse afvises, de korte går igennem | Kaldsloftet, `AI_KALD_LOFT_DKK` | Beskeden siger "for lang til at behandles i ét stykke" | Hæv variablen — og forstå først hvorfor kaldet blev så dyrt |
+| **ALLE** firmaer kan ikke lave referater | Det globale månedsloft, eller en manglende loft-variabel (fail-closed) | Railway-loggen: `kvote_konfiguration` betyder en manglende variabel | Hæv `AI_GLOBALT_MAANEDSLOFT_DKK`, eller sæt den manglende variabel |
+| Køb-knappen "lykkes", men intet sker | Frisbii-checkout svarer 500 `server_misconfigured`, fordi `FRISBII_PLAN_HANDLE` eller `SIMPLY_BASE_URL` mangler | Railway-loggen | Sæt variablen **og genstart** — de læses ved montering, ikke pr. kald |
+
+### To ting, der gør listen brugbar i stedet for bare sand
+
+**1. Bremserne larmer selv.** En kvoteafvisning skrives til AppSignal som en
+advarsel med `firm_id` og årsag, og der går besked, når et firma passerer 80 %
+af sit månedsloft. Meningen er, at du ved det, **før kunden ringer** — mens der
+stadig kan gøres noget. En bremse, der griber i stilhed, er ikke til at skelne
+fra et nedbrud.
+
+**2. Prøv kvoten én gang, med vilje.** Sæt et firmas loft til 1 øre i staging og
+kør en diktering igennem:
+
+```sql
+update public.firma_profil set ai_maanedsloft_dkk = 0.01 where firm_id = '<uuid>';
+-- og bagefter:
+update public.firma_profil set ai_maanedsloft_dkk = null  where firm_id = '<uuid>';
+```
+
+Så har du set beskeden, set loggen og set, hvad der sker med optagelsen på
+telefonen. Næste gang genkender du det på et sekund. **Det er samme tanke som
+gendannelsesøvelsen: en bremse, der aldrig er mærket, er ikke prøvet** — og den
+her har den ekstra egenskab, at den rammer én kunde ad gangen, så den kan være
+i gang i ugevis, uden at nogen opdager det.
+
+### Når der kommer en bremse mere
+
+Skriv den i tabellen **samme dag, den bygges**, og start med symptomkolonnen.
+Kan du ikke skrive, hvordan den ser ud for den, der ringer, er den ikke færdig.
 
 ---
 

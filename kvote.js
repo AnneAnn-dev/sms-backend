@@ -305,6 +305,21 @@ async function bogfoer({ firmId, formaal, leverandoer, model, enhed, maengde, pr
   return { bogfoert: true };
 }
 
+// ─── Varslingen ──────────────────────────────────────────────────────────────
+// "Du ved det, før kunden ringer" kræver, at der siges til ÉN gang — ikke ved
+// hvert kald resten af måneden. Krydsningen kan regnes ud uden at gemme noget:
+// vi kender forbruget FØR kaldet (fra tjek) og prisen, kaldet kostede.
+//
+// Derfor ingen tabel, ingen "sidst varslet"-kolonne, ingen oprydning. En
+// tilstand, der kan udledes, skal ikke gemmes.
+const VARSEL_ANDEL = 0.8;
+
+function krydsedeVarsel(foerOere, prisOere, loftOere) {
+  if (!(loftOere > 0)) return false;
+  const graense = loftOere * VARSEL_ANDEL;
+  return foerOere < graense && foerOere + Number(prisOere || 0) >= graense;
+}
+
 function brugsfejl(besked) {
   const f = new Error("Kvote: " + besked);
   f.kode = "kvote_brug";
@@ -312,7 +327,8 @@ function brugsfejl(besked) {
 }
 
 module.exports = {
-  tjek, status, bogfoer,
+  tjek, status, bogfoer, krydsedeVarsel,
+  VARSEL_ANDEL,
   _hentLofter: hentLofter,
   _maanedsstart: maanedsstart,
   _dagsstart: dagsstart,
