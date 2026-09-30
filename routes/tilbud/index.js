@@ -25,21 +25,32 @@ const RUTER = ["/api/tilbud/status", "/api/tilbud/kvote", "/api/tilbud/transskri
 // Kaldsloftet (AI_KALD_LOFT_DKK) kan kun holdes, hvis inputtet er begrænset.
 // Derfor er tallene herunder ikke vilkårlige — de er REGNESTYKKET bag loftet.
 //
-//   25 MB i alt, og en konservativ bundgrænse på 3 KB/sek. (24 kbit/s) giver
-//   højst 8.333 lydsekunder = 139 minutter = 3,11 kr hos Scaleway.
-//   Under kaldsloftet på 5 kr, med luft.
+//   30 MB, og en konservativ bundgrænse på 3 KB/sek. (24 kbit/s) giver højst
+//   10.486 lydsekunder = 175 minutter = 3,92 kr hos Scaleway.
+//   Under kaldsloftet på 5 kr, med en krone i margin.
 //
-//   Til sammenligning: den MÅLTE bitrate 28/9 var 17 KB/sek., så 25 MB er i
-//   virkeligheden ca. 24 minutters lyd til 55 øre. Bundgrænsen er sat lavt
+//   Til sammenligning: den MÅLTE bitrate 28/9 var 17 KB/sek., så 30 MB er i
+//   virkeligheden ca. 31 minutters lyd til 69 øre. Bundgrænsen er sat lavt
 //   med vilje — den skal overvurdere prisen, aldrig undervurdere den.
 //
 // ⚠️ Prisen REGNES, den antages ikke. Skiftes modellen til en dyrere, stiger
 // det beregnede værste tilfælde af sig selv, og kaldet afvises — højlydt — i
 // stedet for i stilhed at koste mere. Det er hele grunden til, at adapteren
 // leverer prisen som en enhed og ikke som en konstant.
+//
+// ÉN GRÆNSE, IKKE TO (hævet 30/9). Delen og totalen er samme tal, så reglen
+// kan siges i én sætning: en diktering må fylde 30 MB, uanset hvordan den er
+// delt. Den tidligere grænse på 10 MB pr. del afviste en RIGTIG optagelse på
+// 10,5 MB under prøven — og det var ikke en fejl i optagelsen. Med
+// fortsæt-knappen brydes en diktering, NÅR HÅNDVÆRKEREN BLIVER AFBRUDT, ikke
+// når den bliver lang; en ubrudt gennemgang af et langt møde er normal.
+//
+// Prisen ved at hæve: multer holder filerne i hukommelsen, så én forespørgsel
+// kan fylde 30 MB RAM, mens den behandles. Uden betydning ved pilotens omfang,
+// værd at kende den dag der er mange samtidige brugere.
 const MAX_DELE = 5;
-const MAX_BYTES_PR_DEL = 10 * 1024 * 1024;
-const MAX_BYTES_I_ALT = 25 * 1024 * 1024;
+const MAX_BYTES_PR_DEL = 30 * 1024 * 1024;
+const MAX_BYTES_I_ALT = 30 * 1024 * 1024;
 const LAVESTE_BYTES_PR_SEK = 3000;
 
 const upload = multer({
@@ -95,9 +106,12 @@ module.exports = function (app, supabase) {
         const forStor = multerFejl.code === "LIMIT_FILE_SIZE";
         return res.status(413).json({
           error: forStor ? "del_for_stor" : "upload_afvist",
+          // To koder, to beskeder: den ene handler om laengde, den anden om
+          // antal dele. Kan de ikke skelnes i en log, kan symptomet ikke
+          // slaas op i driftrunbookens Del 3b.
           besked: forStor
-            ? "En af delene er for stor. Del optagelsen op i flere stykker."
-            : "Optagelsen kunne ikke modtages. Prøv igen.",
+            ? "Optagelsen er for lang til at behandles i ét stykke. Stop og start forfra, eller kontakt os."
+            : `En diktering kan bestå af højst ${MAX_DELE} dele. Gem det, du har, og start et nyt referat.`,
         });
       }
 

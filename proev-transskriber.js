@@ -52,9 +52,30 @@ if (!/^eyJ[\w-]+\.[\w-]+\./.test(token)) {
   process.exit(1);
 }
 
+// En uventet undtagelse fra fetch giver som standard en stak paa tredive
+// linjer, hvor den eneste brugbare oplysning er ordet ECONNREFUSED. Her
+// oversaettes den til det, man faktisk skal gore noget ved.
+async function hent(url, indstillinger) {
+  try {
+    return await fetch(url, indstillinger);
+  } catch (e) {
+    const aarsag = e.cause && e.cause.code ? e.cause.code : e.code;
+    if (aarsag === "ECONNREFUSED") {
+      console.log(`\nIngen server paa ${base}.`);
+      console.log("  Koerer 'node server.js' i et andet vindue?");
+      console.log("  Er det staging du vil ramme, saa brug --base <url>.");
+    } else if (aarsag === "ENOTFOUND") {
+      console.log(`\nAdressen ${base} findes ikke. Tjek --base.`);
+    } else {
+      console.log(`\nKunne ikke naa ${base}: ${e.message}`);
+    }
+    process.exit(1);
+  }
+}
+
 (async () => {
   // 1. Kvoten FOER — samme spoergsmaal, som fanen stiller, foer han trykker optag
-  const k = await fetch(`${base}/api/tilbud/kvote`, {
+  const k = await hent(`${base}/api/tilbud/kvote`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const kvote = await k.json();
@@ -78,7 +99,7 @@ if (!/^eyJ[\w-]+\.[\w-]+\./.test(token)) {
   console.log(`\nSENDER ${filer.length} del(e), ${(bytes / 1e6).toFixed(1)} MB — dette koster penge`);
 
   const ur = Date.now();
-  const r = await fetch(`${base}/api/tilbud/transskriber`, {
+  const r = await hent(`${base}/api/tilbud/transskriber`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: krop,
@@ -102,7 +123,7 @@ if (!/^eyJ[\w-]+\.[\w-]+\./.test(token)) {
   console.log("\n  (resten vises ikke — transskriptioner er persondata)");
 
   // 3. Kvoten EFTER — beviser, at bogfoeringen skete
-  const k2 = await fetch(`${base}/api/tilbud/kvote`, { headers: { Authorization: `Bearer ${token}` } });
+  const k2 = await hent(`${base}/api/tilbud/kvote`, { headers: { Authorization: `Bearer ${token}` } });
   const kvote2 = await k2.json();
   const diff = kvote2.forbrugtOere - kvote.forbrugtOere;
   console.log(`\nKVOTE EFTER`);

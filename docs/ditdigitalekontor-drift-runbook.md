@@ -570,6 +570,12 @@ til at holde op med at virke for en kunde, uden at noget er gået i stykker. De 
 alle sammen bevidste, de er alle sammen rigtige — og de ser alle sammen ud som en
 fejl, når man står med en håndværker i røret, der siger *"den svarer ikke"*.
 
+> ⚠️ **Endnu ikke i drift:** kvoteraekkerne herunder beskriver `kvote.js`, som er
+> skrevet 29/9 men først kobles på ruten i opgave 4. Ruten
+> `GET /api/tilbud/kvote` findes altså ikke endnu — **slet denne linje, når den
+> gør.** En runbook, der under en hændelse beder dig kalde en rute, der giver
+> 404, er værre end ingen runbook.
+
 **Led efter symptomet, ikke efter mekanismen.** Du husker ikke, at der findes et
 månedsloft. Du husker, at han siger, den ikke svarer.
 
