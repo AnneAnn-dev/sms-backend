@@ -330,7 +330,28 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       forespørgsel imod. Bemærk at de øvrige moduler har registreret sig og
       skrevet i loggen først: den ægte prøve på en lykkelig opstart er linjen
       `Tilbudsmodul: TAENDT`, ikke emoji-linjerne.
-- [ ] Transskriptions-endpoint (Scaleway, multipart webm+mp4, lyd slettes efter brug).
+- [x] **TRANSSKRIPTIONS-ENDPOINTET — GRØNT I STAGING 1/10.**
+      `POST /api/tilbud/transskriber` + `GET /api/tilbud/kvote` + `GET /api/tilbud/status`.
+      **Målt:** én del = 163 sek. lyd, 6,09 øre, svartid 9,7 sek. (1:17) · to dele =
+      324 sek., 12,11 øre, 19,2 sek. · rækkefølgen holder · én række i `ai_forbrug`
+      pr. kald · **bogføringen stemmer på øren**, prøvet både lokalt og i staging.
+      Afvisningerne prøvet: 402 ved firmaloft, 413 `del_for_stor`, 413 `upload_afvist`,
+      400 `ingen_lyd`, 401. Varslet ved 80 % siges til én gang. `Kvoteafvisning` set i
+      AppSignal på staging. **Fire fund undervejs, alle med konsekvenser:**
+      **(a)** uploadgrænsen var sat for stramt — en RIGTIG optagelse på 10,5 MB blev
+      afvist. Hævet til 30 MB, og delen og totalen er nu samme tal: *en diktering må
+      fylde 30 MB, uanset hvordan den er delt.* Værste tilfælde 3,92 kr, under
+      kaldsloftet ·
+      **(b)** en manglende ASR-variabel blev meldt som `kvote_utilgaengelig`. Fejlkoder
+      adskilt (`asr_ukonfigureret` · `kvote_ukonfigureret` · `kvote_utilgaengelig`), og
+      `/api/tilbud/status` udstiller nu `konfigureret: { asr, kvote }`. **En fejlkode,
+      der peger på den forkerte mekanisme, koster mere tid end ingen fejlkode** ·
+      **(c)** AppSignal kan ikke starte lokalt på Windows (`extension failed to load`),
+      også for `/test-appsignal`. **Alt, der skal efterprøves i AppSignal, efterprøves
+      i staging.** Derfor larmer bremsen også gennem `console.warn` — den kanal virkede,
+      da den anden ikke gjorde ·
+      **(d)** se D68 nedenfor.
+- [x] ~~Transskriptions-endpoint~~ (Scaleway, multipart webm+mp4, lyd slettes efter brug).
       ✅ **mp4 tages RÅT imod — byg ikke et omkodningstrin** (målt 26/9, `RESULTAT-05`).
       Læs formatet fra selve blobben: `recorder.mimeType` er tom streng på iOS.
       **Kvoten tjekkes på SAMLET lydtid, før første kald** — ikke pr. del, ellers
@@ -447,6 +468,17 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       dag ét (summer på selve tilbuddet, `version`, `sendt_at`), `tilbud_linjer`
       (numeric hele vejen, genereret `linje_sum`), `firma_profil` (én række pr.
       firma), `standardfelter` (pr. firma, ikke globalt). RLS på alle fem
+- [ ] ⚠️ **OPRET `firma_profil`-rækken ved provisionering — og bagudfyld de
+      eksisterende firmaer (D68, fundet 1/10).** Tabellen er **tom i både staging og
+      prod**. Migration B oprettede den 27/7; ingen kode har nogensinde indsat en række.
+      **Dette trin kan ikke bygges uden den:** `timepris`, `moms_sats`,
+      `standard_betingelser` og `ai_tone` bor dér, og uden rækken får kunden et tilbud
+      uden priser.
+      **To dele:** (1) `provisionFirm` indsætter rækken sammen med firmaet —
+      `insert ... on conflict (firm_id) do nothing`, så den tåler at blive kørt igen ·
+      (2) et engangsscript, der opretter rækken for hvert firma, der allerede findes.
+      **Og et værn:** røgtesten bør kræve, at antallet af rækker i `firma_profil`
+      svarer til antallet i `firms`. Det er det tjek, der ville have fanget hullet i juli.
 - [ ] Tilbuds-prompt + notefoto-prompt kobles på proxyen
 - [ ] Datafunktioner for tilbud/profil/standardfelter
 - [ ] PDF-eksport (jsPDF), Tilbuds- og Indstillinger-fanerne aktiveres
