@@ -27,6 +27,16 @@ app.get("/sw.js", (req, res) =>
   res.sendFile(__dirname + "/static/sw.js")
 );
 
+// Kvoten er en BREMSE (driftrunbookens Del 3b): den kan stoppe produktet for
+// en kunde, uden at noget er i stykker. Derfor udstilles det HER, om den
+// overhovedet er konfigureret — så et manglende loft ses ved hvert deploy i
+// stedet for som en uforklarlig afvisning tre uger senere.
+// null = modulet er slukket, så spørgsmålet er ikke relevant.
+function kvoteKonfigureret() {
+  if (!TILBUD_AKTIV) return null;
+  try { require("./kvote")._hentLofter(); return true; } catch { return false; }
+}
+
 // ─── Sundhedstjek: bruges af roegtesten (smoke.js) ─────────────────────
 // Svarer 200 saa laenge processen lever og Express svarer. Bevidst tom for
 // logik: den skal kunne fejle NAAR appen er nede, ikke naar noget andet er.
@@ -36,6 +46,7 @@ app.get("/health", (req, res) =>
   res.status(200).json({
     ok: true,
     tilbud: TILBUD_AKTIV,
+        kvote: kvoteKonfigureret(),
     opkaldSignatur: process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log",
   })
 );
@@ -580,10 +591,16 @@ app.get("/:slug/:token", async (req, res, next) => {
   return res.redirect(302, `/formular/${token}`);
 });
 
-// MIDLERTIDIG — fjern efter test (verificerer at fejl når AppSignal)
-app.get("/test-appsignal", (req, res) => {
-  throw new Error("AppSignal test-fejl 🚨");
-});
+// S23 LUKKET 1/10-26: /test-appsignal er fjernet.
+// Ruten var et offentligt endpoint, der kastede en fejl paa kommando — enhver,
+// der gaettede stien, kunne fylde loggen og AppSignal-kvoten uden at vaere
+// logget ind. Den blev staaende, fordi den var den ENESTE maade at bevise, at
+// fejl naaede frem til AppSignal.
+//
+// Den betingelse er opfyldt: rapporterFejl() i onboarding.js (S26) sender
+// rigtige fejl fra rigtige fejlveje, bevist 1/10 med en Twilio-afvisning, der
+// kom frem som haendelse #46 i staging. Et testendpoint, der beviser noget,
+// produktionskoden allerede beviser, er kun en aaben doer.
 
 // ─── AppSignal: robust fejlhåndterer — EFTER alle routes, FØR app.listen ─────
 // Bruger sendError (egen rod-span), så route-fejl fanges uanset om Express 5
