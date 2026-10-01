@@ -468,17 +468,22 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       dag ét (summer på selve tilbuddet, `version`, `sendt_at`), `tilbud_linjer`
       (numeric hele vejen, genereret `linje_sum`), `firma_profil` (én række pr.
       firma), `standardfelter` (pr. firma, ikke globalt). RLS på alle fem
-- [ ] ⚠️ **OPRET `firma_profil`-rækken ved provisionering — og bagudfyld de
-      eksisterende firmaer (D68, fundet 1/10).** Tabellen er **tom i både staging og
-      prod**. Migration B oprettede den 27/7; ingen kode har nogensinde indsat en række.
-      **Dette trin kan ikke bygges uden den:** `timepris`, `moms_sats`,
-      `standard_betingelser` og `ai_tone` bor dér, og uden rækken får kunden et tilbud
-      uden priser.
-      **To dele:** (1) `provisionFirm` indsætter rækken sammen med firmaet —
-      `insert ... on conflict (firm_id) do nothing`, så den tåler at blive kørt igen ·
-      (2) et engangsscript, der opretter rækken for hvert firma, der allerede findes.
-      **Og et værn:** røgtesten bør kræve, at antallet af rækker i `firma_profil`
-      svarer til antallet i `firms`. Det er det tjek, der ville have fanget hullet i juli.
+- [ ] ⚠️ **`firma_profil`-rækken oprettes af en trigger på `firms` (D68, fundet 1/10).**
+      Tabellen var **tom i både staging og prod**: Migration B oprettede den 27/7, men
+      ingen kode indsatte nogensinde en række. **Dette trin kan ikke bygges uden den:**
+      `timepris`, `moms_sats`, `standard_betingelser` og `ai_tone` bor dér, og uden
+      rækken får kunden et tilbud uden priser.
+      **Besluttet 1/10 (Ann): trigger, ikke kode i `provisionFirm`.** Mindst tre veje
+      opretter et firma (webhooken, `provision-test-firm.js`, håndskrevet SQL); en
+      trigger dækker dem alle, også dem der ikke findes endnu.
+      **Bygget 1/10, ikke kørt:** `Claude outputs\2026-10-01-firma-profil\` —
+      migration `20261001120000_firma_profil_ved_oprettelse.sql` (trigger +
+      engangsudfyldning + værnet `firma_profil_komplet()`) og `smoke.js` med tjekket
+      "Hvert firma har en firma_profil (D68)".
+      **Rækkefølge:** `aflever.ps1` → commit → `push-staging.ps1` → `npm run smoke`
+      (D68: OK) → opret ét testfirma og mål `select count(*) from firma_profil where
+      firm_id = '<id>'` = 1 → `push-prod.ps1` → `npm run smoke:prod` (D68: OK).
+      Indtil prod-migrationen er kørt, viser `smoke:prod` ADV for D68 — ikke rødt.
 - [ ] Tilbuds-prompt + notefoto-prompt kobles på proxyen
 - [ ] Datafunktioner for tilbud/profil/standardfelter
 - [ ] PDF-eksport (jsPDF), Tilbuds- og Indstillinger-fanerne aktiveres
