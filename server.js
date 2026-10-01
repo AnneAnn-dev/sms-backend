@@ -591,10 +591,16 @@ app.get("/:slug/:token", async (req, res, next) => {
   return res.redirect(302, `/formular/${token}`);
 });
 
-// MIDLERTIDIG — fjern efter test (verificerer at fejl når AppSignal)
-app.get("/test-appsignal", (req, res) => {
-  throw new Error("AppSignal test-fejl 🚨");
-});
+// S23 LUKKET 1/10-26: /test-appsignal er fjernet.
+// Ruten var et offentligt endpoint, der kastede en fejl paa kommando — enhver,
+// der gaettede stien, kunne fylde loggen og AppSignal-kvoten uden at vaere
+// logget ind. Den blev staaende, fordi den var den ENESTE maade at bevise, at
+// fejl naaede frem til AppSignal.
+//
+// Den betingelse er opfyldt: rapporterFejl() i onboarding.js (S26) sender
+// rigtige fejl fra rigtige fejlveje, bevist 1/10 med en Twilio-afvisning, der
+// kom frem som haendelse #46 i staging. Et testendpoint, der beviser noget,
+// produktionskoden allerede beviser, er kun en aaben doer.
 
 // ─── AppSignal: robust fejlhåndterer — EFTER alle routes, FØR app.listen ─────
 // Bruger sendError (egen rod-span), så route-fejl fanges uanset om Express 5
