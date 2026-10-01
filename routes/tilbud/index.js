@@ -58,6 +58,12 @@ const upload = multer({
   limits: { fileSize: MAX_BYTES_PR_DEL, files: MAX_DELE },
 });
 
+// Sandt/falsk, aldrig en fejl: status-ruten skal kunne svare, også når noget
+// mangler. Beløb og nøglenavne kommer ALDRIG med i svaret.
+function erKonfigureret(f) {
+  try { f(); return true; } catch { return false; }
+}
+
 function værsteFaldOere(bytes) {
   return asr.prisOere(bytes / LAVESTE_BYTES_PR_SEK);
 }
@@ -72,6 +78,13 @@ module.exports = function (app, supabase) {
       modul: "tilbud",
       ruter: RUTER,
       mangler: ["POST /api/tilbud/referat", "den snaevre teknik B", "fotovejen"],
+      // Samme tanke som kvote-feltet i /health: udstil TILSTANDEN, så den kan
+      // spørges i stedet for gættes. Uden dette felt ligner en manglende
+      // ASR-variabel et problem med kvoten (fundet 30/9).
+      konfigureret: {
+        asr: erKonfigureret(() => asr.prisenhed()),
+        kvote: erKonfigureret(() => kvote._hentLofter()),
+      },
     })
   );
 
@@ -134,14 +147,33 @@ module.exports = function (app, supabase) {
       // ── Kvoten, FØR der ringes ──────────────────────────────────────────
       let dom;
       try {
+        // værsteFaldOere() spørger ASR-adapteren om prisenheden, så den kan
+        // kaste en asr_konfiguration-fejl. Den ligger inde i samme try som
+        // kvoten, fordi begge skal fejle lukket — men de må IKKE meldes ens.
         dom = await kvote.tjek({ firmId, maxPrisOere: værsteFaldOere(bytesIAlt) }, supabase);
       } catch (e) {
-        // Konfigurations- eller læsefejl er VORES problem, ikke brugerens.
-        // Fail-closed: vi gætter ikke på, at der er plads.
-        console.error("❌ kvoten kunne ikke afgøres:", e.kode, e.message);
+        // Fail-closed: vi gætter ikke på, at der er plads. Men fejlkoden skal
+        // være ærlig.
+        //
+        // ⚠️ FUNDET 30/9: alle tre fejl blev meldt som "kvote_utilgaengelig".
+        // Staging manglede TILBUD_ASR_* — altså en ASR-fejl — og svaret pegede
+        // på kvoten. GET /api/tilbud/kvote svarede samtidig 200, fordi den
+        // ikke rører adapteren, og så lignede det et lune i POST'en.
+        // En fejlkode, der peger på den forkerte mekanisme, koster mere tid
+        // end ingen fejlkode.
+        const koder = {
+          asr_konfiguration: "asr_ukonfigureret",
+          kvote_konfiguration: "kvote_ukonfigureret",
+          kvote_laesning: "kvote_utilgaengelig",
+        };
+        const kode = koder[e.kode] || "kvote_utilgaengelig";
+        console.error(`❌ kaldet kunne ikke forberedes [${kode}]:`, e.kode, e.message);
         sendError(e);
         return res.status(503).json({
-          error: "kvote_utilgaengelig",
+          error: kode,
+          // Brugeren får det samme at vide uanset hvad — han kan ikke gøre
+          // noget ved nogen af delene, og hvilken variabel der mangler på
+          // serveren, rager ham ikke.
           besked: "Vi kan ikke behandle optagelsen lige nu. Den er gemt her på telefonen — prøv igen om lidt.",
         });
       }
