@@ -18,6 +18,10 @@ const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
 const { sendAdminAlert } = require("./mail");
+// sendError sender en fejl til AppSignal med sin egen rod-span. Samme kald som
+// fejl-middlewaren i server.js bruger. Noedvendigt her, fordi AppSignal KUN ser
+// fejl, der kastes videre til Express — et catch, der svarer paent, naar den aldrig.
+const { sendError } = require("@appsignal/nodejs");
 
 module.exports = function registerOnboarding(app, supabase) {
 
@@ -104,6 +108,37 @@ module.exports = function registerOnboarding(app, supabase) {
   // Uændret signatur, så /send-sms og /opkald kalder den som før.
   async function sendSms({ to, from, body }) {
     return twilioClient.messages.create({ to, from, body });
+  }
+
+  // ─── FEJLRAPPORTERING (S26, 30/9-26) ────────────────────────────────────
+  // console.error er tekst i Railway-loggen og udloeser ingen alarm. Denne
+  // hjaelper goer to ting paa én gang: skriver en log-linje, der kan
+  // fejlsoeges paa, og sender fejlen til AppSignal, saa den bliver set uden
+  // at nogen skal laese loggen.
+  //
+  // Twilio-fejl baerer `code` og `status` — de siger HVAD der er galt (fx
+  // 21210 "fra-nummer hoerer ikke til kontoen", 21266 "til og fra er ens"),
+  // mens `message` ofte kun er en omskrivning. Begge dele med.
+  //
+  // Rapporteringen maa aldrig kunne vaelte det kald, den rapporterer om:
+  // derfor try/catch omkring sendError. En overvaagning, der kan tage
+  // produktet ned, er vaerre end ingen overvaagning.
+  function rapporterFejl(hvor, err, kontekst = {}) {
+    const ekstra = Object.entries(kontekst)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" ");
+    console.error(
+      `❌ ${hvor}:`, (err && err.message) || String(err),
+      "| twilio-kode:", (err && err.code) ?? "-",
+      "| status:", (err && err.status) ?? "-",
+      ekstra ? `| ${ekstra}` : ""
+    );
+    try {
+      sendError(err instanceof Error ? err : new Error(`${hvor}: ${String(err)}`));
+    } catch (e) {
+      console.error("⚠️  Fejlen kunne ikke sendes til AppSignal:", e.message);
+    }
   }
 
   // ─── 1. TWILIO OPKALDSHANDLER ────────────────────────────────────────────
@@ -280,7 +315,7 @@ module.exports = function registerOnboarding(app, supabase) {
           ]).then((udfald) => {
             const navne = ["forklaring", "kopi"];
             udfald.forEach((r, i) => {
-              if (r.status === "rejected") console.error(`❌ Demo-SMS (${navne[i]}) fejl:`, r.reason);
+              if (r.status === "rejected") rapporterFejl(`Demo-SMS (${navne[i]}) fejlede`, r.reason, { firma: firm.id });
             });
             const lykkedes = udfald.filter(r => r.status === "fulfilled").length;
             if (lykkedes === udfald.length) {
@@ -372,7 +407,22 @@ module.exports = function registerOnboarding(app, supabase) {
       to:   fromNumber,
       from: toNumber,
       body: advarHvisFlereSegmenter(kundeSmsBody(smsNavn(firm), formUrl), "kunde"),
-    }).catch(err => console.error("❌ SMS fejl:", err));
+    }).catch(err => {
+      // DEN VIGTIGSTE FEJLVEJ I PRODUKTET. Fejler den her, ringede kunden,
+      // fik aldrig sit formular-link, og haandvaerkeren faar aldrig sit lead.
+      // Opkaldet selv lykkedes, saa intet andet sted i systemet ved, at der
+      // mangler noget. Derfor baade log, AppSignal-fejl og alarm i indbakken.
+      rapporterFejl("Kunde-SMS (formular-link) fejlede", err, { firma: firm.id, call: call.id });
+      sendAdminAlert({
+        subject: "Kunde-SMS med formular-link fejlede",
+        text:
+          `Firma ${firm.id} (${firm.name}) modtog et opkald, men SMS'en med formular-linket ` +
+          `kunne ikke sendes (call ${call.id}).\n` +
+          `Kunden har ringet og faar intet link. Haandvaerkeren faar aldrig leadet, og ingen af ` +
+          `dem ved det.\n\n` +
+          `Twilio-fejlkoden staar i Railway-loggen og i AppSignal.`,
+      }).catch(e => console.error("⚠️  Alarm om fejlet kunde-SMS kunne ikke sendes:", e.message));
+    });
     
     // Afspil hilsen: foretræk den renderede ElevenLabs-lydfil; falder tilbage
     // til Polly (da-DK) hvis der ingen fil er, så et opkald aldrig knækker.
@@ -393,7 +443,7 @@ module.exports = function registerOnboarding(app, supabase) {
   // Kaldes fra onboarding-dashboardet når håndværkeren klikker "Test nu"
   app.post("/onboarding/verificer", async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);
-    if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
+    if (!firm_id) { console.warn("🚫 Verifikationsopkald: ikke logget ind (401) — ingen gyldig session"); return res.status(401).json({ error: "Ikke logget ind" }); }
 
     const { owner_phone: bodyPhone } = req.body;
 
@@ -403,11 +453,14 @@ module.exports = function registerOnboarding(app, supabase) {
       .eq("id", firm_id)
       .single();
 
-    if (!firm) return res.status(404).json({ error: "Firma ikke fundet" });
+    if (!firm) { console.warn("🚫 Verifikationsopkald: firma ikke fundet (404) — firma:", firm_id); return res.status(404).json({ error: "Firma ikke fundet" }); }
 
     // Brug owner_phone fra body hvis ikke gemt i DB endnu
     const callTo = firm.owner_phone || bodyPhone;
     if (!callTo) {
+      // Tavse udgange var hele S26: fejlede knappen, stod der INTET i loggen,
+      // og bagefter kunne man ikke skelne "det fejlede" fra "det skete aldrig".
+      console.warn("🚫 Verifikationsopkald: mangler haandvaerkerens mobilnummer (400) — firma:", firm_id);
       return res.status(400).json({ error: "Mangler håndværkerens mobilnummer" });
     }
 
@@ -421,7 +474,13 @@ module.exports = function registerOnboarding(app, supabase) {
       // må den ikke sige "det virker"; den skal guide dem til at prøve igen uden
       // at svare. (Svarer de ikke, viderestilles opkaldet, og /opkald spiller den
       // rigtige "det virker"-besked og markerer firmaet verificeret.)
-      await twilioClient.calls.create({
+      // LINJEN FOER FORSOEGET. Det er den, der goer et mislykket testkald
+      // fejlsoegeligt: staar den i loggen uden en kvittering bagefter, naaede
+      // kaldet Twilio og fejlede. Staar den slet ikke, blev der aldrig ringet.
+      console.log("📞 Verifikationsopkald forsoeges — firma:", firm_id,
+        "til:", maskerTlf(callTo), "fra:", maskerTlf(process.env.TWILIO_SYSTEM_NUMBER));
+
+      const opkald = await twilioClient.calls.create({
         to:    callTo,
         from:  process.env.TWILIO_SYSTEM_NUMBER,
         twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Hej. Det her er en automatisk test fra Dit Digitale Kontor. Du har taget telefonen, men for at teste din viderestilling skal du lade være med at svare. Læg på nu, gå tilbage til appen, og tryk Ring til mig igen. Lad så telefonen ringe uden at svare.</Say></Response>`,
@@ -432,11 +491,16 @@ module.exports = function registerOnboarding(app, supabase) {
         .update({ verification_status: "pending" })
         .eq("id", firm_id);
 
+      console.log("✅ Verifikationsopkald afsendt — firma:", firm_id, "call-sid:", opkald && opkald.sid);
+
       res.json({ ok: true, message: "Testopkald afsendt" });
 
     } catch (err) {
-      console.error("❌ Verifikationsopkald fejlede:", err.message);
-      console.error("❌ Ring til:", maskerTlf(callTo), "Fra:", maskerTlf(process.env.TWILIO_SYSTEM_NUMBER));
+      rapporterFejl("Verifikationsopkald fejlede", err, {
+        firma: firm_id,
+        til:   maskerTlf(callTo),
+        fra:   maskerTlf(process.env.TWILIO_SYSTEM_NUMBER),
+      });
       res.status(500).json({ error: "Opkald fejlede", detail: err.message });
     }
   });
@@ -1076,7 +1140,7 @@ module.exports = function registerOnboarding(app, supabase) {
       console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id);
       res.json({ ok: true });
     } catch (err) {
-      console.error("❌ SMS fejl:", err.message);
+      rapporterFejl("SMS fra dashboardet fejlede", err, { firma: firm_id, lead: lead_id });
       res.status(500).json({ error: "Kunne ikke sende SMS" });
     }
   });
