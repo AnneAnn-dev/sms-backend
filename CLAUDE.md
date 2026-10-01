@@ -20,8 +20,8 @@ Der findes to kopier af `docs/`, og kun den ene er sand:
 **Ritualet, når en session skal skrive i dokumenterne:**
 
 1. Ann kører `sync-docs.ps1` (visning). Er arbejdstræet bagud: `-Hent` først.
-2. Sessionen skriver i arbejdskopien.
-3. Ann kører `sync-docs.ps1 -Aflever`, læser `git diff -- docs` og committer.
+2. Sessionen skriver i `_til-repo\` — IKKE direkte i arbejdskopiens `docs\`. Se afsnittet nedenfor.
+3. Ann kopierer fra `_til-repo\` til master, læser `git diff -- docs` og committer MED DET SAMME.
 
 **Bed om trin 1, hvis det ikke er gjort.** En session, der redigerer en forældet kopi, producerer en fletning, ingen bad om. Det skete 13/8 (to grene af registret, ingen af dem komplet) og igen 27/8 (projektkopien seksten minutter bagud, D37 manglede).
 
@@ -38,6 +38,46 @@ Det skete **fem gange mellem 28/8 og 13/9**. Hver gang var indholdet i orden; de
 **"Redigeres nu"-linjen fanger det ikke.** Den bor inde i filen, og filen findes to steder — en lås sat i arbejdskopien er usynlig i master og omvendt. Den er et høflighedsskilt mellem sessioner, der læser den *samme* fil. **Git er det eneste, der fanger det på tværs.**
 
 Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet. Hele kæden — også for kode — står under **Kodeleverancer**: *hent → skriv → commit → push → bekræft*.
+
+### Leveringen går gennem `_til-repo\` (fastlagt 1/10-26)
+
+Ritualet ovenfor havde et hul: arbejdskopiens `docs\` kan når som helst blive
+overskrevet — af en `sync-docs.ps1 -Hent`, af en anden chats aflevering eller af en
+manuel `Copy-Item`. Sker det i minutterne mellem, at en session har skrevet færdig,
+og at Ann har committet, er arbejdet væk uden en lyd.
+
+**Det skete fire gange på én dag (1/10-26).** To færdigskrevne tilføjelser til
+registret forsvandt; S29 måtte skrives to gange. Ingen af gangene fejlede noget —
+filen blev bare lagt tilbage til en ældre udgave. Se **S29** i registret.
+
+**Reglen:**
+
+1. Sessionen skriver dokumentændringer til `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<filnavn>`
+   og **oplyser den forventede filstørrelse i bytes**.
+2. Ann tjekker størrelsen på KILDEN, kopierer til master, tjekker størrelsen på MÅLET,
+   læser diffen, og committer. I den rækkefølge.
+3. `sync-docs.ps1` dækker kun `docs\*.md` og `CLAUDE.md`. Undermappen `_til-repo\` er
+   derfor usynlig for den — det er hele pointen, og den må ikke tilføjes til scriptet.
+
+**Hvorfor størrelsen oplyses:** den er det eneste signal, Ann har, om hun kopierer
+sessionens udgave eller noget, der er kommet imellem. Passer tallet ikke, så STOP og
+spørg — kopier ikke alligevel.
+
+**Diffen er dommen, tallet er kun en forhåndskontrol.** `git diff -U0 docs/ |
+Select-String '^[+-]\| '` viser netop de tabelrækker, der er tilføjet eller fjernet.
+Dukker der `-`-rækker op, som ingen har bedt om, er noget skrevet væk.
+
+**Timing, så ingen gætter på den:** en sessions skrivning er FÆRDIG, før den skriver
+sin besked i chatten. Der er intet efterslæb. Risikovinduet ligger efter skrivningen —
+mellem fil og commit. Derfor: **kopiér og commit først, spørg bagefter.**
+
+**Én chat ad gangen i dokumenterne.** To sessioner i samme fil er den anden halvdel af
+årsagen (S29). "Redigeres nu"-linjen er et svagt signal, ikke en spærre — den
+forudsætter, at alle læser den.
+
+**`git status docs/` er et fast punkt i driftsvinduet.** Spørgsmålet er: ligger der
+dokumentarbejde, som git aldrig har set? 1/10-26 var svaret ti dage, og en enkelt
+`git checkout` kunne have slettet det hele.
 
 ## Stack & konventioner
 
