@@ -20,13 +20,22 @@
 // KONFIGURATION
 // Saettes som env vars paa DIN maskine (fx i en .env.smoke du IKKE committer).
 // Scriptet bruger kun anon-noegler — det skal aldrig have prod service role.
+//
+// D69 (1/10-26): ANON-NOEGLEN STAAR IKKE LAENGERE HER. Den hentes fra miljoeets
+// egen /config.js, som udleverer praecis den noegle, appen bruger (den er
+// offentlig efter sit formaal — RLS er adgangskontrollen). Foer stod den som
+// en kopi i .env.smoke, og staging-kopien manglede sit foerste tegn. Ingen
+// opdagede det, fordi tre tjek bestod paa en 401. Udled frem for at kopiere
+// (Å2): saa kan de to aldrig komme ud af trit igen, heller ikke ved en
+// noeglerotation. SUPABASE-URL'en staar stadig her MED VILJE: den er den
+// uafhaengige kilde, /config.js-tjekket holdes op imod.
 // =====================================================================
 
 const MILJOER = {
   staging: {
     basisUrl:        process.env.SMOKE_STAGING_URL,
     supabaseUrl:     process.env.SMOKE_STAGING_SUPABASE_URL,
-    supabaseAnon:    process.env.SMOKE_STAGING_SUPABASE_ANON,
+    supabaseAnon:    null,   // hentes fra /config.js (D69)
     // ⚠️ RETTET 5/8-26. Her stod "modulet SKAL vaere taendt i staging", og det
     // var forkert: mappen routes/ FINDES IKKE endnu. Tilbudsmodulet er ikke
     // bygget. Saetter man TILBUD_AKTIV=true i dag, CRASHER appen ved opstart,
@@ -42,7 +51,7 @@ const MILJOER = {
   prod: {
     basisUrl:        process.env.SMOKE_PROD_URL,
     supabaseUrl:     process.env.SMOKE_PROD_SUPABASE_URL,
-    supabaseAnon:    process.env.SMOKE_PROD_SUPABASE_ANON,
+    supabaseAnon:    null,   // hentes fra /config.js (D69)
     tilbudForventet: false,  // SLUKKET i prod indtil du selv taender det
   },
 };
@@ -174,7 +183,39 @@ function projektRef(url) {
   return m ? m[1] : "(kunne ikke aflaeses)";
 }
 
+// D69: en 401/403 fra Supabase kan betyde to HELT forskellige ting, og de
+// skal skilles ad paa svarteksten, ikke paa statuskoden:
+//   "Invalid API key"           -> noeglen er afvist. Intet tjek maa bestaa.
+//   code 42501 / permission ... -> noeglen er GOD, men anon har ingen ret til
+//                                  tabellen (fx `revoke all ... from anon`).
+//                                  Tabellen findes, og anon kan intet laese.
+// Foerste udgave af D69 (1/10) skilte dem ikke ad og meldte en god noegle
+// som afvist paa `kunder`, fordi Migration B har frataget anon alle rettigheder.
+// Returnerer null ved alt andet end 401/403, ellers { naegtet, besked }.
+async function klassificer(r, hvor) {
+  if (r.status !== 401 && r.status !== 403) return null;
+  let krop = "";
+  try { krop = await r.clone().text(); } catch { krop = ""; }
+  let j = {};
+  try { j = JSON.parse(krop); } catch { j = {}; }
+  const besked = `${j.code || ""} ${j.message || krop}`.trim().slice(0, 120);
+  if (/invalid api key|no api key/i.test(krop)) {
+    throw new Error(`Supabase AFVISTE anon-noeglen (${r.status}) paa ${hvor} — tjekket kan intet sige om databasen`);
+  }
+  if (j.code === "42501" || /permission denied/i.test(krop)) {
+    return { naegtet: true, besked };
+  }
+  throw new Error(`Supabase svarede ${r.status} paa ${hvor} af en ukendt grund: ${besked}`);
+}
+
+function kraevNoegle() {
+  if (!cfg.supabaseAnon) {
+    throw new Error("ingen anon-noegle — den hentes fra /config.js, og det tjek fejlede (se ovenfor)");
+  }
+}
+
 async function supa(sti) {
+  kraevNoegle();
   return hent(`${cfg.supabaseUrl}/rest/v1/${sti}`, {
     headers: { apikey: cfg.supabaseAnon, Authorization: `Bearer ${cfg.supabaseAnon}` },
   });
@@ -183,6 +224,7 @@ async function supa(sti) {
 // Kalder en databasefunktion med anon-noeglen. Kun funktioner, der er
 // skrevet til roegtesten og eksplicit har `grant execute ... to anon`.
 async function supaRpc(funktion) {
+  kraevNoegle();
   return hent(`${cfg.supabaseUrl}/rest/v1/rpc/${funktion}`, {
     method: "POST",
     headers: {
@@ -232,7 +274,21 @@ const TJEK = [
       if ((r.headers.get("cache-control") || "") !== "no-store") {
         throw new Error("mangler Cache-Control: no-store — configen kan overleve et noegleskift");
       }
-      return `peger paa ${ref}, no-store`;
+
+      // D69: hent appens EGEN anon-noegle herfra. Formatet er
+      // `window.APP_CONFIG = {...};` (app-config.js). Kan det ikke laeses,
+      // fejler de efterfoelgende Supabase-tjek tydeligt i stedet for at gaette.
+      const m = /APP_CONFIG\s*=\s*(\{[\s\S]*\})\s*;?\s*$/.exec(tekst.trim());
+      let appCfg = null;
+      try { appCfg = m ? JSON.parse(m[1]) : null; } catch { appCfg = null; }
+      const noegle = appCfg && typeof appCfg.SUPABASE_ANON_KEY === "string" ? appCfg.SUPABASE_ANON_KEY.trim() : "";
+      if (!noegle) throw new Error("kunne ikke laese SUPABASE_ANON_KEY ud af /config.js — formatet er aendret?");
+      if (/^(sb_secret_|service_role)/i.test(noegle)) {
+        throw new Error("/config.js udleverer en HEMMELIG noegle til browseren — STOP og roter den");
+      }
+      cfg.supabaseAnon = noegle;
+
+      return `peger paa ${ref}, no-store, anon-noegle hentet (${noegle.slice(0, 15)}…)`;
     },
   },
 
@@ -371,6 +427,23 @@ const TJEK = [
   },
 
   {
+    // D69. Det eneste tjek, der beviser, at de efterfoelgende Supabase-tjek
+    // overhovedet taler med databasen. Det kalder D68-vaernet, fordi det er
+    // det ene sted, anon BEVIDST har adgang (`grant execute ... to anon`):
+    // kun et 200 her beviser, at noeglen virker. Tabellerne kan ikke bruges
+    // til det — anon er med vilje naegtet adgang til flere af dem.
+    navn: "Supabase accepterer appens anon-noegle (D69)",
+    sikker: true,
+    async kor() {
+      const r = await supaRpc("firma_profil_komplet");
+      await klassificer(r, "firma_profil_komplet");
+      if (r.status === 404) throw new Error("firma_profil_komplet findes ikke — D68-migrationen er ikke koert her, og noeglen kan ikke bevises");
+      if (r.status !== 200) throw new Error(`Supabase svarede ${r.status}, forventede 200`);
+      return "200 — noeglen virker";
+    },
+  },
+
+  {
     // Fanger "db push meldte Finished uden at have lavet noget".
     // 200 = tabellen findes (RLS giver blot 0 raekker til anon).
     // 404 = tabellen findes IKKE.
@@ -380,6 +453,8 @@ const TJEK = [
       const mangler = [];
       for (const tabel of KERNETABELLER) {
         const r = await supa(`${tabel}?select=*&limit=1`);
+        // 42501 (anon naegtet) BEVISER, at tabellen findes — ellers 404.
+        await klassificer(r, tabel);
         if (r.status === 404) mangler.push(tabel);
         else if (r.status >= 500) throw new Error(`Supabase svarede ${r.status} paa ${tabel}`);
       }
@@ -406,6 +481,8 @@ const TJEK = [
     sikker: true,
     async kor() {
       const r = await supaRpc("firma_profil_komplet");
+      const k = await klassificer(r, "firma_profil_komplet");
+      if (k) throw new Error(`anon maa ikke kalde firma_profil_komplet (${k.besked}) — grant execute mangler`);
       if (r.status === 404) {
         throw new Advarsel("vaernet findes ikke her endnu - koer migrationen 20261001120000_firma_profil_ved_oprettelse i dette miljoe");
       }
@@ -430,7 +507,12 @@ const TJEK = [
     sikker: true,
     async kor() {
       const r = await supa("kunder?select=id&limit=5");
-      if (r.status === 200) {
+      // D69: en afvist noegle kaster her. En 42501 er derimod et BESTAAET tjek:
+      // anon er naegtet adgang til tabellen helt, hvilket er strengere end RLS.
+      const k = await klassificer(r, "kunder");
+      if (k) return `anon naegtet adgang til tabellen (${k.besked})`;
+      if (r.status !== 200) throw new Error(`Supabase svarede ${r.status} — kan ikke afgoere, om RLS virker`);
+      {
         const rows = await r.json();
         if (Array.isArray(rows) && rows.length > 0) {
           throw new Error(`anon fik ${rows.length} raekker ud af kunder — RLS er slaaet fra`);
@@ -464,7 +546,7 @@ const TJEK = [
 // =====================================================================
 
 async function main() {
-  const manglerCfg = ["basisUrl", "supabaseUrl", "supabaseAnon"].filter((k) => !cfg[k]);
+  const manglerCfg = ["basisUrl", "supabaseUrl"].filter((k) => !cfg[k]);
   if (manglerCfg.length) {
     console.error(`\nSTOP: mangler konfiguration for ${miljo}: ${manglerCfg.join(", ")}\n`);
     process.exit(1);
@@ -477,7 +559,6 @@ async function main() {
     cfg.supabaseUrl = normaliserUrl(cfg.supabaseUrl, `${praefiks}_SUPABASE_URL`);
     tjekPlaceholder(cfg.basisUrl,     `${praefiks}_URL`);
     tjekPlaceholder(cfg.supabaseUrl,  `${praefiks}_SUPABASE_URL`);
-    tjekPlaceholder(cfg.supabaseAnon, `${praefiks}_SUPABASE_ANON`);
   } catch (err) {
     console.error(`\nSTOP: fejl i .env.smoke\n  ${err.message}\n`);
     process.exit(1);
@@ -492,6 +573,12 @@ async function main() {
   console.log(`\nRoegtest — miljoe: ${miljo.toUpperCase()}`);
   console.log(`URL:          ${cfg.basisUrl}`);
   console.log(`Supabase-ref: ${projektRef(cfg.supabaseUrl)}`);
+  console.log("Anon-noegle:  hentes fra /config.js (D69)");
+  for (const gammel of ["SMOKE_STAGING_SUPABASE_ANON", "SMOKE_PROD_SUPABASE_ANON"]) {
+    if (process.env[gammel]) {
+      console.log(`OBS:          ${gammel} i .env.smoke bruges ikke laengere — slet linjen, saa der ikke staar en kopi, der kan forelde`);
+    }
+  }
   if (erProd) console.log("Kun laesende tjek koeres.");
   console.log("");
 
