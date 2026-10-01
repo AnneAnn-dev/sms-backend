@@ -468,7 +468,7 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       dag ét (summer på selve tilbuddet, `version`, `sendt_at`), `tilbud_linjer`
       (numeric hele vejen, genereret `linje_sum`), `firma_profil` (én række pr.
       firma), `standardfelter` (pr. firma, ikke globalt). RLS på alle fem
-- [ ] ⚠️ **`firma_profil`-rækken oprettes af en trigger på `firms` (D68, fundet 1/10).**
+- [x] ✅ **KØRT staging + prod 1/10, smoke 12/12 i begge.** **`firma_profil`-rækken oprettes af en trigger på `firms` (D68, fundet 1/10).**
       Tabellen var **tom i både staging og prod**: Migration B oprettede den 27/7, men
       ingen kode indsatte nogensinde en række. **Dette trin kan ikke bygges uden den:**
       `timepris`, `moms_sats`, `standard_betingelser` og `ai_tone` bor dér, og uden
@@ -484,6 +484,7 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       (D68: OK) → opret ét testfirma og mål `select count(*) from firma_profil where
       firm_id = '<id>'` = 1 → `push-prod.ps1` → `npm run smoke:prod` (D68: OK).
       Indtil prod-migrationen er kørt, viser `smoke:prod` ADV for D68 — ikke rødt.
+      **Målt 1/10:** et testfirma indsat direkte i `firms` (uden om Node) fik sin profil — 1 række.
 - [ ] Tilbuds-prompt + notefoto-prompt kobles på proxyen
 - [ ] Datafunktioner for tilbud/profil/standardfelter
 - [ ] PDF-eksport (jsPDF), Tilbuds- og Indstillinger-fanerne aktiveres
