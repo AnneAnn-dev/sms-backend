@@ -180,6 +180,20 @@ async function supa(sti) {
   });
 }
 
+// Kalder en databasefunktion med anon-noeglen. Kun funktioner, der er
+// skrevet til roegtesten og eksplicit har `grant execute ... to anon`.
+async function supaRpc(funktion) {
+  return hent(`${cfg.supabaseUrl}/rest/v1/rpc/${funktion}`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.supabaseAnon,
+      Authorization: `Bearer ${cfg.supabaseAnon}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+}
+
 // =====================================================================
 // TJEKKENE
 //   sikker: true  -> maa koere mod prod (laeser kun, skriver aldrig)
@@ -371,6 +385,41 @@ const TJEK = [
       }
       if (mangler.length) throw new Error(`tabeller mangler: ${mangler.join(", ")}`);
       return `${KERNETABELLER.length} tabeller til stede`;
+    },
+  },
+
+  {
+    // D68. firma_profil stod tom i to maaneder, fordi en migration opretter
+    // en tabel, ikke raekker — og intet sagde det. Raekken oprettes nu af en
+    // trigger paa firms (migration 20261001120000), og dette tjek spoerger
+    // hver gang, om hvert firma faktisk har sin profil. Det er tjekket, der
+    // ville have fanget hullet i juli.
+    //
+    // Funktionen svarer kun ja/nej. Hvilke firmaer der mangler, ser man i
+    // SQL-editoren med saetningen i fejlbeskeden.
+    //
+    // 404 = funktionen findes ikke, dvs. migrationen er ikke koert i dette
+    // miljoe. Det er en ADVARSEL, ikke roedt: ellers ville smoke:prod blokere
+    // alle prod-deploys i tiden mellem staging og prod. Den forsvinder af
+    // sig selv, naar migrationen er koert.
+    navn: "Hvert firma har en firma_profil (D68)",
+    sikker: true,
+    async kor() {
+      const r = await supaRpc("firma_profil_komplet");
+      if (r.status === 404) {
+        throw new Advarsel("vaernet findes ikke her endnu - koer migrationen 20261001120000_firma_profil_ved_oprettelse i dette miljoe");
+      }
+      if (r.status !== 200) throw new Error(`Supabase svarede ${r.status} paa firma_profil_komplet`);
+      const svar = await r.json();
+      if (svar !== true) {
+        throw new Error(
+          "mindst ét firma har INGEN firma_profil - tilbud vil mangle priser. " +
+          "Find dem: select f.id from firms f where not exists " +
+          "(select 1 from firma_profil p where p.firm_id = f.id); " +
+          "og tjek at triggeren firms_opret_firma_profil findes"
+        );
+      }
+      return "alle firmaer har en profil";
     },
   },
 
