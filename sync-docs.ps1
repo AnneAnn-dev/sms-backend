@@ -1,4 +1,4 @@
-# sync-docs.ps1  --  rev. 4, 1/10-26
+# sync-docs.ps1  --  rev. 5, 1/10-26
 #
 # Flytter dokumenter mellem repoet (master, i git) og arbejdstraeet
 # (den eneste mappe, Cowork-sessioner har adgang til).
@@ -31,6 +31,11 @@
 #
 #   (3) Alt eller intet. Peger ti filer hver sin vej, og man kun vil flytte
 #       een, var der ingen vej udenom haandkopiering. -Fil loeser det.
+#
+# REV. 5: rydder op i _til-repo\ efter 7 dage. Mappen er en transportkasse:
+#         naar indholdet er committet, er git kopien, og kassen er affald. En
+#         kasse, der har staaet en uge, er enten afleveret eller glemt. Scriptet
+#         viser samtidig, hvilke leverancer der stadig ligger og venter.
 #
 # REV. 3: CLAUDE.md er kommet med. Den ligger i roden og faldt derfor uden for
 #         rev. 1 og 2 - altsaa praecis den fil, der beskriver reglerne, var den
@@ -79,6 +84,32 @@ if (Test-Path $SIKKERHEDSROD) {
   if ($gamle.Count -gt 0) {
     $gamle | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host ("Ryddet op: " + $gamle.Count + " sikkerhedskopi(er) aeldre end 14 dage slettet.") -ForegroundColor DarkGray
+  }
+}
+
+# ---- Oprydning: _til-repo er en transportkasse, ikke et arkiv (rev. 5) ----
+# Sessioner lagger deres filer i _til-repo\<kort-emne>\. Naar Ann har kopieret
+# og committet, ER git kopien, og kassen er affald. Uden oprydning bliver mappen
+# et lager af halvgamle udgaver - og saa er det igen uklart, hvilken fil der er
+# den rigtige. Praecis den uklarhed, mappen blev lavet for at fjerne.
+$TILREPO = Join-Path $ARBEJDSTRAE "_til-repo"
+if (Test-Path $TILREPO) {
+  $graense7 = (Get-Date).AddDays(-7)
+  $gamleKasser = @(Get-ChildItem $TILREPO -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { $_.LastWriteTime -lt $graense7 })
+  $gamleLoese  = @(Get-ChildItem $TILREPO -File -ErrorAction SilentlyContinue |
+                  Where-Object { $_.LastWriteTime -lt $graense7 })
+  if ($gamleKasser.Count -gt 0 -or $gamleLoese.Count -gt 0) {
+    $gamleKasser | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    $gamleLoese  | Remove-Item -Force -ErrorAction SilentlyContinue
+    $antalRyddet = $gamleKasser.Count + $gamleLoese.Count
+    Write-Host ("Ryddet op: " + $antalRyddet + " leverance(r) i _til-repo aeldre end 7 dage slettet.") -ForegroundColor DarkGray
+  }
+  $venter = @(Get-ChildItem $TILREPO -Directory -ErrorAction SilentlyContinue)
+  if ($venter.Count -gt 0) {
+    Write-Host "Leverancer i _til-repo (slet mappen, naar indholdet er committet):" -ForegroundColor DarkYellow
+    $venter | ForEach-Object { Write-Host ("  " + $_.Name + "   " + $_.LastWriteTime.ToString("dd-MM HH:mm")) }
+    Write-Host ""
   }
 }
 
