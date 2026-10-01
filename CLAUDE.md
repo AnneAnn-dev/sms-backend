@@ -52,10 +52,16 @@ filen blev bare lagt tilbage til en ældre udgave. Se **S29** i registret.
 
 **Reglen:**
 
-1. Sessionen skriver dokumentændringer til `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<filnavn>`
-   og **oplyser den forventede filstørrelse i bytes**.
+1. Sessionen skriver dokumentændringer til
+   `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<kort-emne>\<filnavn>` og **oplyser den
+   forventede filstørrelse i bytes**. ⚠️ **Undermappen pr. opgave er ikke pynt:** reglen
+   her gælder ALLE sessioner, så to chats, der begge skriver `_til-repo\RISIKOREGISTER.md`,
+   har flyttet kapløbet til en ny mappe i stedet for at fjerne det. Det skete inden for en
+   time efter, at reglen blev indført (1/10-26). Vælg et navn, der siger hvad opgaven er —
+   fx `_til-repo\s20-s29\` eller `_til-repo\tekstrettelser\`.
 2. Ann tjekker størrelsen på KILDEN, kopierer til master, tjekker størrelsen på MÅLET,
-   læser diffen, og committer. I den rækkefølge.
+   læser diffen, og committer. I den rækkefølge. Passer tallet ikke, så STOP — kopiér ikke
+   alligevel, og spørg hvad der er kommet imellem.
 3. `sync-docs.ps1` dækker kun `docs\*.md` og `CLAUDE.md`. Undermappen `_til-repo\` er
    derfor usynlig for den — det er hele pointen, og den må ikke tilføjes til scriptet.
 
