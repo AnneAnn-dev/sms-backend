@@ -1071,6 +1071,43 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
     gør det hver gang. Kandidater til listen: `/checkout`, `/opkald`,
     `/onboarding/nyt-link`, `/config.js`. Se **D23** i risikoregistret.
 
+26. **Tre tekstrettelser i kundefladen (Anne ejer ordlyden, Ann retter — tilføjet 1/10-26):**
+    samlet i ét punkt, fordi de alle tre siger noget til kunden, som enten er
+    upræcist eller usandt. Ingen af dem haster teknisk; de haster, fordi en kunde,
+    der ikke forstår en skærm, ringer eller giver op.
+
+    **(a) "Dele-ikonet" siger ikke, hvad kunden skal lede efter.** Ny ordlyd (Ann 1/10):
+    *"tryk på firkanten med pil op, ved adresselinjen"*. Teksten står TO steder, og
+    begge skal rettes, ellers siger skærmene noget forskelligt:
+    - `static/onboarding.html` linje ~892: `<h1 id="inst2-title">Tryk på Del-ikonet</h1>`
+      med undertekst `inst2-sub` ("Firkanten med pilen, der peger op.") — side **s-9b**.
+    - `static/onboarding.html` linje ~2651: samme tekst sættes fra JavaScript på **s-9**
+      (`inst1-title` / `inst1-sub`), og dér findes TO grene: `erDel` (dele-ikonet) og
+      `!erDel` (de tre prikker). Kun dele-grenen skal rettes — prikke-grenen beskriver
+      noget andet. ⚠️ Retter man kun ét af de to steder, får kunden den nye tekst på
+      den ene skærm og den gamle på den næste. Teksten og tegningen skal pege samme
+      vej; det kostede allerede en skærm 10/9.
+
+    **(b) Den lille cirkel på vejledningens tegning skal sige "Se her"** (Ann 1/10).
+      Mærkaterne i mockup-tegningerne hedder i dag "Tryk her", "Kig hernede" og
+      "Kig heroppe" (`<text>`-elementer i SVG'erne, bl.a. linje 794, 818, 848, 875,
+      910, 931, 989). **AFKLAR MED ANNE FØRST, hvilken af dem hun mener** — ellers
+      rettes den forkerte, og de øvrige kommer til at sige noget andet end den rettede.
+
+    **(c) "Testopkald afsendt" lover noget, vi ikke ved på det tidspunkt** (fra **S27**,
+      lukket 1/10-26). Skærmen svarer "afsendt", i det sekund Twilio har ACCEPTERET
+      opkaldet — og målt samme dag: et opkald til et uforbindeligt nummer accepteres
+      og dør bagefter. Tre muligheder, stigende i arbejde:
+      1. **Omskriv teksten** til noget, der kun lover det, vi ved: *"Vi ringer til dig
+         nu — lad telefonen ringe uden at svare."* Nul teknik.
+      2. **Vis udfaldet.** `/twilio/opkaldsstatus` (S27) kender nu resultatet; gem det
+         på firmaet og lad skærmen hente det, så den kan sige "Vi kunne ikke få
+         forbindelse — tjek nummeret".
+      3. **Lad være.** Fejlen rammer nu en admin-alarm, så den opdages — men kunden
+         tror i mellemtiden, at alt er i orden.
+      Mulighed 1 er den rigtige at tage først; 2 kan følge efter, hvis det viser sig
+      at ske for rigtige kunder.
+
 ### 🏗️ Infrastruktur/indkøb
 
 - [ ] **Railway: Hobby → Pro (BOER besluttes).** Prod koerer betalende kunder paa
