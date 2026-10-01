@@ -123,19 +123,48 @@ module.exports = function registerOnboarding(app, supabase) {
   // Rapporteringen maa aldrig kunne vaelte det kald, den rapporterer om:
   // derfor try/catch omkring sendError. En overvaagning, der kan tage
   // produktet ned, er vaerre end ingen overvaagning.
+  // ─── MASKERING AF FREMMED TEKST (S28, 1/10-26) ──────────────────────────
+  // Vores egne log-linjer maskerer numre med maskerTlf (S4). Twilios
+  // fejlbeskeder goer ikke: haendelse #46 i AppSignal hed ordret
+  // "Account not allowed to call +5355512345" — nummeret raat hele vejen ud
+  // til en tredjepart. En maske, der kun daekker vores egen tekst, er ikke
+  // en maske.
+  //
+  // Reglen er bevidst grov: alt, der ligner et telefonnummer (seks cifre
+  // eller flere, med eller uden +, mellemrum, parenteser og bindestreger),
+  // beholder kun de foerste fire cifre. Hellere maskere et ordrenummer for
+  // meget end et telefonnummer for lidt.
+  function maskerTekst(tekst) {
+    return String(tekst ?? "").replace(/\+?\d[\d\s().-]{4,}\d/g, (fund) => {
+      const cifre = fund.replace(/\D/g, "");
+      if (cifre.length < 6) return fund;
+      const plus = fund.trim().startsWith("+") ? "+" : "";
+      return plus + cifre.slice(0, 4) + "*".repeat(cifre.length - 4);
+    });
+  }
+
   function rapporterFejl(hvor, err, kontekst = {}) {
     const ekstra = Object.entries(kontekst)
       .filter(([, v]) => v !== undefined && v !== null)
       .map(([k, v]) => `${k}=${v}`)
       .join(" ");
+    const besked = maskerTekst((err && err.message) || String(err));
     console.error(
-      `❌ ${hvor}:`, (err && err.message) || String(err),
+      `❌ ${hvor}:`, besked,
       "| twilio-kode:", (err && err.code) ?? "-",
       "| status:", (err && err.status) ?? "-",
       ekstra ? `| ${ekstra}` : ""
     );
     try {
-      sendError(err instanceof Error ? err : new Error(`${hvor}: ${String(err)}`));
+      // Der sendes en NY fejl med maskeret tekst, ikke den originale.
+      // ⚠️ Prisen staar her, saa den ikke opdages som en mangel: stakken
+      // foelger IKKE med, for `err.stack` begynder med den raa besked og
+      // ville baere nummeret med ind alligevel. Vi bytter et stakspor for
+      // en maske — Twilio-koden i loggen siger i praksis det samme.
+      const fejl = new Error(`${hvor}: ${besked}`);
+      fejl.name = (err && err.name) || "Fejl";
+      if (err && err.code) fejl.code = err.code;
+      sendError(fejl);
     } catch (e) {
       console.error("⚠️  Fejlen kunne ikke sendes til AppSignal:", e.message);
     }
@@ -483,6 +512,19 @@ module.exports = function registerOnboarding(app, supabase) {
       const opkald = await twilioClient.calls.create({
         to:    callTo,
         from:  process.env.TWILIO_SYSTEM_NUMBER,
+        // S27 (1/10-26): bed Twilio fortaelle, hvordan det GIK. Uden de her
+        // tre linjer ved vi kun, at opkaldet blev ACCEPTERET — maalt samme
+        // dag: baade +4500000000 og 12345 fik et call-sid, selv om ingen af
+        // dem kan forbindes. "Testopkald afsendt" var altsaa en paastand.
+        //
+        // KUN "completed": det endelige udfald (failed, busy, no-answer,
+        // completed) staar i CallStatus paa netop den besked. initiated,
+        // ringing og answered er stoej for det, vi vil vide.
+        ...(FORM_BASE ? {
+          statusCallback:       `${FORM_BASE}/twilio/opkaldsstatus`,
+          statusCallbackMethod: "POST",
+          statusCallbackEvent:  ["completed"],
+        } : {}),
         twiml: `<Response><Say voice="Polly.Naja" language="da-DK">Hej. Det her er en automatisk test fra Dit Digitale Kontor. Du har taget telefonen, men for at teste din viderestilling skal du lade være med at svare. Læg på nu, gå tilbage til appen, og tryk Ring til mig igen. Lad så telefonen ringe uden at svare.</Say></Response>`,
       });
 
@@ -501,8 +543,76 @@ module.exports = function registerOnboarding(app, supabase) {
         til:   maskerTlf(callTo),
         fra:   maskerTlf(process.env.TWILIO_SYSTEM_NUMBER),
       });
-      res.status(500).json({ error: "Opkald fejlede", detail: err.message });
+      res.status(500).json({ error: "Opkald fejlede", detail: maskerTekst(err.message) });
     }
+  });
+
+  // ─── 2b. UDFALDET AF VERIFIKATIONSOPKALDET (S27, 1/10-26) ───────────────
+  // Twilio kalder denne rute, naar opkaldet er afsluttet — uanset hvordan.
+  // Det er her, forskellen mellem "afsendt" og "naaede frem" bliver synlig.
+  //
+  // De tre udfald behandles IKKE ens, og det er pointen:
+  //   completed  — opkaldet blev forbundet. Ved aktiv viderestilling er det
+  //                det normale: kaldet gaar videre til firmaets Twilio-nummer,
+  //                som svarer med TwiML.
+  //   no-answer  — telefonen ringede, men ingen tog den, OG der blev ikke
+  //   busy         viderestillet. Det er et svar paa kundens spoergsmaal
+  //                ("virker min viderestilling?"), ikke en systemfejl. Logges,
+  //                alarmerer ikke.
+  //   failed     — opkaldet naaede aldrig frem. DET er fejlen, og den er
+  //   canceled     usynlig uden denne rute.
+  app.post("/twilio/opkaldsstatus", async (req, res) => {
+    // Samme signaturkontrol og samme gaffel som /opkald. Uden den kan hvem
+    // som helst sende os et udfald og udloese en alarm.
+    const tilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log";
+    const url      = `https://${req.get("host")}${req.originalUrl}`;
+    const gyldig   = twilio.validateRequest(
+      process.env.TWILIO_AUTH_TOKEN,
+      req.get("X-Twilio-Signature"),
+      url,
+      req.body || {}
+    );
+
+    if (!gyldig) {
+      if (tilstand === "haandhaev") {
+        console.warn("🚫 /twilio/opkaldsstatus AFVIST - ugyldig Twilio-signatur. URL:", url);
+        return res.status(403).type("text/plain").send("Ugyldig signatur");
+      }
+      console.warn("⚠️  /twilio/opkaldsstatus: ugyldig signatur (KUN LOG - ikke afvist).");
+    }
+
+    const sid     = req.body.CallSid || "ukendt";
+    const status  = String(req.body.CallStatus || "ukendt");
+    const til     = maskerTlf(req.body.To);
+    const sekunder = req.body.CallDuration || "0";
+
+    // Twilio skal ikke vente paa vores oprydning — svar foerst, arbejd efter.
+    res.status(204).end();
+
+    if (status === "completed") {
+      console.log("📞 Verifikationsopkald forbundet — call-sid:", sid, "til:", til, "varighed:", sekunder + "s");
+      return;
+    }
+
+    if (status === "no-answer" || status === "busy") {
+      console.warn(`📴 Verifikationsopkald ikke besvaret (${status}) — call-sid: ${sid} til: ${til}. ` +
+        "Viderestillingen er sandsynligvis ikke aktiv endnu.");
+      return;
+    }
+
+    rapporterFejl("Verifikationsopkald naaede aldrig frem", new Error(`Twilio-status: ${status}`), {
+      callSid: sid,
+      til,
+    });
+
+    sendAdminAlert({
+      subject: "Verifikationsopkald naaede aldrig frem",
+      text:
+        `Et verifikationsopkald blev accepteret af Twilio, men endte med status "${status}".\n` +
+        `Call-sid: ${sid}. Modtager: ${til}.\n\n` +
+        "Kunden har faaet at vide, at testopkaldet blev afsendt, og hoerte ingenting.\n" +
+        "Tjek nummeret paa firmaet og opkaldet i Twilio Console.",
+    }).catch(e => console.error("⚠️  Alarm om fejlet verifikationsopkald kunne ikke sendes:", e.message));
   });
 
   // (Verifikationsopkaldet bruger inline TwiML i calls.create — ingen separat
