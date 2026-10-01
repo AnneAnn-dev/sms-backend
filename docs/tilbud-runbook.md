@@ -23,9 +23,13 @@ veje (se primerens "Håndskrevne noter"). Kun `/api/tilbud/referat` og
 `/api/tilbud/notefoto` skal være bygget. **Gates for Fase 1:** Ø2 (kvoter —
 arkitektur besluttet 28/8, ikke implementeret) · S6 (proxy — arkitektur
 besluttet, ikke implementeret) · J8 (samtykke — tre tekster godkendt af Anne
-26/8, ikke lagt ind i koden) · J9 (transskriptionsmodel afgjort: Scaleway;
-referat-/vision-model afgøres af D14's regressionssæt). **Ingen af de fire er
-lukket endnu.** ⚠️ D36's oprindelige krav om et forventningsbrev til
+26/8, ikke lagt ind i koden) · J9 (transskriptionsmodel afgjort: Scaleway
+`whisper-large-v3`; **referatmodel afgjort 19/9: `mistral-medium-3.5-128b`, ca.
+11 øre pr. referat**; **vision-modellen til fotovejen er stadig åben** og
+afgøres af D14's regressionssæt) · **D36: det maskinelle værn mod tilføjelser
+(den SNÆVRE teknik B) er bygget** — tilføjet som gate 27/9, fordi det er D36's
+bindende forudsætning og manglede på denne liste. Se `RESULTAT-06-teknik-b.md`.
+**Ingen af de fem er lukket endnu.** ⚠️ D36's oprindelige krav om et forventningsbrev til
 pilotkunden (fordi Fase 1 kun dækker halvdelen af P7's oprindelige
 efterspørgsel) er **bevidst droppet af Ann 28/8** — den mundtlige afdækning ved
 næste kontakt er valgt i stedet.
@@ -271,8 +275,12 @@ Begge er expand/contract's anden halvdel. Skemaet er på plads; nogen skal skriv
 
 ## Trin 1 — Beslutninger der lukkes FØR kode
 
-- [ ] **Scaleway-verifikation:** findes whisper-transskription i deres Generative
-      APIs, EU-region, pris, filformater, størrelsesgrænser? (NO-GO → Mistral Voxtral.)
+- [x] **Scaleway-verifikation — GO, afsluttet 26/9-26.** `whisper-large-v3` i
+      EU-region, afregnet pr. lydminut (1,34 kr./lydtime, `RESULTAT-01`).
+      **Formatet: iPhonens egen fil (`audio/mp4`, AAC) tages RÅT imod** — HTTP 200
+      på 8,8 sek. for 2 min 41 sek. lyd, dansk tekst retur (`RESULTAT-05`).
+      API-referencens formatliste er altså ikke udtømmende, og **det omkodningstrin,
+      punktet frygtede, skal ikke bygges.** Mistral Voxtral forbliver ubrugt fallback.
 - [x] Annes nik: "opkald nr. 2 fra kendt nummer = ny opgave, altid" — **BEKRÆFTET 27/7**
 - [ ] Anne: indhold af STANDARDFELTER pr. branche (felter + brancher)
 - [ ] Anne: samtykke-tekst i optager-UI
@@ -290,6 +298,13 @@ Testes i den **installerede** app på ægte iPhone (ikke kun Safari). Verificér
 permission-flow, optagelse, mp4-blob, upload. Fejler dette, ændres planen NU
 (fx upload af lydfil optaget i iPhones egen app som fallback) — ikke i uge 4.
 
+**✅ KØRT 26/9-26 — GO.** Resultatet står i `RESULTAT-05-spike0.md`; konsekvenserne
+for arkitekturen i `tilbud-primer.md`. Kort: mikrofonen virker fra hjemmeskærmen,
+formatet (`audio/mp4`, AAC) går **rå** til Scaleway uden omkodning, og fotovejen
+giver JPEG. Fundet, der ændrede planen: **iOS tager mikrofonen, når appen går i
+baggrunden** (D66) — derfor er der bygget et optager-modul med tre værn, og en
+diktering kan bestå af flere dele.
+
 ## Trin 3 — Skive 1: referatflowet ende-til-ende
 
 Mål: Anne kan oprette kunde+opgave, optage/uploade lyd, få transskript, få
@@ -301,12 +316,151 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       arkiverede kunder ikke blokerer). Leveret ud over planen: `leads.firm_id`,
       `leads.titel`, `updated_at` + trigger, og `mine_firmaer()`-helperen.
       Se Skema-status ovenfor.
-- [ ] Transskriptions-endpoint (Scaleway, multipart webm+mp4, lyd slettes efter brug)
+- [x] **ASR-adapteren — BYGGET OG KALDT RIGTIGT 28/9.** `asr-adapter.js` +
+      `proev-asr-adapter.js` (25 tørkørselstjek). Første rigtige kald: 163 sek.
+      lyd, **6,09 øre**, svartid 9,3 sek. (forhold 1 : 17), 29 segmenter.
+      **Prisenheden er dermed bekræftet mod en faktureret handling**, ikke mod en
+      prisside — `kvote.js` kan regne på adapteren. Tal og konsekvenser i
+      `asr-adapter.md`. Nøglen er `SCW_ASR_SECRET_KEY` (egen nøgle, ikke mailens).
+- [ ] **Monter modulet:** `routes/tilbud/index.js` (tom, én statusrute) + tænd
+      `TILBUD_AKTIV` i staging. Prøveplanen kræver, at rollback-håndtaget prøves
+      **i begge retninger**. ✅ **Crash-påstanden i `server.js` er efterprøvet
+      28/9:** tændes flaget uden mappen, dør processen på `server.js:111` med
+      `MODULE_NOT_FOUND` — **før `app.listen`**, så der tages aldrig en
+      forespørgsel imod. Bemærk at de øvrige moduler har registreret sig og
+      skrevet i loggen først: den ægte prøve på en lykkelig opstart er linjen
+      `Tilbudsmodul: TAENDT`, ikke emoji-linjerne.
+- [x] **TRANSSKRIPTIONS-ENDPOINTET — GRØNT I STAGING 1/10.**
+      `POST /api/tilbud/transskriber` + `GET /api/tilbud/kvote` + `GET /api/tilbud/status`.
+      **Målt:** én del = 163 sek. lyd, 6,09 øre, svartid 9,7 sek. (1:17) · to dele =
+      324 sek., 12,11 øre, 19,2 sek. · rækkefølgen holder · én række i `ai_forbrug`
+      pr. kald · **bogføringen stemmer på øren**, prøvet både lokalt og i staging.
+      Afvisningerne prøvet: 402 ved firmaloft, 413 `del_for_stor`, 413 `upload_afvist`,
+      400 `ingen_lyd`, 401. Varslet ved 80 % siges til én gang. `Kvoteafvisning` set i
+      AppSignal på staging. **Fire fund undervejs, alle med konsekvenser:**
+      **(a)** uploadgrænsen var sat for stramt — en RIGTIG optagelse på 10,5 MB blev
+      afvist. Hævet til 30 MB, og delen og totalen er nu samme tal: *en diktering må
+      fylde 30 MB, uanset hvordan den er delt.* Værste tilfælde 3,92 kr, under
+      kaldsloftet ·
+      **(b)** en manglende ASR-variabel blev meldt som `kvote_utilgaengelig`. Fejlkoder
+      adskilt (`asr_ukonfigureret` · `kvote_ukonfigureret` · `kvote_utilgaengelig`), og
+      `/api/tilbud/status` udstiller nu `konfigureret: { asr, kvote }`. **En fejlkode,
+      der peger på den forkerte mekanisme, koster mere tid end ingen fejlkode** ·
+      **(c)** AppSignal kan ikke starte lokalt på Windows (`extension failed to load`),
+      også for `/test-appsignal`. **Alt, der skal efterprøves i AppSignal, efterprøves
+      i staging.** Derfor larmer bremsen også gennem `console.warn` — den kanal virkede,
+      da den anden ikke gjorde ·
+      **(d)** se D68 nedenfor.
+- [x] ~~Transskriptions-endpoint~~ (Scaleway, multipart webm+mp4, lyd slettes efter brug).
+      ✅ **mp4 tages RÅT imod — byg ikke et omkodningstrin** (målt 26/9, `RESULTAT-05`).
+      Læs formatet fra selve blobben: `recorder.mimeType` er tom streng på iOS.
+      **Kvoten tjekkes på SAMLET lydtid, før første kald** — ikke pr. del, ellers
+      kan en flerdelt diktering køre halvvejs og stoppe midt i.
+      **Skalerer ventetiden:** tre dele ≈ 30 sekunders ventetid, så siden skal have
+      en synlig arbejdstilstand og en knap, der slår sig fra ved første tryk —
+      ellers sendes dikteringen to gange (dobbelt betaling, to referater).
+      **Åbent:** skal adapterens timeout følge lydens længde? Se `asr-adapter.md`.
 - [ ] Claude-proxy-endpoint (generisk; body-limit, billing-gate, dagsloft,
-      forbrugslog, fail-pænt) — kun referat-prompten kobles på her
+      forbrugslog, fail-pænt) — kun referat-prompten kobles på her.
+      **Prompten er den ORDNÆRE** (besluttet 27/9): modellen må forkorte og
+      strukturere, men ikke bytte ordene ud, og den retter ikke whispers fejl.
+      Begrundelse og pris i `tilbud-primer.md` og `RESULTAT-06-teknik-b.md`.
+      Modelstrengen låses eksplicit i en miljøvariabel (D14), aldrig et alias.
+- [ ] **Den SNÆVRE teknik B i `/api/tilbud/referat`** — D36's bindende
+      forudsætning, altså release-blokerende. Markér kun **tal, navne og
+      forkortelser**, der ikke står i transskriptionen (den brede udgave er målt
+      og forkastet: median 51 markeringer, en femtedel af teksten). Tre regler
+      følger med:
+      **(a)** markeringerne må aldrig præsenteres som "her er fejlene" — de er
+      *"det her stod ikke i det, du sagde"*; en liste, der ligner en fuldstændig
+      fejlliste, gør referatet mere troværdigt, og det var grunden til, at teknik
+      A faldt · **(b)** sikkerhedsventil: overstiger markeringerne 10 % af
+      referatets ord, vises der ikke enkeltsteder, men én besked om at læse hele
+      referatet igennem · **(c)** tætheden (markeringer pr. 100 ord) logges pr.
+      referat — efter tredive rigtige referater er den et mål for, hvordan
+      modellen klarer ægte stemmer, og det er gratis at samle op.
 - [ ] Datafunktioner for kunder/opgaver/referater (per-række CRUD bag Annes navne)
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
-- [ ] Anne QA på staging → derefter prod
+- [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
+      (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
+      26/9 — se D66. Fanen kalder `start()`, `fortsaet()`, `stop()` og handler på
+      `ok` / `kanBruges`.
+- [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
+      sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
+      lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
+- [ ] ⚠️ **MÅL PERMISSION-FLOWET IGEN i dashboardets egen app.** iOS husker
+      mikrofon-tilladelsen **pr. installeret app**, og Spike 0 blev målt i to
+      andre installationer (`/spike0.html` og prøvebænken). Det, vi ved derfra,
+      gælder ikke automatisk her. **Målingen:** installer dashboardet på
+      hjemmeskærmen, luk appen helt, åbn den, og start én optagelse. Spørger den
+      om lov? Og spørger den igen ved næste optagelse? Svaret afgør onboarding-
+      teksten — og det er dyrt at opdage dagen før frigivelse.
+- [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
+      1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
+      faseopdelingen øverst). Grøn QA er ikke en frigivelse.
+
+## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
+
+Håndværkere skriver på papir. Uden denne vej rammer Fase 1 kun den halvdel, der
+taler. **Byggerækkefølge: diktafonvejen først, fotovejen ovenpå — men begge
+frigives som Fase 1.** Arkitekturen står i primerens "Håndskrevne noter".
+
+*Skrevet 27/9. Fotovejen var en Fase 1-gate uden opgavelinjer i noget Trin —
+harmløst, indtil Fase 1 begyndte at blive bygget.*
+
+- [ ] **`/api/tilbud/notefoto` returnerer NØJAGTIG samme JSON som
+      `/api/tilbud/referat`.** Det er den bærende regel: visning, rettelse, gem og
+      genfind er uændret, og der ligger ikke to slags referater i basen.
+- [ ] **Vision-model vælges på måling, ikke på skøn** (J9 + D14). Kvalitetssættet
+      findes: **elleve fotos, taget 27/9, ligger i `proevebaenk\referatfoto\`**.
+      Beskrivelsen og de kendte vanskeligheder står i `FOTOSAETTET.md` — udfyld
+      den, før målingen køres, af samme grund som `SAETTET.md` for lyden.
+      **Tre ting, målingen SKAL dække, fundet ved at se på fotoerne:**
+      **(a) Alle elleve ligger på siden.** Sedlen er på højkant, fotoet på tværs,
+      og teksten løber nedefra og op. Sådan fotograferer man en notesbog. Kan
+      modellen læse roteret håndskrift — eller skal klienten rette op først?
+      **(b) Overstregninger.** På referat 10 er "450" streget ud og rettet til
+      "380 m³". Modellen skal læse det rettede tal. **Det er præcis den slags,
+      der bliver til en forkert pris.**
+      **(c) Gennemskrivning fra forrige side.** Spøgelsesskrift bag den rigtige
+      tekst. En model kan finde på at læse begge dele som ét.
+- [ ] **KLIENTEN SKAL NEDSKALERE — det er ikke længere et åbent spørgsmål.**
+      De elleve rigtige sedler blev fotograferet 27/9: **5712 × 4284, 24,5 MP,
+      5,5-6,9 MB pr. styk.** Base64 af det er cirka **8 MB pr. kald**. Spike 0's
+      foto var 12 MP og 2,3 MB — nyere telefoner skyder større, og det er ikke
+      noget, vi kan regne med bliver mindre.
+      **Målt samme dag: nedskaleret til 1500 px på den lange led fylder de
+      250-340 KB, og håndskriften er stadig fuldt læsbar** (Claude læste dem i
+      den størrelse). Det er en faktor 20.
+      **Sæt derfor body-limit'en lavt og bevidst** — omkring 1 MB, ikke 8 — og
+      lad klienten skalere først. Et loft på 8 MB er ikke et loft; det er en
+      invitation.
+- [ ] **Referattrinnet er formentlig unødvendigt i Fase 1.** De rigtige sedler er
+      **12-15 linjer, cirka 45-55 ord** (målt på fem af de elleve 27/9).
+      Materialet i `10_moedesituationer...docx` var 66-81 ord — håndskriften er en
+      tredjedel kortere, fordi folk forkorter: *"Fremløbstemp 62°"* i stedet for
+      en hel sætning. **Der er ikke noget at sammenfatte.**
+      **Regel: under 150 ord ER afskriften referatet.** Linjerne bliver punkterne,
+      teksten bliver fritekst, systemet sætter overskriften. Ingen model nummer to,
+      ingen opfindelse, og teknik B har intet at markere.
+      Grænsen er sat højt med vilje: fejler vi, skal vi fejle mod **afskrift**, som
+      ikke kan finde på noget. Et referat af en kort seddel kan.
+      **Overvej at droppe referattrinnet helt i Fase 1** og lade det vente på en
+      seddel, der beviser sit eget behov.
+- [ ] **Fotoet gemmes ALDRIG.** Læs → udtræk tekst → smid billedet væk. Samme
+      regel som lyden.
+- [ ] **Datoen sættes af systemet ved upload, aldrig af modellen.** Står der en
+      dato på papiret, må den stå i teksten; rækkens dato er systemets.
+- [ ] **Ø2 genberegnes.** `OE2-budgetloft-beregner.xlsx` er regnet på lyd + tekst.
+      Billedkald koster mere, og loftet skal flyttes, før vejen åbnes.
+- [ ] Klientsiden er billig og målt: `<input type="file" accept="image/*"
+      capture="environment">` åbner kameraet på både iOS og Android uden
+      `MediaRecorder`. Virker, giver JPEG, ingen HEIC (Spike 0, 26/9).
+- [ ] Anne QA på staging.
+- [ ] ⚠️ **Teknik B gælder ikke her.** Der findes ingen transskription at holde
+      referatet op mod — sedlen ER kilden. Fotovejen har altså ikke det værn,
+      diktafonvejen har. **Det skal stå i D36, og Anne skal vide det**, før vejen
+      frigives.
 
 ## Trin 4 — Skive 2: tilbudsflowet
 
@@ -314,6 +468,23 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       dag ét (summer på selve tilbuddet, `version`, `sendt_at`), `tilbud_linjer`
       (numeric hele vejen, genereret `linje_sum`), `firma_profil` (én række pr.
       firma), `standardfelter` (pr. firma, ikke globalt). RLS på alle fem
+- [x] ✅ **KØRT staging + prod 1/10, smoke 12/12 i begge.** **`firma_profil`-rækken oprettes af en trigger på `firms` (D68, fundet 1/10).**
+      Tabellen var **tom i både staging og prod**: Migration B oprettede den 27/7, men
+      ingen kode indsatte nogensinde en række. **Dette trin kan ikke bygges uden den:**
+      `timepris`, `moms_sats`, `standard_betingelser` og `ai_tone` bor dér, og uden
+      rækken får kunden et tilbud uden priser.
+      **Besluttet 1/10 (Ann): trigger, ikke kode i `provisionFirm`.** Mindst tre veje
+      opretter et firma (webhooken, `provision-test-firm.js`, håndskrevet SQL); en
+      trigger dækker dem alle, også dem der ikke findes endnu.
+      **Bygget 1/10, ikke kørt:** `Claude outputs\2026-10-01-firma-profil\` —
+      migration `20261001120000_firma_profil_ved_oprettelse.sql` (trigger +
+      engangsudfyldning + værnet `firma_profil_komplet()`) og `smoke.js` med tjekket
+      "Hvert firma har en firma_profil (D68)".
+      **Rækkefølge:** `aflever.ps1` → commit → `push-staging.ps1` → `npm run smoke`
+      (D68: OK) → opret ét testfirma og mål `select count(*) from firma_profil where
+      firm_id = '<id>'` = 1 → `push-prod.ps1` → `npm run smoke:prod` (D68: OK).
+      Indtil prod-migrationen er kørt, viser `smoke:prod` ADV for D68 — ikke rødt.
+      **Målt 1/10:** et testfirma indsat direkte i `firms` (uden om Node) fik sin profil — 1 række.
 - [ ] Tilbuds-prompt + notefoto-prompt kobles på proxyen
 - [ ] Datafunktioner for tilbud/profil/standardfelter
 - [ ] PDF-eksport (jsPDF), Tilbuds- og Indstillinger-fanerne aktiveres
