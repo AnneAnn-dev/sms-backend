@@ -135,14 +135,14 @@ const HAR_CIFFER = /\d/;
 const STORT_FORBOGSTAV = /^[A-ZÆØÅ]/;
 const FORKORTELSE = /^[A-ZÆØÅ0-9]{2,}$/;
 
-function slags(raaOrd, erSaetningsstart) {
+function slags(raaOrd, erSaetningsstart, navneRegel) {
   // Bindestregsdele vurderes hver for sig: "IP-grad" er en forkortelse.
   const dele = raaOrd.replace(/[.,;:!?()[\]{}"'«»…]/g, "").split("-");
   if (dele.some((d) => FORKORTELSE.test(d))) return "forkortelse";
   if (HAR_CIFFER.test(raaOrd)) return "tal";
   // Første ord i en sætning har stort bogstav, fordi det er første ord. Det
   // siger intet om, at det er et navn.
-  if (!erSaetningsstart && STORT_FORBOGSTAV.test(dele[0])) return "navn";
+  if (navneRegel && !erSaetningsstart && STORT_FORBOGSTAV.test(dele[0])) return "navn";
   return null;
 }
 
@@ -168,10 +168,22 @@ function markerFelt(felttekst, ordbog, feltnavn) {
   const fund = [];
   let saetningsstart = true;
 
+  // ⚠️ NAVNEREGLEN GÆLDER IKKE I OVERSKRIFTEN (besluttet 2/10 efter måling).
+  // "Stort bogstav midt i en sætning" betyder noget i en sætning. En overskrift
+  // er ikke en sætning — den sætter stort bogstav på det, der er vigtigt, og så
+  // markerer reglen almindelige ord. Målt 2/10: "Byggemøde - Tømrerarbejde, …"
+  // blev markeret, fordi transskriptionen sagde "tømrerarbejdet" i bestemt form.
+  // Det er en bøjningsforskel i en overskrift, ikke en opfindelse.
+  //
+  // TAL OG FORKORTELSER TJEKKES STADIG HER. Et opfundet beløb eller en opfundet
+  // forkortelse i overskriften er lige så alvorlig som i brødteksten — det er
+  // kun det store bogstav, der ikke betyder noget.
+  const navneRegel = feltnavn !== "overskrift";
+
   ord.forEach((raa, nr) => {
     const nk = noegler(raa);
     const rent = rensOrd(raa);
-    const type = slags(raa, saetningsstart);
+    const type = slags(raa, saetningsstart, navneRegel);
 
     // Næste ord er sætningsstart, hvis dette ord slutter en sætning.
     saetningsstart = /[.!?]$/.test(raa);

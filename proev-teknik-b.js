@@ -38,6 +38,29 @@ for (const d of [transDir, refDir]) {
 const filer = fs.readdirSync(refDir).filter((f) => f.endsWith(".json") && !f.startsWith("_"));
 if (!filer.length) { console.log(`Ingen referater i ${refDir}`); process.exit(1); }
 
+// ─── Selvtjek: overskriftsreglen ─────────────────────────────────────────────
+// Besluttet 2/10: navnereglen gaelder ikke i overskriften, men tal og
+// forkortelser skal stadig fanges dér. Uden denne proeve er den paastand kun en
+// kommentar - og den naeste, der rydder op i slags(), ville ikke opdage det.
+(function selvtjek() {
+  const trans = "Vi gennemgik toemrerarbejdet i stueetagen for 4000 kroner.";
+  const sager = [
+    ["navn i overskrift markeres IKKE", { overskrift: "Byggemoede - Toemrerarbejde", punkter: ["a"], fritekst: "b" }, 0],
+    ["tal i overskrift markeres",        { overskrift: "Byggemoede 9000 kroner",     punkter: ["a"], fritekst: "b" }, 1],
+    ["forkortelse i overskrift markeres",{ overskrift: "Byggemoede om HPFI",         punkter: ["a"], fritekst: "b" }, 1],
+    ["navn i BROEDTEKST markeres stadig",{ overskrift: "Moede", punkter: ["vi talte med Murerhalsen"], fritekst: "b" }, 1],
+  ];
+  let fejl = 0;
+  console.log("\nSELVTJEK — overskriftsreglen");
+  for (const [navn, ref, forventet] of sager) {
+    const n = b.marker(trans, ref).antalMarkeringer;
+    const ok = n === forventet;
+    if (!ok) fejl++;
+    console.log(`  ${ok ? "OK  " : "FEJL"}  ${navn}  (${n}, forventet ${forventet})`);
+  }
+  if (fejl) { console.log("\n  Selvtjek fejlede. Maalingen koeres ikke."); process.exit(1); }
+})();
+
 console.log(`\nTEKNIK B — snaever udgave`);
 console.log(`Referater: ${refDir}`);
 console.log(`Maalt:     ${new Date().toISOString().slice(0, 10)}\n`);
