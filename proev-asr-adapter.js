@@ -66,9 +66,9 @@ function nej(navn, detalje) {
 
 const GRUND = {
   TILBUD_ASR_LEVERANDOER: "scaleway",
-  TILBUD_ASR_URL: "https://api.scaleway.ai/projekt-id/v1/",
+  TILBUD_ASR_URL: "https://api.scaleway.ai/11111111-2222-3333-4444-555555555555/v1/",
   TILBUD_ASR_MODEL: "whisper-large-v3",
-  SCW_ASR_SECRET_KEY: "test",
+  SCW_GENAI_SECRET_KEY: "test",
 };
 const SYV = {
   TILBUD_ASR_LEVERANDOER: "syv.ai",
@@ -91,10 +91,16 @@ function toerkoersel() {
     a._hentKonfig({ ...GRUND, TILBUD_ASR_MODEL: "" })
   );
   proev("noeglen hedder leverandoerens navn", "asr_konfiguration", () =>
-    a._hentKonfig({ ...GRUND, SCW_ASR_SECRET_KEY: "" })
+    a._hentKonfig({ ...GRUND, SCW_GENAI_SECRET_KEY: "" })
   );
   proev("syv.ai kraever SIN egen noegle", "asr_konfiguration", () =>
     a._hentKonfig({ ...SYV, SYVAI_API_KEY: "" })
+  );
+  proev("access key i url afvises (27/9)", "asr_konfiguration", () =>
+    a._hentKonfig({ ...GRUND, TILBUD_ASR_URL: "https://api.scaleway.ai/SCW3ACMTX0SQH5B7ACVD/v1" })
+  );
+  proev("url uden projekt-id afvises", "asr_konfiguration", () =>
+    a._hentKonfig({ ...GRUND, TILBUD_ASR_URL: "https://api.scaleway.ai/v1" })
   );
 
   console.log("\nD14 — modelstrengen maa ikke vaere et alias");
@@ -178,7 +184,9 @@ async function rigtigtKald(fil) {
       console.log("    TILBUD_ASR_LEVERANDOER=scaleway");
       console.log("    TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1");
       console.log("    TILBUD_ASR_MODEL=whisper-large-v3");
-      console.log("    SCW_ASR_SECRET_KEY=<noeglen fra IAM-applicationen>");
+      console.log("    SCW_GENAI_SECRET_KEY=<noeglen fra IAM-applicationen>");
+      console.log("");
+      console.log("  SAMME noegle som TILBUD_REFERAT_* bruger (omdoebt 2/10).");
       console.log("");
       console.log("  Projekt-id og noegle er de samme, som proevebaenken bruger.");
       console.log("  Bekraeft bagefter med:  node check-env.js --live");

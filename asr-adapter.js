@@ -43,12 +43,19 @@
 // fem-tegns beslutning nu og en hændelse senere.
 const LEVERANDOERER = {
   scaleway: {
-    // EGEN noegle til transskription — ikke SCW_SECRET_KEY, som Scaleway TEM
+    // EGEN noegle til Generative APIs — ikke SCW_SECRET_KEY, som Scaleway TEM
     // bruger til mail (besluttet 27/9). To formaal, to noegler: en rotation af
     // mailnoeglen maa ikke slaa dikteringen ud, og et laek af den ene maa ikke
-    // give begge dele. Noeglen baeres af IAM-applicationen 'ddk-transskription',
-    // scoped til det projekt, hvor Generative APIs koerer.
-    noeglenavn: "SCW_ASR_SECRET_KEY",
+    // give begge dele. Noeglen baeres af en IAM-application scoped til det
+    // projekt, hvor Generative APIs koerer.
+    //
+    // OMDOEBT 2/10 fra SCW_ASR_SECRET_KEY: transskription og referat bruger
+    // SAMME noegle, fordi det er ÉT produkt (Generative APIs) paa ÉT projekt.
+    // Et laek af den ene er et laek af den anden, saa en opdeling koeber ingen
+    // sikkerhed — kun en udloebsdato mere at holde styr paa. Adskillelsen fra
+    // TEM er derimod aegte: to tjenester, to formaal.
+    // Gjort mens KUN staging havde variablen; prod havde den ikke endnu.
+    noeglenavn: "SCW_GENAI_SECRET_KEY",
     pris: { enhed: "lydminut", satsOere: 2.24 },   // 1,34 kr./lydtime (13/9)
     stoetterOrdliste: false,
   },
@@ -89,6 +96,22 @@ function hentKonfig(env) {
     throw konfigfejl(
       `TILBUD_ASR_MODEL er et alias ('${model}'). Skriv det praecise modelnavn med version (D14).`
     );
+  }
+
+  // Adressen skal baere PROJEKT-ID'et (et UUID), ikke access key'en.
+  // Fundet 27/9: med access key'en i stien svarer Scaleway 404 "ROUTE NOT
+  // FOUND", og fejlen ligner en forkert sti frem for en forkert vaerdi. En
+  // konfigurationsfejl skal fejle som en konfigurationsfejl.
+  if (navn === "scaleway") {
+    const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    if (!uuid.test(url)) {
+      const accessKey = /SCW[A-Z0-9]{17}/.test(url);
+      throw konfigfejl(
+        accessKey
+          ? "TILBUD_ASR_URL indeholder en ACCESS KEY. Der skal staa projekt-id'et (et UUID): https://api.scaleway.ai/<projekt-id>/v1"
+          : "TILBUD_ASR_URL mangler projekt-id'et (et UUID): https://api.scaleway.ai/<projekt-id>/v1"
+      );
+    }
   }
 
   const noegle = (e[lev.noeglenavn] || "").trim();
