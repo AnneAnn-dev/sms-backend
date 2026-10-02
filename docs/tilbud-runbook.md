@@ -364,9 +364,39 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her.
       **Prompten er den ORDNÆRE** (besluttet 27/9): modellen må forkorte og
       strukturere, men ikke bytte ordene ud, og den retter ikke whispers fejl.
+      **UDVIDET 2/10 — SAMLEDE PUNKTER.** To linjer tilføjet: *saml det, der
+      hører sammen, i ét punkt* og *højst 15 punkter*. Anledningen var, at
+      **3 af 7 referater blev afvist af P5 på "for mange punkter"** (24-25 mod
+      grænsen på 20): modellen delte ét emne — én membran — op i fem linjer, så
+      referatet blev næsten lige så langt som det, han selv sagde. Anne valgte
+      mellem to eksempler side om side (`claude/referat-laengde-forslag.md`).
+      **Målt efter ændringen: 7 af 7 bestod, punkter faldt fra 13-25 til 12-15,
+      og teknik B's tal rørte sig ikke** — modellen købte altså ikke kortheden
+      ved at omskrive. **Grænsen i prompten er 15, i valideringen 20; afstanden
+      er med vilje — prompten sigter, valideringen spærrer.**
+      Prisen faldt kun 4,4 % (7,01 → 6,70 øre): at samle fem punkter til ét
+      fjerner ikke indholdet, det omarrangerer det. **Referatet blev ikke kortere
+      — det blev bedre organiseret**, og det var også det, der blev bedt om.
       Begrundelse og pris i `tilbud-primer.md` og `RESULTAT-06-teknik-b.md`.
       Modelstrengen låses eksplicit i en miljøvariabel (D14), aldrig et alias.
-- [ ] **Den SNÆVRE teknik B i `/api/tilbud/referat`** — D36's bindende
+- [x] **DEN SNÆVRE TEKNIK B — BYGGET OG MÅLT 1-2/10.** `teknik-b.js` +
+      `proev-teknik-b.js` i repoet. **Median 0, max 2, tæthed 0,5 % i værste
+      referat, nul falske alarmer, nul tal markeret** — alle fire kriterier fra
+      målespecen godkendt. Mangler kun at blive koblet på ruten.
+      ⚠️ **Tallene fra 27/9 (median 0, max 3) kunne ikke køres om:** scriptet var
+      lavet ad hoc og findes hverken i prøvebænken eller i arkivet. Kun tallene
+      overlevede. Derfor ligger målingen nu i repoet, og tallet hører til den kode,
+      der faktisk udgives. Samme mønster som facitlisten, der viste sig ældre end
+      dataene — og alvorligere her, fordi værnet er release-blokerende.
+      ⚠️ **VÆRNET ER OGSÅ PRØVEN PÅ PROMPTEN** (fundet 1/10, bekræftet 2/10):
+      begge målinger fangede modellen i at rette whispers `relædet` til `relæet`
+      i stilhed — præcis det, den ordnære prompt blev valgt for at undgå.
+      Konsekvensen står i D36. **Tætheden betyder to ting, ikke én.**
+      **Rettet 2/10:** navnereglen gælder ikke i overskriften (en overskrift er
+      ikke en sætning, så stort bogstav betyder intet dér), men tal og
+      forkortelser tjekkes stadig. Fire selvtjek i prøvescriptet holder den regel
+      fast, så den ikke kan fjernes ved en oprydning uden at noget siger fra.
+- [ ] **Kobl teknik B på `/api/tilbud/referat`** — D36's bindende
       forudsætning, altså release-blokerende. Markér kun **tal, navne og
       forkortelser**, der ikke står i transskriptionen (den brede udgave er målt
       og forkastet: median 51 markeringer, en femtedel af teksten). Tre regler

@@ -115,6 +115,103 @@ de gode rettelser går tabt.
   referatet mere troværdigt — og det var netop grunden til, at teknik A faldt.
 - D36's forudsætning skal rettes: den lover i dag et værn mod **alle** tilføjelser.
 
+## 7b. Bygget og målt om — 1-2/10
+
+**Tallene i afsnit 4 kunne ikke køres om.** Scriptet, der målte den snævre B den
+27/9, blev lavet ad hoc og findes hverken i prøvebænken eller i arkivet. Kun
+tallene overlevede — i dette dokument.
+
+Det er samme mønster som facitlisten, der viste sig ældre end dataene (afsnit 3),
+og det er alvorligere her, fordi værnet er release-blokerende i D36. **Et tal,
+der ikke kan efterprøves, er ikke et grundlag at frigive på.**
+
+Derfor er værnet bygget som `teknik-b.js` i repoet, med `proev-teknik-b.js` ved
+siden af. Fra nu af hører tallet til den kode, der faktisk udgives.
+
+| Måling | Sæt | Median | Max | Tæthed, værste | Falske alarmer |
+|---|---|---|---|---|---|
+| 27/9 (script væk) | gammel prompt | 0 | 3 | — | 0 |
+| **1/10** | gammel prompt | 0 | 4 | 1,0 % | 0 |
+| **1/10** | ordnær prompt | **0** | **2** | 0,5 % | **0** |
+| **2/10** | ordnær + samlede punkter | **0** | **2** | 0,5 % | **0** |
+
+Målingen 1/10 mod den gamle prompt fandt `IP-grad` (2×), `Murerhalsen` (2×) og
+`Træafval` (2×) — altså netop dem, afsnit 4 rapporterede. **27/9's måling blev
+derfor lavet mod de gamle referater**, ikke de ordnære. Det forklarer forskellen
+i tallene og bekræfter, at den nye udgave gør det samme som den forsvundne.
+
+### Rettelse 2/10: navnereglen gælder ikke i overskriften
+
+Målingen mod de samlede referater markerede `Tømrerarbejde,` i overskriften, fordi
+transskriptionen siger *tømrerarbejdet* i bestemt form. Det er en bøjningsforskel,
+ikke en opfindelse.
+
+Den egentlige grund er, at **en overskrift ikke er en sætning.** Reglen "stort
+bogstav midt i en sætning = navn" giver mening i brødtekst; en overskrift sætter
+stort bogstav på det, der er vigtigt. Navnereglen er derfor slået fra i
+overskriften — **tal og forkortelser tjekkes stadig dér**, for et opfundet beløb i
+overskriften er lige så alvorligt som i brødteksten.
+
+Fire selvtjek i `proev-teknik-b.js` holder reglen fast, så en senere oprydning i
+`slags()` ikke kan fjerne den uden at noget siger fra.
+
+## 7c. ⚠️ Værnet er også prøven på prompten
+
+**Dette er den vigtigste iagttagelse fra de to målinger, og den ændrer, hvad
+teknik B er værd.**
+
+Begge gange var fundene `HPFI-relæ` og `HPFI-relæet`, hvor transskriptionen siger
+`HPFI-relædet` — whispers fejlhøring af *relæet*. **Modellen rettede den i
+stilhed.** Det er præcis det, afsnit 6 besluttede, at den ikke må.
+
+Fundet overlevede, at prompten blev ændret 2/10. Teknik B er altså ikke kun en
+spærre mod opfindelser: **det er det eneste, der kan opdage, at den ordnære prompt
+holder op med at blive fulgt** — den dag modellen skiftes, leverandøren ændrer
+noget under os, eller prompten redigeres af en, der ikke kender begrundelsen.
+
+**To konsekvenser:**
+
+1. **Tætheden pr. referat betyder to ting, ikke én.** Den er et mål for
+   transskriptionens kvalitet, OG en stigning kan betyde, at prompten ikke bliver
+   fulgt. Begge tolkninger skal stå dér, hvor tallet aflæses.
+2. **Slutningen "bliver modellen god nok, kan værnet undværes" er vendt om.** Jo
+   bedre modellen bliver til at skrive pænt, jo mere er værnet værd.
+
+Skrevet ind i D36 den 2/10.
+
+## 7d. Samlede punkter — besluttet 2/10
+
+Målingen 1/10 viste, at **3 af 7 referater blev afvist af formvalideringen** på
+"for mange punkter": 24-25 mod grænsen på 20. Modellen delte ét emne — én membran
+— op i fem linjer.
+
+Anne valgte mellem to eksempler side om side
+(`claude/referat-laengde-forslag.md`), og valget faldt på at bede modellen samle.
+To linjer tilføjet til prompten; alt andet urørt, så en ændring kan tilskrives
+netop dem.
+
+| | Før | Efter |
+|---|---|---|
+| P5 afvist | 3 af 7 | **0 af 7** |
+| Punkter | 13 - 25 | **12 - 15** |
+| Teknik B, median / max | 0 / 2 | **0 / 2** — uændret |
+| Ord pr. referat | 421 | 393 (−6,5 %) |
+| Output-tokens | 1.016 | 939 (−7,6 %) |
+| Pris pr. referat | 7,01 øre | 6,70 øre (−4,4 %) |
+| Svartid, median | 16,3 sek. | 14,4 sek. |
+
+**At værnets tal ikke rørte sig, er det vigtigste i tabellen.** Havde de steget,
+havde modellen købt kortheden ved at omskrive — og så var vi tilbage ved det, den
+ordnære prompt blev valgt for at undgå.
+
+⚠️ **RETTELSE AF EN FORVENTNING.** Det blev forudsagt, at referaterne ville blive
+en tredjedel kortere og dermed mærkbart billigere. De blev 6,5 % kortere og 4,4 %
+billigere. **Forslaget gjorde ikke referatet kortere — det gjorde det bedre
+organiseret.** At samle fem punkter til ét fjerner ikke indholdet, det
+omarrangerer det. 25 linjer blev til 12 med det samme indhold. Det var også det,
+der blev bedt om; men den, der læser tallene om et halvt år, skal ikke tro, at
+besparelsen var grunden.
+
 ## 8. Re-trigger
 
 **Skifter vi transskriptionsmodel, tages metoden op igen.** Beslutningen her hviler
