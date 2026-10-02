@@ -90,7 +90,7 @@ med at være en adapter.
 TILBUD_ASR_LEVERANDOER=scaleway
 TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1
 TILBUD_ASR_MODEL=whisper-large-v3
-SCW_ASR_SECRET_KEY=...              # nøglen under leverandørens eget navn
+SCW_GENAI_SECRET_KEY=...            # nøglen under leverandørens eget navn
 ```
 
 **`<projekt-id>` er et UUID**, ikke access key'en. Sætter man access key'en ind
@@ -99,10 +99,17 @@ forkert sti, ikke en forkert værdi. Kostede tid 27/9. Adapteren afviser nu
 adressen, før der ringes, med en `asr_konfiguration`-fejl der siger hvad der
 mangler.
 
-**Nøglen er `SCW_ASR_SECRET_KEY`, ikke `SCW_SECRET_KEY`** (besluttet 27/9).
-Scaleway-mailen (TEM) bruger `SCW_SECRET_KEY`. To formål, to nøgler: en rotation
-af mailnøglen må ikke slå dikteringen ud, og et læk af den ene må ikke give
-begge dele. Nøglen bæres af IAM-applicationen `ddk-transskription`.
+**Nøglen er `SCW_GENAI_SECRET_KEY`, ikke `SCW_SECRET_KEY`** (besluttet 27/9,
+omdøbt 2/10). Scaleway-mailen (TEM) bruger `SCW_SECRET_KEY`. To formål, to
+nøgler: en rotation af mailnøglen må ikke slå dikteringen ud, og et læk af den
+ene må ikke give begge dele.
+
+**Men transskription og referat deler nøgle** (omdøbt 2/10 fra
+`SCW_ASR_SECRET_KEY`). Det er ét produkt — Generative APIs — på ét projekt, så
+et læk af den ene er et læk af den anden. En opdeling ville ikke købe sikkerhed,
+kun en udløbsdato mere. `tekst-adapter.js` læser den samme variabel.
+Nøglen bæres af IAM-applicationen `ddk-transskription` (navnet dækker kun det
+halve og bør omdøbes — se `RUNBOOK-noeglerotation.md`).
 
 **Modelstrengen låses eksplicit** (D14). Aldrig et alias, aldrig "latest" — en model, der
 skifter under os, gør regressionssættet værdiløst uden at nogen opdager det.

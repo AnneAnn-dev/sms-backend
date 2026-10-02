@@ -1,6 +1,6 @@
 # Runbook: Nøglerotation
 
-> Sidst opdateret: 2026-09-28
+> Sidst opdateret: 2026-10-02
 > Gælder: Scaleway TEM, Simply.com, VAPID, Frisbii, Supabase, Twilio — udvid med flere services efterhånden.
 > Princippet er altid det samme: **opret ny nøgle → skift den ind → verificér → slet den gamle.**
 > Slet ALDRIG den gamle nøgle, før den nye er bekræftet i drift i alle miljøer.
@@ -21,7 +21,7 @@ ligner en tastefejl.**
 
 | Udløber | Variabel | Service | Hvad der holder op med at virke |
 |---|---|---|---|
-| **2027-09-28** | `SCW_ASR_SECRET_KEY` | Generative APIs (IAM-application `ddk-transskription`) | Transskriptionen i tilbudsmodulet. Dikteringen fejler med 401 |
+| **2027-09-28** | `SCW_GENAI_SECRET_KEY` | Generative APIs (IAM-application `ddk-transskription`) | **Både transskriptionen OG referatet** i tilbudsmodulet. Begge fejler med 401 |
 | **? — LÆS I KONSOLLEN** | `SCW_SECRET_KEY` | TEM (mail) | `/onboarding/nyt-link` (glemt adgangskode) og onboarding-mails. **I BEGGE miljøer**, fordi nøglen er delt |
 
 **Den anden række er et åbent hul.** TEM-nøglen blev oprettet 24/7-2026
@@ -179,13 +179,25 @@ Brugernavn = Project ID (ændres aldrig ved rotation).
 ## Scaleway Generative APIs (transskription)
 
 **Egen nøgle, adskilt fra TEM med vilje** (besluttet 27/9-2026). TEM-mailen
-bruger `SCW_SECRET_KEY`; transskriptionen bruger `SCW_ASR_SECRET_KEY`. To formål,
+bruger `SCW_SECRET_KEY`; Generative APIs bruger `SCW_GENAI_SECRET_KEY`. To formål,
 to nøgler: en rotation af mailnøglen må ikke slå dikteringen ud, og et læk af den
 ene må ikke give begge dele.
+
+**ÉN nøgle til BÅDE transskription og referat** (omdøbt 2/10-2026 fra
+`SCW_ASR_SECRET_KEY`). Det er ét produkt på ét projekt: et læk af den ene er et
+læk af den anden, så en opdeling køber ingen sikkerhed — kun en udløbsdato mere
+at holde styr på. Omdøbningen blev gjort, mens **kun staging havde variablen**;
+prod har aldrig kendt det gamle navn.
 
 - **Bæres af:** IAM-application `ddk-transskription`, scoped til projektet hvor
   Generative APIs kører.
 - **Udløber 2027-09-28** (ét år er Scaleways maksimum). Se tabellen øverst.
+- ⚠️ **Applicationens navn dækker kun det halve.** Den hedder
+  `ddk-transskription`, men nøglen bruges nu også af referatet. **Omdøb den i
+  IAM-konsollen** til noget, der dækker begge — fx `ddk-genai`. Det er en
+  navneændring på den eksisterende application, ikke en ny nøgle: værdien og
+  udløbsdatoen 2027-09-28 følger uændret med. Ret linjen ovenfor, når det er
+  gjort.
 - **Adressen indeholder projekt-id'et, ikke access key'en:**
   `TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1`. Projekt-id er et
   UUID og ændres ikke ved rotation — det er kun secret key'en, der skiftes.
@@ -194,7 +206,7 @@ ene må ikke give begge dele.
 
 1. Opret ny IAM-nøgle på samme application (ikke en ny application — så bliver
    policyen ved med at passe).
-2. Skift `SCW_ASR_SECRET_KEY` i `.env.staging`, kør `skift-staging.ps1`.
+2. Skift `SCW_GENAI_SECRET_KEY` i `.env.staging`, kør `skift-staging.ps1`.
 3. **Verificér med et rigtigt kald** — ikke med en opstartslog:
    `node proev-asr-adapter.js "<en lydfil>"`. Koster ca. 6 øre.
    Lærdommen fra 27/7: en nøgle kan være gyldig og alligevel magtesløs.
@@ -472,6 +484,7 @@ og `SUPABASE_ANON_KEY`.
 | 2026-07-24 | Frisbii | API-nøgle + webhook-secret, begge konti. |
 | 2026-07-24 | Supabase | Migreret til sb_publishable/sb_secret, legacy deaktiveret, begge projekter. |
 | 2026-07-24 | Twilio | Auth-token roteret via sekundært token, begge konti. |
+| 2026-10-02 | Scaleway Generative APIs | **Omdøbt** `SCW_ASR_SECRET_KEY` → `SCW_GENAI_SECRET_KEY`. Samme nøgle, samme værdi, samme udløbsdato — kun variabelnavnet. Grunden: referatet bruger nu den samme nøgle, og et navn med `ASR` i ville være forkert. Gjort mens KUN staging havde variablen. Rækkefølge uden huller: ny variabel tilføjet → kode pushet → rigtigt kald verificeret (6,09 øre, bogføringen stemte) → gammel variabel slettet. ⚠️ IAM-applicationen hedder stadig `ddk-transskription` og bør omdøbes. |
 | 2026-09-27 | Scaleway Generative APIs | **Ny** nøgle oprettet: IAM-application `ddk-transskription`, `SCW_ASR_SECRET_KEY`, adskilt fra TEM. **Udløber 2027-09-28.** Verificeret med et rigtigt kald 28/9. |
 | 2026-07-27 | Scaleway TEM | ⚠️ Efterspil: 403 permissions_denied — den nye applications policy manglede. Rescue-mails fejlede i begge miljøer indtil `TransactionalEmailFullAccess` blev tilknyttet. Lærdom: verificér med en RIGTIG mail. |
 
