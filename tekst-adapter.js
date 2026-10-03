@@ -264,18 +264,18 @@ async function referer(
 
   // Regel 4: en raesonnerende model skal sige sit eget navn.
   if (!String(indhold).trim() && tokensUd > 0) {
-    throw kaldfejl(
+    throw medPris(k, tokensInd, tokensUd, env, kaldfejl(
       `modellen svarede TOMT, men brugte ${tokensUd} tokens. Det er en raesonnerende model, ` +
       `og den er forkert vaerktoej her — den braender budgettet paa at taenke. Brug en ` +
       `instruct-model (J9, bevist 13/9).`,
       null, null, "raesonnerende"
-    );
+    ));
   }
 
   const v = valider(indhold);
   if (!v.ok) {
     // Teksten kommer IKKE med i fejlen. Kun hvad der var galt med formen.
-    throw formfejl(v.fejl);
+    throw medPris(k, tokensInd, tokensUd, env, formfejl(v.fejl));
   }
 
   return {
@@ -304,6 +304,29 @@ function kaldfejl(besked, status, uddrag, slags) {
   if (slags) f.slags = slags;
   return f;
 }
+// ⚠️ EN FEJL KAN VAERE BETALT. Svarede leverandoeren, er der brugt tokens —
+// ogsaa naar svaret er ubrugeligt. Prisen er KENDT de to steder, hvor der
+// kastes EFTER et svar, og den blev smidt vaek indtil 3/10-2026.
+//
+// Konsekvensen er ikke en manglende linje i et regnskab: det er et loft, der
+// ikke holder. En model, der begynder at fejle formvalideringen, ville kunne
+// braende en kundes kvote usynligt, netop fordi intet blev bogfoert.
+//
+// Fundet i proeveplanens trin 4: 59.000 gange bogstavet "a" gav 502
+// referat_ubrugeligt — og kostede rigtige penge, som ingen saa.
+//
+// Derfor baerer fejlen prisen med sig. Den, der fanger den, kan bogfoere.
+// Fejl kastet FOER et svar (timeout, 401, 403, netvaerk) baerer ingen pris, og
+// saa er der heller ikke noget at bogfoere. Vi gaetter aldrig.
+function medPris(k, tokensInd, tokensUd, env, fejl) {
+  fejl.tokensInd = tokensInd;
+  fejl.tokensUd = tokensUd;
+  fejl.prisOere = prisOere(tokensInd, tokensUd, env);
+  fejl.leverandoer = k.navn;
+  fejl.model = k.model;
+  return fejl;
+}
+
 function formfejl(fejl) {
   const f = new Error("Referat: svaret bestod ikke formvalideringen: " + fejl.join(" · "));
   f.kode = "referat_form";

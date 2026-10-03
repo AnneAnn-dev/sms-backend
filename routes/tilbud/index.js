@@ -403,10 +403,31 @@ module.exports = function (app, supabase) {
     try {
       r = await tekstmodel.referer({ tekst });
     } catch (e) {
-      // ⚠️ INTET BOGFØRES HER. Et kald, der kastede, har enten ikke kostet
-      // noget, eller også kender vi ikke tokentallet — og et gæt i hovedbogen
-      // er værre end et hul i den. Fejler det systematisk, ses det på
-      // AppSignal, ikke på kvoten.
+      // ⚠️ ET FEJLET KALD KAN VÆRE BETALT — og så skal det bogføres.
+      // Svarede leverandøren, er der brugt tokens, også når svaret var
+      // ubrugeligt. Adapteren hænger prisen på fejlen netop i de tilfælde,
+      // hvor den er kendt. Bærer fejlen ingen pris, blev der ikke svaret, og
+      // så er der intet at bogføre — vi gætter aldrig i hovedbogen.
+      //
+      // Uden dette holder loftet ikke: en model, der begynder at fejle
+      // formvalideringen, ville brænde kvoten usynligt. Fundet 3/10-26 i
+      // prøveplanens trin 4, hvor 59.000 gange "a" gav 502 og kostede penge,
+      // ingen kunne se.
+      if (typeof e.prisOere === "number" && e.prisOere > 0) {
+        try {
+          await kvote.bogfoer({
+            firmId, formaal: "referat",
+            leverandoer: e.leverandoer, model: e.model,
+            enhed: "token", maengde: (e.tokensInd || 0) + (e.tokensUd || 0),
+            prisOere: e.prisOere,
+          }, supabase);
+        } catch (bogfoeringsfejl) {
+          // Bogføringen må ikke overskygge den oprindelige fejl: han skal have
+          // at vide, at referatet mislykkedes — ikke at databasen gjorde.
+          console.error("❌ betalt men fejlet kald kunne ikke bogfoeres:", bogfoeringsfejl.message);
+          sendError(bogfoeringsfejl);
+        }
+      }
       //
       // En formfejl er IKKE det samme som et nede-kald: formfejl betyder, at
       // modellen svarede noget, der ikke kan bruges, og det er en modelfejl,
