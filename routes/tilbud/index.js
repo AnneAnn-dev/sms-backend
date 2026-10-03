@@ -3,23 +3,57 @@
 // Monteres fra server.js linje 110-113, kun når TILBUD_AKTIV er true.
 // Signaturen er bundet af kaldet: require("./routes/tilbud")(app, supabase).
 //
-// TRE RUTER:
+// FIRE RUTER:
 //   GET  /api/tilbud/status        modulets eget sundhedstjek
 //   GET  /api/tilbud/kvote         hvad er der tilbage — SPØRGES FØR optagelsen
 //   POST /api/tilbud/transskriber  lyd ind, tekst ud
+//   POST /api/tilbud/referat       tekst ind, referat + markeringer ud
 //
 // LYD PERSISTERES ALDRIG. multer holder filerne i hukommelsen, de skrives
 // ingen steder, og hverken lyd eller tekst logges (CLAUDE.md, Sikkerhed).
+// Det samme gælder transskriptionen, der kommer ind i referat-ruten.
+//
+// TO RUTER, IKKE ÉN. Lyd → tekst → referat kunne have været ét kald, og det
+// ville have været færre linjer. Men han skal kunne SE transskriptionen og
+// rette i den, før referatet skrives — det er D14's fund fra 13/9: referatet
+// retter nonsens i stilhed, men lader rigtige ord på forkert plads stå, og
+// gør dem SVÆRERE at opdage, fordi resultatet læser pænt. Mellemtrinnet er
+// hans eneste chance for at fange USB-plader, der skulle have været OSB.
 
 "use strict";
 
 const multer = require("multer");
 const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
+const express = require("express");
 const asr = require("../../asr-adapter");
+const tekstmodel = require("../../tekst-adapter");
+const teknikB = require("../../teknik-b");
 const kvote = require("../../kvote");
 
-const RUTER = ["/api/tilbud/status", "/api/tilbud/kvote", "/api/tilbud/transskriber"];
+const RUTER = [
+  "/api/tilbud/status",
+  "/api/tilbud/kvote",
+  "/api/tilbud/transskriber",
+  "/api/tilbud/referat",
+];
+
+// ─── Grænsen for ÉN transskription ind i referatet ───────────────────────────
+// Udledt af lydgrænsen, så de to ruter ikke kan være uenige: 30 MB lyd ÷ den
+// konservative bundgrænse på 3 KB/sek. = 10.486 lydsekunder. Målt 3/10 gav 163
+// lydsekunder 2.253 tegn — altså ca. 14 tegn pr. sekund. Her regnes med 20, så
+// tallet overvurderer, aldrig undervurderer.
+//
+//   10.486 × 20 ≈ 210.000 tegn  →  afrundet til 200.000.
+//
+// Værste tilfælde i kroner (3 tegn pr. token er bevidst lavt sat for dansk, så
+// token-tallet bliver for højt og ikke for lavt):
+//   200.000 ÷ 3  = 66.667 tokens ind  ×  1.119 øre/mio.  =  75 øre
+//   4.000 tokens ud (adapterens maksTokens)  ×  5.595 øre/mio.  =  22 øre
+//   I alt ca. 97 øre — under kaldsloftet på 5 kr, med rigelig margin.
+const MAKS_TEGN_IND = 200000;
+const TEGN_PR_TOKEN = 3;
+const MAKS_TOKENS_UD = 4000;
 
 // ─── Grænserne for ét kald ───────────────────────────────────────────────────
 // Kaldsloftet (AI_KALD_LOFT_DKK) kan kun holdes, hvis inputtet er begrænset.
@@ -68,6 +102,23 @@ function værsteFaldOere(bytes) {
   return asr.prisOere(bytes / LAVESTE_BYTES_PR_SEK);
 }
 
+// Samme tanke som lydens: prisen REGNES af adapteren, så et modelskifte til
+// noget dyrere får det beregnede værste tilfælde til at stige af sig selv.
+// Tokens kan ikke kendes før kaldet, så de overvurderes med vilje.
+function værsteFaldReferatOere(tegn) {
+  return tekstmodel.prisOere(Math.ceil(tegn / TEGN_PR_TOKEN), MAKS_TOKENS_UD);
+}
+
+// Fejlkoder, der peger på den RIGTIGE mekanisme. Se den lange note ved
+// transskriptionens catch: en kode, der peger forkert, koster mere tid end
+// ingen kode (fundet 30/9).
+const FORBEREDELSESKODER = {
+  asr_konfiguration: "asr_ukonfigureret",
+  referat_konfiguration: "referat_ukonfigureret",
+  kvote_konfiguration: "kvote_ukonfigureret",
+  kvote_laesning: "kvote_utilgaengelig",
+};
+
 module.exports = function (app, supabase) {
   // ─── Status ────────────────────────────────────────────────────────────────
   // Bevidst tom for logik, som /health: den skal kunne fejle NÅR modulet ikke
@@ -77,12 +128,18 @@ module.exports = function (app, supabase) {
       ok: true,
       modul: "tilbud",
       ruter: RUTER,
-      mangler: ["POST /api/tilbud/referat", "den snaevre teknik B", "fotovejen"],
+      mangler: ["fotovejen", "datafunktioner for kunder/opgaver/referater", "PWA-siden"],
       // Samme tanke som kvote-feltet i /health: udstil TILSTANDEN, så den kan
       // spørges i stedet for gættes. Uden dette felt ligner en manglende
       // ASR-variabel et problem med kvoten (fundet 30/9).
+      // ⚠️ LÆS DETTE FELT PRÆCIST (D71, 3/10-26). true betyder, at variablen
+      // FINDES og har gyldig form — ikke at nøglen virker. En slettet eller
+      // forkert nøgle står her som true og fejler først ved et rigtigt kald,
+      // med 401 eller 403. Det er med vilje: status skal kunne svare uden at
+      // bruge penge. Men den er IKKE et sundhedstjek, og må ikke læses som et.
       konfigureret: {
         asr: erKonfigureret(() => asr.prisenhed()),
+        referat: erKonfigureret(() => tekstmodel.prisenhed()),
         kvote: erKonfigureret(() => kvote._hentLofter()),
       },
     })
@@ -161,12 +218,7 @@ module.exports = function (app, supabase) {
         // ikke rører adapteren, og så lignede det et lune i POST'en.
         // En fejlkode, der peger på den forkerte mekanisme, koster mere tid
         // end ingen fejlkode.
-        const koder = {
-          asr_konfiguration: "asr_ukonfigureret",
-          kvote_konfiguration: "kvote_ukonfigureret",
-          kvote_laesning: "kvote_utilgaengelig",
-        };
-        const kode = koder[e.kode] || "kvote_utilgaengelig";
+        const kode = FORBEREDELSESKODER[e.kode] || "kvote_utilgaengelig";
         console.error(`❌ kaldet kunne ikke forberedes [${kode}]:`, e.kode, e.message);
         sendError(e);
         return res.status(503).json({
@@ -268,6 +320,145 @@ module.exports = function (app, supabase) {
         // Saa fanen kan sige det til ham med det samme, uden et kald mere.
         restOere: Math.max(0, dom.loftOere - forbrugtFoer),
       });
+    });
+  });
+
+  // ─── Referatet ─────────────────────────────────────────────────────────────
+  // Tekst ind, referat ud — plus teknik B's markeringer, så han kan se HVAD
+  // han skal kontrollere i stedet for at læse det hele igen.
+  //
+  // Transskriptionen kommer fra hans egen browser, muligvis rettet af ham
+  // undervejs. Den gemmes ikke her, logges ikke, og sendes ikke videre nogen
+  // steder end til modellen. Ruten ved ikke, hvilken opgave det drejer sig om;
+  // det afgøres først, når han trykker gem.
+  app.post("/api/tilbud/referat", express.json({ limit: "2mb" }), async (req, res) => {
+    const firmId = await firmIdFromToken(supabase, req);
+    if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
+
+    // Typekontrol, ikke en antagelse. Samme lærestreg som validatoren, der
+    // væltede på `punkter` som streng: det, der kommer udefra, har ikke den
+    // type, man håber.
+    const tekst = typeof req.body?.transskription === "string" ? req.body.transskription : "";
+    if (!tekst.trim()) {
+      return res.status(400).json({
+        error: "ingen_tekst",
+        besked: "Der var ingen transskription med.",
+      });
+    }
+    if (tekst.length > MAKS_TEGN_IND) {
+      return res.status(413).json({
+        error: "for_meget_tekst",
+        besked: "Transskriptionen er for lang til ét referat. Del den op i to møder.",
+      });
+    }
+
+    // ── Kvoten, FØR der ringes ────────────────────────────────────────────
+    let dom;
+    try {
+      dom = await kvote.tjek({ firmId, maxPrisOere: værsteFaldReferatOere(tekst.length) }, supabase);
+    } catch (e) {
+      const kode = FORBEREDELSESKODER[e.kode] || "kvote_utilgaengelig";
+      console.error(`❌ referatet kunne ikke forberedes [${kode}]:`, e.kode, e.message);
+      sendError(e);
+      return res.status(503).json({
+        error: kode,
+        besked: "Vi kan ikke skrive referatet lige nu. Din tekst står stadig på skærmen — prøv igen om lidt.",
+      });
+    }
+
+    if (!dom.tilladt) {
+      // Bremsen skal larme — se noten ved transskriptionen.
+      const h = new Error(`Kvoteafvisning (referat): ${dom.aarsag}`);
+      h.name = "Kvoteafvisning";
+      console.warn("⚠️ KVOTE afviste referat", { firmId, aarsag: dom.aarsag,
+        forbrugtOere: dom.forbrugtOere, loftOere: dom.loftOere });
+      sendError(h);
+      return res.status(402).json({ error: dom.aarsag, besked: dom.besked,
+        naesteNulstilling: dom.naesteNulstilling });
+    }
+
+    // ── Kaldet ────────────────────────────────────────────────────────────
+    let r;
+    try {
+      r = await tekstmodel.referer({ tekst });
+    } catch (e) {
+      // ⚠️ INTET BOGFØRES HER. Et kald, der kastede, har enten ikke kostet
+      // noget, eller også kender vi ikke tokentallet — og et gæt i hovedbogen
+      // er værre end et hul i den. Fejler det systematisk, ses det på
+      // AppSignal, ikke på kvoten.
+      //
+      // En formfejl er IKKE det samme som et nede-kald: formfejl betyder, at
+      // modellen svarede noget, der ikke kan bruges, og det er en modelfejl,
+      // vi skal se. De skilles ad, så AppSignal kan tælle dem hver for sig.
+      const formfejl = e.kode === "referat_form";
+      console.error(`❌ referatet fejlede [${e.kode}]:`, e.message);
+      sendError(e);
+      return res.status(502).json({
+        error: formfejl ? "referat_ubrugeligt" : "referat_fejlede",
+        besked: formfejl
+          ? "Referatet kom tilbage i en form, vi ikke kunne bruge. Prøv igen — teksten står stadig på skærmen."
+          : "Vi kunne ikke skrive referatet lige nu. Din tekst står stadig på skærmen — prøv igen.",
+      });
+    }
+
+    // ── Bogføringen ───────────────────────────────────────────────────────
+    // Tokens ind og ud afregnes til to forskellige takster, men hovedbogen
+    // fører ÉN række pr. kald, fordi det er pr. kald, leverandøren afregner.
+    // Prisen er adapterens egen beregning af de to takster — ikke en omregning
+    // her, hvor den kunne komme til at sige noget andet end regningen.
+    await kvote.bogfoer({
+      firmId, formaal: "referat",
+      leverandoer: r.leverandoer, model: r.model,
+      enhed: "token", maengde: r.tokensInd + r.tokensUd, prisOere: r.prisOere,
+    }, supabase);
+
+    if (kvote.krydsedeVarsel(dom.forbrugtOere, r.prisOere, dom.loftOere)) {
+      const v = new Error(`Kvotevarsel: firmaet har passeret ${kvote.VARSEL_ANDEL * 100} % af sit maanedsloft`);
+      v.name = "Kvotevarsel";
+      console.warn("⚠️ KVOTE 80 %", { firmId, loftOere: dom.loftOere });
+      sendError(v);
+    }
+
+    // ── Værnet ────────────────────────────────────────────────────────────
+    // Teknik B markerer tal, navne og forkortelser, der står i referatet, men
+    // IKKE i transskriptionen. To ting på én gang:
+    //   1. Han ser, hvad han skal kontrollere — ikke hele referatet, kun det,
+    //      der kan være opfundet eller flyttet.
+    //   2. Vi ser, om modellen er begyndt at rette i ordene igen. Stiger
+    //      tætheden uden at prompten er ændret, er det prompten, der ikke
+    //      længere følges (RESULTAT-06).
+    //
+    // Værnet må ALDRIG kunne vælte referatet. Et referat, der er skrevet og
+    // betalt, skal ud til ham, også hvis markeringen fejler.
+    let vaern = { markeringer: [], antalMarkeringer: null, taethed: null, ventil: false };
+    try {
+      vaern = teknikB.marker(tekst, r);
+      if (vaern.ventil) {
+        const t = new Error(`Teknik B: ventilen udloest ved ${vaern.taethed} % taethed`);
+        t.name = "TeknikBVentil";
+        console.warn("⚠️ TEKNIK B ventil", { firmId, taethed: vaern.taethed,
+          antal: vaern.antalMarkeringer, promptVersion: r.promptVersion });
+        sendError(t);
+      }
+    } catch (e) {
+      console.error("❌ teknik B kunne ikke koere:", e.message);
+      sendError(e);
+    }
+
+    res.json({
+      ok: true,
+      // Referatet gaar RETUR til hans egen browser. Det gemmes foerst, naar
+      // han trykker gem — og det er en anden rute, som ved hvilken opgave.
+      overskrift: r.overskrift,
+      punkter: r.punkter,
+      fritekst: r.fritekst,
+      // Kun markeringerne, ikke hele teksten en gang til.
+      markeringer: vaern.markeringer,
+      taethed: vaern.taethed,
+      prisOere: Math.round(r.prisOere * 100) / 100,
+      restOere: Math.max(0, dom.loftOere - dom.forbrugtOere - r.prisOere),
+      model: r.model,
+      promptVersion: r.promptVersion,
     });
   });
 };
