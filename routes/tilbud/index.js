@@ -25,7 +25,6 @@
 const multer = require("multer");
 const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
-const express = require("express");
 const asr = require("../../asr-adapter");
 const tekstmodel = require("../../tekst-adapter");
 const teknikB = require("../../teknik-b");
@@ -39,19 +38,37 @@ const RUTER = [
 ];
 
 // ─── Grænsen for ÉN transskription ind i referatet ───────────────────────────
-// Udledt af lydgrænsen, så de to ruter ikke kan være uenige: 30 MB lyd ÷ den
-// konservative bundgrænse på 3 KB/sek. = 10.486 lydsekunder. Målt 3/10 gav 163
-// lydsekunder 2.253 tegn — altså ca. 14 tegn pr. sekund. Her regnes med 20, så
-// tallet overvurderer, aldrig undervurderer.
+// ⚠️ DEN BINDENDE GRÆNSE STÅR IKKE HER. `express.json()` i server.js linje 19
+// er sat UDEN `limit` og bruger derfor Expressʼ standard på 100 KB. Den er
+// global og kører længe før modulet monteres (linje 111), så en krop over
+// 100 KB afvises med en HTML-fejlside, som en klient ikke kan læse — og uden
+// at en eneste linje herunder er kørt. Fundet 3/10-26 i prøveplanens trin 4,
+// hvor svaret var 413 med Expressʼ egen side i stedet for `for_meget_tekst`.
 //
-//   10.486 × 20 ≈ 210.000 tegn  →  afrundet til 200.000.
+// Tallet herunder skal derfor ligge med god afstand UNDER de 100 KB, så vores
+// egen læselige fejl altid når at fejle først. 60.000 tegn dansk fylder i
+// UTF-8 omkring 70-75 KB med JSON-rammen omkring — også hvis teksten er tung
+// på æ, ø og å, som fylder to bytes hver.
+//
+// Er 60.000 nok? Målt 3/10: 163 lydsekunder gav 2.253 tegn, altså ca. 14 tegn
+// pr. sekund. 30 MB lyd ved den MÅLTE bitrate er ca. 31 minutter ≈ 26.000
+// tegn. Grænsen er mere end det dobbelte af en realistisk lang diktering.
+//
+// ⚠️ KENDT HUL, bevidst efterladt. Lydruten regner sit værste tilfælde ud fra
+// en konservativ bundgrænse på 3 KB/sek., og 30 MB bliver der til 175 minutter
+// ≈ 145.000 tegn. Sker DET i virkeligheden — stærkt komprimeret lyd, meget
+// langt møde — afvises transskriptionen her med `for_meget_tekst`, højlydt og
+// med en besked, han kan handle på. **Først dér** er det signalet til at give
+// `express.json()` en `limit`. Ikke før: grænsen på linje 19 gælder ALLE ruter,
+// også Frisbii-webhooken og onboarding, og den hæves ikke for et tilfælde, vi
+// aldrig har set (besluttet af Ann 3/10).
 //
 // Værste tilfælde i kroner (3 tegn pr. token er bevidst lavt sat for dansk, så
 // token-tallet bliver for højt og ikke for lavt):
-//   200.000 ÷ 3  = 66.667 tokens ind  ×  1.119 øre/mio.  =  75 øre
+//   60.000 ÷ 3 = 20.000 tokens ind  ×  1.119 øre/mio.  =  22 øre
 //   4.000 tokens ud (adapterens maksTokens)  ×  5.595 øre/mio.  =  22 øre
-//   I alt ca. 97 øre — under kaldsloftet på 5 kr, med rigelig margin.
-const MAKS_TEGN_IND = 200000;
+//   I alt ca. 45 øre — langt under kaldsloftet på 5 kr.
+const MAKS_TEGN_IND = 60000;
 const TEGN_PR_TOKEN = 3;
 const MAKS_TOKENS_UD = 4000;
 
@@ -331,7 +348,11 @@ module.exports = function (app, supabase) {
   // undervejs. Den gemmes ikke her, logges ikke, og sendes ikke videre nogen
   // steder end til modellen. Ruten ved ikke, hvilken opgave det drejer sig om;
   // det afgøres først, når han trykker gem.
-  app.post("/api/tilbud/referat", express.json({ limit: "2mb" }), async (req, res) => {
+  // Ingen parser her: `express.json()` i server.js linje 19 har allerede læst
+  // kroppen, når vi når hertil. En parser mere ville være død kode, der ligner
+  // en grænse — og det er værre end ingen grænse, fordi den næste ville tro,
+  // tallet i den gjaldt.
+  app.post("/api/tilbud/referat", async (req, res) => {
     const firmId = await firmIdFromToken(supabase, req);
     if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
 
