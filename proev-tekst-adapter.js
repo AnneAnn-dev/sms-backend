@@ -3,6 +3,10 @@
 //   node proev-tekst-adapter.js
 //       Toerkoersel. Ingen netvaerk, ingen omkostning.
 //
+//   node proev-tekst-adapter.js --modeller
+//       Slaar leverandoerens modelliste op og efterproever, at HVERT navn i
+//       prislisten findes. Gratis — listningen koster ingenting.
+//
 //   node proev-tekst-adapter.js "C:\Users\Bruger\proevebaenk\transskriptioner\<fil>.txt"
 //       Rigtigt kald. KOSTER PENGE (ca. 7 oere pr. referat).
 //       Koerer ogsaa teknik B paa resultatet, saa vaernet ses med det samme.
@@ -149,8 +153,64 @@ async function rigtigtKald(fil) {
   }
 }
 
+// --modeller: efterproever at hvert navn i prislisten FINDES hos leverandoeren.
+// Toerkoerslen kan ikke se det — den har hverken netvaerk eller noegle — og en
+// doed modelstreng ser rigtig ud lige indtil den dag, den skal bruges. 3/10-2026
+// stod "mistral-small-3.2-24b-instruct" i listen; den findes ikke, og kaldet gav
+// 422 MODEL NOT FOUND. At maale noget lettere end det, man spoerger om, er ikke
+// en maaling.
+async function modeltjek() {
+  let k;
+  try {
+    k = a._hentKonfig();
+  } catch (e) {
+    console.log("\nKan ikke slaa modeller op: " + e.message);
+    process.exitCode = 1;
+    return;
+  }
+
+  let svar;
+  try {
+    svar = await fetch(k.url + "/models", { headers: { Authorization: "Bearer " + k.noegle } });
+  } catch (e) {
+    console.log("\nNaaede ikke leverandoeren: " + e.message);
+    process.exitCode = 1;
+    return;
+  }
+  if (!svar.ok) {
+    console.log("\nLeverandoeren svarede " + svar.status + " paa /models.");
+    if (svar.status === 403) {
+      console.log("403 er som regel en SLETTET noegle eller et projekt, noeglen ikke har adgang til.");
+      console.log("Det er IKKE det samme som 401 (ukendt noegle). Set 3/10-2026.");
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const findes = new Set(((await svar.json()).data || []).map((m) => m.id));
+  console.log("\n" + findes.size + " modeller hos " + k.navn + ":\n");
+
+  let mangler = 0;
+  for (const navn of Object.keys(k.lev.priser)) {
+    if (findes.has(navn)) ok(navn, "findes");
+    else { nej(navn, "staar i prislisten, men findes ikke hos leverandoeren"); mangler++; }
+  }
+  if (!findes.has(k.model)) {
+    nej(k.model, "TILBUD_REFERAT_MODEL peger paa en model, der ikke findes");
+    mangler++;
+  }
+
+  console.log("\n" + bestaaet + " bestaaet, " + fejlet + " fejlet.");
+  if (mangler) {
+    console.log("Ret prislisten i tekst-adapter.js. Hele listen fra leverandoeren:");
+    for (const id of [...findes].sort()) console.log("   " + id);
+    process.exitCode = 1;
+  }
+}
+
 (async () => {
   const fil = process.argv[2];
+  if (fil === "--modeller") return modeltjek();
   if (fil) return rigtigtKald(fil);
   toerkoersel();
   console.log(`\n${bestaaet} bestaaet, ${fejlet} fejlet.`);

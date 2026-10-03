@@ -51,11 +51,18 @@ const LEVERANDOERER = {
     // prod har aldrig kendt det gamle navn. asr-adapter.js læser den samme.
     // Verificeret med et rigtigt kald: 200, 6,09 øre, bogføringen stemte.
     noeglenavn: "SCW_GENAI_SECRET_KEY",
+    // ⚠️ NAVNENE SKAL FINDES, IKKE BARE SE RIGTIGE UD. Efterprøvet mod
+    // GET {url}/models 3/10-2026. Alias-vagten nedenfor fanger "latest" og
+    // "stable" — den fanger IKKE et navn, der er plausibelt og alligevel dødt.
+    // 3/10-2026 stod her "mistral-small-3.2-24b-instruct"; den rigtige hedder
+    // "-2506", og et kald med den gamle gav 422 MODEL NOT FOUND. Tørkørslen
+    // kunne ikke se det: den har hverken netværk eller nøgle.
+    // Før du tilføjer eller retter et navn her:  node proev-tekst-adapter.js --modeller
     priser: {
       // euro pr. million tokens
-      "mistral-medium-3.5-128b":        { ind: 1.50, ud: 7.50 },
-      "mistral-small-3.2-24b-instruct": { ind: 0.15, ud: 0.35 },
-      "llama-3.3-70b-instruct":         { ind: 0.90, ud: 0.90 },
+      "mistral-medium-3.5-128b":             { ind: 1.50, ud: 7.50 },
+      "mistral-small-3.2-24b-instruct-2506": { ind: 0.15, ud: 0.35 },
+      "llama-3.3-70b-instruct":              { ind: 0.90, ud: 0.90 },
     },
   },
 };
