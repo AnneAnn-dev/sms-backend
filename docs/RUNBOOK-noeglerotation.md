@@ -1,6 +1,6 @@
 # Runbook: Nøglerotation
 
-> Sidst opdateret: 2026-10-02
+> Sidst opdateret: 2026-10-03
 > Gælder: Scaleway TEM, Simply.com, VAPID, Frisbii, Supabase, Twilio — udvid med flere services efterhånden.
 > Princippet er altid det samme: **opret ny nøgle → skift den ind → verificér → slet den gamle.**
 > Slet ALDRIG den gamle nøgle, før den nye er bekræftet i drift i alle miljøer.
@@ -21,7 +21,8 @@ ligner en tastefejl.**
 
 | Udløber | Variabel | Service | Hvad der holder op med at virke |
 |---|---|---|---|
-| **2027-09-28** | `SCW_GENAI_SECRET_KEY` | Generative APIs (IAM-application `ddk-genai-staging`) | **Både transskriptionen OG referatet** i tilbudsmodulet. Begge fejler med 401 |
+| **2027-10-03** | `SCW_GENAI_SECRET_KEY` (Railway staging + `.env.staging`) | Generative APIs, application `ddk-genai-staging`, nøglen "Railway staging - tilbudsmodulet" | **Både transskriptionen OG referatet** i tilbudsmodulet |
+| **2027-10-03** | `SCW_SECRET_KEY` i `.env.proevebaenk` ⚠️ | Generative APIs, samme application, nøglen "Proevebaenk - Anns maskine" | Prøvebænken. Ingen kunde mærker det — men målingerne stopper, og vi opdager det først, når vi skal måle |
 | **? — LÆS I KONSOLLEN** | `SCW_SECRET_KEY` | TEM (mail) | `/onboarding/nyt-link` (glemt adgangskode) og onboarding-mails. **I BEGGE miljøer**, fordi nøglen er delt |
 
 **Den anden række er et åbent hul.** TEM-nøglen blev oprettet 24/7-2026
@@ -176,7 +177,7 @@ Brugernavn = Project ID (ændres aldrig ved rotation).
 
 ---
 
-## Scaleway Generative APIs (transskription)
+## Scaleway Generative APIs (transskription + referat)
 
 **Egen nøgle, adskilt fra TEM med vilje** (besluttet 27/9-2026). TEM-mailen
 bruger `SCW_SECRET_KEY`; Generative APIs bruger `SCW_GENAI_SECRET_KEY`. To formål,
@@ -191,7 +192,18 @@ prod har aldrig kendt det gamle navn.
 
 - **Bæres af:** IAM-application `ddk-genai-staging`, scoped til projektet hvor
   Generative APIs kører.
-- **Udløber 2027-09-28** (ét år er Scaleways maksimum). Se tabellen øverst.
+- **Udløber 2027-10-03** (ét år er Scaleways maksimum). Se tabellen øverst.
+- **To nøgler på applicationen, med vilje** (3/10-2026): én til Railway staging,
+  én til prøvebænken på Anns maskine. Samme rettigheder — adskillelsen køber
+  ikke sikkerhed, den køber at den ene kan spærres uden at den anden følger med.
+  **Beskrivelsen skal sige HVOR nøglen bor**, ikke hvad den laver: 3/10 stod der
+  to nøgler, hvor begge beskrivelser nævnte prøvebænken, og så var de ikke til
+  at kende fra hinanden.
+- ⚠️ **Prøvebænkens variabel hedder `SCW_SECRET_KEY`** i `.env.proevebaenk` —
+  samme navn som TEM-mailnøglen i repoet. Det går, fordi det er to forskellige
+  filer, men det er en fælde for den næste, der åbner den. Bør hedde
+  `SCW_GENAI_SECRET_KEY` som alle andre steder; kræver at prøvebænkens scripter
+  rettes samtidig (`03-referat.ps1` linje 78 og formentlig `01-`/`02-`).
 - **Navnet siger både hvad og hvor.** Applicationen hed `ddk-transskription`
   indtil 2/10-2026; den hedder nu `ddk-genai-staging`. `genai` fordi nøglen
   laver **begge** dele — et navn, der kun siger den ene, får den næste til at
@@ -208,11 +220,23 @@ prod har aldrig kendt det gamle navn.
 1. Opret ny IAM-nøgle på samme application (ikke en ny application — så bliver
    policyen ved med at passe).
 2. Skift `SCW_GENAI_SECRET_KEY` i `.env.staging`, kør `skift-staging.ps1`.
-3. **Verificér med et rigtigt kald** — ikke med en opstartslog:
-   `node proev-asr-adapter.js "<en lydfil>"`. Koster ca. 6 øre.
+   Skift den også i `.env.proevebaenk`, hvis den nøgle roteres med.
+3. Skift den i Railway — og **fremtving en deployment**. Se trinnet
+   "Fire steder, og de opdateres ikke af sig selv" nedenfor. En variabel,
+   der er gemt, er ikke en variabel, appen har læst.
+4. **Verificér med et rigtigt kald** — ikke med en opstartslog, og ikke med et
+   lettere kald:
+   `node proev-transskriber.js --base <staging-url> "<en lydfil>"`. Ca. 6 øre.
    Lærdommen fra 27/7: en nøgle kan være gyldig og alligevel magtesløs.
-4. Samme i `.env.prod` + Railway prod.
-5. Først derefter: slet den gamle nøgle.
+   Lærdommen fra 3/10: `GET /v1/models` svarer 200 for en nøgle, der ikke kan
+   transskribere. **Mål det, du spørger om — ikke noget lettere ved siden af.**
+5. Er modelnavne ændret undervejs: `node proev-tekst-adapter.js --modeller`.
+   Gratis, og den fanger et navn, der ser rigtigt ud og ikke findes (3/10).
+6. Samme i `.env.prod` + Railway prod, med sin egen application `ddk-genai-prod`.
+7. **Slet den gamle nøgle — og mål så igen.** Sletningen er ikke oprydning efter
+   beviset; den ER beviset. Så længe den gamle nøgle lever, består enhver prøve,
+   uanset hvilken nøgle der faktisk er i brug. 3/10 så vi grønt hele vejen, og
+   det var den gamle nøgle, der svarede.
 
 ### Faldgruber
 
@@ -220,6 +244,15 @@ prod har aldrig kendt det gamle navn.
   (`SCW…`) i `TILBUD_ASR_URL` i stedet for projekt-id'et, svarer Scaleway 404, og
   fejlen ligner en forkert sti. Kostede tid 27/9. `asr-adapter.js` afviser nu
   adressen, før der ringes.
+- **403 er ikke 401.** 401 = nøglen kendes ikke. **403 = nøglen er genkendt,
+  men magtesløs** — typisk en SLETTET nøgle, eller et projekt-id i adressen, som
+  nøglen ikke har adgang til. 3/10 brugte vi en time på at lede efter manglende
+  rettigheder i IAM, fordi en slettet nøgle svarede 403 og ikke 401. Policyen
+  fejlede ingenting; appen sendte bare en nøgle, der ikke fandtes mere.
+- **422 `MODEL NOT FOUND` er hverken nøglen eller adressen** — det er
+  modelstrengen. Alias-vagten (D14) fanger `latest` og `stable`; den fanger
+  ikke et navn, der har version, ser rigtigt ud og alligevel er dødt.
+  `node proev-tekst-adapter.js --modeller` slår listen op og sammenligner.
 - **`$env:`-variabler vinder over `.env`, tavst.** `dotenv` overskriver aldrig en
   variabel, der allerede findes i processen — den springer linjen over uden at
   sige det. Er en variabel sat i PowerShell-vinduet eller med `setx`, kan
@@ -426,6 +459,36 @@ ingen afsenderadresser brugte domænet, og DNS lå ikke hos Simply.
 
 ---
 
+## Fire steder, og de opdateres ikke af sig selv
+
+*Skrevet 3/10-2026, efter at den samme fejl kostede tid tre gange på én dag.*
+
+En Generative APIs-nøgle bor fire steder. Hvert sted læser værdien på sin egen
+måde, og **tre af dem læser en KOPI**, som ikke bliver lavet om, fordi kilden
+blev rettet.
+
+| Hvor | Hvad der skal ske, før ændringen gælder | Sådan ses det |
+|---|---|---|
+| **Bitwarden** | Intet — det er sandheden, ikke en bruger | — |
+| **Railway** | En **deployment**. `process.env` fyldes ved opstart; en gemt variabel rører ikke en kørende proces | Deployments-fanen: tidsstemplet skal være **nyere** end variabelskiftet |
+| **`.env.staging` → `.env`** | `skift-staging.ps1`. `dotenv` læser kun `.env` | `(Get-Content .env) -match '^SCW_'` viser navnene — uden værdierne |
+| **`.env.proevebaenk`** | Intet — scriptet læser filen direkte ved hver kørsel | Virker med det samme |
+
+**Spørgsmålet, der skal stilles hver gang:** *hvad læser den her værdi faktisk,
+og har det set ændringen?*
+
+3/10 blev den samme fejl lavet tre gange: Railway kørte videre på den gamle
+nøgle, fordi den anden chats deployments skubbede genstarten; `.env` havde
+stadig det gamle variabelnavn, fordi `skift-staging.ps1` ikke var kørt siden
+omdøbningen. Hver gang var kilden rettet, og hver gang læste noget andet en
+kopi, ingen havde bedt om at blive opdateret.
+
+⚠️ Hverken `check-env.js`, `afstem-railway-env.js` eller `sammenlign-env.ps1`
+nævner `SCW_GENAI_SECRET_KEY`. De kunne have fanget, at nøglen manglede lokalt.
+Det er en åben opgave, ikke en beslutning.
+
+---
+
 ## Trin sidst: verificér at variablerne er rigtige
 
 Efter ENHVER `.env`-redigering — og altid som afslutning på en rotation:
@@ -468,9 +531,12 @@ og `SUPABASE_ANON_KEY`.
 - [ ] Gammel nøgle tjekket for anden brug
 - [ ] **Masterfilen** rettet (ikke kun `.env`)
 - [ ] Railway opdateret i alle berørte miljøer
+- [ ] **Deployment gennemført**, og tidsstemplet er nyere end variabelskiftet
+- [ ] Prøvebænkens `.env.proevebaenk` rørt, hvis dens nøgle er med
 - [ ] `node check-env.js --live` grøn
 - [ ] Funktion verificeret live (mail / opkald / login / webhook)
 - [ ] Gammel nøgle slettet eller deaktiveret
+- [ ] **Funktionen målt IGEN efter sletningen** — det er dér, det afgøres
 
 ---
 
@@ -485,6 +551,7 @@ og `SUPABASE_ANON_KEY`.
 | 2026-07-24 | Frisbii | API-nøgle + webhook-secret, begge konti. |
 | 2026-07-24 | Supabase | Migreret til sb_publishable/sb_secret, legacy deaktiveret, begge projekter. |
 | 2026-07-24 | Twilio | Auth-token roteret via sekundært token, begge konti. |
+| 2026-10-03 | Scaleway Generative APIs | **To nye nøgler** på `ddk-genai-staging`, begge med udløb **2027-10-03**: "Railway staging - tilbudsmodulet" og "Proevebaenk - Anns maskine". Begge gamle nøgler slettet. Forløbet: de to gamle kunne ikke kendes fra hinanden på beskrivelsen, så vi udskiftede frem for at gætte. Efter sletningen svarede staging **403** (slettet nøgle, ikke manglende rettighed) — Railway kørte stadig den gamle nøgle i hukommelsen, fordi ingen deployment havde set variabelskiftet. Efter en fremtvunget deployment: 200, 163 lydsekunder, 6,09 øre, bogføringen stemte. |
 | 2026-10-02 | Scaleway Generative APIs | **Omdøbt** `SCW_ASR_SECRET_KEY` → `SCW_GENAI_SECRET_KEY`. Samme nøgle, samme værdi, samme udløbsdato — kun variabelnavnet. Grunden: referatet bruger nu den samme nøgle, og et navn med `ASR` i ville være forkert. Gjort mens KUN staging havde variablen. Rækkefølge uden huller: ny variabel tilføjet → kode pushet → rigtigt kald verificeret (6,09 øre, bogføringen stemte) → gammel variabel slettet. IAM-applicationen omdøbt samme dag: `ddk-transskription` → `ddk-genai-staging` (samme application, samme nøgle). |
 | 2026-09-27 | Scaleway Generative APIs | **Ny** nøgle oprettet: IAM-application `ddk-transskription`, `SCW_ASR_SECRET_KEY`, adskilt fra TEM. **Udløber 2027-09-28.** Verificeret med et rigtigt kald 28/9. |
 | 2026-07-27 | Scaleway TEM | ⚠️ Efterspil: 403 permissions_denied — den nye applications policy manglede. Rescue-mails fejlede i begge miljøer indtil `TransactionalEmailFullAccess` blev tilknyttet. Lærdom: verificér med en RIGTIG mail. |
