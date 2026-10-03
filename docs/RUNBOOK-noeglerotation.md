@@ -21,7 +21,7 @@ ligner en tastefejl.**
 
 | Udløber | Variabel | Service | Hvad der holder op med at virke |
 |---|---|---|---|
-| **2027-09-28** | `SCW_GENAI_SECRET_KEY` | Generative APIs (IAM-application `ddk-transskription`) | **Både transskriptionen OG referatet** i tilbudsmodulet. Begge fejler med 401 |
+| **2027-09-28** | `SCW_GENAI_SECRET_KEY` | Generative APIs (IAM-application `ddk-genai-staging`) | **Både transskriptionen OG referatet** i tilbudsmodulet. Begge fejler med 401 |
 | **? — LÆS I KONSOLLEN** | `SCW_SECRET_KEY` | TEM (mail) | `/onboarding/nyt-link` (glemt adgangskode) og onboarding-mails. **I BEGGE miljøer**, fordi nøglen er delt |
 
 **Den anden række er et åbent hul.** TEM-nøglen blev oprettet 24/7-2026
@@ -189,15 +189,16 @@ læk af den anden, så en opdeling køber ingen sikkerhed — kun en udløbsdato
 at holde styr på. Omdøbningen blev gjort, mens **kun staging havde variablen**;
 prod har aldrig kendt det gamle navn.
 
-- **Bæres af:** IAM-application `ddk-transskription`, scoped til projektet hvor
+- **Bæres af:** IAM-application `ddk-genai-staging`, scoped til projektet hvor
   Generative APIs kører.
 - **Udløber 2027-09-28** (ét år er Scaleways maksimum). Se tabellen øverst.
-- ⚠️ **Applicationens navn dækker kun det halve.** Den hedder
-  `ddk-transskription`, men nøglen bruges nu også af referatet. **Omdøb den i
-  IAM-konsollen** til noget, der dækker begge — fx `ddk-genai`. Det er en
-  navneændring på den eksisterende application, ikke en ny nøgle: værdien og
-  udløbsdatoen 2027-09-28 følger uændret med. Ret linjen ovenfor, når det er
-  gjort.
+- **Navnet siger både hvad og hvor.** Applicationen hed `ddk-transskription`
+  indtil 2/10-2026; den hedder nu `ddk-genai-staging`. `genai` fordi nøglen
+  laver **begge** dele — et navn, der kun siger den ene, får den næste til at
+  lede efter en nøgle, der ikke findes. `-staging` fordi **prod skal have sin
+  egen application og sin egen nøgle**: et læk på staging må ikke kunne læse
+  prods regning. Den kommer til at hedde `ddk-genai-prod` og oprettes den dag
+  `TILBUD_AKTIV` tændes i prod — ikke før.
 - **Adressen indeholder projekt-id'et, ikke access key'en:**
   `TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1`. Projekt-id er et
   UUID og ændres ikke ved rotation — det er kun secret key'en, der skiftes.
@@ -484,7 +485,7 @@ og `SUPABASE_ANON_KEY`.
 | 2026-07-24 | Frisbii | API-nøgle + webhook-secret, begge konti. |
 | 2026-07-24 | Supabase | Migreret til sb_publishable/sb_secret, legacy deaktiveret, begge projekter. |
 | 2026-07-24 | Twilio | Auth-token roteret via sekundært token, begge konti. |
-| 2026-10-02 | Scaleway Generative APIs | **Omdøbt** `SCW_ASR_SECRET_KEY` → `SCW_GENAI_SECRET_KEY`. Samme nøgle, samme værdi, samme udløbsdato — kun variabelnavnet. Grunden: referatet bruger nu den samme nøgle, og et navn med `ASR` i ville være forkert. Gjort mens KUN staging havde variablen. Rækkefølge uden huller: ny variabel tilføjet → kode pushet → rigtigt kald verificeret (6,09 øre, bogføringen stemte) → gammel variabel slettet. ⚠️ IAM-applicationen hedder stadig `ddk-transskription` og bør omdøbes. |
+| 2026-10-02 | Scaleway Generative APIs | **Omdøbt** `SCW_ASR_SECRET_KEY` → `SCW_GENAI_SECRET_KEY`. Samme nøgle, samme værdi, samme udløbsdato — kun variabelnavnet. Grunden: referatet bruger nu den samme nøgle, og et navn med `ASR` i ville være forkert. Gjort mens KUN staging havde variablen. Rækkefølge uden huller: ny variabel tilføjet → kode pushet → rigtigt kald verificeret (6,09 øre, bogføringen stemte) → gammel variabel slettet. IAM-applicationen omdøbt samme dag: `ddk-transskription` → `ddk-genai-staging` (samme application, samme nøgle). |
 | 2026-09-27 | Scaleway Generative APIs | **Ny** nøgle oprettet: IAM-application `ddk-transskription`, `SCW_ASR_SECRET_KEY`, adskilt fra TEM. **Udløber 2027-09-28.** Verificeret med et rigtigt kald 28/9. |
 | 2026-07-27 | Scaleway TEM | ⚠️ Efterspil: 403 permissions_denied — den nye applications policy manglede. Rescue-mails fejlede i begge miljøer indtil `TransactionalEmailFullAccess` blev tilknyttet. Lærdom: verificér med en RIGTIG mail. |
 

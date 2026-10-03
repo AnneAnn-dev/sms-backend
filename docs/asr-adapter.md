@@ -108,8 +108,8 @@ ene må ikke give begge dele.
 `SCW_ASR_SECRET_KEY`). Det er ét produkt — Generative APIs — på ét projekt, så
 et læk af den ene er et læk af den anden. En opdeling ville ikke købe sikkerhed,
 kun en udløbsdato mere. `tekst-adapter.js` læser den samme variabel.
-Nøglen bæres af IAM-applicationen `ddk-transskription` (navnet dækker kun det
-halve og bør omdøbes — se `RUNBOOK-noeglerotation.md`).
+Nøglen bæres af IAM-applicationen `ddk-genai-staging` (omdøbt 2/10 fra
+`ddk-transskription`). Prod får sin egen — se `RUNBOOK-noeglerotation.md`.
 
 **Modelstrengen låses eksplicit** (D14). Aldrig et alias, aldrig "latest" — en model, der
 skifter under os, gør regressionssættet værdiløst uden at nogen opdager det.
