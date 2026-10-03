@@ -154,7 +154,34 @@ hoerer i repoet, leverandoer-indstillinger hoerer i runbooken.
 | Ruleset | Maal | Regler |
 | --- | --- | --- |
 | `staging-beskyttelse` | `staging` | Block force pushes, Restrict deletions |
-| `main-beskyttelse` | `main` | Block force pushes, Restrict deletions, **Require a pull request before merging** |
+| `main-beskyttelse` | `main` (`~DEFAULT_BRANCH`) | Block force pushes, Restrict deletions, **Require a pull request before merging** (0 godkendelser), **Require status checks to pass**: `Afhaengigheder` + `Ingen spike-filer i main` |
+
+**Et regelsaet pr. branch (samlet 3/10-26).** Indtil 3/10 laa `main`s regler fordelt
+paa TO regelsaet: `beskyt-main` (PR-kravet) og `main-beskyttelse` (statustjekkene).
+GitHub laegger alle aktive regelsaet oven i hinanden, saa beskyttelsen var hel — men
+tabellen her kendte kun det ene, og PR-kravet stod under det forkerte navn. Et
+regelsaet, der ligner en dublet, er netop det, man sletter, og saa forsvinder
+PR-kravet uden en lyd. PR-reglen er flyttet til `main-beskyttelse` med uaendrede
+parametre — verificeret ved JSON-eksport FOER `beskyt-main` blev slettet — og
+bevist bagefter ved et direkte push af en tom commit til `main`:
+
+```
+remote: - 2 of 2 required status checks are expected.
+remote: - Changes must be made through a pull request.
+ ! [remote rejected] HEAD -> main (push declined due to repository rule violations)
+```
+
+**Required approvals skal staa paa 0.** Ingen kan godkende sin egen PR, og med én
+udvikler ville 1 spaerre alle merges til `main`.
+
+**Statustjekkene er paakraevede:** roed CI paa en PR mod `main` betyder, at den ikke
+kan merges (det skete i praksis 3/10 under S30). Navnene i reglen er JOB-navnene
+(`name:`) fra `ci.yml`. Omdoebes et job, skal reglen rettes samme dag — ellers venter
+GitHub paa et tjek, der aldrig kommer, og ingen PR kan merges.
+
+**Kontrol:** tre prikker ud for regelsaettet → Export. JSON'en viser praecis, hvad der
+gaelder, ogsaa felter brugerfladen gemmer under "additional settings". En eksport
+viser konfigurationen; kun et afvist push viser, at reglen bider.
 
 Asymmetrien er med vilje: `staging` skal vaere hurtig, `main` skal vaere svaer.
 PR-kravet gaelder kun dér, hvor kunderne er. Ann pusher aldrig direkte til `main`

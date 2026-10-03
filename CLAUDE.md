@@ -92,7 +92,7 @@ dokumentarbejde, som git aldrig har set? 1/10-26 var svaret ti dage, og en enkel
 - Windows / PowerShell 5.1 / VS Code. Scripts køres lokalt, ikke på Railway.
 - **`.ps1`-filer skal være REN ASCII** (PS 5.1 fejllæser UTF-8 uden BOM). Ingen æøå, ingen emoji i .ps1.
 - Git: `main` (PR-beskyttet, = prod) · `staging` · feature-branches. Arbejd altid på en branch, aldrig direkte på main.
-- **CI kører ved push til `staging` og ved PR til `main`** (`.github/workflows/ci.yml`): `npm ci --omit=dev` + `npm audit`. ⚠️ Grænsen er `--audit-level=critical`, ikke `high` — det er et bevidst valg (S22), og prisen er, at et NYT high-fund ikke blokerer. Læs derfor "Fuld rapport"-trinnet, når du rører afhængigheder.
+- **CI kører ved push til `staging` og ved PR til `main` og `staging`** (`.github/workflows/ci.yml`): `npm ci --omit=dev` + `node audit-tjek.js`. Grænsen er `high`: ethvert high- eller critical-fund blokerer, undtagen dem, der står navngivet (GHSA-id + pakke) i `UNDTAGELSER` øverst i `audit-tjek.js` (S30). ⚠️ **Sænk aldrig grænsen for at komme forbi et fund** — skriv det i registret med re-trigger, og tilføj derefter undtagelsen. En undtagelse, der ikke længere dækker noget, gør CI rød; rettelsen er at slette linjen. `npm run audit` kører samme tjek lokalt. Begge CI-jobs er påkrævede tjek på `main` (runbookens C3), så rød CI spærrer merge. Moderate fund blokerer ikke — læs derfor "Fuld rapport"-trinnet, når du rører afhængigheder.
 - **Dependabot** åbner PR'er mod `staging` (`.github/dependabot.yml`). Konfigurationsfilen læses fra `main`.
 - EU-datasuverænitet er et produktprincip: ingen nye US-tjenester eller tredjeparts-analytics uden eksplicit beslutning fra Ann.
 

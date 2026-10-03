@@ -89,8 +89,10 @@ jobs:
   # stadig findes i resultatet af merget. Paa PR mod staging og ved push
   # springes den over (vises som "skipped", som taeller som groen).
   #
-  # ENDNU IKKE SAT SOM PAAKRAEVET TJEK i main's ruleset (24/9-26). Indtil det
-  # sker, er roedt kun en advarsel, og en PR med spike-filer kan merges alligevel.
+  # SAT SOM PAAKRAEVET TJEK i main's ruleset "main-beskyttelse" sammen med
+  # "Afhaengigheder" (aflaest i GitHubs eksport 3/10-26). Roedt betyder, at
+  # PR'en ikke kan merges. Omdoebes et af jobbene her, skal reglen rettes samme
+  # dag - ellers venter GitHub paa et tjek, der aldrig kommer. Se runbookens C3.
   spike-vagt:
     name: Ingen spike-filer i main
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
