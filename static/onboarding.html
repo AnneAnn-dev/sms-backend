@@ -616,6 +616,7 @@
     <!-- ── SIDE 3: STEMME + BESKED ────────────────────────── -->
     <section class="screen" id="s-3">
       <h1>Hvordan skal dine kunder mødes?</h1>
+      <p class="sub">Vælg en mandestemme eller en kvindestemme.</p>
 
       <button class="voice-card" id="voice-female" onclick="selectVoice('female')">
         <span class="voice-avatar">N</span>
@@ -691,9 +692,9 @@
     <!-- ── SIDE 6: TEST ───────────────────────────────────── -->
     <section class="screen" id="s-6">
       <p class="carry">✓ Viderestilling er aktiv.</p>
-      <h1>Test</h1>
+      <h1>Du skal teste din viderestilling</h1>
       <div class="phone-emoji">📱</div>
-      <p class="sub" id="verify-sub">Om lidt ringer vi.<br>Lad telefonen ringe — svar ikke.</p>
+      <p class="sub" id="verify-sub">Tryk på: Start testen. Så ringer vi til dig.<br>Lad telefonen ringe ud (Tag ikke telefonen).</p>
       <p class="status" id="verify-status"></p>
       <button class="btn" id="verify-btn" onclick="startVerification()">
         <span id="verify-label">Start testen</span><span class="spinner" id="verify-spin"></span>
@@ -747,7 +748,7 @@
          onboarding.js, ellers afvises den med 400 — tavst. -->
     <section class="screen" id="s-8b">
       <h1>Hvad kan du se?</h1>
-      <p class="sub">Kig nederst på skærmen, ved siden af adressen.<br>Tryk på det, du kan se.</p>
+      <p class="sub">Kig på skærmen, ved siden af adressen.<br>Tryk på det du kan se.</p>
       <div style="display:flex;gap:12px;width:100%;margin-top:10px">
         <button type="button" id="valg-del" onclick="vaelgIOSKnap('del', this)"
                 style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:132px;padding:18px 10px;border:1.5px solid var(--line);border-radius:16px;background:#fff;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;transition:border-color .15s ease,background .15s ease">
@@ -781,7 +782,7 @@
     <section class="screen" id="s-9">
       <p class="step-eyebrow" id="inst1-step">Trin 1 af 4</p>
       <h1 id="inst1-title">Kig ned og tryk på de tre prikker</h1>
-      <p class="sub" id="inst1-sub">De tre prikker sidder ved adressefeltet, nederst i Safari.</p>
+      <p class="sub" id="inst1-sub">De tre prikker sidder ved adressefeltet.</p>
       <div class="inst-icon" aria-hidden="true">
         <!-- iOS: siden daempet, bundlinjen fremhaevet -->
         <svg id="orient-ios" width="270" height="150" viewBox="0 0 270 150" fill="none">
@@ -791,7 +792,7 @@
             <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
             <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
           </g>
-          <text x="135" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <text x="135" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2C6B9E" font-family="'Source Sans 3',sans-serif">Kig her</text>
           <path d="M135 97v10" stroke="#2C6B9E" stroke-width="1.6"/>
           <path d="M130 103l5 6 5-6" stroke="#2C6B9E" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <rect x="8" y="114" width="254" height="30" rx="10" fill="#F0F3F7"/>
@@ -815,7 +816,7 @@
             <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
             <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
           </g>
-          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig her</text>
           <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
           <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
@@ -845,7 +846,7 @@
             <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
             <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
           </g>
-          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig hernede</text>
+          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig her</text>
           <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
           <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
@@ -1246,13 +1247,22 @@
     // den i Safari — og blev mødt af "Linket er udloebet". Teknisk korrekt,
     // men det er ikke det, der skete, og skaermen bebrejdede ham noget, han
     // ikke havde gjort.
+    //
+    // ⚠️ 4/10-26: engangskoden er nu den ENESTE vej her — intet
+    // adgangskodefelt. Siden D65 (prod 22/9) vaelger en ny kunde sin
+    // adgangskode INDE I APPEN, saa den, der staar her midt i onboardingen,
+    // HAR ingen kode. Skaermen bad alligevel om en, og engangskoden laa
+    // gemt bag "Har du glemt din adgangskode?". Set i prod 3/10 paa Annes
+    // telefon: Chrome/Gmail-browser -> "Kopiér adressen" -> Safari -> her.
+    // Dashboardets login fik samme rettelse 22/9; denne skaerm blev glemt.
+    // Prisen: en eksisterende kunde MED adgangskode, der havner her, maa
+    // ogsaa bruge koden fra mailen. Den vej virker for alle.
     safari: {
-      titel: 'Log ind her',
-      tekst: 'Safari har sin egen indgang, så du skal lige logge ind en gang til.',
+      titel: 'Log ind',
+      tekst: 'Skriv din e-mail, så sender vi dig en kode.',
       knap:  'Send mig en kode',
-      glemt: 'Har du glemt din adgangskode? Få en kode på mail',
       koderSpor: true,
-      kodeord: true,
+      kodeord: false,
     },
     // P7: login VIRKEDE — kontoen kunne ikke findes. Det er ikke et
     // link-problem, og det maa ikke se ud som ét.
@@ -2648,12 +2658,12 @@
     // tegning pr. svar, og hedgingen ("ser du i stedet tre prikker …") er
     // vaek: kunden har lige selv sagt, hvad hun ser.
     document.getElementById('inst1-title').textContent = isIOS
-      ? (erDel ? 'Tryk på dele-ikonet' : 'Tryk på de tre prikker')
+      ? (erDel ? 'Tryk på firkanten med pil op' : 'Tryk på de tre prikker')
       : 'Kig øverst på skærmen';
     document.getElementById('inst1-sub').textContent = isIOS
       ? (erDel
-          ? 'Firkanten med pilen op, nederst ved adressefeltet.'
-          : 'De tre prikker sidder nederst ved adressefeltet.')
+          ? 'Firkanten med pil op – ved adressefeltet.'
+          : 'De tre prikker sidder ved adressefeltet.')
       : 'Oppe ved adressefeltet sidder en lille menuknap.';
     document.getElementById('orient-ios').style.display        = 'none';   // udgaaet fuld-bundlinje-variant
     document.getElementById('orient-ios26').style.display      = (isIOS && erDel) ? '' : 'none';
