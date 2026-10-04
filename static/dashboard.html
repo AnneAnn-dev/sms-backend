@@ -1184,7 +1184,9 @@
     kodeBestillinger++;
     status.textContent = kodeBestillinger > 1
       ? 'Vi har sendt en NY kode. Den forrige virker ikke længere — brug koden fra den nyeste mail.'
-      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
+      // 4/10-26: koden er vejen, ikke linket — linket aabner i den browser,
+      // mail-appen vaelger, og i den installerede app aldrig i appen selv.
+      : 'Hvis der findes en konto med den e-mail, har vi sendt dig en kode. Skriv koden fra mailen herunder — tryk ikke på linket i mailen.';
     // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
     // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
     // E-mail-feltet BLIVER staaende: verifyOtp skal bruge det. Fortryder man,
