@@ -66,9 +66,18 @@ module.exports = function registerOnboarding(app, supabase) {
   // Hvor mange tegn er der plads til i firmanavnet? Tallet UDREGNES af den
   // aegte skabelon frem for at staa som en konstant — ellers ville en aendret
   // ordlyd eller et nyt domaene lade graensen blive staaende paa et tal, der
-  // ikke passer laengere. Sluggen regnes med sit loft, tokenet med sine 12.
-  function maksNavnLaengde() {
-    const proeveUrl = `${FORM_BASE}/${"x".repeat(SLUG_MAKS)}/${"x".repeat(12)}`;
+  // ikke passer laengere. Tokenet regnes med sine 12.
+  //
+  // ⚠️ D67 (4/10-26): sluggen regnes med FIRMAETS EGEN slug, ikke loftet.
+  // Foer stod her altid SLUG_MAKS (12) — men en slug kan vaere laengere:
+  // uniqueSlug() saetter -2, -3 paa EFTER klipningen, og slugs fra backfill
+  // og fra foer loftet er slet ikke klippet. Maalt paa staging 4/10:
+  // `dortes-droemme`, 14 tegn. Saa viste skaermen 22, mens serveren afviste
+  // 21 — samme regel skal give samme tal, og navnPasserISms() bruger den
+  // aegte slug. Mangler sluggen, falder vi tilbage paa loftet som foer.
+  function maksNavnLaengde(slug) {
+    const s = slug || "x".repeat(SLUG_MAKS);
+    const proeveUrl = `${FORM_BASE}/${s}/${"x".repeat(12)}`;
     const fast = gsmSegments(kundeSmsBody("", proeveUrl));
     if (fast.ucs2 || typeof fast.tegn !== "number") return 0;   // fail-closed
     return Math.max(0, 160 - fast.tegn);
@@ -1043,7 +1052,7 @@ module.exports = function registerOnboarding(app, supabase) {
       // ikke en afvisning. Derfor 200 med et flag og ikke en 400.
       kraeverSmsNavn: !passer.ok,
       ugyldigeTegn:   !!passer.ucs2,
-      maksTegn:       maksNavnLaengde(),
+      maksTegn:       maksNavnLaengde(slug),
     });
   });
 
@@ -1066,7 +1075,7 @@ module.exports = function registerOnboarding(app, supabase) {
     if (!passer.ok) {
       return res.status(400).json({
         error:    passer.ucs2 ? 'ugyldige_tegn' : 'for_langt',
-        maksTegn: maksNavnLaengde(),
+        maksTegn: maksNavnLaengde(firm.slug),
       });
     }
 
