@@ -1292,10 +1292,20 @@
   }
 
 
+  // ⚠️ 4/10-26: log ud GENINDLAESER siden. Foer skjulte den bare appen og
+  // viste login-skaermen igen — men skaermen stod, som den blev forladt:
+  // login-knappen groen med ✓ og slaaet fra (✓-rytmen nulstiller med vilje
+  // ikke ved succes, fordi skaermen forsvinder), og i kodetilstand var
+  // adgangskodefeltet skjult. Set 4/10 paa staging: efter log ud kunne
+  // knappen ikke trykkes, og et login uden net gav ingen besked, fordi
+  // knappen aldrig kaldte noget. Kommentaren ved sendLoginLink siger det
+  // allerede: "et genindlaes af siden nulstiller til normal login". Det er
+  // den eneste nulstilling, der ikke kan glemme et felt.
+  // Uden net kan signOut fejle og lade sessionen ligge; saa aabner
+  // genindlaesningen bare appen igen. Det var ogsaa tilfaeldet foer.
   async function logout() {
-    await db.auth.signOut();
-    document.getElementById('app').style.display = 'none';
-    document.getElementById('login-screen').style.display = 'flex';
+    try { await db.auth.signOut(); } catch (_) {}
+    window.location.replace('/dashboard');
   }
 
   // ── Login-kvittering (21/9-26) ─────────────────────────────────────────
