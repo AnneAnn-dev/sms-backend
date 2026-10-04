@@ -2878,7 +2878,7 @@
       const { data, error } = await db.auth.verifyOtp({ email, token: code, type: 'email' });
       if (error || !data?.session) {
         status.className = 'status err';
-        status.textContent = 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.';
+        status.textContent = loginFejltekst(error, 'Koden virkede ikke — den kan være brugt eller udløbet. Bestil en ny mail og prøv igen.');
         return;
       }
 
@@ -2896,7 +2896,7 @@
       udfoerEfterLogin(hvad, true);   // engangskode fra mailen
     } catch (e) {
       status.className = 'status err';
-      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+      status.textContent = loginFejltekst(e, 'Noget gik galt. Prøv igen om lidt.');
     } finally {
       spin.style.display = 'none';
       if (!succes) {
@@ -2904,6 +2904,38 @@
         label.textContent = 'Log ind med koden';
       }
     }
+  }
+
+  // ── D54 (4/10-26): login-fejl siger, HVAD der gik galt ─────────────────
+  // Foer stod der én besked ved enhver fejl. En kunde, der var midlertidigt
+  // spaerret efter for mange forsoeg, fik at vide, at hendes kode var forkert
+  // — og proevede igen, hvilket forlaengede spaerringen. Supabase fortaeller
+  // faktisk aarsagen (status 429, netvaerksfejl, serverfejl); vi laeste den
+  // bare ikke.
+  // Anti-enumeration er uroert: de tre nye beskeder handler om ventetid og
+  // forbindelse, ALDRIG om hvorvidt kontoen findes. Forkert kode/adgangskode
+  // og ukendt e-mail faar stadig samme svar (kalderens egen tekst).
+  // Samme funktion staar i onboarding.html og dashboard.html — ret begge.
+  const LOGIN_FEJLTEKST = {
+    travlt:      'Der har været for mange forsøg. Vent et par minutter, og prøv igen.',
+    forbindelse: 'Vi kunne ikke få forbindelse. Tjek at du er på nettet, og prøv igen.',
+    server:      'Noget gik galt hos os. Prøv igen om lidt.',
+  };
+  function loginFejlAarsag(fejl) {
+    if (!fejl) return null;
+    const status = Number(fejl.status) || 0;
+    const kode   = String(fejl.code || '');
+    const navn   = String(fejl.name || '');
+    if (status === 429 || /rate_limit/.test(kode))           return 'travlt';
+    if (status >= 500 || navn === 'AuthUnknownError')        return 'server';
+    // Intet svar overhovedet: supabase-js giver AuthRetryableFetchError
+    // (status 0); et kast fra vores egen fetch er en TypeError.
+    if (navn === 'AuthRetryableFetchError' || navn === 'TypeError') return 'forbindelse';
+    return null;
+  }
+  function loginFejltekst(fejl, standard) {
+    const aarsag = loginFejlAarsag(fejl);
+    return aarsag ? LOGIN_FEJLTEKST[aarsag] : standard;
   }
 
   // Log ind med den adgangskode, kunden satte paa side 2. Dashboardets
@@ -2942,7 +2974,7 @@
         // Bevidst ét svar for baade forkert kode og ukendt e-mail: skaermen
         // maa ikke kunne bruges til at afgoere, om en adresse er kunde.
         status.className = 'status err';
-        status.textContent = 'Det passer ikke sammen. Tjek e-mail og adgangskode — eller brug "Jeg har glemt min adgangskode".';
+        status.textContent = loginFejltekst(error, 'Det passer ikke sammen. Tjek e-mail og adgangskode — eller brug "Jeg har glemt min adgangskode".');
         return;
       }
 
@@ -2959,7 +2991,7 @@
       udfoerEfterLogin(hvad, false);  // kundens egen adgangskode
     } catch (e) {
       status.className = 'status err';
-      status.textContent = 'Noget gik galt. Prøv igen om lidt.';
+      status.textContent = loginFejltekst(e, 'Noget gik galt. Prøv igen om lidt.');
     } finally {
       spin.style.display = 'none';
       if (!succes) {
