@@ -197,6 +197,13 @@ app.get("/formular/:token", async (req, res) => {
         <input type="hidden" name="postnr" id="dawa-postnr">
         <div id="dawa-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:99;background:white;border:1px solid #ddd;border-radius:10px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12)"></div>
       </div>
+      <!-- Reservevej (4/10-26): vises kun, naar adressetjenesten ikke svarer.
+           DAWA lukkede 1/10-26 (svarer 410), og formularen kunne derefter
+           slet ikke sendes. Se scriptet nedenfor. -->
+      <div id="manuel-adresse" style="display:none;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+        <input id="manuel-postnr" type="text" inputmode="numeric" maxlength="4" placeholder="Postnr." autocomplete="postal-code">
+        <input id="manuel-by" type="text" placeholder="By" autocomplete="address-level2">
+      </div>
       <div style="color:#dc2626;font-size:13px;margin-top:4px;display:none" id="dawa-error">Vælg venligst en adresse fra listen</div>
 
       <label for="email">Email (valgfrit)</label>
@@ -218,6 +225,15 @@ app.get("/formular/:token", async (req, res) => {
   </div>
 <script>
   let dawaValgt = false;
+  // ── Fail-open (4/10-26) ────────────────────────────────────────────
+  // DAWA lukkede 1/10-26 og svarer 410. Foer saa kunden ingen liste, men
+  // indsendelsen kraevede stadig et valg fra listen — saa INGEN kunne sende
+  // en opgave. Kerneflowet var lukket uden en eneste fejlbesked.
+  // Nu: svarer tjenesten ikke (fejl, ikke-200 eller uventet svar), vises
+  // felter til postnr og by, og formularen godtager kundens egen adresse.
+  // Formularen maa aldrig afhaenge af, at en fremmed tjeneste er oppe.
+  let tjenesteNede = false;
+  const ADRESSE_URL = 'https://api.dataforsyningen.dk/autocomplete';
   let debounce = null;
   let aktive = -1;
   let forslag = [];
@@ -225,6 +241,24 @@ app.get("/formular/:token", async (req, res) => {
   const inp = document.getElementById('dawa-input');
   const boks = document.getElementById('dawa-suggestions');
   const fejl = document.getElementById('dawa-error');
+
+  function slaaManueltTil() {
+    if (tjenesteNede) return;
+    tjenesteNede = true;
+    skjul();
+    document.getElementById('manuel-adresse').style.display = 'grid';
+    inp.placeholder = 'Vej og husnummer';
+    fejl.textContent = 'Skriv postnummer (4 cifre) og by';
+    fejl.style.display = 'none';
+  }
+
+  // Proev tjenesten med det samme, saa kunden ser felterne fra start.
+  (async function () {
+    try {
+      const r = await fetch(ADRESSE_URL + '?q=a&type=adresse&per_side=1');
+      if (!r.ok) slaaManueltTil();
+    } catch (_) { slaaManueltTil(); }
+  })();
 
   inp.addEventListener('input', () => {
     dawaValgt = false;
@@ -248,11 +282,15 @@ app.get("/formular/:token", async (req, res) => {
   });
 
   async function hentForslag(q) {
+    if (tjenesteNede) return;
     try {
-      const r = await fetch('https://api.dataforsyningen.dk/autocomplete?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
-      forslag = await r.json();
+      const r = await fetch(ADRESSE_URL + '?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      if (!r.ok) { slaaManueltTil(); return; }
+      const data = await r.json();
+      if (!Array.isArray(data)) { slaaManueltTil(); return; }
+      forslag = data;
       vis();
-    } catch { skjul(); }
+    } catch (_) { slaaManueltTil(); }
   }
 
   function fremhæv(tekst, q) {
@@ -313,6 +351,22 @@ app.get("/formular/:token", async (req, res) => {
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
 
   document.querySelector('form').addEventListener('submit', e => {
+    // Reservevejen: tjenesten svarer ikke, og intet er valgt fra en liste.
+    // Kraev et rigtigt postnummer og en by, og send dem i de samme skjulte
+    // felter som et listevalg — serverens bygAdresse() ser ingen forskel.
+    if (tjenesteNede && !dawaValgt) {
+      const p = document.getElementById('manuel-postnr').value.trim();
+      const b = document.getElementById('manuel-by').value.trim();
+      if (!/^[0-9]{4}$/.test(p) || !b) {
+        e.preventDefault();
+        fejl.style.display = 'block';
+        document.getElementById(/^[0-9]{4}$/.test(p) ? 'manuel-by' : 'manuel-postnr').focus();
+        return;
+      }
+      document.getElementById('dawa-postnr').value = p;
+      document.getElementById('dawa-by').value = b;
+      return;
+    }
     // dawaValgt alene er ikke nok - kraev at postnr/by faktisk blev fanget,
     // saa et lead aldrig kan indsendes uden postnummer og by.
     if (!dawaValgt || !document.getElementById('dawa-postnr').value) {
