@@ -748,7 +748,7 @@
          onboarding.js, ellers afvises den med 400 — tavst. -->
     <section class="screen" id="s-8b">
       <h1>Hvad kan du se?</h1>
-      <p class="sub">Kig på skærmen, ved siden af adressen.<br>Tryk på det du kan se.</p>
+      <p class="sub">Kig på skærmen.<br>Vælg det ikon du kan se.</p>
       <div style="display:flex;gap:12px;width:100%;margin-top:10px">
         <button type="button" id="valg-del" onclick="vaelgIOSKnap('del', this)"
                 style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:132px;padding:18px 10px;border:1.5px solid var(--line);border-radius:16px;background:#fff;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;transition:border-color .15s ease,background .15s ease">
@@ -782,7 +782,7 @@
     <section class="screen" id="s-9">
       <p class="step-eyebrow" id="inst1-step">Trin 1 af 4</p>
       <h1 id="inst1-title">Kig ned og tryk på de tre prikker</h1>
-      <p class="sub" id="inst1-sub">De tre prikker sidder ved adressefeltet.</p>
+      <p class="sub" id="inst1-sub"></p>
       <div class="inst-icon" aria-hidden="true">
         <!-- iOS: siden daempet, bundlinjen fremhaevet -->
         <svg id="orient-ios" width="270" height="150" viewBox="0 0 270 150" fill="none">
@@ -809,60 +809,30 @@
         </svg>
         <!-- NYT Safari (iOS 26+, kompakt layout = standard): adressefelt
              nederst m. tre prikker yderst til hoejre (Anns skaermdump 20/7) -->
+        <!-- 4/10-26: kun dele-ikonet, stort og ringet ind. Adresselinjen er
+             fjernet: dens placering er ikke ens paa alle telefoner, og
+             kunden har lige selv sagt, at det er DETTE ikon, hun ser. -->
         <svg id="orient-ios26" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
-          <g opacity=".35">
-            <rect x="24" y="10" width="222" height="12" rx="6" fill="#DDE3EA"/>
-            <rect x="24" y="32" width="180" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
+          <circle cx="135" cy="75" r="44" fill="#F0F3F7"/>
+          <circle cx="135" cy="75" r="52" stroke="#2C6B9E" stroke-width="2" fill="none"/>
+          <g stroke="#2C6B9E" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M127 68h-4a3 3 0 0 0-3 3v19a3 3 0 0 0 3 3h24a3 3 0 0 0 3-3v-19a3 3 0 0 0-3-3h-4"/>
+            <path d="M135 52v27"/>
+            <path d="M127 60l8-8 8 8"/>
           </g>
-          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig her</text>
-          <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
-          <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
-          <path d="M29 123l-5 6 5 6" stroke="#9AA6B2" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="48" y="115" width="164" height="28" rx="14" fill="#F0F3F7"/>
-          <rect x="62" y="123.5" width="7" height="8" rx="1.5" fill="none" stroke="#9AA6B2" stroke-width="1.1"/>
-          <path d="M63.5 127.3h4" stroke="#9AA6B2" stroke-width="1.1"/>
-          <text x="126" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
-          <path d="M191 124a5.5 5.5 0 1 1-2 -3.8M189 118l2 2-2.6 1.4" stroke="#9AA6B2" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-          <circle cx="236" cy="129" r="14" fill="#F0F3F7"/>
-          <!-- Dele-ikonet: firkant aaben foroven med en pil ud af den. Byttet
-               fra tre prikker 10/9-26, saa tegningen peger samme vej som
-               teksten. Prikkerne naevnes som alternativet i inst1-sub. -->
-          <g stroke="#5B6B7A" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M231.5 129.5v6a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-6"/>
-            <path d="M236 121.5v11"/>
-            <path d="M232.8 124.7 236 121.5l3.2 3.2"/>
-          </g>
-          <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
         </svg>
         <!-- Samme bundlinje, men med de tre prikker fremhaevet. Vises naar
              kunden paa s-8b har svaret "tre prikker" (12/9-26). -->
+        <!-- 4/10-26: kun de tre prikker, store og ringet ind (samme
+             begrundelse som dele-ikonet ovenfor). -->
         <svg id="orient-ios-prikker" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
-          <g opacity=".35">
-            <rect x="24" y="10" width="222" height="12" rx="6" fill="#DDE3EA"/>
-            <rect x="24" y="32" width="180" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="24" y="46" width="205" height="8" rx="4" fill="#E6EBF1"/>
-            <rect x="24" y="60" width="150" height="8" rx="4" fill="#E6EBF1"/>
+          <circle cx="135" cy="75" r="44" fill="#F0F3F7"/>
+          <circle cx="135" cy="75" r="52" stroke="#2C6B9E" stroke-width="2" fill="none"/>
+          <g fill="#2C6B9E">
+            <circle cx="120" cy="75" r="4.5"/>
+            <circle cx="135" cy="75" r="4.5"/>
+            <circle cx="150" cy="75" r="4.5"/>
           </g>
-          <text x="236" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#2E7D52" font-family="'Source Sans 3',sans-serif">Kig her</text>
-          <path d="M236 97v10" stroke="#2E7D52" stroke-width="1.6"/>
-          <path d="M231 103l5 6 5-6" stroke="#2E7D52" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="26" cy="129" r="14" fill="#F0F3F7"/>
-          <path d="M29 123l-5 6 5 6" stroke="#9AA6B2" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="48" y="115" width="164" height="28" rx="14" fill="#F0F3F7"/>
-          <rect x="62" y="123.5" width="7" height="8" rx="1.5" fill="none" stroke="#9AA6B2" stroke-width="1.1"/>
-          <path d="M63.5 127.3h4" stroke="#9AA6B2" stroke-width="1.1"/>
-          <text x="126" y="133" text-anchor="middle" font-size="10" fill="#8A97A5" font-family="'Source Sans 3',sans-serif">ditdigitalekontor.dk</text>
-          <path d="M191 124a5.5 5.5 0 1 1-2 -3.8M189 118l2 2-2.6 1.4" stroke="#9AA6B2" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-          <circle cx="236" cy="129" r="14" fill="#F0F3F7"/>
-          <g fill="#5B6B7A">
-            <circle cx="230" cy="129" r="2"/>
-            <circle cx="236" cy="129" r="2"/>
-            <circle cx="242" cy="129" r="2"/>
-          </g>
-          <circle cx="236" cy="129" r="18" stroke="#2C6B9E" stroke-width="1.6" fill="none"/>
         </svg>
         <!-- Android: siden daempet, toplinjen fremhaevet -->
         <svg id="orient-android" width="270" height="150" viewBox="0 0 270 150" fill="none" style="display:none">
@@ -1085,7 +1055,7 @@
     <section class="screen" id="s-10b">
       <p class="step-eyebrow" id="inst4-step">Trin 4 af 4</p>
       <h1>Tryk på "Tilføj"</h1>
-      <p class="sub" id="inst4-sub">Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.</p>
+      <p class="sub" id="inst4-sub">Du skal lægge appen på din telefon. Når du har gjort det, tryk på den blå knap.</p>
       <div class="inst-icon" aria-hidden="true">
         <!-- iOS: Foej til hjemmeskaerm-dialogen — Tilfoej oeverst til hoejre -->
         <svg id="add-ios" width="270" height="140" viewBox="0 0 270 140" fill="none">
@@ -2660,11 +2630,13 @@
     document.getElementById('inst1-title').textContent = isIOS
       ? (erDel ? 'Tryk på firkanten med pil op' : 'Tryk på de tre prikker')
       : 'Kig øverst på skærmen';
-    document.getElementById('inst1-sub').textContent = isIOS
-      ? (erDel
-          ? 'Firkanten med pil op – ved adressefeltet.'
-          : 'De tre prikker sidder ved adressefeltet.')
-      : 'Oppe ved adressefeltet sidder en lille menuknap.';
+    // 4/10-26 (Anns beslutning): paa iOS siger overskriften det hele, og
+    // tegningen viser ikonet alene. Undertekst og adresselinje i tegningen
+    // er fjernet — de beskrev en placering, der ikke er ens paa alle
+    // telefoner. Tom tekst skjules, saa den ikke efterlader et luftrum.
+    const inst1Sub = isIOS ? '' : 'Oppe ved adressefeltet sidder en lille menuknap.';
+    document.getElementById('inst1-sub').textContent = inst1Sub;
+    vis('inst1-sub', !!inst1Sub);
     document.getElementById('orient-ios').style.display        = 'none';   // udgaaet fuld-bundlinje-variant
     document.getElementById('orient-ios26').style.display      = (isIOS && erDel) ? '' : 'none';
     document.getElementById('orient-ios-prikker').style.display= (isIOS && !erDel) ? '' : 'none';
@@ -2689,8 +2661,8 @@
 
     // s-10b: TILFØJ-dialogen.
     document.getElementById('inst4-sub').textContent = isIOS
-      ? 'Telefonen spørger, om Dit Digitale Kontor må ligge på din hjemmeskærm.'
-      : 'Telefonen spørger, om Dit Digitale Kontor må ligge på din startskærm.';
+      ? 'Du skal lægge appen på din telefon. Når du har gjort det, tryk på den blå knap.'
+      : 'Du skal lægge appen på din telefon. Når du har gjort det, tryk på den blå knap.';   // 4/10-26: samme tekst paa begge platforme (Anns tekst)
     document.getElementById('add-ios').style.display     = isIOS ? '' : 'none';
     document.getElementById('add-android').style.display = isIOS ? 'none' : '';
   }
@@ -2783,9 +2755,11 @@
     // oprydningen.
     status.textContent = kodeBestillinger > 1
       ? `Vi har sendt en NY kode til ${email}. Den forrige virker ikke længere — brug koden fra den nyeste mail.`
-      : t.koderSpor
-        ? `Vi har sendt en kode til ${email}. Tjek at adressen er skrevet rigtigt — den kan være et par minutter undervejs, kig også i spam.`
-        : `Vi har sendt en mail til ${email} med et login-link og en engangskode — koden kan du taste her. Tjek at adressen er skrevet rigtigt, og kig også i spam.`;
+      // 4/10-26: KODEN er vejen — aldrig linket. Linket i mailen aabner i
+      // den browser, mail-appen vaelger (Gmail: Chrome eller sin egen), og
+      // dér har kunden ingen session, saa hun starter forfra eller gaar i
+      // ring. Koden tastes paa siden, hun allerede staar paa.
+      : `Vi har sendt en kode til ${email}. Skriv koden fra mailen her — tryk ikke på linket i mailen. Kommer den ikke, så tjek at adressen er rigtig, og kig i spam.`;
     visKodefelt(false);   // kodesporet frem (20/7): mailen indeholder ogsaa koden
     btn.disabled = false;
     label.textContent = t.knap;
@@ -3061,7 +3035,19 @@
     const ua = navigator.userAgent || '';
     // Chrome, Firefox, Edge, Opera, Yandex, DuckDuckGo paa iOS saetter hver
     // deres egen markoer; Safari saetter ingen af dem.
-    return !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(ua);
+    //
+    // ⚠️ 4/10-26: Gmails indbyggede browser blev taget for Safari og fik
+    // Safari-guiden, som ikke kan gennemfoeres derinde. Maalt paa iPhone:
+    //   Gmail:  ... (KHTML, like Gecko) GSA/440.2.984637025 Mobile/15E148 Safari/604.1
+    //   Safari: ... (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1
+    // Gmail bærer altsaa OGSAA "Safari/" — den lette proeve holder ikke.
+    // To vaern: GSA (Googles app-browser) paa listen, og "Version/" kraeves,
+    // fordi kun aegte Safari (og SFSafariViewController, som fanges af
+    // erIndbyggetBrowser() foerst) saetter den. App-browsere bygget paa
+    // WKWebView gør ikke — saa ogsaa dem, vi ikke har maalt, falder rigtigt
+    // ud: til "Kopiér adressen" i stedet for en guide, der ikke virker.
+    if (/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo|GSA\//i.test(ua)) return false;
+    return /Version\/[\d.]+/.test(ua);
   }
   function formatDK(e164) {
     return (e164 || '').replace(/(\+45)(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
