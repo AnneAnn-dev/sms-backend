@@ -136,14 +136,48 @@ async function sendLoginLinkMail({ to, loginUrl, otpCode }) {
   // tastbar form. Den er vejen ind i den INSTALLEREDE app, hvor linket ellers
   // aabner i Safari (delt-lager-faelden — kodeopgave 1 i runbook). Mangler
   // koden, sendes mailen som foer, blot uden kode-afsnittet.
-  const otpBlok = otpCode ? `
-        <p style="color:#555;font-size:14px;margin-top:28px;margin-bottom:8px">
-          Logger du ind i appen på din telefon? Skriv i stedet denne engangskode:
+  // 4/10-26: med en kode er KODEN hovedsagen og linket en fodnote.
+  // Foer stod en stor "Log ind"-knap oeverst. Trykker kunden paa den fra
+  // Gmail, aabner linket i Chrome eller Gmails egen browser — uden hendes
+  // session — og onboardingen starter forfra eller gaar i ring. Koden tastes
+  // paa siden, hun allerede staar paa. Linket bliver staaende for den, der
+  // laeser mailen paa en computer. Uden kode: mailen som foer.
+  // Koden vises i to grupper (4+4 ved otte cifre, 3+3 ved seks), saa den kan
+  // huskes som to smaa tal frem for ét langt. Grupperne er to spans med
+  // luft imellem — IKKE et mellemrum i teksten — saa en kopi giver de rene
+  // cifre. Kodefeltet fjerner i oevrigt selv mellemrum. Mail-programmer
+  // koerer ikke JavaScript, saa en "Kopiér"-knap kan ikke laves i selve
+  // mailen; et langt tryk paa koden er telefonens egen kopi-vej.
+  const halv = otpCode && otpCode.length % 2 === 0 && otpCode.length >= 6 ? otpCode.length / 2 : 0;
+  const kodeHtml = halv
+    ? `<span style="margin-right:0.8em">${otpCode.slice(0, halv)}</span><span>${otpCode.slice(halv)}</span>`
+    : (otpCode || "");
+  const indhold = otpCode ? `
+        <p style="color:#555;margin-bottom:16px">
+          Her er din kode til Dit Digitale Kontor. Skriv den i feltet på skærmen, hvor du bad om den:
         </p>
-        <div style="background:#f5f5f5;border-radius:8px;padding:14px 24px;font-size:26px;
-                    font-weight:700;letter-spacing:0.35em;text-align:center;margin-bottom:8px">
-          ${otpCode}
-        </div>` : "";
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:30px;
+                    font-weight:700;letter-spacing:0.35em;text-align:center;margin-bottom:20px">
+          ${kodeHtml}
+        </div>
+        <p style="color:#555;font-size:14px;margin-bottom:16px;text-align:center">
+          Hold fingeren på koden for at kopiere den.
+        </p>
+        <p style="color:#555;font-size:14px;margin-bottom:8px">
+          Tryk ikke på linket herunder, hvis du er i gang på din telefon. Det kan åbne en anden
+          browser, hvor du ikke er logget ind, og så starter du forfra.
+        </p>
+        <p style="color:#555;font-size:14px">
+          Sidder du ved en computer, kan du i stedet <a href="${loginUrl}" style="color:#2563eb">logge ind her</a>.
+        </p>` : `
+        <p style="color:#555;margin-bottom:24px">
+          Du har bedt om et nyt login-link. Klik på knappen for at logge ind:
+        </p>
+        <a href="${loginUrl}"
+           style="display:inline-block;background:#2563eb;color:#fff;padding:14px 28px;
+                  border-radius:8px;text-decoration:none;font-weight:500;font-size:16px">
+          Log ind
+        </a>`;
 
   return await sendViaScaleway({
     to,
@@ -158,22 +192,14 @@ async function sendLoginLinkMail({ to, loginUrl, otpCode }) {
     //      Praecis det skete 10/9-26: Scaleway sagde Delivered paa alle tre,
     //      og mail nr. 2 blev alligevel meldt savnet.
     subject:   otpCode
-      ? `${otpCode} er din kode til Dit Digitale Kontor`
+      ? `${halv ? otpCode.slice(0, halv) + " " + otpCode.slice(halv) : otpCode} er din kode til Dit Digitale Kontor`
       : "Dit login-link til Dit Digitale Kontor",
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-        <h1 style="font-size:22px;margin-bottom:8px">Hej!</h1>
-        <p style="color:#555;margin-bottom:24px">
-          Du har bedt om et nyt login-link. Klik på knappen for at logge ind:
-        </p>
-        <a href="${loginUrl}"
-           style="display:inline-block;background:#2563eb;color:#fff;padding:14px 28px;
-                  border-radius:8px;text-decoration:none;font-weight:500;font-size:16px">
-          Log ind
-        </a>
-        ${otpBlok}
+        <h1 style="font-size:22px;margin-bottom:8px">Hej</h1>
+        ${indhold}
         <p style="color:#555;font-size:14px;margin-top:24px">
-          Link og kode er gyldige i 24 timer og kan bruges én gang — bruger du
+          Kode og link er gyldige i 24 timer og kan bruges én gang — bruger du
           den ene, gælder den anden ikke længere.
         </p>
         <p style="color:#aaa;font-size:13px;margin-top:32px">

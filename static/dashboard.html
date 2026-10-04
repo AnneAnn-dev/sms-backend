@@ -920,6 +920,12 @@
         <input type="hidden" id="new-city">
         <input type="hidden" id="new-postnr">
         <div id="new-dawa-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:white;border:1px solid #DDE4EC;border-radius:8px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.1)"></div>
+        <!-- Reservevej (4/10-26): vises kun, naar adressetjenesten ikke svarer
+             (DAWA lukkede 1/10-26). Se initDawa(onNede). -->
+        <div id="new-manuel" style="display:none;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+          <input type="text" id="new-manuel-postnr" inputmode="numeric" maxlength="4" placeholder="Postnr.">
+          <input type="text" id="new-manuel-by" placeholder="By">
+        </div>
         <div style="color:#dc2626;font-size:12px;margin-top:3px;display:none" id="new-dawa-error">Vælg venligst en adresse fra listen</div>
       </div>
       <div class="mfield">
@@ -1184,7 +1190,9 @@
     kodeBestillinger++;
     status.textContent = kodeBestillinger > 1
       ? 'Vi har sendt en NY kode. Den forrige virker ikke længere — brug koden fra den nyeste mail.'
-      : 'Hvis der findes en konto med den e-mail, har vi sendt en mail med et login-link og en engangskode. Skriv koden herunder — eller brug linket.';
+      // 4/10-26: koden er vejen, ikke linket — linket aabner i den browser,
+      // mail-appen vaelger, og i den installerede app aldrig i appen selv.
+      : 'Hvis der findes en konto med den e-mail, har vi sendt dig en kode. Skriv koden fra mailen herunder — tryk ikke på linket i mailen.';
     // Kodefeltet frem — og adgangskode-vejen VAEK (Anns spec 19/7: naar man har
     // bedt om hjaelp, er kode-fra-mailen sporet; password-feltet er stoej her).
     // E-mail-feltet BLIVER staaende: verifyOtp skal bruge det. Fortryder man,
@@ -1555,13 +1563,24 @@ function renderLeads() {
       const name = document.getElementById('new-name').value.trim();
       const phone = document.getElementById('new-phone').value.trim();
       const street = document.getElementById('new-street').value.trim();
-      const city = document.getElementById('new-city').value.trim();
-      const postnr = document.getElementById('new-postnr').value.trim();
+      let city = document.getElementById('new-city').value.trim();
+      let postnr = document.getElementById('new-postnr').value.trim();
       const task = document.getElementById('new-task').value.trim();
 
       if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
 
-      if (street && (!newDawaValgt || !postnr)) {
+      // Reservevejen (4/10-26): tjenesten svarer ikke, og intet er valgt fra
+      // en liste — saa gaelder de synlige felter, med et rigtigt postnummer.
+      if (street && newAdresseNede && !newDawaValgt) {
+        const p = document.getElementById('new-manuel-postnr').value.trim();
+        const b = document.getElementById('new-manuel-by').value.trim();
+        if (!/^\d{4}$/.test(p) || !b) {
+          document.getElementById('new-dawa-error').style.display = 'block';
+          document.getElementById(/^\d{4}$/.test(p) ? 'new-manuel-by' : 'new-manuel-postnr').focus();
+          return;
+        }
+        postnr = p; city = b;
+      } else if (street && (!newDawaValgt || !postnr)) {
         document.getElementById('new-dawa-error').style.display = 'block';
         document.getElementById('new-street').focus();
         return;
@@ -2220,10 +2239,23 @@ function anvendBadge() {
 }
 // ── DAWA Autocomplete ─────────────────────────────────────────────────────
  
-function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt }) {
+// ⚠️ 4/10-26: DAWA lukkede 1/10-26 og svarer 410. Svarer tjenesten ikke
+// (fejl, ikke-200 eller uventet svar), kaldes onNede én gang, og modalen
+// viser sin reservevej. En formular maa aldrig afhaenge af, at en fremmed
+// tjeneste er oppe. Proeven koeres med det samme, saa felterne er der fra
+// start — og ét fejlende kald er nok til at slaa reservevejen til.
+const ADRESSE_URL = 'https://api.dataforsyningen.dk/autocomplete';
+function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, onNede }) {
   const inp = document.getElementById(inputId);
   const boks = document.getElementById(suggestionsId);
-  let debounce = null, aktive = -1, forslag = [];
+  let debounce = null, aktive = -1, forslag = [], nede = false;
+  const meldNede = () => { if (nede) return; nede = true; skjul(); if (onNede) onNede(); };
+  if (onNede) {
+    (async () => {
+      try { const r = await fetch(ADRESSE_URL + '?q=a&type=adresse&per_side=1'); if (!r.ok) meldNede(); }
+      catch (_) { meldNede(); }
+    })();
+  }
   // DAWA's trædesten-tekst har et tomt "hul" til etage/dør: "Vej 4, , 2970 By".
   // rens() fjerner tomme segmenter, så feltet aldrig viser ", ,".
   const rens = t => String(t || '').split(',').map(x => x.trim()).filter(Boolean).join(', ');
@@ -2248,11 +2280,15 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt }) 
   document.addEventListener('click', e => { if (e.target !== inp && !boks.contains(e.target)) skjul(); });
  
   async function hent(q) {
+    if (nede) return;
     try {
-      const r = await fetch('https://api.dataforsyningen.dk/autocomplete?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
-      forslag = await r.json();
+      const r = await fetch(ADRESSE_URL + '?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      if (!r.ok) { meldNede(); return; }
+      const data = await r.json();
+      if (!Array.isArray(data)) { meldNede(); return; }
+      forslag = data;
       vis();
-    } catch { skjul(); }
+    } catch (_) { meldNede(); }
   }
  
   function fremhæv(tekst, q) {
@@ -2299,10 +2335,19 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt }) 
  
 // DAWA til "Ny opgave"-modal
 let newDawaValgt = false;
+let newAdresseNede = false;
 initDawa({
   inputId: 'new-street',
   suggestionsId: 'new-dawa-suggestions',
   fuldTekstIFelt: true, // ingen synlige postnr/by-felter her — vis hele adressen
+  onNede: () => {
+    newAdresseNede = true;
+    document.getElementById('new-manuel').style.display = 'grid';
+    document.getElementById('new-street').placeholder = 'Vej og husnummer';
+    const err = document.getElementById('new-dawa-error');
+    err.textContent = 'Skriv postnummer (4 cifre) og by';
+    err.style.display = 'none';
+  },
   onType: () => {
     newDawaValgt = false;
     document.getElementById('new-dawa-error').style.display = 'none';
