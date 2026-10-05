@@ -556,12 +556,135 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
    anvendte migrationer og springer dem over — men skævheden er usynlig, indtil
    man ser efter. Bonus: diffen afslører også, hvis et helt andet spor er sneget
    med på `staging` (PR'en til `main` tager ALT, ikke kun det, du tænkte på).
+   **Står der andet i listen end det, der skal i prod — fx udviklingsarbejde,
+   der ikke er færdigt — så brug IKKE en PR fra `staging`. Brug hotfix-vejen
+   (Del 1b).**
 7. **Promote til prod — i deploy-vinduet** (se Del 2):
    - Railway: promote / deploy `main`.
    - Kør samme migration på **prod**: `.\push-prod.ps1` (kræver PROD-bekræftelse, linker selv om, og skifter tilbage til staging bagefter).
    - **Bump `sw.js` cache-version** ved ændringer i sw.js selv eller cachede aktiver. *(Fra v17, 13/7: /dashboard-HTML hentes network-first, så rene HTML-ændringer slår igennem UDEN bump; kundeformular/onboarding/config.js røres slet ikke af SW'en.)*
 8. Verificér i prod: health-check grøn + én ægte handling (fx et testopkald fra egen telefon). Hold øje i ~10 min.
 9. Går det galt: **rollback koden** i Railway (hurtigst). DB: kør kun frem-migrationer; ingen destruktive ændringer uden frisk backup.
+
+---
+
+## Del 1b — Hotfix-vejen: til prod, når `staging` bærer andet arbejde
+
+*Skrevet 5/10-26 efter to hotfixes 4/10 (PR #74 og `hotfix/gmail-adresse-0410`).*
+
+**Hvornår.** Trin 6 i Del 1 viser mere end det, der skal i prod — typisk
+udviklingsarbejde, der ikke er færdigt. En PR fra `staging` til `main` tager
+ALT med. Så bygges prod-ændringen i stedet som en **hotfix-branch fra `main`**
+med præcis de commits, der er testet på staging, og intet andet.
+
+**Princippet:** prod skal have byte for byte de filer, der blev testet på
+staging — oven på det, prod kører i dag. Hvert trin herunder er et tjek, der
+ville FEJLE, hvis det ikke holdt.
+
+**0. Forudsætning.** Ændringen er committet på sin egen branch, merget til
+`staging`, deployet og testet dér (smoke grøn + telefontest). Notér SHA'erne i
+den rækkefølge, de blev lavet:
+
+```powershell
+git log --oneline -1 <feature-branch>          # én pr. commit
+$c1='xxxxxxx'; $c2='yyyyyyy'                   # aeldste foerst
+$f = 'static/onboarding.html','server.js'      # de filer, commit'erne roerer
+```
+
+Variablerne forsvinder, når PowerShell-vinduet lukkes — sæt dem igen.
+
+**1. Grundlags-tjek: har `main` præcis de filer, ændringen er bygget på?**
+
+```powershell
+git fetch origin
+git --no-pager diff --stat origin/main "$c1~1" -- $f      # SKAL give intet output
+git --no-pager diff --stat origin/main $c2 -- $f          # modproeve: SKAL vise filerne
+```
+
+Giver første linje output, er filerne på `main` anderledes end dem, der blev
+testet. **Stop.** En cherry-pick vil så enten give konflikt eller — værre —
+lykkes og give prod en kombination, ingen har set køre.
+
+**2. Hotfix-branch fra `main` med commit'erne:**
+
+```powershell
+git switch -c hotfix/<emne-dato> origin/main
+git branch --show-current                                 # bekraeft FOER cherry-pick
+git cherry-pick $c1 $c2
+```
+
+Konflikt: `git cherry-pick --abort` og stop. Løs den ikke på hotfix-branchen —
+så er det ikke længere det, der blev testet.
+
+**3. Bevis, før der pushes:**
+
+```powershell
+git --no-pager log --oneline -3                           # dine commits oven paa main
+git --no-pager diff --stat $c2 HEAD -- $f                 # SKAL give intet output
+git --no-pager diff --stat origin/main HEAD               # KUN filerne i $f
+node --check .\<hver aendret .js-fil>
+```
+
+Første diff tom = filerne er byte-identiske med de testede. Anden diff = intet
+andet kom med.
+
+**4. CI-fælden (S30, 4/10-26).** CI på PR'en kører med `main`'s egen `ci.yml`.
+Ligger en CI-rettelse kun på `staging` (fx en navngiven audit-undtagelse), bliver
+PR'en rød af en grund, der intet har med hotfixen at gøre. Så hentes netop
+CI-filerne fra `staging` ind i samme hotfix — ikke ved cherry-pick af commits,
+der også bærer docs:
+
+```powershell
+git checkout origin/staging -- .github/workflows/ci.yml audit-tjek.js package.json
+git --no-pager diff --cached -- package.json              # KUN "scripts" maa aendres
+npm run audit                                             # groen
+git commit -m "CI: <hvad> fra staging, saa main kan bygge"
+```
+
+Ændrer `package.json`-diffen `dependencies`, `devDependencies` eller `engines`,
+så kommer den ikke med — så ændres prod-træet ad bagdøren.
+
+**5. Før merge.** Railway → prod → Deployments: notér det aktive deploy. Det er
+tilbagerulningen.
+
+**6. Push og PR:**
+
+```powershell
+git push -u origin hotfix/<emne-dato>
+```
+
+PR med base `main`. Filoversigten skal matche trin 3. Merge først, når CI er grøn.
+
+**7. Bevis i prod** — med strenge, der KUN findes i den nye udgave:
+
+```powershell
+$p = 'https://opgave.ditdigitalekontor.dk'
+((Invoke-WebRequest -UseBasicParsing "$p/<side>").Content | Select-String '<ny streng>' -AllMatches).Matches.Count
+git fetch origin; git show origin/main:<backend-fil> | Select-String '<ny streng>'
+npm run smoke:prod
+```
+
+Backend-filer kan ikke ses udefra: beviset er linjen på `main` + at Railways
+aktive deploy er bygget fra merge-commit'en. Afslut med én ægte handling på
+telefonen.
+
+**8. Går det galt:** Railway → det noterede deploy → *Redeploy*. Bagefter
+`git revert` af merge-commit'en via en ny PR, så `main` og prod stemmer.
+
+**9. Bagefter.**
+- Registret: "på staging" → "i prod" samme dag (D53).
+- Commit'en findes nu to gange (`staging` og `main`). Det er i orden — ved
+  næste PR fra `staging` ser git, at det er samme ændring.
+- Slet hotfix-branchen lokalt og på GitHub.
+
+**Faldgruber set 4/10-26:**
+- **Forkert branch.** En `diff --stat origin/main HEAD` kørt fra `staging`
+  viste hele udviklingssporet og lignede en katastrofe. `git branch
+  --show-current` før hvert bevis.
+- **`:` nederst i PowerShell** = git's sidevisning venter. Tryk `q`, og brug
+  `git --no-pager …`.
+- **Et forventet tal kan være forkert.** Passer et tælle-tjek ikke, så tæl i den
+  leverede fil, før du konkluderer noget om prod.
 
 ---
 
@@ -729,7 +852,7 @@ Dormant-kunde-detektion og værdi-realisering. **Ikke launch-blokerende:** det k
 [ ] Migration testet på staging
 [ ] `npm run smoke` grøn på staging
 [ ] Røgtest grøn på staging (bekendt har ringet, lead landede)
-[ ] Merged til main
+[ ] Merged til main — eller hotfix: grundlags-tjek + byte-identitet bevist (Del 1b)
 [ ] Vi er i deploy-vinduet (uden for arbejdstid) — eller det er en hotfix
 [ ] Migration kørt på prod
 [ ] sw.js cache-version bumpet
