@@ -321,8 +321,9 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       lyd, **6,09 øre**, svartid 9,3 sek. (forhold 1 : 17), 29 segmenter.
       **Prisenheden er dermed bekræftet mod en faktureret handling**, ikke mod en
       prisside — `kvote.js` kan regne på adapteren. Tal og konsekvenser i
-      `asr-adapter.md`. Nøglen er `SCW_ASR_SECRET_KEY` (egen nøgle, ikke mailens).
-- [ ] **Monter modulet:** `routes/tilbud/index.js` (tom, én statusrute) + tænd
+      `asr-adapter.md`. Nøglen er `SCW_GENAI_SECRET_KEY` (omdøbt 2/10 fra `SCW_ASR_SECRET_KEY`;
+      egen nøgle, ikke mailens — og nu delt med referatmodellen).
+- [x] **Monter modulet — GJORT 28/9.** `routes/tilbud/index.js` (tom, én statusrute) + tænd
       `TILBUD_AKTIV` i staging. Prøveplanen kræver, at rollback-håndtaget prøves
       **i begge retninger**. ✅ **Crash-påstanden i `server.js` er efterprøvet
       28/9:** tændes flaget uden mappen, dør processen på `server.js:111` med
@@ -360,7 +361,62 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       en synlig arbejdstilstand og en knap, der slår sig fra ved første tryk —
       ellers sendes dikteringen to gange (dobbelt betaling, to referater).
       **Åbent:** skal adapterens timeout følge lydens længde? Se `asr-adapter.md`.
-- [ ] Claude-proxy-endpoint (generisk; body-limit, billing-gate, dagsloft,
+- [x] **REFERAT-ENDPOINTET — GRØNT I STAGING 5/10.**
+      `POST /api/tilbud/referat`. Tekstadapter, kvote og teknik B samlet i én rute.
+      **Målt:** 2.263 tegn transskription → 11-12 punkter, **6,00-7,22 øre**,
+      13-17 sek. · én række i `ai_forbrug` pr. kald (`formaal='referat'`,
+      `enhed='token'`) · **bogføringen stemmer på øren** i alle kørsler.
+      Afvisningerne prøvet: 401 · 400 `ingen_tekst` · 413 `for_meget_tekst` ·
+      402 `firma_dagsloft` · 502 `referat_ubrugeligt`. `Kvoteafvisning (referat)`
+      set i AppSignal.
+      **TO RUTER, IKKE ÉN — med vilje.** Lyd → tekst → referat kunne have været ét
+      kald. Men han skal kunne SE transskriptionen og rette i den først: D14's fund
+      fra 13/9 er, at referattrinnet retter nonsens i stilhed og lader rigtige ord
+      på forkert plads stå — og gør dem SVÆRERE at opdage, fordi resultatet læser
+      pænt. Mellemtrinnet er hans eneste chance for at fange USB-plader, der skulle
+      have været OSB.
+      **Variablerne** `TILBUD_REFERAT_LEVERANDOER` / `-URL` / `-MODEL` kom først ind
+      i Railway staging og `.env.staging` her — ikke før ruten brugte dem.
+      **To fund i koden, begge med konsekvenser:**
+      **(a) Den bindende grænse stod et andet sted, end koden troede.**
+      `express.json()` i `server.js` linje 19 er sat uden `limit` og bruger derfor
+      Express' standard på 100 KB — global, og den kører længe før modulet monteres.
+      Rutens egne 200.000 tegn kunne aldrig nås: en krop over 100 KB blev afvist med
+      en **HTML-fejlside, som en klient ikke kan læse**. Grænsen er nu 60.000 tegn,
+      sat med afstand under de 100 KB, så vores egen læselige fejl altid når først.
+      Rutens egen parser er fjernet — den var død kode, der *lignede* en grænse, og
+      det er værre end ingen grænse. Det kendte hul (stærkt komprimeret lyd kan give
+      op mod 145.000 tegn) er bevidst efterladt med en præcis udløser: **først når en
+      rigtig diktering afvises med `for_meget_tekst`, røres linje 19** — den gælder
+      alle ruter, også webhooks ·
+      **(b) Et fejlet kald kunne være betalt uden at nå hovedbogen.** Svarede
+      leverandøren, men bestod svaret ikke formvalideringen, blev tokentallet smidt
+      væk sammen med fejlen. **Loftet holdt altså ikke, når modellen fejlede:** en
+      promptregression ville kunne brænde en kundes kvote usynligt. Fundet med et
+      vrøvlinput, der kostede **33,70 øre, ingen kunne se**. Fejlen bærer nu prisen
+      med sig de to steder, hvor den kastes EFTER et svar, og ruten bogfører den.
+      Fejl kastet FØR et svar (timeout, 401, 403, netværk) bærer ingen pris — og så
+      bogføres der ikke. **Vi gætter aldrig i hovedbogen.**
+      **To fund i selve prøveplanen, og de er lige så dyre:**
+      **(c)** trin 4 forventede vores `for_meget_tekst` ved 200.001 tegn. Den globale
+      grænse bed først, og 413 så rigtigt ud med den forkerte afsender — **statuskoden
+      alene siger ikke, hvem der afviste** ·
+      **(d)** trin 7 forventede 402 på FØRSTE kald efter at loftet var sat ned. Forkert:
+      det kald, der krydser grænsen, skal slippe igennem (Anns beslutning 29/9), og det
+      næste bliver stoppet. **Der er to bremser med to formål:** kaldsloftet måles på
+      værste tilfælde FØR kaldet og forhindrer én stor overraskelse; dags- og
+      månedsloftet måles på det, der ALLEREDE er brugt, så han ikke mister en
+      diktering, han lige har talt ind, fordi han manglede to øre.
+      **En prøve, der forventer det forkerte, er lige så dyr som en fejl i koden** —
+      den får den næste til at tro, at noget virker, der ikke gør, eller omvendt.
+      Begge er rettet i `PROEVEPLAN-referat.md`.
+      ⚠️ **Og modelnavnet `mistral-small-3.2-24b-instruct` fandtes ikke** (rigtig:
+      `-2506`). Det stod i prislisten som et valg, og prisen vi regnede med var
+      prisen på noget, der ikke eksisterede. Alias-vagten fanger navne uden version;
+      tørkørslen har hverken netværk eller nøgle. Hullet lå mellem to værn, der hver
+      især virkede. `node proev-tekst-adapter.js --modeller` slår nu listen op og
+      sammenligner — gratis. Se D14.
+- [x] ~~Claude-proxy-endpoint~~ (generisk; body-limit, billing-gate, dagsloft,
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her.
       **Prompten er den ORDNÆRE** (besluttet 27/9): modellen må forkorte og
       strukturere, men ikke bytte ordene ud, og den retter ikke whispers fejl.
@@ -396,8 +452,18 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       ikke en sætning, så stort bogstav betyder intet dér), men tal og
       forkortelser tjekkes stadig. Fire selvtjek i prøvescriptet holder den regel
       fast, så den ikke kan fjernes ved en oprydning uden at noget siger fra.
-- [ ] **Kobl teknik B på `/api/tilbud/referat`** — D36's bindende
-      forudsætning, altså release-blokerende. Markér kun **tal, navne og
+- [x] **TEKNIK B KOBLET PÅ RUTEN — 3/10.** D36's bindende forudsætning, altså
+      release-blokerende, og nu opfyldt. **Målt gennem ruten: 0 markeringer, 0 %
+      tæthed** på to rigtige referater — og prøvescriptets fire selvtjek består, så
+      nul betyder nul og ikke "værnet kiggede det forkerte sted". De to ser ens ud
+      udefra, og det er netop derfor selvtjekkene kører før målingen.
+      Prøvebænkens syv referater: median 0, max 2, værste tæthed 0,5 % — uændret.
+      Værnet fandt **`USB-plademateriale`** og **`HPFI-relæ`**: præcis D14's farlige
+      klasse, ord der findes og står forkert.
+      **Værnet må aldrig kunne vælte referatet.** Det kører i try/catch i ruten: et
+      referat, der er skrevet og betalt, skal ud til ham, også hvis markeringen
+      fejler. Så står `taethed` som `null`, og prøvescriptet siger det højt.
+      De tre regler står ved magt: Markér kun **tal, navne og
       forkortelser**, der ikke står i transskriptionen (den brede udgave er målt
       og forkastet: median 51 markeringer, en femtedel af teksten). Tre regler
       følger med:
