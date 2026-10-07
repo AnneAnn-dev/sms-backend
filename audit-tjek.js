@@ -35,21 +35,16 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 
-const UNDTAGELSER = [
-  {
-    id: "GHSA-ch52-4w7c-c8xp",
-    pakke: "http-cache-semantics",
-    dato: "2026-10-03",
-    begrundelse:
-      "Kun via @appsignal/nodejs > node-gyp > make-fetch-happen (maalt med " +
-      "npm ls 3/10-26). node-gyp er AppSignals byggevaerktoej og koerer ved " +
-      "installation, ikke i appen. Saarbarheden kraever en DELT HTTP-cache; " +
-      "appen er ikke en. npm's 'fix' nedgraderer AppSignal til 1.3.2.",
-    retrigger:
-      "Rettet http-cache-semantics udgivet, ELLER AppSignal-version uden " +
-      "node-gyp i traeet, ELLER pakken dukker op under en anden afhaengighed.",
-  },
-];
+// HISTORIK - en tom liste er ogsaa et resultat:
+//   GHSA-ch52-4w7c-c8xp i http-cache-semantics. Undtaget 3/10-26 (kun via
+//   @appsignal/nodejs > node-gyp > make-fetch-happen, et byggevaerktoej, og
+//   saarbarheden kraever en delt HTTP-cache). Re-triggeren var "rettet
+//   http-cache-semantics udgivet", og den fyrede 6/10-26: 4.3.0 kom med
+//   samme npm audit fix som proxy-addr 2.0.8. Scriptet fangede selv, at
+//   undtagelsen var blevet overfloedig, og gjorde koerslen roed - regel 2.
+//   Linjen er slettet samme dag. Se registret.
+
+const UNDTAGELSER = [];
 
 const BLOKERENDE = new Set(["high", "critical"]);
 
@@ -142,6 +137,7 @@ console.log("Advisories i alt: " + unikke.size + "  heraf high/critical: " + blo
 console.log("");
 
 console.log("Undtagelser i kraft (" + UNDTAGELSER.length + "):");
+if (!UNDTAGELSER.length) console.log("  (ingen - listen er tom, og det er den tilstand, der skal vaere normal)");
 for (const u of UNDTAGELSER) {
   console.log("  - " + u.id + " i " + u.pakke + " (siden " + u.dato + ")");
   console.log("      Hvorfor:     " + u.begrundelse);
