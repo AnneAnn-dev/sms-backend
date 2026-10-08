@@ -2237,14 +2237,16 @@ function anvendBadge() {
     console.warn('Kunne ikke opdatere app-badge:', err);
   }
 }
-// ── DAWA Autocomplete ─────────────────────────────────────────────────────
- 
-// ⚠️ 4/10-26: DAWA lukkede 1/10-26 og svarer 410. Svarer tjenesten ikke
-// (fejl, ikke-200 eller uventet svar), kaldes onNede én gang, og modalen
-// viser sin reservevej. En formular maa aldrig afhaenge af, at en fremmed
-// tjeneste er oppe. Proeven koeres med det samme, saa felterne er der fra
-// start — og ét fejlende kald er nok til at slaa reservevejen til.
-const ADRESSE_URL = 'https://api.dataforsyningen.dk/autocomplete';
+// ── Adresse-autocomplete (D77) ───────────────────────────────────────────
+// 8/10-26: forslag hentes fra VORES eget endpoint (/api/adresse, adresse.js),
+// som taler med Klimadatastyrelsens Adressevaelger. Adressen paa tjenesten og
+// tokenen staar kun ét sted — paa serveren. Foer stod DAWA-adressen her, i
+// kundeformularen og i vagten.
+// Fail-open (4/10-26): svarer endpointet ikke, kaldes onNede én gang, og
+// modalen viser sin reservevej. Proeven koeres med det samme, saa felterne er
+// der fra start.
+// Et forslag er et husnummer. Ved valg slaas postnr og by op paa id'et, og
+// onSelect faar samme form som foer: { tekst, data: { postnr, postnrnavn } }.
 function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, onNede }) {
   const inp = document.getElementById(inputId);
   const boks = document.getElementById(suggestionsId);
@@ -2252,13 +2254,11 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
   const meldNede = () => { if (nede) return; nede = true; skjul(); if (onNede) onNede(); };
   if (onNede) {
     (async () => {
-      try { const r = await fetch(ADRESSE_URL + '?q=a&type=adresse&per_side=1'); if (!r.ok) meldNede(); }
+      try { const r = await fetch('/api/adresse/status'); if (!r.ok) meldNede(); }
       catch (_) { meldNede(); }
     })();
   }
-  // DAWA's trædesten-tekst har et tomt "hul" til etage/dør: "Vej 4, , 2970 By".
-  // rens() fjerner tomme segmenter, så feltet aldrig viser ", ,".
-  const rens = t => String(t || '').split(',').map(x => x.trim()).filter(Boolean).join(', ');
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
  
   inp.addEventListener('input', () => {
     if (onType) onType();
@@ -2282,11 +2282,12 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
   async function hent(q) {
     if (nede) return;
     try {
-      const r = await fetch(ADRESSE_URL + '?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      const r = await fetch('/api/adresse/soeg?q=' + encodeURIComponent(q));
       if (!r.ok) { meldNede(); return; }
       const data = await r.json();
-      if (!Array.isArray(data)) { meldNede(); return; }
-      forslag = data;
+      if (!data || !Array.isArray(data.forslag)) { meldNede(); return; }
+      if (inp.value.trim() !== q) return;   // svar paa en aeldre soegning
+      forslag = data.forslag;
       vis();
     } catch (_) { meldNede(); }
   }
@@ -2301,7 +2302,7 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
     if (!forslag.length) { skjul(); return; }
     const q = inp.value.trim();
     boks.innerHTML = forslag.map((s,i) =>
-      `<div data-i="${i}" style="padding:9px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid #DDE4EC;${i===aktive?'background:#EAF2FB':''}">${fremhæv(s.tekst, q)}</div>`
+      `<div data-i="${i}" style="padding:9px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid #DDE4EC;${i===aktive?'background:#EAF2FB':''}">${fremhæv(esc(s.tekst), esc(q))}</div>`
     ).join('');
     boks.style.display = 'block';
     boks.querySelectorAll('div').forEach(el => {
@@ -2309,25 +2310,22 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
     });
   }
  
-  function vaelg(s) {
-    // Mellemtrins-forslag: fortsæt indtastningen. MEN har forslaget allerede
-    // postnr/by i sine data (adgangsadresse = selve huset), er adressen
-    // gyldig NU — så registrér valget med det samme og lad listen stå åben
-    // til evt. finpudsning (etage/dør). Kun rene vejnavne er stadig ugyldige.
-    if (s.type !== 'adresse') {
-      if (s.data && s.data.postnr && onSelect) onSelect(s);
-      inp.value = rens(s.tekst);
-      inp.focus();
-      hent(inp.value.trim());
-      return;
-    }
-    // Endeligt valg: modaler med SYNLIGE postnr/by-felter får kun gadedelen i
-    // gadefeltet (ellers dubletter); modaler med skjulte felter (Ny opgave)
-    // viser hele adressen — et felt med "Barakstien 4" uden by skaber tvivl,
-    // og tvivl fører til redigering, som nulstiller valget.
-    inp.value = fuldTekstIFelt ? rens(s.tekst) : parseAddress(s.tekst).street;
+  async function vaelg(s) {
     skjul();
-    if (onSelect) onSelect(s);
+    inp.value = s.tekst;   // vis valget med det samme; opslaget finpudser bagefter
+    try {
+      const r = await fetch('/api/adresse/' + encodeURIComponent(s.id));
+      if (!r.ok) { meldNede(); return; }
+      const d = await r.json();
+      // Har brugeren rettet i feltet, mens opslaget kørte, gælder valget ikke.
+      if (inp.value !== s.tekst) return;
+      if (!d || !d.ok || !d.postnr) { meldNede(); return; }
+      // Modaler med SYNLIGE postnr/by-felter faar kun gadedelen i gadefeltet
+      // (ellers dubletter); modaler med skjulte felter (Ny opgave) viser hele
+      // adressen — et felt med "Barakstien 4" uden by skaber tvivl.
+      inp.value = fuldTekstIFelt ? d.tekst : (d.vej || parseAddress(d.tekst).street);
+      if (onSelect) onSelect({ tekst: d.tekst, data: { postnr: d.postnr, postnrnavn: d.by } });
+    } catch (_) { meldNede(); }
   }
  
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
