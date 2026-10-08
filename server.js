@@ -102,6 +102,13 @@ require("./frisbii-checkout")(app);
 // uden at sende nogen mail.
 require("./onboarding-link")(app, supabase);
 
+// ─── Adresser: vores eget endpoint foran Adressevaelgeren (D77) ────────────
+// Registrerer GET /api/adresse/soeg, /api/adresse/status og /api/adresse/:id.
+// Kundeformularen og dashboardet kalder KUN disse — adressen paa tjenesten og
+// tokenen staar ét sted (adresse.js). Mangler linjen, giver felterne 404, og
+// fail-open viser postnr/by-felterne: formularen virker, men uden forslag.
+require("./adresse")(app);
+
 
 // ─── Push-abonnementer: badge/notifikation med appen lukket (D34) ──────────
 // Registrerer POST /api/push/subscribe + /api/push/unsubscribe. Selve
@@ -224,16 +231,15 @@ app.get("/formular/:token", async (req, res) => {
     </form>
   </div>
 <script>
-  let dawaValgt = false;
-  // ── Fail-open (4/10-26) ────────────────────────────────────────────
-  // DAWA lukkede 1/10-26 og svarer 410. Foer saa kunden ingen liste, men
-  // indsendelsen kraevede stadig et valg fra listen — saa INGEN kunne sende
-  // en opgave. Kerneflowet var lukket uden en eneste fejlbesked.
-  // Nu: svarer tjenesten ikke (fejl, ikke-200 eller uventet svar), vises
+  // ── Adressefeltet (D77, 8/10-26) ────────────────────────────────────
+  // Forslag hentes fra VORES eget endpoint (/api/adresse, adresse.js), som
+  // taler med Klimadatastyrelsens Adressevaelger. Adressen paa tjenesten og
+  // tokenen staar dermed kun ét sted — paa serveren.
+  // Fail-open (4/10-26, efter DAWA-lukningen): svarer endpointet ikke, vises
   // felter til postnr og by, og formularen godtager kundens egen adresse.
   // Formularen maa aldrig afhaenge af, at en fremmed tjeneste er oppe.
+  let dawaValgt = false;
   let tjenesteNede = false;
-  const ADRESSE_URL = 'https://api.dataforsyningen.dk/autocomplete';
   let debounce = null;
   let aktive = -1;
   let forslag = [];
@@ -255,7 +261,7 @@ app.get("/formular/:token", async (req, res) => {
   // Proev tjenesten med det samme, saa kunden ser felterne fra start.
   (async function () {
     try {
-      const r = await fetch(ADRESSE_URL + '?q=a&type=adresse&per_side=1');
+      const r = await fetch('/api/adresse/status');
       if (!r.ok) slaaManueltTil();
     } catch (_) { slaaManueltTil(); }
   })();
@@ -284,11 +290,13 @@ app.get("/formular/:token", async (req, res) => {
   async function hentForslag(q) {
     if (tjenesteNede) return;
     try {
-      const r = await fetch(ADRESSE_URL + '?q=' + encodeURIComponent(q) + '&type=adresse&per_side=8&fuzzy=');
+      const r = await fetch('/api/adresse/soeg?q=' + encodeURIComponent(q));
       if (!r.ok) { slaaManueltTil(); return; }
       const data = await r.json();
-      if (!Array.isArray(data)) { slaaManueltTil(); return; }
-      forslag = data;
+      if (!data || !Array.isArray(data.forslag)) { slaaManueltTil(); return; }
+      // Et svar paa en AELDRE soegning maa ikke overskrive en nyere.
+      if (inp.value.trim() !== q) return;
+      forslag = data.forslag;
       vis();
     } catch (_) { slaaManueltTil(); }
   }
@@ -299,11 +307,15 @@ app.get("/formular/:token", async (req, res) => {
     return tekst.slice(0,i) + '<strong>' + tekst.slice(i, i+q.length) + '</strong>' + tekst.slice(i+q.length);
   }
 
+  function esc(t) {
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   function vis() {
     if (!forslag.length) { skjul(); return; }
     const q = inp.value.trim();
     boks.innerHTML = forslag.map((s,i) =>
-      '<div data-i="'+i+'" style="padding:10px 14px;font-size:15px;cursor:pointer;border-bottom:1px solid #f0f0f0;'+(i===aktive?'background:#EAF2FB':'')+'">' + fremhæv(s.tekst, q) + '</div>'
+      '<div data-i="'+i+'" style="padding:10px 14px;font-size:15px;cursor:pointer;border-bottom:1px solid #f0f0f0;'+(i===aktive?'background:#EAF2FB':'')+'">' + fremhæv(esc(s.tekst), esc(q)) + '</div>'
     ).join('');
     boks.style.display = 'block';
     boks.querySelectorAll('div').forEach(el => {
@@ -311,41 +323,23 @@ app.get("/formular/:token", async (req, res) => {
     });
   }
 
-  function rens(t) {
-    // DAWA's traedesten-tekst har et tomt "hul" til etage/doer: "Vej 4, , 2970 By".
-    // Fjern tomme segmenter, saa feltet aldrig viser ", ,".
-    return String(t || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean).join(', ');
-  }
-
-  function vaelg(s) {
-    // Mellemtrins-forslag: fortsaet indtastningen. MEN har forslaget allerede
-    // postnr/by i sine data (adgangsadresse = selve huset), er adressen
-    // gyldig NU - saa taeller valget med det samme, og listen bliver staaende
-    // til evt. finpudsning (etage/doer). Kun rene vejnavne er stadig ugyldige.
-    if (s.type !== 'adresse') {
-      inp.value = rens(s.tekst);
-      if (s.data && s.data.postnr) {
-        dawaValgt = true;
-        fejl.style.display = 'none';
-        document.getElementById('dawa-by').value = s.data.postnrnavn || '';
-        document.getElementById('dawa-postnr').value = s.data.postnr || '';
-      } else {
-        dawaValgt = false;
-        document.getElementById('dawa-by').value = '';
-        document.getElementById('dawa-postnr').value = '';
-      }
-      inp.focus();
-      hentForslag(inp.value.trim());
-      return;
-    }
-    inp.value = rens(s.tekst);
-    dawaValgt = true;
+  // Et forslag er et husnummer. Postnr og by hentes ved opslag paa id'et,
+  // saa de kommer fra registret og ikke fra en tekst, vi selv skiller ad.
+  async function vaelg(s) {
+    inp.value = s.tekst;
     skjul();
     fejl.style.display = 'none';
-    if (s.data) {
-      document.getElementById('dawa-by').value = s.data.postnrnavn || '';
-      document.getElementById('dawa-postnr').value = s.data.postnr || '';
-    }
+    try {
+      const r = await fetch('/api/adresse/' + encodeURIComponent(s.id));
+      if (!r.ok) { slaaManueltTil(); return; }
+      const d = await r.json();
+      // Har kunden rettet i feltet, mens opslaget kørte, gælder valget ikke.
+      if (inp.value !== s.tekst) return;
+      if (!d || !d.ok || !d.postnr) { slaaManueltTil(); return; }
+      document.getElementById('dawa-by').value = d.by || '';
+      document.getElementById('dawa-postnr').value = d.postnr || '';
+      dawaValgt = true;
+    } catch (_) { slaaManueltTil(); }
   }
 
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
