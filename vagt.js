@@ -42,7 +42,7 @@
  *             VAGT_STEMME_MIN_TEGN    (standard 5000)
  *             VAGT_CERT_MIN_DAGE      (standard 14)
  *             VAGT_UDLOEB_MIN_DAGE    (standard 30)
- *             VAGT_UDLOEBSDATOER      fx "scaleway-genai=2027-10-03;adressevaelger=2027-01-01"
+ *             VAGT_UDLOEBSDATOER      fx "scaleway-genai=2027-10-03;adressevaelger=2026-12-31"
  *                                     (kun navne og datoer — ALDRIG noegler)
  *             VAGT_TWILIO_KEY_SID / VAGT_TWILIO_KEY_SECRET
  *                                     egen API-noegle til vagten; ellers
@@ -57,12 +57,11 @@ const tls = require("node:tls");
 
 const TIMEOUT_MS = 10000;
 
-// Samme adresse som kundeformularen (server.js) og dashboardet bruger.
-// ⚠️ Det er en KOPI (CLAUDE.md: ingen ny dublet uden afstemning). Afstemningen
-// sidder i tjekket "adresse": det kontrollerer, at dashboardet faktisk bruger
-// denne adresse, og bliver roedt, hvis de glider fra hinanden — fx naar appen
-// skifter til Adressevaelgeren, og nogen glemmer vagten.
-const ADRESSE_URL = "https://api.dataforsyningen.dk/autocomplete";
+// Adressetjenesten testes gennem VORES eget endpoint (/api/adresse, adresse.js),
+// ikke direkte. Saa tester vagten det, kunderne faktisk bruger — hele vejen
+// gennem appen til Adressevaelgeren — og adressen paa tjenesten staar kun ét
+// sted (8/10-26; foer var den kopieret hertil, D77).
+const ADRESSE_PROEVE = "Rådhuspladsen 1";   // offentlig adresse, ingen persondata
 
 const argv  = process.argv.slice(2);
 const toer  = argv.includes("--toer");
@@ -139,17 +138,19 @@ const TJEK = [
   },
   {
     navn: "adresse",
-    // Fanger: DAWA 1/10-26 (410). KONFIG: ingen.
+    // Fanger: DAWA 1/10-26 (410), Adressevaelgeren nede, den faelles token
+    // udloebet ved brugerstyringen, adresse.js ikke monteret (404).
+    // Soeger og slaar det foerste fund op — samme to kald som formularen.
     async koer() {
-      const res = await hent(`${ADRESSE_URL}?q=a&type=adresse&per_side=1`);
-      if (res.status !== 200) fejl(`adressetjenesten svarer ${res.status}`);
-      const data = await res.json().catch(() => null);
-      if (!Array.isArray(data)) fejl("adressetjenesten svarer uden en liste");
-      // Afstemning: bruger appen stadig den adresse, vagten tester?
-      const side = await hent(`${BASE_URL}/dashboard`);
-      const html = side.status === 200 ? await side.text() : "";
-      if (!html.includes(ADRESSE_URL)) fejl("vagten tester en anden adressetjeneste end dashboardet bruger");
-      return "svarer med forslag";
+      const s = await hent(`${BASE_URL}/api/adresse/soeg?q=${encodeURIComponent(ADRESSE_PROEVE)}`);
+      if (s.status !== 200) fejl(`soegning svarer ${s.status}`);
+      const sd = await s.json().catch(() => null);
+      if (!sd || !Array.isArray(sd.forslag) || !sd.forslag.length) fejl("soegning gav ingen forslag");
+      const o = await hent(`${BASE_URL}/api/adresse/${encodeURIComponent(sd.forslag[0].id)}`);
+      if (o.status !== 200) fejl(`opslag svarer ${o.status}`);
+      const od = await o.json().catch(() => null);
+      if (!od || !/^\d{4}$/.test(String(od.postnr || ""))) fejl("opslag gav intet postnummer");
+      return "soegning og opslag virker";
     },
   },
   {
