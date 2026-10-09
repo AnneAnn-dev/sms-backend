@@ -161,8 +161,17 @@ const FALSK_ID = "00000000-0000-4000-8000-000000000000";
     // Kildematerialet maa ikke kunne rettes — ellers er sammenligningen med
     // `indhold` intet vaerd, og teknik B-tallene maaler noget andet end det,
     // modellen skrev.
+    // Et felt, der findes men ikke maa rettes, skal AFVISES - ikke sorteres
+    // fra. Sendt sammen med `indhold` ville indholdet ellers blive gemt og
+    // kildeteksten tavst ignoreret.
     await proev("transskript kan IKKE rettes", 400, "PATCH", `/api/tilbud/referater/${r.referat.id}`,
-      { transskript: "omskrevet" });
+      { indhold: "noget", transskript: "omskrevet" });
+    // Den dyreste af dem alle: en stavefejl i et feltnavn maa ikke give 200
+    // og ingenting gemt. Saa er haandvaerkerens rettelse vaek uden en fejl.
+    await proev("stavefejl i feltnavn afvises", 400, "PATCH", `/api/tilbud/referater/${r.referat.id}`,
+      { indhol: "hans rettede version" });
+    await proev("ukendt felt ved oprettelse afvises", 400, "POST", "/api/tilbud/kunder",
+      { navn: `PROEVE Ukendt ${KOERSEL}`, emial: "a@b.dk" });
   }
 
   afslut(kundeId, opgaveId);

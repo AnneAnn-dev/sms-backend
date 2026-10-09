@@ -71,12 +71,42 @@ const REFERAT_FELTER = [
 ];
 const REFERAT_RET_FELTER = ["titel", "indhold", "status", "felter"];
 
+// Returnerer baade de kendte felter OG navnene paa dem, der blev sorteret fra.
+// At sortere fra i stilhed er ikke sikkert - det er tavst.
 function pluk(krop, tilladte) {
-  const ud = {};
-  for (const f of tilladte) {
-    if (krop && Object.prototype.hasOwnProperty.call(krop, f)) ud[f] = krop[f];
+  const felter = {}, ukendte = [];
+  for (const n of Object.keys(krop || {})) {
+    if (tilladte.includes(n)) felter[n] = krop[n];
+    else ukendte.push(n);
   }
-  return ud;
+  return { felter, ukendte };
+}
+
+// ⚠️ ET UKENDT FELT ER EN FEJL, IKKE NOGET MAN IGNORERER (fundet 10/10-2026).
+//
+// Hvidlisten beskytter mod, at klienten kan skrive i `firm_id` eller `id`. Men
+// den, der SORTERER FRA uden at sige det, laver en ny fejlklasse:
+//
+//   {"indhol": "hans rettede version"}   -> 200 OK, intet gemt.
+//
+// En stavefejl i et feltnavn bliver til en rettelse, der forsvinder. Der er
+// ingen fejl at laese, og han opdager det foerst, naar han aabner referatet
+// igen. Det er samme form som D68 og D69: skrevet, kvitteret, og vaek.
+//
+// Det samme gaelder et felt, der findes men ikke maa rettes - `transskript`:
+// sendt sammen med `indhold` ville indholdet blive gemt og kildeteksten tavst
+// ignoreret, og kalderen ville tro, begge dele gik igennem.
+//
+// Returnerer true, naar der er svaret.
+function afvisUkendte(res, ukendte, undtagen) {
+  const u = ukendte.filter((n) => !(undtagen || []).includes(n));
+  if (!u.length) return false;
+  res.status(400).json({
+    error: "ukendte_felter", felter: u,
+    besked: `Felterne ${u.join(", ")} kendes ikke her. Et felt, der er stavet forkert, ` +
+            `ville ellers blive sorteret fra i stilhed — og rettelsen ville være væk.`,
+  });
+  return true;
 }
 
 function tekst(v) {
@@ -136,7 +166,8 @@ module.exports = function (app, supabase) {
   app.post("/api/tilbud/kunder", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
 
-    const felter = pluk(req.body, KUNDE_FELTER);
+    const { felter, ukendte } = pluk(req.body, KUNDE_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
     if (!tekst(felter.navn)) {
       return res.status(400).json({
         error: "navn_mangler",
@@ -158,7 +189,8 @@ module.exports = function (app, supabase) {
   app.patch("/api/tilbud/kunder/:id", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
 
-    const aendringer = pluk(req.body, KUNDE_FELTER);
+    const { felter: aendringer, ukendte } = pluk(req.body, KUNDE_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
     if (!Object.keys(aendringer).length) {
       return res.status(400).json({ error: "intet_at_rette", besked: "Der var ikke noget at rette." });
     }
@@ -192,7 +224,8 @@ module.exports = function (app, supabase) {
   app.post("/api/tilbud/opgaver", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
 
-    const felter = pluk(req.body, OPGAVE_FELTER);
+    const { felter, ukendte } = pluk(req.body, OPGAVE_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
     // name, address og task er NOT NULL i skemaet. Afvis her med en besked, han
     // kan handle paa, i stedet for at lade databasen svare med sin egen.
     const mangler = ["name", "address", "task"].filter((f) => !tekst(felter[f]));
@@ -255,7 +288,8 @@ module.exports = function (app, supabase) {
   app.patch("/api/tilbud/opgaver/:id", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
 
-    const aendringer = pluk(req.body, OPGAVE_FELTER);
+    const { felter: aendringer, ukendte } = pluk(req.body, OPGAVE_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
     if (!Object.keys(aendringer).length) {
       return res.status(400).json({ error: "intet_at_rette", besked: "Der var ikke noget at rette." });
     }
@@ -333,7 +367,9 @@ module.exports = function (app, supabase) {
       });
     }
 
-    const felter = pluk(req.body, REFERAT_FELTER);
+    // lead_id staar i kroppen, men ikke i feltlisten - den haandteres for sig.
+    const { felter, ukendte } = pluk(req.body, REFERAT_FELTER);
+    if (afvisUkendte(res, ukendte, ["lead_id"])) return;
     if (!tekst(felter.ai_udkast) && !tekst(felter.indhold)) {
       return res.status(400).json({
         error: "tomt_referat",
@@ -377,7 +413,8 @@ module.exports = function (app, supabase) {
   app.patch("/api/tilbud/referater/:id", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
 
-    const aendringer = pluk(req.body, REFERAT_RET_FELTER);
+    const { felter: aendringer, ukendte } = pluk(req.body, REFERAT_RET_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
     if (!Object.keys(aendringer).length) {
       return res.status(400).json({ error: "intet_at_rette", besked: "Der var ikke noget at rette." });
     }
