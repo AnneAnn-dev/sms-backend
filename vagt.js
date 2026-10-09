@@ -152,8 +152,9 @@ const TJEK = [
       const s = await hent(`${BASE_URL}/api/adresse/soeg?q=${encodeURIComponent(ADRESSE_PROEVE)}`);
       if (s.status !== 200) fejl(`soegning svarer ${s.status}`);
       const sd = await s.json().catch(() => null);
-      if (!sd || !Array.isArray(sd.forslag) || !sd.forslag.length) fejl("soegning gav ingen forslag");
-      const o = await hent(`${BASE_URL}/api/adresse/${encodeURIComponent(sd.forslag[0].id)}`);
+      const hus = sd && Array.isArray(sd.forslag) ? sd.forslag.find((f) => f && f.id) : null;
+      if (!hus) fejl("soegning gav intet husnummer");
+      const o = await hent(`${BASE_URL}/api/adresse/${encodeURIComponent(hus.id)}`);
       if (o.status !== 200) fejl(`opslag svarer ${o.status}`);
       const od = await o.json().catch(() => null);
       if (!od || !/^\d{4}$/.test(String(od.postnr || ""))) fejl("opslag gav intet postnummer");
