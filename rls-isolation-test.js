@@ -99,9 +99,16 @@ async function seed(t) {
   if (e1) throw new Error(`kunder (${t.navn}): ${e1.message}`);
   id.kunde = kunde.id;
 
-  // Et opkald, så både den gamle (via calls) og den nye (via firm_id)
-  // RLS-sti på leads bliver dækket.
   // to_number er NOT NULL — det er systemnummeret, kalderen ramte.
+  //
+  // ⚠️ Her stod indtil 9/10-26: "så både den gamle (via calls) og den nye (via
+  // firm_id) RLS-sti på leads bliver dækket." Det passer ikke. Leadet nedenfor
+  // får BÅDE `firm_id` og `call_id`, så den gamle politik alene gør rækken
+  // synlig — prøven kan ikke se, hvilken af dem der slap den igennem.
+  // Den nye sti (`leads_select_firma`, migration 20261007060000) er altså IKKE
+  // dækket her. Det kræver et lead med `call_id: null`, og det er næste
+  // ændring i denne fil — holdt adskilt, så man kan se at upsert-rettelsen
+  // virkede, før tallet flytter sig.
   const { data: call, error: e2 } = await admin.from('calls').insert({
     firm_id: t.firmId,
     from_number: '+4512345678',
@@ -135,9 +142,15 @@ async function seed(t) {
   if (e6) throw new Error(`tilbud_linjer (${t.navn}): ${e6.message}`);
   id.linje = linje.id;
 
-  const { error: e7 } = await admin.from('firma_profil').insert({
+  // D68 (1/10-26): en trigger på `firms` opretter rækken i `firma_profil`, så
+  // snart firmaet findes. Et rent insert kolliderer derfor på primærnøglen, og
+  // prøven faldt i OPSÆTNINGEN uden at nå at teste noget — den har været rød
+  // siden 1/10, uden at nogen kørte den. upsert virker begge veje, også hvis
+  // triggeren en dag fjernes, så prøven ikke forudsætter en bestemt årsag til,
+  // at rækken er der.
+  const { error: e7 } = await admin.from('firma_profil').upsert({
     firm_id: t.firmId, cvr: '12345678', timepris: 550
-  });
+  }, { onConflict: 'firm_id' });
   if (e7) throw new Error(`firma_profil (${t.navn}): ${e7.message}`);
 
   const { data: felt, error: e8 } = await admin.from('standardfelter').insert({
