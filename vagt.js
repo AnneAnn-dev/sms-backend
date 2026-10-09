@@ -44,6 +44,13 @@
  *             VAGT_UDLOEB_MIN_DAGE    (standard 30)
  *             VAGT_UDLOEBSDATOER      fx "scaleway-genai=2027-10-03;adressevaelger=2026-12-31"
  *                                     (kun navne og datoer — ALDRIG noegler)
+ *             VAGT_SPRING_OVER        fx "opkald" eller "opkald,stemme" — de
+ *                                     navngivne tjek koeres IKKE og meldes
+ *                                     ikke. Et ukendt navn stopper vagten
+ *                                     (en stavefejl maa ikke ligne et slukket
+ *                                     tjek). Brug det i stedet for pause i
+ *                                     Healthchecks.io: et ping vaekker et
+ *                                     pauset tjek igen.
  *             VAGT_TWILIO_KEY_SID / VAGT_TWILIO_KEY_SECRET
  *                                     egen API-noegle til vagten; ellers
  *                                     bruges TWILIO_ACCOUNT_SID/AUTH_TOKEN
@@ -282,8 +289,9 @@ const TJEK = [
     // ved arbejdstidens start, saa nattens naturlige stilhed ikke giver
     // alarm hver morgen kl. 7.
     // KONFIG: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-    // UDEN TRAFIK (foer piloterne) er den roed — saet tjekket paa pause i
-    // Healthchecks.io, og slaa det til, naar den foerste pilot ringer.
+    // UDEN TRAFIK (foer piloterne) er den roed — saet VAGT_SPRING_OVER=opkald,
+    // og fjern det, naar den foerste pilot ringer. (Pause i Healthchecks.io
+    // virker ikke: naeste ping vaekker tjekket igen — maalt 8/10-26.)
     async koer() {
       const start = Number(process.env.ARBEJDSTID_START ?? 7);
       const slut  = Number(process.env.ARBEJDSTID_SLUT ?? 17);
@@ -323,10 +331,18 @@ async function meld(navn, ok, tekst) {
 }
 
 (async () => {
-  const valgte = kun ? TJEK.filter((t) => t.navn === kun) : TJEK;
-  if (kun && !valgte.length) stop(`ukendt tjek "${kun}" — kendte: ${TJEK.map((t) => t.navn).join(", ")}`);
+  const kendte = TJEK.map((t) => t.navn);
+  const springOver = String(process.env.VAGT_SPRING_OVER || "")
+    .split(",").map((x) => x.trim()).filter(Boolean);
+  const ukendte = springOver.filter((n) => !kendte.includes(n));
+  if (ukendte.length) stop(`VAGT_SPRING_OVER naevner ukendt tjek "${ukendte.join(", ")}" — kendte: ${kendte.join(", ")}`);
+
+  // --kun vinder over VAGT_SPRING_OVER: et tjek, man beder om, koeres.
+  const valgte = kun ? TJEK.filter((t) => t.navn === kun) : TJEK.filter((t) => !springOver.includes(t.navn));
+  if (kun && !valgte.length) stop(`ukendt tjek "${kun}" — kendte: ${kendte.join(", ")}`);
 
   console.log(`vagt — miljoe: ${MILJOE}${toer ? " (toerloeb: intet meldes)" : ""}`);
+  if (!kun && springOver.length) console.log(`  sprunget over (VAGT_SPRING_OVER): ${springOver.join(", ")}`);
   let roede = 0;
 
   for (const t of valgte) {
