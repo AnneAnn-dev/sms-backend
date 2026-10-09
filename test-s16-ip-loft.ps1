@@ -34,14 +34,28 @@
     Brug
     ----
     .\test-s16-ip-loft.ps1 -Miljo staging
+    .\test-s16-ip-loft.ps1 -Miljo prod
 
-    Kun staging accepteres. Prod afvises af ValidateSet, ikke af en advarsel.
+    PROD (aendret 8/10-26)
+    ----------------------
+    Prod var foer spaerret af ValidateSet. Spaerren er beholdt som et bevidst
+    valg frem for en advarsel, men den kan nu aabnes: vaelges prod, skriver
+    scriptet vaertsnavnet ud og sender foerst noget, naar du har tastet det
+    selv. En tastefejl eller en forkert vane rammer altsaa ikke prod.
+
+    Hvorfor prod overhovedet maa maales: forsvaret ligger hos Railways kant,
+    ikke i koden, og prod koerer paa et andet vaertsnavn end staging. En kant
+    eller CDN foran prod er netop S16's re-trigger, og uden en maaling paa
+    prod findes der ingen baseline at opdage en aendring imod.
+
+    Prisen paa prod: 60 sek. cooldown paa DIN egen IP paa /onboarding/nyt-link.
+    Ingen kunde rammes - loftet er pr. IP. Ingen mail sendes.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("staging")]
+    [ValidateSet("staging", "prod")]
     [string]$Miljo
 )
 
@@ -56,8 +70,16 @@ if ($args.Count -gt 0) {
 # TLS 1.2 er ikke standard i Windows PowerShell 5.1.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$BaseUrl  = "https://sms-backend-staging-908c.up.railway.app"
+# Vaertsnavnene staar ET sted. Er et af dem forkert, afbryder prod-porten
+# nedenfor, fordi det tastede navn ikke stemmer - og saa rettes tabellen her.
+$URLER = @{
+    staging = "https://sms-backend-staging-908c.up.railway.app"
+    prod    = "https://opgave.ditdigitalekontor.dk"
+}
+
+$BaseUrl  = $URLER[$Miljo]
 $Endpoint = "$BaseUrl/onboarding/nyt-link"
+$Vaert    = ([Uri]$BaseUrl).Host
 $Stempel  = Get-Date -Format "yyyyMMdd-HHmmss"
 
 function Send-Kald {
@@ -103,11 +125,32 @@ Write-Host "Miljoe:   $Miljo"
 Write-Host "Endpoint: $Endpoint"
 Write-Host "Stempel:  $Stempel"
 Write-Host ""
-Write-Host "FOER DU FORTSAETTER: aabn staging-loggen i et andet vindue." -ForegroundColor Yellow
+
+# --- Prod-porten: et bevidst valg, ikke en advarsel -------------------------
+if ($Miljo -eq "prod") {
+    Write-Host "PROD. Laes dette, foer du svarer." -ForegroundColor Red
+    Write-Host "  Vaert:  $Vaert"
+    Write-Host "  Fire kald til prod, to af dem med forfalsket X-Forwarded-For."
+    Write-Host "  Prisen er 60 sek. cooldown paa DIN egen IP paa nyt-link-ruten."
+    Write-Host "  Ingen kunde rammes: loftet er pr. IP, og kun din bruges."
+    Write-Host "  Ingen mail sendes: de fire adresser ligger paa .invalid."
+    Write-Host ""
+    Write-Host "Tast vaertsnavnet praecis som ovenfor for at fortsaette." -ForegroundColor Yellow
+    $tastet = Read-Host "Vaertsnavn"
+    if ($tastet -ne $Vaert) {
+        Write-Host "AFBRUDT: '$tastet' er ikke '$Vaert'. Der er ikke sendt noget." -ForegroundColor Red
+        Write-Host "Er vaertsnavnet i scriptet forkert, saa ret URLER-tabellen oeverst." -ForegroundColor Yellow
+        Write-Host "Gaet ikke - slaa det op i Railway under prod-miljoeets domaener." -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host ""
+}
+
+Write-Host "FOER DU FORTSAETTER: aabn $Miljo-loggen i et andet vindue." -ForegroundColor Yellow
 Write-Host "  railway status     <- bekraeft miljoeet FOERST (D20: CLI-linket og .env er uafhaengige)"
 Write-Host "  railway logs"
 Write-Host ""
-$svar = Read-Host "Er staging-loggen aaben? (ja/nej)"
+$svar = Read-Host "Er $Miljo-loggen aaben? (ja/nej)"
 if ($svar -ne "ja") {
     Write-Host "AFBRUDT: uden loggen findes der intet signal at aflaese." -ForegroundColor Red
     exit 1
@@ -156,6 +199,12 @@ Write-Host "  NUL linjer            -> testen er ugyldig." -ForegroundColor Yell
 Write-Host "     Enten er log-teksten en anden, eller cooldownen fra fase 1"
 Write-Host "     var ikke udloebet. Tjek med:"
 Write-Host "       Select-String -Path .\onboarding-link.js -Pattern 'console\.(log|warn|error)'"
+Write-Host ""
+Write-Host "BEKRAEFTENDE SIGNAL (tilfoejet 8/10-26): det blokerede kald skriver nu" -ForegroundColor Green
+Write-Host "selv en linje - 'afvist af cooldown ... 60s tilbage'. Et positivt nej er" -ForegroundColor Green
+Write-Host "et bedre bevis end en manglende linje. Hver fase boer altsaa vise EN" -ForegroundColor Green
+Write-Host "'anmodet'-linje OG EN 'afvist'-linje. Mangler afvisningslinjen, saa tael" -ForegroundColor Green
+Write-Host "efter den gamle regel ovenfor - men undersoeg hvorfor." -ForegroundColor Green
 Write-Host ""
 Write-Host "Bemaerk: de fire adresser ligger paa .invalid og findes ikke som"
 Write-Host "firmaer. Der er ikke sendt mail i nogen af faserne."
