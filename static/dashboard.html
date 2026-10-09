@@ -1534,6 +1534,13 @@ function renderLeads() {
     document.getElementById('new-phone').value = '';
     document.getElementById('new-street').value = '';
     document.getElementById('new-city').value = '';
+    // Alt fra sidste opgave skal vaek — ogsaa de skjulte felter og
+    // reservevejens postnr/by (set 9/10-26: "gemmer adressen fra forrige").
+    document.getElementById('new-postnr').value = '';
+    document.getElementById('new-manuel-postnr').value = '';
+    document.getElementById('new-manuel-by').value = '';
+    document.getElementById('new-dawa-error').style.display = 'none';
+    newDawaValgt = false;
     document.getElementById('new-task').value = '';
     document.getElementById('new-mail').value = '';
     document.getElementById('new-urgent-cb').checked = false;
@@ -2251,6 +2258,8 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
   const inp = document.getElementById(inputId);
   const boks = document.getElementById(suggestionsId);
   let debounce = null, aktive = -1, forslag = [], nede = false;
+  // Valgt vej (D77, 9/10-26): soeg videre inden for vejen (og postnr).
+  let valgtVej = '', valgtPostnr = '';
   const meldNede = () => { if (nede) return; nede = true; skjul(); if (onNede) onNede(); };
   if (onNede) {
     (async () => {
@@ -2263,6 +2272,7 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
   inp.addEventListener('input', () => {
     if (onType) onType();
     aktive = -1;
+    if (valgtVej && inp.value.indexOf(valgtVej) !== 0) { valgtVej = ''; valgtPostnr = ''; }
     const q = inp.value.trim();
     if (q.length < 2) { skjul(); return; }
     clearTimeout(debounce);
@@ -2282,7 +2292,7 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
   async function hent(q) {
     if (nede) return;
     try {
-      const r = await fetch('/api/adresse/soeg?q=' + encodeURIComponent(q));
+      const r = await fetch('/api/adresse/soeg?q=' + encodeURIComponent(q) + (valgtPostnr ? '&postnr=' + valgtPostnr : ''));
       if (!r.ok) { meldNede(); return; }
       const data = await r.json();
       if (!data || !Array.isArray(data.forslag)) { meldNede(); return; }
@@ -2312,14 +2322,25 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
  
   async function vaelg(s) {
     skjul();
+    if (s.type === 'vej') {
+      // En vej er ikke en adresse: saet vejnavnet i feltet og vis husnumrene.
+      valgtVej = s.vej; valgtPostnr = s.postnr || '';
+      inp.value = s.vej + ' ';
+      if (onType) onType();   // nulstil et evt. tidligere valg
+      inp.focus();
+      hent(s.vej);
+      return;
+    }
     inp.value = s.tekst;   // vis valget med det samme; opslaget finpudser bagefter
     try {
       const r = await fetch('/api/adresse/' + encodeURIComponent(s.id));
-      if (!r.ok) { meldNede(); return; }
-      const d = await r.json();
       // Har brugeren rettet i feltet, mens opslaget kørte, gælder valget ikke.
       if (inp.value !== s.tekst) return;
-      if (!d || !d.ok || !d.postnr) { meldNede(); return; }
+      // 404: tjenesten er oppe, men kunne ikke slå netop dette husnummer op
+      // (set 8/10-26). Forslagets tekst slutter med "postnr by" fra samme
+      // register — brug den frem for reservevejen.
+      const d = r.ok ? await r.json() : (r.status === 404 ? fraTekst(s.tekst) : null);
+      if (!d || !d.postnr) { meldNede(); return; }
       // Modaler med SYNLIGE postnr/by-felter faar kun gadedelen i gadefeltet
       // (ellers dubletter); modaler med skjulte felter (Ny opgave) viser hele
       // adressen — et felt med "Barakstien 4" uden by skaber tvivl.
@@ -2328,6 +2349,14 @@ function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, on
     } catch (_) { meldNede(); }
   }
  
+  // "Vej 1, [Suppl. by,] 2630 Taastrup" -> { tekst, vej, postnr, by }, ellers null.
+  function fraTekst(t) {
+    const dele = String(t || '').split(',').map(x => x.trim()).filter(Boolean);
+    const m = /^([0-9]{4})\s+(.+)$/.exec(dele[dele.length - 1] || '');
+    if (!m || dele.length < 2) return null;
+    return { tekst: dele.join(', '), vej: dele.slice(0, -1).join(', '), postnr: m[1], by: m[2] };
+  }
+
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
 }
  

@@ -5,7 +5,8 @@
 // HVORFOR ET MELLEMLED: DAWA lukkede 1/10-26, og adressen paa tjenesten stod
 // tre steder (kundeformularen i server.js, dashboard.html, vagt.js). Nu staar
 // den ét sted — her — og browseren taler kun med os:
-//   GET /api/adresse/soeg?q=...   -> { ok, forslag: [{ id, tekst }] }
+//   GET /api/adresse/soeg?q=...[&postnr=NNNN]
+//                                 -> { ok, forslag: [{ type, tekst, id? | vej, postnr? }] }
 //   GET /api/adresse/status       -> { ok }          (cachet 60 sek.)
 //   GET /api/adresse/:id          -> { ok, tekst, vej, postnr, by }
 // Svarer Adressevaelgeren ikke, svarer vi 503 { ok:false, nede:true }, og
@@ -25,6 +26,18 @@
 //       -> { status:"ok", husnummer:{ adgangsadressebetegnelse, vejnavn,
 //            husnummertekst, postnummer:{ postnr, navn }, supplerendebynavn:{ navn } } }
 //   Ved fejl kan svaret vaere 200 med status:"fejl" — det behandles som nede.
+//
+// TRE SLAGS FUND (maalt 9/10-26 — kun "husnummer" var kendt, da vi byggede):
+//   husnummer               { id, titel:"Herlev Bygade 1, 2730 Herlev" }
+//   vejnavn                 { titel:"Kirkebakkegaardsvej", vejNavn }      (INTET id)
+//   navngivenvejpostnummer  { id, titel:"Bedegadevej 3782 Klemensker",
+//                             vejnavn, postnr, postdistrikt }   (id er VEJENS)
+// Halve ord ("Kirkeb") giver veje, ikke husnumre. Et opslag paa en vejs id
+// giver 404 — det var de 404'er, der sendte formularerne paa reservevejen.
+// Nu sendes veje videre som type "vej": formularen saetter vejnavnet i
+// feltet og soeger videre. Kun et husnummer kan vaelges som adresse.
+// Er en vej med postnr valgt, sendes postnr med: "Kirkevej 4 2630" giver
+// netop huset i Taastrup, "Kirkevej 4" giver otte byer (maalt).
 //
 // PERSONDATA: en adresse, kunden taster, er persondata. Den logges ALDRIG —
 // kun statuskoder. Samme regel for id'et (det peger paa en bolig).
@@ -99,12 +112,29 @@ module.exports = function (app) {
     res.set("Cache-Control", "no-store");
     if (loftet(req, res)) return;
     const q = rensSoeg(req.query.q);
+    const postnr = /^\d{4}$/.test(String(req.query.postnr || "")) ? String(req.query.postnr) : "";
     if (q.length < 2) return res.json({ ok: true, forslag: [] });
     try {
-      const data = await hentKds(`/husnumre/soeg?tekst=${encodeURIComponent(q)}&maksimum=${MAKS_FORSLAG}`);
-      const forslag = (Array.isArray(data.fund) ? data.fund : [])
-        .filter((f) => f && f.id && f.titel)
-        .map((f) => ({ id: String(f.id), tekst: String(f.titel) }));
+      const tekst = postnr ? `${q} ${postnr}` : q;
+      const data = await hentKds(`/husnumre/soeg?tekst=${encodeURIComponent(tekst)}&maksimum=${MAKS_FORSLAG}`);
+      const forslag = [];
+      for (const f of Array.isArray(data.fund) ? data.fund : []) {
+        if (!f || !f.titel) continue;
+        if (f.type === "husnummer" && f.id) {
+          // Med postnr: kun husnumre i netop det postnr (sidste led "2630 By").
+          if (postnr && !new RegExp(`, ${postnr} [^,]+$`).test(String(f.titel))) continue;
+          forslag.push({ type: "husnummer", id: String(f.id), tekst: String(f.titel) });
+        } else if (f.type === "vejnavn" && (f.vejNavn || f.vejnavn)) {
+          const vej = String(f.vejNavn || f.vejnavn);
+          forslag.push({ type: "vej", vej, tekst: vej });
+        } else if (f.type === "navngivenvejpostnummer" && f.vejnavn && /^\d{4}$/.test(String(f.postnr || ""))) {
+          const vej = String(f.vejnavn);
+          forslag.push({ type: "vej", vej, postnr: String(f.postnr),
+            tekst: `${vej}, ${f.postnr} ${f.postdistrikt || ""}`.trim() });
+        }
+        // Ukendte typer springes over — hellere et forslag for lidt end et,
+        // der ikke kan vaelges.
+      }
       res.json({ ok: true, forslag });
     } catch (e) {
       logFejl("soeg", e);
