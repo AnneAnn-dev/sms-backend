@@ -3,6 +3,10 @@
 // Monteres fra server.js linje 110-113, kun når TILBUD_AKTIV er true.
 // Signaturen er bundet af kaldet: require("./routes/tilbud")(app, supabase).
 //
+// RUTERNE HER er modulets egne. Kunder, opgaver og referater ligger i
+// ./data.js og monteres nedenfor — den fil er stor nok til at staa alene, og
+// denne er stor nok i forvejen.
+//
 // FIRE RUTER:
 //   GET  /api/tilbud/status        modulets eget sundhedstjek
 //   GET  /api/tilbud/kvote         hvad er der tilbage — SPØRGES FØR optagelsen
@@ -137,6 +141,10 @@ const FORBEREDELSESKODER = {
 };
 
 module.exports = function (app, supabase) {
+  // Datafunktionerne: kunder, opgaver, referater. Returnerer sine egne stier,
+  // saa status-ruten kan vise dem uden at der er to lister at holde ens.
+  const RUTER_I_ALT = RUTER.concat(require("./data")(app, supabase));
+
   // ─── Status ────────────────────────────────────────────────────────────────
   // Bevidst tom for logik, som /health: den skal kunne fejle NÅR modulet ikke
   // er monteret, ikke når noget andet er i vejen.
@@ -144,8 +152,8 @@ module.exports = function (app, supabase) {
     res.status(200).json({
       ok: true,
       modul: "tilbud",
-      ruter: RUTER,
-      mangler: ["fotovejen", "datafunktioner for kunder/opgaver/referater", "PWA-siden"],
+      ruter: RUTER_I_ALT,
+      mangler: ["fotovejen", "PWA-siden", "optageren flyttet ind"],
       // Samme tanke som kvote-feltet i /health: udstil TILSTANDEN, så den kan
       // spørges i stedet for gættes. Uden dette felt ligner en manglende
       // ASR-variabel et problem med kvoten (fundet 30/9).
