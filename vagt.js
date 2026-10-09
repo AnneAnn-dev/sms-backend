@@ -348,7 +348,21 @@ async function meld(navn, ok, tekst) {
   for (const t of valgte) {
     let ok, tekst;
     try {
-      tekst = `${t.navn}: ${await t.koer()}`;
+      let svar;
+      try {
+        svar = await t.koer();
+      } catch (e) {
+        // Timeout/netvaerk (ikke en Fejl med fast tekst): proev én gang til
+        // efter 5 sek., foer der meldes roedt. 8/10-26 15:32 faldt app og
+        // adresse i én enkelt koersel uden genstart eller hul i appens
+        // metrikker — et netvaerksblink, ikke et nedbrud. En rigtig fejl
+        // (forkert status/indhold) er en Fejl og meldes stadig med det samme.
+        if (e instanceof Fejl) throw e;
+        console.log(`  ...   ${t.navn}: ${e.name} — proever igen om 5 sek.`);
+        await new Promise((r) => setTimeout(r, 5000));
+        svar = await t.koer();
+      }
+      tekst = `${t.navn}: ${svar}`;
       ok = true;
     } catch (e) {
       ok = false;

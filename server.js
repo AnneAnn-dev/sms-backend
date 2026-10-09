@@ -331,15 +331,25 @@ app.get("/formular/:token", async (req, res) => {
     fejl.style.display = 'none';
     try {
       const r = await fetch('/api/adresse/' + encodeURIComponent(s.id));
-      if (!r.ok) { slaaManueltTil(); return; }
-      const d = await r.json();
       // Har kunden rettet i feltet, mens opslaget kørte, gælder valget ikke.
       if (inp.value !== s.tekst) return;
-      if (!d || !d.ok || !d.postnr) { slaaManueltTil(); return; }
+      let d = r.ok ? await r.json() : null;
+      // 404: tjenesten er oppe, men kunne ikke slå netop dette husnummer op
+      // (set 8/10-26). Forslagets tekst kommer fra samme register og slutter
+      // med "postnr by" — brug den frem for reservevejen.
+      if (r.status === 404) d = fraTekst(s.tekst);
+      if (!d || !d.postnr) { slaaManueltTil(); return; }
       document.getElementById('dawa-by').value = d.by || '';
       document.getElementById('dawa-postnr').value = d.postnr || '';
       dawaValgt = true;
     } catch (_) { slaaManueltTil(); }
+  }
+
+  // "Vej 1, [Suppl. by,] 2630 Taastrup" -> { postnr, by }, ellers null.
+  // (Ingen backslash i regex'en: scriptet staar i en template-streng.)
+  function fraTekst(t) {
+    const m = /,[ ]*([0-9]{4})[ ]+([^,]+)$/.exec(String(t || ''));
+    return m ? { postnr: m[1], by: m[2].trim() } : null;
   }
 
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
