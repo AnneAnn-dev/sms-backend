@@ -506,6 +506,45 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - 📌 **TODO (fra byggetrin 6, 6/7-26): dead-letter-alarm på `frisbii_webhook_events`.** Tabellen bogfører nu udfald (`processed_at`/`error`); et event med `processed_at IS NULL` ældre end ~1 time er et tabt/fejlet event, der venter på Frisbii-retry — eller er løbet tør for retries (3 dage). Cron/dagligt tjek: `select id, event_type, received_at, error from frisbii_webhook_events where processed_at is null and received_at < now() - interval '1 hour';` → mail via `sendAdminAlert` hvis ikke tom. Byg sammen med drifts-overvågningen (trin 7).
 - Evt. en daglig digest-mail: "X nye leads, Y fejlede SMS'er."
 
+### F2. Vagten — løbende overvågning af det, kerneflowet hviler på (etableret 8–9/10-26)
+
+*Skrevet 9/10-26. Baggrund: DAWA lukkede 1/10, og kerneflowet stod stille i tre dage, uden at noget sagde fra (registret **D77**, hændelsesloggen 4/10). Beslutninger og sikkerhedsværn står i registret under **D3** — her står kun, hvordan den passes.*
+
+**Hvad den er.** `vagt.js` kører som sin egen Railway-service i **begge miljøer** — cron `*/15 * * * *`, start `node vagt.js`, Restart Policy *Never*. Prod-vagten bygger fra `main`, staging-vagten fra `staging`. Hvert tjek melder til **Healthchecks.io**, ét projekt pr. miljø: **"DDK staging"** og **"DDK prod"**, hver med sin egen ping-nøgle (`HC_PING_KEY` i Railway + Bitwarden). Healthchecks.io mailer Ann **kun ved skift** (grøn→rød og rød→grøn) — ikke ved hver kørsel. Alarmen går altså ikke via Scaleway eller Twilio og kommer også, når det er dem, der er nede.
+
+**Tjekkene** (slug i Healthchecks.io: `<prod|staging>-<navn>`)
+
+| Tjek | Fanger | Rødt — gør dette først |
+|---|---|---|
+| `app` | Appen nede, forkert deploy, Railway-udfald | Railway → app-servicen → Deployments/Logs. Var der et deploy lige nu? Ét enkelt rødt efterfulgt af grønt ved næste kørsel er set (8/10) — vagten prøver allerede igen efter 5 sek., så to i træk er ægte |
+| `adresse` | Adressevælgeren nede, den fælles token udløbet, `adresse.js` ikke monteret | Kald `/api/adresse/status` i browseren. Formularerne virker stadig (fail-open: postnr/by i hånden). Token død → `ADRESSE_TOKEN` på **app**-servicen, se registret D77 |
+| `supabase` | Supabase nede, anon-nøglen roteret uden at appen fulgte med | status.supabase.com · røgtesten (`npm run smoke:prod`) |
+| `twilio` | Kontoen suspenderet, saldoen under grænsen (auto-refill fejlet, fx udløbet kort) | Twilio Console → Billing. I staging tjekkes saldoen IKKE (`VAGT_TWILIO_MIN_SALDO=0`, underkontoen viser altid 0) |
+| `mail` | Afsenderdomænet ikke længere godkendt hos Scaleway TEM (DNS/DKIM/SPF), nøglen ugyldig | Scaleway → Transactional Email → domænets status |
+| `stemme` | ElevenLabs-kvoten brugt op — nye telefonbeskeder kan ikke laves | ElevenLabs → abonnement/kvote |
+| `betaling` | Frisbii-nøglen ugyldig/roteret, kontoen utilgængelig | Frisbii-dashboardet · `RUNBOOK-noeglerotation.md` |
+| `udloeb` | TLS-certifikatet under 14 dage, eller en dato i `VAGT_UDLOEBSDATOER` under 30 dage | Teksten siger hvad. Certifikat: Railway fornyer selv — rødt betyder, at fornyelsen er gået i stå |
+| `opkald` | Dødmandsknappen: ingen opkald i 4 timer i arbejdstiden (hverdage 7–17) | **Slået fra i begge miljøer**, til første pilot ringer — se nedenfor |
+| `vagt-liv` | Vagten SELV er død (crasher, cron stoppet, service slettet) | Railway → vagt-servicen → Cron Runs. Det eneste tjek med kort periode: **Period 15 min, Grace 20 min** |
+
+**Når alarmmailen kommer**
+1. Læs **"Last Ping Body"** i mailen — det er vagtens egen faste tekst og siger, hvad der fejlede. Rå fejltekster fra eksterne tjenester sendes aldrig med (D3, værn 2), så for detaljer: Railway → vagt-servicen → Cron Runs → loggen for kørslen.
+2. Står **flere tjek røde på samme tid**, så kig efter det fælles: `app` + `adresse` sammen betyder vejen ind til appen, ikke Adressevælgeren (begge går gennem `BASE_URL`).
+3. **UP-mailen er beviset.** En rettelse er først færdig, når tjekket er blevet grønt igen af sig selv.
+
+**Faldgruber, vi har trådt i**
+- **Startkommandoen hører i *Deploy*-sektionen**, ikke *Build*. Står `node vagt.js` som build-kommando, kører Railway `npm start` — altså selve appen — og den crasher på manglende VAPID-variabler (set 8/10).
+- **Pause i Healthchecks.io virker ikke.** Næste ping vækker tjekket igen. Et tjek slås fra i KODEN med `VAGT_SPRING_OVER=<navn>[,<navn>]` på vagt-servicen. Et ukendt navn stopper vagten med vilje — en stavefejl må ikke ligne et slukket tjek. Slet derefter tjekket i Healthchecks.io (*Remove*); det oprettes selv igen (`?create=1`), den dag variablen fjernes.
+- **En TOM variabel er ikke det samme som en manglende.** En tom `VAGT_TWILIO_MIN_SALDO` (efter kopiering fra staging) slog saldotjekket fra i prod uden at sige det; kun loggens "saldo ikke tjekket" afslørede det (9/10). Slet en variabel helt i stedet for at tømme den. (Rettes i koden — registret D3.)
+- **`HC_PING_KEY` er prod- og staging-specifik.** Står staging-nøglen i prod, havner prod-tjekkene i staging-projektet.
+- **Skærmbilleder af tjeklisten viser ping-adresserne** (`hc-ping.com/<uuid>`). Hver af dem kan melde "ok" eller "fejl" på sit tjek — del dem ikke fra prod.
+
+**Rutiner**
+- **Første pilot ringer → slå dødmandsknappen til:** fjern `opkald` fra `VAGT_SPRING_OVER` på prod-vagten. Tjekket opretter sig selv ved næste kørsel. Overvej `DOEDMANDS_TIMER` (standard 4 timer) ud fra den faktiske trafik.
+- **En ny udløbsdato** (nøgle, token, certifikat uden for Railway): føj `navn=ÅÅÅÅ-MM-DD` til `VAGT_UDLOEBSDATOER` med `;` imellem — kun navne og datoer, **aldrig nøgler**. I dag: `scaleway-genai=2027-10-03;adressevaelger=2026-12-31`.
+- **Et nyt tjek** bygges, så det ville have fanget en fejl, vi rent faktisk har haft, og **brækkes én gang med vilje i staging**, før det kommer i drift. Et tjek, du aldrig har set rødt, er dekoration. Tjek kan køres i hånden uden at melde noget: `node vagt.js --toer` eller `node vagt.js --kun <navn> --toer` i vagt-servicens Console.
+- **Ny vagt.js til prod** går hotfix-vejen (Del 1b) som al anden kode — prod-vagten bygger fra `main`.
+
 ---
 
 ## Del 1 — Daglig udvikling (hver ændring)
@@ -705,6 +744,7 @@ telefonen.
    der ligner et nedbrud, er bremser, vi selv har bygget — og de er hurtigere at
    udelukke end at feilsøge.
 1. Kunde melder fejl → tjek **health-check**, **Railway-logs** og de **tre webhooks**.
+   **Se også i Healthchecks.io → "DDK prod":** hvilket vagt-tjek er rødt, og siden hvornår? Det er ofte svaret, før kunden har nået at ringe — se Del 0, **F2**.
 2. **Rollback koden først** — det er det hurtigste tilbage til en kendt god tilstand.
 3. DB-fejl (forkert data/migration) → vurder **PITR-gendannelse**. Husk: prod er **utilgængelig under restore**, og varigheden vokser med DB-størrelsen — meld evt. kort driftsstop.
 4. Tjek Twilio- og Frisbii-status hvis opkald/betaling driller.
