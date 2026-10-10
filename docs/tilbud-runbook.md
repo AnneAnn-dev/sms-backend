@@ -475,7 +475,53 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       referatet igennem · **(c)** tætheden (markeringer pr. 100 ord) logges pr.
       referat — efter tredive rigtige referater er den et mål for, hvordan
       modellen klarer ægte stemmer, og det er gratis at samle op.
-- [ ] Datafunktioner for kunder/opgaver/referater (per-række CRUD bag Annes navne)
+- [x] **DATAFUNKTIONERNE — GRØNT I STAGING 10/10.** `routes/tilbud/data.js`
+      (egen fil; `index.js` var 26 KB i forvejen). Ni ruter: kunder, opgaver og
+      referater, hver med liste, oprettelse, opslag og rettelse. **23 tjek
+      grønne** mod staging, uden at en model ringes op.
+      **Serversiden er færdig; Annes ti funktionsnavne hører til klientsiden**
+      (navne og kaldesteder bevares dér, se afsnittet i primeren) og kommer med
+      PWA-siden.
+      ⚠️ **EN OPGAVE OPRETTES UDEN OPKALD — beslutning B, 9/10 (Ann).**
+      `/opret-opgave` i `server.js` laver en syntetisk `calls`-række med
+      `from_number: "Manuel oprettelse"` for hver manuelt oprettet opgave. Det
+      var den ENESTE måde at gøre opgaven synlig, dengang alle RLS-politikker på
+      `leads` gik gennem `call_id` — og den sti blev lukket 7/10.
+      **Begrundelsen for ikke at gentage omvejen er ikke, at `calls` holdes ren.
+      Den er, at `leads.call_id` kun kan holde ÉN værdi.** Så længe opgavens
+      identitet hænger på ét opkald, er der ingen plads, når kunden ringer igen
+      om den samme opgave — og *"vi vil gerne kunne samle kundens opgaver"* var
+      netop spørgsmålet, der afgjorde valget. Med `firm_id` som bærende nøgle
+      bliver `call_id` valgfri og historisk, og et opkald kan senere pege på
+      opgaven i stedet for omvendt. **B åbner døren; den går ikke selv igennem
+      den** — selve ændringen hører i Trin 5 sammen med opkaldsmatchningen.
+      **Tre ting er gjort strukturelle frem for huskede:** (a) ingen
+      `{...req.body}` — hver ressource har en eksplicit feltliste · (b) hvert id
+      fra klienten slås op MED firmafilteret først (`ejerskab.js`), så et ægte
+      token ikke kan hænge et referat på et fremmed firmas opgave · (c) "findes
+      ikke" og "er ikke din" svarer ens, så man ikke kan tælle sig frem til
+      andres id'er.
+      **Teknik B måles server-side ved gemning**, på `transskript` mod
+      `ai_udkast` — ikke på tal fra klienten, og ikke på `indhold`, fordi tallet
+      er et mål for MODELLEN. Fire nye kolonner bærer det (`ai_model`,
+      `ai_prompt_version`, `teknik_b_markeringer`, `teknik_b_ord`, migration
+      `20261009070000`): de to første lukker D14's "hvad skrev det her referat?",
+      de to sidste indfrier D36's regel (c), som lovede logning uden at have et
+      sted at logge til.
+      **To ting er bevidst ikke med:** `status` på opgaver kan ikke rettes af
+      modulet (værdierne deles med opkaldsflowet, og sættet er ikke skrevet ned
+      — at sætte dem ville være at gætte på en anden del af produktet), og
+      `transskript`/`ai_udkast` kan ikke rettes (kildemateriale; kunne de rettes,
+      var sammenligningen med `indhold` intet værd).
+- [ ] ⚠️ **`dashboard.html` henter stadig med `calls!inner` og kan derfor IKKE
+      se en opgave uden opkald** (~linje 1472, og polleren ~2435 gør det samme).
+      Kommentaren dér siger *"leads har ikke firm_id direkte"* — sandt da den
+      blev skrevet, usandt siden 27/7. Skal skifte til `.eq("firm_id", ...)` med
+      et almindeligt join. **Målt sikkert:** 5 af 5 i prod og alle i staging har
+      `firm_id`, og `server.js` sætter den på begge indsættelsesveje (D21), så
+      ingen række forsvinder. **Udløser: FØR modulet opretter opgaver i drift** —
+      ellers får håndværkeren to lister med hver sin definition af sine egne
+      opgaver. Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
 - [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
       (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt

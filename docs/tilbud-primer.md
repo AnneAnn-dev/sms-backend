@@ -50,12 +50,25 @@ og markedsføring.
    noget · `/formular/:token` foreslår et match mod åbne opgaver/kendte kunder ·
    `/opret-opgave` er der, hvor beslutningen reelt tages. **Start strammere:**
    al matchning kræver manuel godkendelse, ingen automatisk sammenlægning endnu.
-   ⚠️ **Uafklaret spænding med punkt 1 ovenfor:** punkt 1 siger "`leads`-tabellen
-   ER opgave-tabellen, der oprettes ingen separat opgavetabel." D35 (besluttet
-   efter punkt 1 blev skrevet) taler om en selvstændig `opgaver`-tabel. Er
-   `opgaver` et nyt navn for det udvidede `leads`, eller en ægte ny tabel ved
-   siden af? Ikke afklaret i nogen af kilderne — bekræft, før migrationen til
-   D35 skrives.
+   ✅ **AFKLARET 9/10-2026 (Ann).** Spændingen stod åben siden 19/8: punkt 1
+   siger "`leads`-tabellen ER opgave-tabellen", D35 taler om en selvstændig
+   `opgaver`-tabel, og ingen af kilderne afgjorde hvilken.
+
+   **Anns formulering afgjorde det: "leads bliver til opgaver bliver til
+   tilbud."** Det er et FORLØB, ikke tre ting. Et lead bliver en opgave, når
+   nogen tager fat i den, og en opgave bliver et tilbud, når den prissættes —
+   det er den samme række længere henne i sit liv. Der skal altså ikke være en
+   `opgaver`-tabel, fordi der ikke er en selvstændig *ting* at putte i den.
+   `leads.status` bærer allerede forløbet.
+
+   **Databasen var bygget sådan hele tiden:** `referater` og `tilbud` har begge
+   `lead_id`, og adressefelterne ligger på `leads` fra migration 2.
+
+   **D35 bliver dermed mindre, end den så ud.** Den er ikke en anden datamodel,
+   men én ændring: **træk adressen ud i sin egen tabel, den dag én kunde har
+   to.** Kontakttabellerne hænger på den og giver ingen mening uden. Udløseren
+   er konkret (Ann, 9/10): *den dag en opgave faktisk har to adresser eller en
+   lejer.* Ikke før.
 
 ## De 10 datafunktioner — besluttet
 
