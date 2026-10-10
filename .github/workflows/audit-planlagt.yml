@@ -1,0 +1,122 @@
+# audit-planlagt.yml  --  tidsdrevet afhaengighedsrevision af main.
+#
+# HVORFOR DEN FINDES (S31, maalt 9/10-26)
+#   Begge vagter var begivenhedsdrevne. Dependabot scanner, naar main's
+#   afhaengighedsfiler aendrer sig - advarsel #9 blev aabnet "from #74", altsaa
+#   af hotfix-PR'en, skoent advisoryen laa i databasen dagen foer. Det
+#   blokerende audit-trin i ci.yml koerer, naar nogen pusher, og det er
+#   naesten altid staging. main roeres kun ved hotfix og tog.
+#   Resultat: en reviewet critical sad i main's laasefil i 29,5 time, uden at
+#   nogen blev spurgt. At den overhovedet dukkede op, skyldtes et tilfaeldigt
+#   push til staging.
+#   Dette job spoerger paa TID i stedet for paa begivenhed. Det er den eneste
+#   af vagterne, der ikke afhaenger af, at et menneske eller en commit sker
+#   foerst.
+#
+# HVORFOR HEALTHCHECKS.IO OG IKKE BARE EN ROED KOERSEL
+#   Et planlagt job, der holder op med at koere, giver ikke roedt. Det giver
+#   ingenting - og ingenting ligner groent. Healthchecks.io alarmerer paa
+#   FRAVAER af ping og daekker dermed praecis det, en roed koersel ikke kan.
+#   Og en roed koersel sender en mail; D72 handler om, at den slags mails ikke
+#   bliver laest. Signalet skal hen, hvor der i forvejen kigges.
+#   Tjek: prod-afhaengigheder i projektet DDK prod. Prod, fordi main's
+#   laasefil er det traee, prod bygges fra med npm ci --omit=dev.
+#
+# EXIT-KODER fra audit-tjek.js
+#   0 = ingen uundskyldte high/critical-fund
+#   1 = uundskyldte fund ELLER en foraeldet undtagelse
+#   2 = UAFKLARET - audit kunne ikke koeres eller laeses
+#   2 er IKKE groent. Baade 1 og 2 pinger /fail. Et vaern, der ikke kunne
+#   maale, skal larme som et vaern, der fandt noget.
+#
+# HEMMELIGHEDEN
+#   HEALTHCHECKS_AUDIT_URL = ping-URL'en uden skraastreg til sidst.
+#   Repository secret, saa den maskeres i loggen. Mangler den, fejler jobbet
+#   med vilje - fail-closed, samme regel som i audit-tjek.js.
+#   NB: en Actions-secret bor UDEN FOR RUNBOOK-noeglerotation og
+#   sammenlign-env.ps1. Den skal skrives ind i runbooken, ellers er den en
+#   hemmelighed, ingen roterer og ingen husker.
+#
+# FOERSTE GANG
+#   Koer den i haanden (Run workflow) og se den groen. Braek den derefter med
+#   vilje - fx ved at pege undtagelsen i audit-tjek.js paa en forkert pakke -
+#   og se alarmen komme fra healthchecks.io. Et doedmandsping, ingen har set
+#   udloese, er en antagelse.
+
+name: Planlagt afhaengighedsrevision
+
+on:
+  schedule:
+    # 05:17 UTC dagligt. Skaevt minut med vilje: de fleste jobs ligger paa 00,
+    # og GitHub forsinker koerslerne i de spidser.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  revision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Hent main
+        # ref er sat med vilje. Planlagte koersler bruger default branch i
+        # forvejen, men en haandkoert workflow_dispatch kan startes fra en
+        # anden branch - og saa ville jobbet revidere noget andet end prod.
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Kraev hemmeligheden foer der maales
+        shell: bash
+        env:
+          URL: ${{ secrets.HEALTHCHECKS_AUDIT_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "UAFKLARET: HEALTHCHECKS_AUDIT_URL er ikke sat."
+            echo "Uden den kan resultatet ikke meldes, og tavshed ville blive"
+            echo "laest som groent. Jobbet stopper her med vilje."
+            exit 1
+          fi
+          echo "Hemmeligheden er sat."
+
+      - name: Revider main og meld resultatet
+        shell: bash
+        env:
+          URL: ${{ secrets.HEALTHCHECKS_AUDIT_URL }}
+        run: |
+          # Startping: giver koerselstid i healthchecks.io og viser, at jobbet
+          # naaede at begynde. Fejler den, stopper vi ikke - revisionen er
+          # vigtigere end maalingen af den.
+          curl -fsS -m 10 --retry 3 "$URL/start" || echo "ADVARSEL: startping kunne ikke sendes"
+
+          # npm audit laeser package-lock.json og behoever ikke node_modules.
+          # Derfor ingen npm ci: en knaekket installation skal ikke kunne goere
+          # revisionen roed af den forkerte grund.
+          set +e
+          node audit-tjek.js > revision.txt 2>&1
+          KODE=$?
+          set -e
+
+          cat revision.txt
+          echo "audit-tjek.js afsluttede med kode $KODE"
+
+          if [ "$KODE" -eq 0 ]; then
+            MAAL="$URL"
+          else
+            MAAL="$URL/fail"
+            echo "Exit $KODE: 1 = fund eller foraeldet undtagelse, 2 = kunne ikke maales."
+          fi
+
+          # Hele udskriften med som krop, saa alarmen baerer begrundelsen og
+          # ikke kun et flag.
+          curl -fsS -m 10 --retry 3 --data-binary @revision.txt "$MAAL" \
+            || echo "ADVARSEL: ping kunne ikke sendes - healthchecks.io alarmerer paa fravaeret"
+
+          exit $KODE
