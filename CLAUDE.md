@@ -53,21 +53,39 @@ filen blev bare lagt tilbage til en ældre udgave. Se **S29** i registret.
 **Reglen:**
 
 1. Sessionen skriver dokumentændringer til
-   `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<kort-emne>\<filnavn>` og **oplyser den
-   forventede filstørrelse i bytes**. ⚠️ **Undermappen pr. opgave er ikke pynt:** reglen
+   `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<kort-emne>\<filnavn>` og **oplyser TO tal: hvilken udgave den byggede på (basen), og hvad
+   resultatet fylder** — begge i bytes. ⚠️ **Undermappen pr. opgave er ikke pynt:** reglen
    her gælder ALLE sessioner, så to chats, der begge skriver `_til-repo\RISIKOREGISTER.md`,
    har flyttet kapløbet til en ny mappe i stedet for at fjerne det. Det skete inden for en
    time efter, at reglen blev indført (1/10-26). Vælg et navn, der siger hvad opgaven er —
    fx `_til-repo\s20-s29\` eller `_til-repo\tekstrettelser\`.
-2. Ann tjekker størrelsen på KILDEN, kopierer til master, tjekker størrelsen på MÅLET,
+2. **Ann afstemmer BASEN mod master, FØR hun kopierer** — og på den rigtige branch:
+   `git branch --show-current` (dokumenterne committes på `staging`), derefter
+   `(Get-Item docs\<fil>).Length`. Tallet skal være sessionens basetal. Er det et andet,
+   har sessionen bygget på en forældet udgave, og en kopiering vil skrive nyere arbejde
+   væk. STOP, og send tallet tilbage — det koster sessionen få minutter at bygge om.
+3. Ann tjekker størrelsen på KILDEN, kopierer til master, tjekker størrelsen på MÅLET,
    læser diffen, og committer. I den rækkefølge. Passer tallet ikke, så STOP — kopiér ikke
    alligevel, og spørg hvad der er kommet imellem.
-3. `sync-docs.ps1` dækker kun `docs\*.md` og `CLAUDE.md`. Undermappen `_til-repo\` er
+4. `sync-docs.ps1` dækker kun `docs\*.md` og `CLAUDE.md`. Undermappen `_til-repo\` er
    derfor usynlig for den — det er hele pointen, og den må ikke tilføjes til scriptet.
 
 **Hvorfor størrelsen oplyses:** den er det eneste signal, Ann har, om hun kopierer
 sessionens udgave eller noget, der er kommet imellem. Passer tallet ikke, så STOP og
 spørg — kopier ikke alligevel.
+
+**Hvorfor der er TO tal (tilføjet 10/10-26):** der er to kapløb, ikke ét. Det ene ligger
+mellem sessionens fil og Anns kopiering — det fanger resultat-tallet. Det andet ligger FØR
+sessionen overhovedet skriver: har den hentet en forældet udgave at bygge videre på, er
+skaden sket, før filen bliver lagt, og hverken undermappen eller resultat-tallet kan se det.
+**Det skete 9/10-26:** en levering blev bygget på en gammel udgave, og D3, D77, D78 og
+9/10-linjen måtte genskabes (commit `f8cf8d1`, *"overskrevet af 14665de"*). Begge de
+eksisterende led virkede den dag. Base-tallet er det led, der manglede.
+
+**Branchen hører med.** Registret og runbøgerne committes på `staging`; `main` får dem
+først, når et tog kører — 10/10-26 stod `main`s register ni dage bagud. Står du på `main`,
+når du kopierer, committer du dokumenter ad en vej, ingen har besluttet, og udløser et
+prod-deploy oveni. Derfor står `git branch --show-current` først i punkt 2.
 
 **Diffen er dommen, tallet er kun en forhåndskontrol.** `git diff -U0 docs/ |
 Select-String '^[+-]\| '` viser netop de tabelrækker, der er tilføjet eller fjernet.
