@@ -489,6 +489,43 @@ Det er en åben opgave, ikke en beslutning.
 
 ---
 
+## Hemmeligheder, der bor uden for Railway og masterfilerne
+
+*Skrevet 10/10-2026, da den første af slagsen blev oprettet (S31).*
+
+`sammenlign-env.ps1`, `check-env.js` og `afstem-railway-env.js` kender tre steder:
+Bitwarden, Railway og `.env`-filerne. **En hemmelighed, der bor et fjerde sted, er
+usynlig for dem alle** — den dukker ikke op på nogen arbejdsliste i Trin 0, og ingen
+rotation rører den. Den findes kun i hukommelsen hos den, der oprettede den.
+
+| Hemmelighed | Hvor den bor | Hvad den kan | Oprettet |
+|---|---|---|---|
+| `HEALTHCHECKS_AUDIT_URL` | **GitHub → repoet → Settings → Secrets and variables → Actions** | Ping-URL til healthchecks.io-tjekket `prod-afhaengigheder` (projekt **DDK drift**). Den, der har den, kan sende falske "ok"-ping | 10/10-26, S31 |
+
+**Hvad den kan gøre galt:** ikke læk af data — men en, der kan pinge, kan få vagten til at
+lyve. Det rammer præcis det, konstruktionen skal levere: at tavshed kan stoles på.
+Lav værdi, men ikke nul.
+
+**Rotation:** opret et nyt tjek i healthchecks.io, opdatér secret'en i GitHub, kør
+workflowet *Planlagt afhaengighedsrevision* i hånden, og se tjekket gå fra "Never" til
+grønt. Den gamle URL dør, når det gamle tjek slettes. **Ingen deploy nødvendig** — jobbet
+læser secret'en ved hver kørsel. Det er en af de få rotationer, der ikke kræver en
+genstart af noget som helst.
+
+⚠️ **Vælg "Secret", ikke "Variable".** Variables maskeres ikke i kørselsloggen.
+Kontrollen er konkret: åbn loggen for trinnet *Revider main og meld resultatet* og se,
+at der står `***` der, hvor URL'en skulle have været.
+
+⚠️ **gitleaks fanger den ikke.** En healthchecks.io-UUID ligner ikke noget mønster,
+C2-vagten kender, så havde URL'en stået i `.yml`'en, var den gledet igennem. Det er
+grunden til at bruge secret-mekanismen frem for at stole på vagten.
+
+**Reglen fremad:** opstår der en ny hemmelighed uden for Railway og masterfilerne, skrives
+den ind i tabellen her, **før** den tages i brug. En hemmelighed, afstemningen ikke kan se,
+er en, ingen roterer.
+
+---
+
 ## Trin sidst: verificér at variablerne er rigtige
 
 Efter ENHVER `.env`-redigering — og altid som afslutning på en rotation:
@@ -526,6 +563,8 @@ og `SUPABASE_ANON_KEY`.
 ## Hurtig-tjekliste (enhver rotation)
 
 - [ ] `.\sammenlign-env.ps1` kørt → arbejdsliste bygget (Trin 0)
+- [ ] **Hemmeligheder uden for Railway og masterfilerne gennemgået** — se tabellen i
+      afsnittet ovenfor. `sammenlign-env.ps1` ser dem ikke
 - [ ] Ny nøgle oprettet
 - [ ] Ny nøgle gemt sikkert (Bitwarden)
 - [ ] Gammel nøgle tjekket for anden brug
