@@ -304,6 +304,9 @@
     .mfield input[type=text], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 14px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
     .mfield input[type=text]:focus, .mfield input[type=date]:focus, .mfield textarea:focus, .mfield select:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
     .mfield textarea { height: 72px; }
+    /* Hvor telefonnummeret kommer fra (10/10-26) — se leadTelefon() */
+    .mhint { font-size: 12px; color: var(--ink-muted); margin-top: 5px; }
+    .mhint.ubekraeftet { color: var(--danger-dark); font-weight: 600; }
     .date-wrap { position: relative; }
     .date-wrap input { padding-right: 32px; cursor: pointer; }
     .date-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-muted); font-size: 16px; pointer-events: none; }
@@ -792,7 +795,8 @@
         </div>
         <div class="mfield">
           <label>Telefon</label>
-          <input type="text" id="modal-phone-input" placeholder="+45 12 34 56 78">
+          <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="+45 12 34 56 78">
+          <div class="mhint" id="modal-phone-kilde"></div>
         </div>
       </div>
 
@@ -1980,7 +1984,7 @@ function renderLeads() {
     const initials = lead.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
     document.getElementById('modal-avatar').textContent = initials;
     document.getElementById('modal-name').textContent = lead.name;
-    document.getElementById('modal-phone').textContent = lead.calls?.from_number || '—';
+    visTelefon(lead);
     document.getElementById('modal-name-input').value = lead.name;
     // Robust adresse-parsning (bagfra): tåler dubletter, tomme segmenter og
     // supplerende bynavne — den gamle ét-komma-split SLETTEDE postnr/by ved luk.
@@ -1995,8 +1999,10 @@ function renderLeads() {
       address_mail: document.getElementById('modal-address-mail').value.trim() || null,
       notes: lead.notes || null,
       is_urgent: !!lead.is_urgent,
+      name: (lead.name || '').trim(),
+      task: lead.task || '',
+      telefon: document.getElementById('modal-phone-input').value.trim(),
     };
-    document.getElementById('modal-phone-input').value = lead.calls?.from_number || '';
     document.getElementById('modal-task').value = lead.task;
     document.getElementById('modal-notes').value = lead.notes || '';
 
@@ -2005,7 +2011,10 @@ function renderLeads() {
     urgentCb.checked = !!lead.is_urgent;
     urgentRow.classList.toggle('checked', !!lead.is_urgent);
 
-    document.getElementById('modal-call-btn').onclick = () => ringTilbage(lead.calls?.from_number);
+    // Ring op til det nummer, der STAAR i feltet — ogsaa et netop rettet, ikke
+    // gemt nummer. En opringning er den bedste kontrol af et indtastet nummer.
+    document.getElementById('modal-call-btn').onclick = () =>
+      ringTilbage(document.getElementById('modal-phone-input').value.trim());
 
     const imagesEl = document.getElementById('modal-images');
     if (lead.lead_images?.length) {
@@ -2044,8 +2053,81 @@ function renderLeads() {
     return formatAddress([street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', '));
   }
 
+  // ─── Opgavens telefonnummer (10/10-26) ──────────────────────────────────
+  // Fundet: telefonfeltet var redigerbart, men blev aldrig gemt. En rettelse
+  // forsvandt ved lukning, mens konsollen skrev "✅ Gemt OK" for noten.
+  //
+  // REGLEN (samme som /send-sms paa serveren — ret begge, hvis den aendres):
+  //   leads.telefon          -> indtastet/rettet af haandvaerkeren, ikke verificeret
+  //   ellers calls.from_number -> fra opkaldet (undtagen markoeren "Manuel oprettelse")
+  // Serveren er facit for, hvem SMS'en gaar til. Denne funktion er kun visning.
+  const MANUEL_MARKOER = 'Manuel oprettelse';
+  function leadTelefon(lead) {
+    if (lead?.telefon) return { nummer: lead.telefon, kilde: 'indtastet' };
+    const fra = lead?.calls?.from_number;
+    if (fra && fra !== MANUEL_MARKOER) return { nummer: fra, kilde: 'opkald' };
+    return { nummer: null, kilde: null };
+  }
+
+  // +4512345678 -> +45 12 34 56 78. Andre former vises uaendret.
+  function visNummer(n) {
+    const m = /^\+45(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(n || '');
+    return m ? `+45 ${m[1]} ${m[2]} ${m[3]} ${m[4]}` : (n || '');
+  }
+
+  function visTelefon(lead) {
+    const t = leadTelefon(lead);
+    const kilde = document.getElementById('modal-phone-kilde');
+    document.getElementById('modal-phone').textContent = t.nummer ? visNummer(t.nummer) : '—';
+    document.getElementById('modal-phone-input').value = t.nummer || '';
+    if (kilde) {
+      kilde.textContent = t.kilde === 'indtastet' ? 'Indtastet – ikke verificeret'
+                        : t.kilde === 'opkald'    ? 'Fra opkaldet'
+                        : 'Intet nummer – tast et dansk nummer';
+      kilde.classList.toggle('ubekraeftet', t.kilde === 'indtastet');
+    }
+  }
+
+  // Gemmer telefonfeltet via serveren, hvis det er aendret siden aabning.
+  // Returnerer null ved succes (eller uaendret), ellers fejlteksten.
+  // Valideringen sker KUN paa serveren (gyldigtSmsNummer i phone.js).
+  async function gemTelefon() {
+    if (!currentLead || !modalOriginal) return null;
+    const felt = document.getElementById('modal-phone-input');
+    const nyt = felt.value.trim();
+    if (nyt === modalOriginal.telefon) return null;
+    let res, svar = {};
+    try {
+      res = await fetch('/lead-telefon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify({ lead_id: currentLead.id, telefon: nyt })
+      });
+      try { svar = await res.json(); } catch (_) {}
+    } catch (_) {
+      return 'Ingen forbindelse til serveren';
+    }
+    if (!res.ok) return svar.error || 'Ukendt fejl';
+    currentLead.telefon = svar.telefon || null;   // null = opkaldets nummer gaelder igen
+    visTelefon(currentLead);
+    modalOriginal.telefon = felt.value.trim();
+    return null;
+  }
+
   async function closeModal() {
     if (currentLead) {
+      // Intet maa forsvinde stille: fejler et gem, faar haandvaerkeren det at
+      // vide og vaelger selv, om modalen skal blive staaende.
+      const fejl = [];
+
+      const telefonFejl = await gemTelefon();
+      if (telefonFejl) fejl.push('Telefonnummeret: ' + telefonFejl);
+
+      const name = document.getElementById('modal-name-input').value.trim();
+      if (!name) fejl.push('Navnet: må ikke være tomt');
+      const task = document.getElementById('modal-task').value.trim();
+      if (!task) fejl.push('Opgavebeskrivelsen: må ikke være tom');
+
       const address = buildModalAddress();
       const address_mail = document.getElementById('modal-address-mail').value.trim() || null;
       const notes = document.getElementById('modal-notes').value || null;
@@ -2057,16 +2139,26 @@ function renderLeads() {
         || address !== modalOriginal.address
         || address_mail !== modalOriginal.address_mail
         || notes !== modalOriginal.notes
-        || is_urgent !== modalOriginal.is_urgent;
+        || is_urgent !== modalOriginal.is_urgent
+        || (name && name !== modalOriginal.name)
+        || (task && task !== modalOriginal.task.trim());
       if (changed) {
-        const { error } = await db.from('leads').update({
-          address: address || null,
-          address_mail,
-          notes,
-          is_urgent,
-        }).eq('id', currentLead.id);
-        if (error) console.error('❌ Gem fejl:', error);
-        else console.log('✅ Gemt OK');
+        const felter = { address: address || null, address_mail, notes, is_urgent };
+        if (name) felter.name = name;          // et tomt navn skrives aldrig
+        if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
+        const { error } = await db.from('leads').update(felter).eq('id', currentLead.id);
+        if (error) {
+          console.error('❌ Gem fejl:', error);
+          fejl.push('Navn, opgave, adresse og noter: kunne ikke gemmes');
+        } else if (!fejl.length) {
+          console.log('✅ Gemt OK');
+        }
+      }
+
+      if (fejl.length) {
+        const luk = confirm('Ikke alt blev gemt:\n\n' + fejl.join('\n') +
+          '\n\nTryk OK for at lukke og kassere det, der ikke blev gemt.\nTryk Annuller for at rette.');
+        if (!luk) return;
       }
     }
     document.getElementById('modal-bg').classList.remove('open');
@@ -2111,20 +2203,34 @@ function renderLeads() {
   }
 
   function ringTilbage(phone) {
-    const num = phone || currentLead?.calls?.from_number;
+    const num = phone || leadTelefon(currentLead).nummer;
     if (!num) return;
     window.open('tel:' + num);
+  }
+
+  // Foer enhver SMS: gem et rettet nummer FOERST (ellers gaar SMS'en til det
+  // gamle, mens feltet viser det nye), og bed om bekraeftelse, hvis nummeret er
+  // indtastet. Returnerer true, hvis SMS'en maa sendes.
+  async function klarTilSms() {
+    const fejl = await gemTelefon();
+    if (fejl) { alert('Telefonnummeret blev IKKE gemt, og SMS\'en er ikke sendt:\n' + fejl); return false; }
+    const t = leadTelefon(currentLead);
+    if (!t.nummer) { alert('Intet telefonnummer på denne opgave'); return false; }
+    if (t.kilde === 'indtastet') {
+      return confirm('Nummeret er tastet ind, ikke verificeret.\n\nSend til ' + visNummer(t.nummer) + '?');
+    }
+    return true;
   }
 
   async function sendSms() {
     const txt = document.getElementById('modal-sms').value.trim();
     if (!txt) { alert('Skriv en besked først'); return; }
-    const phone = currentLead?.calls?.from_number;
-    if (!phone) { alert('Intet telefonnummer på dette lead'); return; }
+    if (!(await klarTilSms())) return;
+    // Intet "to" i body'en: serveren udleder modtageren af opgaven (se /send-sms).
     fetch('/send-sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-      body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead?.id })
+      body: JSON.stringify({ body: txt, lead_id: currentLead?.id })
     }).then(r => {
       if (r.ok) {
         document.getElementById('modal-sms').value = '';
@@ -2154,21 +2260,47 @@ function renderLeads() {
     const val = document.querySelector('input[name=afslut]:checked')?.value;
     if (!val) { alert('Vælg hvordan opgaven afsluttes'); return; }
     if (!currentLead) return;
+    let smsSendt = false;
 
     if (val === 'afslaaet') {
       const txt = document.getElementById('afslut-sms').value.trim();
-      const phone = currentLead?.calls?.from_number;
-      if (txt && phone) {
-        await fetch('/send-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-          body: JSON.stringify({ to: phone, body: txt, lead_id: currentLead.id })
-        });
+      if (txt) {
+        // Foer: uden nummer blev SMS'en sprunget stille over, og opgaven blev
+        // afsluttet alligevel. Nu faar haandvaerkeren det at vide, og intet afsluttes.
+        if (!(await klarTilSms())) return;
+        // Svaret LAESES, foer der siges noget. Foer blev opgaven afsluttet,
+        // uanset om serveren havde sendt SMS'en (10/10-26).
+        // "Sendt" betyder: Twilio har modtaget den til afsendelse. Om den er
+        // naaet frem til telefonen, kan dashboardet ikke se.
+        let sendt = false;
+        try {
+          const r = await fetch('/send-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+            body: JSON.stringify({ body: txt, lead_id: currentLead.id })
+          });
+          sendt = r.ok;
+        } catch (_) { sendt = false; }
+        if (!sendt) {
+          alert('SMS\'en blev IKKE sendt, og opgaven er ikke afsluttet.\nPrøv igen, eller fjern SMS-teksten for at afslutte uden SMS.');
+          return;
+        }
+        // SMS'en er sendt: ryd teksten, saa et nyt tryk paa Afslut (hvis
+        // statusskiftet herunder fejler) ikke sender den en gang til.
+        document.getElementById('afslut-sms').value = '';
+        smsSendt = true;
       }
     }
 
     const newStatus = val === 'udfort' ? 'completed' : 'rejected';
-    await db.from('leads').update({ status: newStatus }).eq('id', currentLead.id);
+    const { error } = await db.from('leads').update({ status: newStatus }).eq('id', currentLead.id);
+    if (error) {
+      console.error('❌ Afslut fejl:', error);
+      alert((smsSendt ? 'SMS\'en er sendt, men opgaven blev IKKE afsluttet.' : 'Opgaven blev IKKE afsluttet.') +
+        '\nPrøv igen.');
+      return;
+    }
+    if (smsSendt) alert('SMS sendt. Opgaven er afsluttet som afslået.');
     closeModal();
     loadData();
   }
