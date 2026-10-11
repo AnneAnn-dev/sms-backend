@@ -4,6 +4,7 @@ const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");
 const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
+const { gyldigtSmsNummer } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
 const { TILBUD_AKTIV } = require("./flags");
 const { registrerPushRuter, sendNytLeadPush } = require("./push");
@@ -590,10 +591,23 @@ app.post("/opret-opgave", async (req, res) => {
   if (!name || !task)
     return res.status(400).json({ error: "Mangler navn eller opgave" });
 
+  // Indtastet telefonnummer (10/10-26, telefonfeltet). Valideres FOER noget
+  // skrives, saa en afvisning ikke efterlader en calls-raekke uden opgave.
+  // Nummeret gemmes paa leads.telefon, som dashboardet og /send-sms foretraekker
+  // frem for calls.from_number — og som viser "Indtastet – ikke verificeret".
+  // Den syntetiske calls-raekke herunder bliver indtil videre: den goer opgaven
+  // synlig, saa laenge dashboardet laeser gennem call_id (fundets punkt 2).
+  let telefon = null;
+  if (phone != null && String(phone).trim()) {
+    telefon = gyldigtSmsNummer(phone);
+    if (!telefon)
+      return res.status(400).json({ error: "Telefonnummeret skal være et dansk nummer med 8 cifre" });
+  }
+
   const { data: call, error: callError } = await supabase
     .from("calls")
     .insert({
-      from_number: phone || "Manuel oprettelse",
+      from_number: telefon || "Manuel oprettelse",
       to_number:   "",
       firm_id,
       raw_payload: {},
@@ -610,6 +624,7 @@ app.post("/opret-opgave", async (req, res) => {
     call_id:      call.id,
     firm_id,                        // D21: kendt fra sessionen, samme som paa calls-raekken
     name,
+    telefon,                        // indtastet, normaliseret — eller null
     address,
     task,
     desired_time: desired_time || null,
