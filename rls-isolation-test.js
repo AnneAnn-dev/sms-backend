@@ -101,14 +101,9 @@ async function seed(t) {
 
   // to_number er NOT NULL — det er systemnummeret, kalderen ramte.
   //
-  // ⚠️ Her stod indtil 9/10-26: "så både den gamle (via calls) og den nye (via
-  // firm_id) RLS-sti på leads bliver dækket." Det passer ikke. Leadet nedenfor
-  // får BÅDE `firm_id` og `call_id`, så den gamle politik alene gør rækken
-  // synlig — prøven kan ikke se, hvilken af dem der slap den igennem.
-  // Den nye sti (`leads_select_firma`, migration 20261007060000) er altså IKKE
-  // dækket her. Det kræver et lead med `call_id: null`, og det er næste
-  // ændring i denne fil — holdt adskilt, så man kan se at upsert-rettelsen
-  // virkede, før tallet flytter sig.
+  // Leadet nedenfor får BÅDE `firm_id` og `call_id`, så den gamle politik (via
+  // calls) alene gør det synligt. Den nye sti (`leads_select_firma`, migration
+  // 20261007060000) prøves af det ANDET lead længere nede, som er uden opkald.
   const { data: call, error: e2 } = await admin.from('calls').insert({
     firm_id: t.firmId,
     from_number: '+4512345678',
@@ -123,6 +118,17 @@ async function seed(t) {
   }).select().single();
   if (e3) throw new Error(`leads (${t.navn}): ${e3.message}`);
   id.lead = lead.id;
+
+  // Beslutning B (9/10-26): en opgave kan oprettes uden opkald. Kun
+  // `leads_select_firma` kan gøre denne række synlig. Egen-synligheden tjekkes
+  // på id i testLaesning; krydsfirma-halvdelen dækkes af lækagetjekket, fordi
+  // det fremmede firma nu også har en sådan række.
+  const { data: udenOpkald, error: e3b } = await admin.from('leads').insert({
+    firm_id: t.firmId, kunde_id: kunde.id, call_id: null,
+    name: `Lead uden opkald ${t.navn}`, address: 'Testvej 2, 8000 Aarhus C', task: 'RLS-test'
+  }).select().single();
+  if (e3b) throw new Error(`leads uden opkald (${t.navn}): ${e3b.message}`);
+  id.leadUdenOpkald = t.leadUdenOpkald = udenOpkald.id;
 
   const { data: ref, error: e4 } = await admin.from('referater').insert({
     firm_id: t.firmId, lead_id: lead.id, indhold: `Fortroligt referat for ${t.navn}`
@@ -196,6 +202,14 @@ async function testLaesning(klient, egen, fremmed) {
     else                              ok(`${tabel}: egne rækker synlige (${egne.length})`);
   }
 
+  // Tællingen ovenfor består allerede på leadet MED opkald. Her kræves netop
+  // rækken uden opkald — den, kun `leads_select_firma` kan slippe igennem.
+  const { data: udenOpkald, error: uFejl } = await klient
+    .from('leads').select('id').eq('id', egen.leadUdenOpkald);
+  if (uFejl)                           fejl(`leads: fejl ved opslag af lead uden opkald — ${uFejl.message}`);
+  else if ((udenOpkald || []).length !== 1) fejl(`leads: FOR STRAM — ${egen.navn} kan ikke se sit EGET lead uden opkald`);
+  else                                 ok('leads: eget lead uden opkald synligt (på id)');
+
   // Kontrol uden filter: et bredt select må aldrig hive fremmede rækker med.
   const { data: alle } = await klient.from('kunder').select('firm_id');
   const fremmedeRaekker = (alle || []).filter(r => r.firm_id === fremmed.firmId);
@@ -236,7 +250,13 @@ async function ryd(tenants) {
   for (const t of tenants) {
     if (!t) continue;
     // firms har ON DELETE CASCADE mod alle nye tabeller. calls ryddes
-    // eksplicit, da dens kobling ikke er verificeret.
+    // eksplicit, da dens kobling ikke er verificeret. Leadet uden opkald
+    // ryddes også eksplicit, FØR firms: om leads kaskaderer fra calls eller
+    // fra firms er ikke målt, og sletningen her virker i begge tilfælde.
+    if (t.leadUdenOpkald) {
+      const { error } = await admin.from('leads').delete().eq('id', t.leadUdenOpkald);
+      if (error) console.log(`  ⚠️ lead uden opkald (${t.navn}) IKKE slettet: ${error.message}`);
+    }
     await admin.from('calls').delete().eq('firm_id', t.firmId);
     await admin.from('firm_users').delete().eq('firm_id', t.firmId);
     await admin.from('firms').delete().eq('id', t.firmId);
