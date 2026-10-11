@@ -2085,31 +2085,48 @@ function renderLeads() {
   // Gemmer telefonfeltet via serveren, hvis det er aendret siden aabning.
   // Returnerer null ved succes (eller uaendret), ellers fejlteksten.
   // Valideringen sker KUN paa serveren (gyldigtSmsNummer i phone.js).
+  // Fanget i test 11/10-26 ("null is not an object … currentLead.telefon"):
+  // modalen kan lukkes, mens svaret er undervejs, og saa er currentLead null,
+  // naar det kommer. Derfor huskes opgaven og snapshot'et FOER ventetiden, og
+  // efter den roeres skaermen kun, hvis det stadig er samme opgave, der er aaben.
+  // Gemningen paa serveren er gennemfoert uanset hvad.
   async function gemTelefon() {
-    if (!currentLead || !modalOriginal) return null;
+    const lead = currentLead, orig = modalOriginal;
+    if (!lead || !orig) return null;
     const felt = document.getElementById('modal-phone-input');
     const nyt = felt.value.trim();
-    if (nyt === modalOriginal.telefon) return null;
+    if (nyt === orig.telefon) return null;
     let res, svar = {};
     try {
       res = await fetch('/lead-telefon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-        body: JSON.stringify({ lead_id: currentLead.id, telefon: nyt })
+        body: JSON.stringify({ lead_id: lead.id, telefon: nyt })
       });
       try { svar = await res.json(); } catch (_) {}
     } catch (_) {
       return 'Ingen forbindelse til serveren';
     }
     if (!res.ok) return svar.error || 'Ukendt fejl';
-    currentLead.telefon = svar.telefon || null;   // null = opkaldets nummer gaelder igen
-    visTelefon(currentLead);
-    modalOriginal.telefon = felt.value.trim();
+    lead.telefon = svar.telefon || null;          // null = opkaldets nummer gaelder igen
+    if (currentLead !== lead) return null;        // modalen er lukket/skiftet imens
+    visTelefon(lead);
+    orig.telefon = felt.value.trim();
     return null;
   }
 
+  // Kun én lukning ad gangen: et dobbelttryk (krydset + baggrunden) startede
+  // foer to gem samtidig, og den ene ramte en allerede lukket modal.
+  let lukker = false;
   async function closeModal() {
-    if (currentLead) {
+    if (lukker) return;
+    lukker = true;
+    try { await lukModal(); } finally { lukker = false; }
+  }
+
+  async function lukModal() {
+    const lead = currentLead;
+    if (lead) {
       // Intet maa forsvinde stille: fejler et gem, faar haandvaerkeren det at
       // vide og vaelger selv, om modalen skal blive staaende.
       const fejl = [];
@@ -2140,7 +2157,7 @@ function renderLeads() {
         const felter = { address: address || null, address_mail, notes, is_urgent };
         if (name) felter.name = name;          // et tomt navn skrives aldrig
         if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
-        const { error } = await db.from('leads').update(felter).eq('id', currentLead.id);
+        const { error } = await db.from('leads').update(felter).eq('id', lead.id);
         if (error) {
           console.error('❌ Gem fejl:', error);
           fejl.push('Navn, opgave, adresse og noter: kunne ikke gemmes');
@@ -2207,10 +2224,10 @@ function renderLeads() {
   // Ingen bekraeftelsesdialog ("Send SMS til …?"): fjernet efter Anns test
   // 11/10-26. Tastefejl fanges kun af valideringen (dansk, 8 cifre) — et
   // gyldigt, men forkert nummer sendes uden at blive vist foerst.
-  async function klarTilSms() {
+  async function klarTilSms(lead) {
     const fejl = await gemTelefon();
     if (fejl) { alert('Telefonnummeret blev IKKE gemt, og SMS\'en er ikke sendt:\n' + fejl); return false; }
-    const t = leadTelefon(currentLead);
+    const t = leadTelefon(lead);
     if (!t.nummer) { alert('Intet telefonnummer på denne opgave'); return false; }
     return true;
   }
@@ -2218,12 +2235,14 @@ function renderLeads() {
   async function sendSms() {
     const txt = document.getElementById('modal-sms').value.trim();
     if (!txt) { alert('Skriv en besked først'); return; }
-    if (!(await klarTilSms())) return;
+    const lead = currentLead;                  // fast reference: modalen kan lukkes undervejs
+    if (!lead) return;
+    if (!(await klarTilSms(lead))) return;
     // Intet "to" i body'en: serveren udleder modtageren af opgaven (se /send-sms).
     fetch('/send-sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-      body: JSON.stringify({ body: txt, lead_id: currentLead?.id })
+      body: JSON.stringify({ body: txt, lead_id: lead.id })
     }).then(r => {
       if (r.ok) {
         document.getElementById('modal-sms').value = '';
@@ -2252,7 +2271,8 @@ function renderLeads() {
   async function confirmAfslut() {
     const val = document.querySelector('input[name=afslut]:checked')?.value;
     if (!val) { alert('Vælg hvordan opgaven afsluttes'); return; }
-    if (!currentLead) return;
+    const lead = currentLead;                  // fast reference: modalen kan lukkes undervejs
+    if (!lead) return;
     let smsSendt = false;
 
     if (val === 'afslaaet') {
@@ -2260,7 +2280,7 @@ function renderLeads() {
       if (txt) {
         // Foer: uden nummer blev SMS'en sprunget stille over, og opgaven blev
         // afsluttet alligevel. Nu faar haandvaerkeren det at vide, og intet afsluttes.
-        if (!(await klarTilSms())) return;
+        if (!(await klarTilSms(lead))) return;
         // Svaret LAESES, foer der siges noget. Foer blev opgaven afsluttet,
         // uanset om serveren havde sendt SMS'en (10/10-26).
         // "Sendt" betyder: Twilio har modtaget den til afsendelse. Om den er
@@ -2270,7 +2290,7 @@ function renderLeads() {
           const r = await fetch('/send-sms', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-            body: JSON.stringify({ body: txt, lead_id: currentLead.id })
+            body: JSON.stringify({ body: txt, lead_id: lead.id })
           });
           sendt = r.ok;
         } catch (_) { sendt = false; }
@@ -2286,7 +2306,7 @@ function renderLeads() {
     }
 
     const newStatus = val === 'udfort' ? 'completed' : 'rejected';
-    const { error } = await db.from('leads').update({ status: newStatus }).eq('id', currentLead.id);
+    const { error } = await db.from('leads').update({ status: newStatus }).eq('id', lead.id);
     if (error) {
       console.error('❌ Afslut fejl:', error);
       alert((smsSendt ? 'SMS\'en er sendt, men opgaven blev IKKE afsluttet.' : 'Opgaven blev IKKE afsluttet.') +
