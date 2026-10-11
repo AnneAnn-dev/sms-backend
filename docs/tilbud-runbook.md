@@ -513,15 +513,30 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       — at sætte dem ville være at gætte på en anden del af produktet), og
       `transskript`/`ai_udkast` kan ikke rettes (kildemateriale; kunne de rettes,
       var sammenligningen med `indhold` intet værd).
-- [ ] ⚠️ **`dashboard.html` henter stadig med `calls!inner` og kan derfor IKKE
-      se en opgave uden opkald** (~linje 1472, og polleren ~2435 gør det samme).
+- [ ] ⚠️ **`dashboard.html` kan IKKE se en opgave uden opkald — to steder, og
+      de er ikke ens:** hovedforespørgslen bruger `calls!inner`, og polleren har
+      slet intet join, men filtrerer med `.in("call_id", ...)`. En søgning efter
+      `calls!inner` finder kun den ene. **De skal rettes sammen** — rettes kun
+      hovedforespørgslen, er sættene uenige, og polleren genindlæser hvert 30.
+      sekund. Linjenumre udeladt med vilje: filen ændres i D79-sporet.
       Kommentaren dér siger *"leads har ikke firm_id direkte"* — sandt da den
       blev skrevet, usandt siden 27/7. Skal skifte til `.eq("firm_id", ...)` med
       et almindeligt join. **Målt sikkert:** 5 af 5 i prod og alle i staging har
       `firm_id`, og `server.js` sætter den på begge indsættelsesveje (D21), så
-      ingen række forsvinder. **Udløser: FØR modulet opretter opgaver i drift** —
-      ellers får håndværkeren to lister med hver sin definition af sine egne
-      opgaver. Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
+      ingen række forsvinder. **Udløser: FØR `TILBUD_AKTIV` tændes i prod**
+      (målt 10/10: flaget er slukket i prod, så hullet kan ikke rammes i dag).
+      Samme udløser gælder D79 (b): `/lead-telefon` og `/send-sms` tjekker
+      ejerskab via opkaldet og giver 403 på en opgave uden opkald. Ellers får
+      håndværkeren to lister med hver sin definition af sine egne opgaver.
+      Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
+- [x] **Krydsfirma-halvdelen af `leads_select_firma` BEVIST 11/10.**
+      `rls-isolation-test.js` sår et lead med `call_id = NULL` pr. firma og slår
+      det op på id. En sådan række kan kun slippe igennem `leads_select_firma`,
+      så det er netop den politik, der er bevist — synlig for sit eget firma,
+      usynlig for et andet, begge retninger. **39/0 mod staging** (`710834c`).
+      Prod har samme politikker og migration (målt 11/10); prøven køres ikke mod
+      prod. Testfirma nr. 2 (Trin 1) er stadig værd at have til QA, men var
+      aldrig en forudsætning for dette.
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
 - [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
       (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
