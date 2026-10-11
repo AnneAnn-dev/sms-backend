@@ -13,7 +13,7 @@ const twilio     = require("twilio");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
-const { normalizePhone, maskerTlf, maskerMail } = require("./phone");
+const { normalizePhone, gyldigtSmsNummer, maskerTlf, maskerMail } = require("./phone");
 const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
@@ -1223,7 +1223,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // Find lead'et og det opkald det hoerer til
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, call_id")
+      .select("id, call_id, telefon")
       .eq("id", lead_id)
       .single();
     if (!lead) return res.status(404).json({ error: "Lead findes ikke" });
@@ -1238,9 +1238,16 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.status(403).json({ error: "Lead tilhoerer ikke dit firma" });
     }
 
-    // Modtager = kundens nummer paa lead'et (ikke et frit nummer fra body'en)
-    const to = call.from_number;
-    if (!to || to === "Manuel oprettelse") {
+    // Modtager = kundens nummer paa lead'et (ikke et frit nummer fra body'en).
+    // Et indtastet/rettet nummer (leads.telefon, 10/10-26) gaar forud for
+    // opkaldets. leads.telefon er altid valideret: af gyldigtSmsNummer() ved
+    // skrivning og af CHECK-reglen leads_telefon_format i databasen.
+    // SAMME regel staar i dashboardets leadTelefon() — ret begge, hvis den aendres.
+    const fraOpkald = call.from_number && call.from_number !== "Manuel oprettelse"
+      ? call.from_number : null;
+    const to    = lead.telefon || fraOpkald;
+    const kilde = lead.telefon ? "indtastet" : "opkald";
+    if (!to) {
       return res.status(400).json({ error: "Dette lead har intet gyldigt telefonnummer" });
     }
 
@@ -1256,12 +1263,72 @@ module.exports = function registerOnboarding(app, supabase) {
 
     try {
       await sendSms({ to, from: firm.phone_number, body: smsText });
-      console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id);
+      console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id, "nummer:", kilde);
       res.json({ ok: true });
     } catch (err) {
-      rapporterFejl("SMS fra dashboardet fejlede", err, { firma: firm_id, lead: lead_id });
+      rapporterFejl("SMS fra dashboardet fejlede", err, { firma: firm_id, lead: lead_id, nummer: kilde });
       res.status(500).json({ error: "Kunne ikke sende SMS" });
     }
+  });
+
+  // ─── Ret opgavens telefonnummer (10/10-26) ─────────────────────────────────
+  // Fundet: dashboardets telefonfelt var redigerbart, men blev aldrig gemt —
+  // en rettelse forsvandt ved lukning, mens konsollen skrev "Gemt OK".
+  //
+  // Hvorfor via serveren og ikke direkte fra browseren: nummeret bliver til
+  // SMS-modtager. Valideringen (gyldigtSmsNummer i phone.js) findes ét sted og
+  // maa ikke kopieres til klienten.
+  //
+  //   telefon = ""/null      -> rettelsen fjernes; opkaldets nummer gaelder igen
+  //   telefon = opkaldets nr -> gemmes som null (det ER opkaldets nummer, og
+  //                             skal ikke staa som "indtastet")
+  //   ellers                 -> normaliseres og gemmes, eller afvises med 400
+  //
+  // Ejerskab tjekkes som i /send-sms: lead -> call -> firm_id fra token.
+  // Ingen persondata i log: hverken nummeret eller dele af det.
+  app.post("/lead-telefon", async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
+
+    const { lead_id, telefon } = req.body || {};
+    if (!lead_id) return res.status(400).json({ error: "Mangler lead_id" });
+
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, call_id")
+      .eq("id", lead_id)
+      .single();
+    if (!lead) return res.status(404).json({ error: "Lead findes ikke" });
+
+    const { data: call } = await supabase
+      .from("calls")
+      .select("firm_id, from_number")
+      .eq("id", lead.call_id)
+      .single();
+    if (!call || call.firm_id !== firm_id) {
+      return res.status(403).json({ error: "Lead tilhoerer ikke dit firma" });
+    }
+
+    let nyt = null;
+    const raa = telefon == null ? "" : String(telefon).trim();
+    if (raa) {
+      nyt = gyldigtSmsNummer(raa);
+      if (!nyt) {
+        return res.status(400).json({ error: "Telefonnummeret skal være et dansk nummer med 8 cifre" });
+      }
+      if (nyt === normalizePhone(call.from_number)) nyt = null;
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ telefon: nyt })
+      .eq("id", lead.id);
+    if (error) {
+      rapporterFejl("Telefonnummer paa opgave kunne ikke gemmes", error, { firma: firm_id, lead: lead_id });
+      return res.status(500).json({ error: "Kunne ikke gemme telefonnummeret" });
+    }
+
+    res.json({ ok: true, telefon: nyt });
   });
 
 

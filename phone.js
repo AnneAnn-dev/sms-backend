@@ -146,8 +146,29 @@ async function vaelgLedigtNummer({ supabase, twilioClient, maxKandidater = 20 })
   return { valgt, spoegelser, ledigeVerificeret };
 }
 
+// ─── SMS-MODTAGER, INDTASTET (10/10-26) ──────────────────────────────────────
+// Et nummer, en haandvaerker selv har tastet, kan blive modtager af en SMS med
+// kundens navn, adresse og opgave. Reglen for, hvad der godtages, staar HER og
+// kun her — /lead-telefon (onboarding.js) og /opret-opgave (server.js) kalder
+// begge denne funktion.
+//
+// Kun danske numre indtil videre (+45 og 8 cifre), besluttet af Ann 10/10-26.
+// Et frit udenlandsk nummer aabner for SMS-svindel mod dyre numre. Skal
+// udenlandske numre tillades senere, rettes TO steder: SMS_NUMMER_RE herunder
+// OG CHECK-reglen leads_telefon_format i databasen. Retter man kun det ene,
+// afviser det andet stadig nummeret.
+//
+// Returnerer det normaliserede nummer (E.164) eller null, hvis det ikke godtages.
+const SMS_NUMMER_RE = /^\+45\d{8}$/;
+
+function gyldigtSmsNummer(input) {
+  const n = normalizePhone(input);
+  return n && SMS_NUMMER_RE.test(n) ? n : null;
+}
+
 module.exports = {
   normalizePhone,
+  gyldigtSmsNummer,
   maskerTlf,
   maskerMail,
   hentEjedeNumre,
