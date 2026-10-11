@@ -304,9 +304,6 @@
     .mfield input[type=text], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 14px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
     .mfield input[type=text]:focus, .mfield input[type=date]:focus, .mfield textarea:focus, .mfield select:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
     .mfield textarea { height: 72px; }
-    /* Hvor telefonnummeret kommer fra (10/10-26) — se leadTelefon() */
-    .mhint { font-size: 12px; color: var(--ink-muted); margin-top: 5px; }
-    .mhint.ubekraeftet { color: var(--danger-dark); font-weight: 600; }
     .date-wrap { position: relative; }
     .date-wrap input { padding-right: 32px; cursor: pointer; }
     .date-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-muted); font-size: 16px; pointer-events: none; }
@@ -795,8 +792,7 @@
         </div>
         <div class="mfield">
           <label>Telefon</label>
-          <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="+45 12 34 56 78">
-          <div class="mhint" id="modal-phone-kilde"></div>
+          <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="12 34 56 78">
         </div>
       </div>
 
@@ -916,7 +912,7 @@
       </div>
       <div class="mfield">
         <label>Telefon</label>
-        <input type="tel" id="new-phone" placeholder="+45 12 34 56 78">
+        <input type="tel" id="new-phone" placeholder="12 34 56 78">
       </div>
       <div class="mfield" style="position:relative">
         <label>Adresse</label>
@@ -2061,6 +2057,10 @@ function renderLeads() {
   //   leads.telefon          -> indtastet/rettet af haandvaerkeren, ikke verificeret
   //   ellers calls.from_number -> fra opkaldet (undtagen markoeren "Manuel oprettelse")
   // Serveren er facit for, hvem SMS'en gaar til. Denne funktion er kun visning.
+  //
+  // Haandvaerkeren ser KUN nummeret — ikke hvor det kommer fra, og ikke +45
+  // (Anns beslutning 11/10-26: "for kunden er det det nummer, han har").
+  // Kilden bruges internt: kun et indtastet nummer giver bekraeftelsen foer SMS.
   const MANUEL_MARKOER = 'Manuel oprettelse';
   function leadTelefon(lead) {
     if (lead?.telefon) return { nummer: lead.telefon, kilde: 'indtastet' };
@@ -2069,23 +2069,17 @@ function renderLeads() {
     return { nummer: null, kilde: null };
   }
 
-  // +4512345678 -> +45 12 34 56 78. Andre former vises uaendret.
+  // +4512345678 -> 12 34 56 78. Udenlandske numre (fra et opkald) vises uaendret.
+  // Serveren laegger +45 paa igen, naar et rettet nummer gemmes (normalizePhone).
   function visNummer(n) {
     const m = /^\+45(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(n || '');
-    return m ? `+45 ${m[1]} ${m[2]} ${m[3]} ${m[4]}` : (n || '');
+    return m ? `${m[1]} ${m[2]} ${m[3]} ${m[4]}` : (n || '');
   }
 
   function visTelefon(lead) {
     const t = leadTelefon(lead);
-    const kilde = document.getElementById('modal-phone-kilde');
     document.getElementById('modal-phone').textContent = t.nummer ? visNummer(t.nummer) : '—';
-    document.getElementById('modal-phone-input').value = t.nummer || '';
-    if (kilde) {
-      kilde.textContent = t.kilde === 'indtastet' ? 'Indtastet – ikke verificeret'
-                        : t.kilde === 'opkald'    ? 'Fra opkaldet'
-                        : 'Intet nummer – tast et dansk nummer';
-      kilde.classList.toggle('ubekraeftet', t.kilde === 'indtastet');
-    }
+    document.getElementById('modal-phone-input').value = t.nummer ? visNummer(t.nummer) : '';
   }
 
   // Gemmer telefonfeltet via serveren, hvis det er aendret siden aabning.
@@ -2205,20 +2199,19 @@ function renderLeads() {
   function ringTilbage(phone) {
     const num = phone || leadTelefon(currentLead).nummer;
     if (!num) return;
-    window.open('tel:' + num);
+    window.open('tel:' + String(num).replace(/\s/g, ''));
   }
 
   // Foer enhver SMS: gem et rettet nummer FOERST (ellers gaar SMS'en til det
-  // gamle, mens feltet viser det nye), og bed om bekraeftelse, hvis nummeret er
-  // indtastet. Returnerer true, hvis SMS'en maa sendes.
+  // gamle, mens feltet viser det nye). Returnerer true, hvis SMS'en maa sendes.
+  // Ingen bekraeftelsesdialog ("Send SMS til …?"): fjernet efter Anns test
+  // 11/10-26. Tastefejl fanges kun af valideringen (dansk, 8 cifre) — et
+  // gyldigt, men forkert nummer sendes uden at blive vist foerst.
   async function klarTilSms() {
     const fejl = await gemTelefon();
     if (fejl) { alert('Telefonnummeret blev IKKE gemt, og SMS\'en er ikke sendt:\n' + fejl); return false; }
     const t = leadTelefon(currentLead);
     if (!t.nummer) { alert('Intet telefonnummer på denne opgave'); return false; }
-    if (t.kilde === 'indtastet') {
-      return confirm('Nummeret er tastet ind, ikke verificeret.\n\nSend til ' + visNummer(t.nummer) + '?');
-    }
     return true;
   }
 
