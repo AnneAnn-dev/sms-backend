@@ -1,0 +1,2952 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tilbud – Dit Digitale Kontor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1A3A5C;
+    --steel: #2C6B9E;
+    --forest: #2E7D52;
+    --smoke: #F4F7FA;
+    --white: #FFFFFF;
+    --ink-soft: #64798E;
+    --line: #E2E8EF;
+    --rec: #C4453D;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--smoke);
+    font-family: 'Source Sans 3', sans-serif;
+    color: var(--navy);
+    height: 100%;
+  }
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--smoke);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px 12px;
+    background: var(--navy);
+    color: white;
+    position: sticky; top: 0; z-index: 20;
+  }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--forest);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; margin: 0; }
+  .topbar span { font-size: 11px; color: #BFD3E6; display: block; }
+
+  /* ---------- Screens ---------- */
+  .screen { display: none; flex: 1; padding: 16px 16px 96px; }
+  .screen.active { display: block; }
+
+  .section-label {
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 0 0 8px;
+  }
+
+  /* ---------- Customer picker pill ---------- */
+  .kunde-pill {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 14px; cursor: pointer;
+  }
+  .kunde-pill .name { font-weight: 700; font-size: 15px; }
+  .kunde-pill .placeholder { color: var(--ink-soft); font-weight: 600; font-size: 14px; }
+  .kunde-pill .chev { color: var(--ink-soft); font-size: 13px; }
+
+  /* ---------- Chips (møde type) ---------- */
+  .chip-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    flex: 1; text-align: center; padding: 10px 8px; border-radius: 10px;
+    background: var(--white); border: 1px solid var(--line);
+    font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  }
+  .chip.active { background: var(--steel); border-color: var(--steel); color: white; }
+
+  input[type=text] {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; font-family: inherit; font-size: 14px; background: var(--white); color: var(--navy);
+  }
+  input:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,0.15); }
+
+  /* ---------- Recorder ---------- */
+  .recorder-card {
+    background: var(--white); border-radius: 18px; padding: 28px 16px 22px;
+    text-align: center; margin: 18px 0 16px; border: 1px solid var(--line);
+  }
+  .mic-btn {
+    width: 84px; height: 84px; border-radius: 50%; border: none;
+    background: var(--steel); color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; position: relative; z-index: 2;
+  }
+  .mic-btn.recording { background: var(--rec); }
+  .mic-btn svg { width: 32px; height: 32px; }
+
+  .wave-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; height: 28px; margin-bottom: 10px; }
+  .wave-bar {
+    width: 4px; border-radius: 2px; background: var(--rec);
+    height: 6px; transition: height 0.08s ease;
+  }
+  .wave-wrap.idle .wave-bar { background: var(--line); height: 4px !important; }
+
+  .rec-status { font-weight: 700; font-size: 14px; color: var(--ink-soft); }
+  .rec-status.live { color: var(--rec); }
+  .rec-time { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  details.transcript-details { margin-top: 6px; text-align: left; }
+  details.transcript-details summary {
+    font-size: 13px; font-weight: 700; color: var(--steel); cursor: pointer; padding: 4px 0;
+  }
+  textarea#editTranscript {
+    width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-family: inherit; font-size: 13px; line-height: 1.5; margin-top: 8px; resize: vertical;
+  }
+
+  .btn {
+    border: none; border-radius: 12px; padding: 14px 18px;
+    font-family: inherit; font-weight: 700; font-size: 15px; cursor: pointer; width: 100%;
+  }
+  .btn-primary { background: var(--forest); color: white; }
+  .btn-primary:disabled { background: #AFC9BC; }
+  .btn-secondary { background: var(--white); color: var(--navy); border: 1px solid var(--line); margin-top: 8px; }
+  .btn-ghost { background: transparent; color: var(--steel); font-weight: 700; }
+
+  .banner { background: #FFF6E9; border: 1px solid #F0D9A8; color: #7A5A16; font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .error-banner { background: #FDECEC; border: 1px solid #F3B9B4; color: #93261F; font-size: 13px; border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Referat output ---------- */
+  #outputCard { display: none; background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-top: 4px; }
+  .referat-section { margin-bottom: 16px; }
+  .referat-section:last-child { margin-bottom: 0; }
+  .referat-section h3 { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800; color: var(--steel); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  .referat-section p { margin: 0; font-size: 14px; line-height: 1.55; }
+  ul.referat-list { margin: 0; padding-left: 18px; }
+  ul.referat-list li { font-size: 14px; line-height: 1.55; margin-bottom: 4px; }
+  .task-item { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13.5px; }
+  .task-item:first-child { border-top: none; padding-top: 0; }
+  .task-item .who { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
+  .empty-note { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+  /* ---------- Customers screen ---------- */
+  .kunde-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .kunde-row .kn { font-weight: 700; font-size: 15px; }
+  .kunde-row .kc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .fab {
+    position: fixed; right: 50%; transform: translateX(214px); bottom: 88px;
+    width: 52px; height: 52px; border-radius: 50%; background: var(--forest); color: white;
+    border: none; font-size: 26px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18); z-index: 15; cursor: pointer;
+  }
+  @media (max-width: 480px) { .fab { right: 20px; transform: none; } }
+
+  .referat-list-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .referat-list-row .rt { font-weight: 700; font-size: 14px; }
+  .referat-list-row .rm { font-size: 12px; color: var(--ink-soft); margin-top: 3px; display: flex; gap: 8px; align-items: center; }
+  .type-badge { font-size: 10.5px; font-weight: 800; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: var(--smoke); color: var(--steel); }
+
+  .back-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .back-btn { background: none; border: none; color: var(--steel); font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; background: var(--white);
+    border-top: 1px solid var(--line); display: flex; z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .nav-btn { flex: 1; border: none; background: none; padding: 10px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; color: var(--ink-soft); }
+  .nav-btn.active { color: var(--forest); }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn span { font-size: 11px; font-weight: 700; }
+
+  /* ---------- Modal / sheet ---------- */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(15,30,45,0.45); z-index: 30;
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .sheet-overlay.open { display: flex; }
+  .sheet {
+    background: white; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0));
+    max-height: 75vh; overflow-y: auto;
+  }
+  .sheet h2 { font-family: 'Nunito', sans-serif; font-size: 16px; margin: 0 0 12px; }
+  .sheet-kunde-row { padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .sheet-kunde-row:last-of-type { border-bottom: none; }
+  .new-kunde-row { display: flex; gap: 8px; margin-top: 12px; }
+  .new-kunde-row input { flex: 1; }
+  .new-kunde-row button { flex-shrink: 0; }
+
+  /* ---------- Onboarding: mikrofon-adgang ---------- */
+  .onboarding {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--navy);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 26px; text-align: center;
+  }
+  .onboarding.hidden { display: none; }
+  .onboarding .logo-mark { width: 44px; height: 44px; border-radius: 12px; font-size: 16px; margin-bottom: 18px; }
+  .onboarding h2 { font-family: 'Nunito', sans-serif; color: white; font-size: 19px; margin: 0 0 10px; }
+  .onboarding p { color: #BFD3E6; font-size: 14px; line-height: 1.55; margin: 0 0 26px; max-width: 320px; }
+  .onboarding .btn-primary { max-width: 320px; }
+  .onboarding .status { color: #BFD3E6; font-size: 13px; margin-top: 14px; min-height: 18px; }
+  .onboarding .status.err { color: #F3B9B4; }
+  .onboarding .status.ok { color: #9FD9B7; }
+  .onboarding .skip-btn { background: none; border: none; color: #8FAAC4; font-size: 13px; font-weight: 700; margin-top: 18px; cursor: pointer; }
+  .mic-warning-link { display: block; text-align: center; font-size: 12.5px; color: var(--steel); font-weight: 700; margin-top: 8px; cursor: pointer; }
+
+  /* ---------- Tilbud-modul ---------- */
+  .tilbud-step { display: none; }
+  .tilbud-step.active { display: block; }
+  .match-card {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .match-card .mn { font-weight: 700; font-size: 15px; }
+  .match-card .ma { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .match-card.new { border-style: dashed; }
+  .kontekst-note {
+    background: #EAF2E9; border: 1px solid #C9E0C6; color: #2E5A3B;
+    font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+  }
+
+  /* ---------- Billed-upload (håndskrevne noter) ---------- */
+  .img-preview-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .img-thumb { position: relative; width: 68px; height: 68px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); flex-shrink: 0; }
+  .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-thumb .remove {
+    position: absolute; top: 3px; right: 3px; background: rgba(20,30,45,0.65); color: white;
+    border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 13px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---------- Firmaprofil ---------- */
+  .timepris-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .timepris-row .tp-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .timepris-row input { width: 100px; flex-shrink: 0; }
+  .standardvalg-row { margin-bottom: 14px; }
+  .standardvalg-row .sv-label { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .standardvalg-row .sv-new-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; background: #FFF6E9; color: #7A5A16; border-radius: 6px; padding: 2px 6px; margin-left: 6px; }
+
+  /* ---------- Strukturerede tilbudslinjer ---------- */
+  .linje-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+  }
+  .linje-row .linje-top { display: flex; gap: 8px; margin-bottom: 6px; }
+  .linje-row .linje-beskrivelse { flex: 1; }
+  .linje-row .linje-bottom { display: flex; gap: 8px; align-items: center; }
+  .linje-row .linje-bottom input { width: 72px; flex-shrink: 0; }
+  .linje-row .linje-enhed { width: 60px !important; }
+  .linje-row .linje-samlet { flex: 1; font-size: 13px; font-weight: 700; color: var(--navy); text-align: right; }
+  .linje-row .linje-remove {
+    background: none; border: none; color: var(--rec); font-size: 18px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-row .linje-lookup {
+    background: none; border: none; color: var(--steel); font-size: 15px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-type-badge {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 6px;
+    background: var(--smoke); color: var(--steel); flex-shrink: 0; align-self: center;
+  }
+  .linje-row input:disabled { background: var(--smoke); color: var(--ink-soft); cursor: not-allowed; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<div class="onboarding" id="onboarding">
+  <div class="logo-mark">DDK</div>
+  <h2>Velkommen til Referater</h2>
+  <p>Vil du indtale noter til en opgave, kan du gøre det her. Giv appen adgang til mikrofonen. Det spørg vi kun om en gang.</p>
+  <button class="btn btn-primary" id="requestMicBtn" style="width:auto; padding-left:28px; padding-right:28px;">Giv mikrofonadgang</button>
+  <div class="status" id="onboardingStatus"></div>
+  <button class="skip-btn" id="skipMicBtn">Spring over – jeg indtaster tekst manuelt</button>
+</div>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo-mark">DDK</div>
+    <div>
+      <h1>Tilbud</h1>
+      <span>Dit Digitale Kontor</span>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN: OPTAG ================= -->
+  <div class="screen active" id="screen-record">
+
+    <div class="section-label">Opgave</div>
+    <div class="kunde-pill" id="opgavePill">
+      <span class="placeholder" id="opgavePillText">Vælg opgave</span>
+      <span class="chev">▾</span>
+    </div>
+
+    <div class="section-label">Titel (valgfri)</div>
+    <input type="text" id="mTitel" placeholder="fx Noter uge 27">
+
+    <div class="recorder-card">
+      <button class="mic-btn" id="micBtn" title="Start optagelse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+      </button>
+      <button class="btn btn-secondary" id="pauseBtn" type="button" style="display:none; margin-top:10px; width:auto; padding-left:20px; padding-right:20px;">Pause</button>
+      <div class="wave-wrap idle" id="waveWrap">
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      </div>
+      <div class="rec-status" id="recStatus">Tryk for at optage</div>
+      <div class="rec-time" id="recTime"></div>
+      <p class="empty-note" style="margin-top:6px;">Hold telefonen tæt på, og tal tydeligt – det forbedrer kvaliteten markant på en støjende byggeplads.</p>
+
+      <div id="unsupportedBanner" class="banner" style="display:none; text-align:left; margin-top:14px;">
+        Lydoptagelse understøttes ikke i denne browser. Indsæt teksten manuelt herunder i stedet.
+      </div>
+
+      <details class="transcript-details">
+        <summary>Vis / ret transskription</summary>
+        <textarea id="editTranscript" placeholder="Transskriptionen vises her, når optagelsen er behandlet…"></textarea>
+      </details>
+    </div>
+
+    <div class="section-label">Eller: upload billede(r) af håndskrevne noter</div>
+    <p class="empty-note" style="margin-bottom:10px;">Kan bruges alene eller sammen med optagelsen ovenfor.</p>
+    <input type="file" accept="image/*" multiple id="referatImageInput" style="display:none;">
+    <button class="btn btn-secondary" id="addImageBtn" type="button" style="margin-top:0;">+ Tilføj billede(r)</button>
+    <div id="referatImagePreviewWrap" class="img-preview-row"></div>
+
+    <button class="btn btn-primary" id="generateBtn" style="margin-top:16px;">Generér referat</button>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div id="outputCard">
+      <div id="referatOutput"></div>
+      <button class="btn btn-primary" id="saveBtn" style="margin-top:16px;">Gem referat på opgave</button>
+      <button class="btn btn-secondary" id="copyBtn">Kopiér til tilbud</button>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN: KUNDER (liste) ================= -->
+  <div class="screen" id="screen-customers">
+    <div class="section-label">Kunder</div>
+    <div id="kundeListWrap"></div>
+    <button class="fab" id="fabAddKunde">+</button>
+  </div>
+
+  <!-- ================= SCREEN: KUNDE DETALJE (opgaver) ================= -->
+  <div class="screen" id="screen-kunde-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKunder">‹ Kunder</button>
+    </div>
+    <div class="section-label" id="kundeDetailName">Kunde</div>
+    <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
+    <div id="kundeOpgaverWrap"></div>
+    <button class="fab" id="fabAddOpgave">+</button>
+  </div>
+
+  <!-- ================= SCREEN: OPGAVE DETALJE ================= -->
+  <div class="screen" id="screen-opgave-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKundeDetailFromOpgave">‹ Tilbage</button>
+    </div>
+    <div class="section-label" id="opgaveDetailName">Opgave</div>
+    <div class="section-label" style="margin-top:18px;">Referater</div>
+    <div id="opgaveReferaterWrap"></div>
+    <div class="section-label" style="margin-top:18px;">Tilbud</div>
+    <div id="opgaveTilbudWrap"></div>
+  </div>
+
+  <!-- ================= SCREEN: REFERAT DETALJE ================= -->
+  <div class="screen" id="screen-referat-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToOpgaveDetailFromReferat">‹ Tilbage</button>
+    </div>
+    <div id="referatDetailWrap"></div>
+    <button class="btn btn-secondary" id="copyDetailBtn">Kopiér til tilbud</button>
+  </div>
+
+  <!-- ================= SCREEN: TILBUD DETALJE ================= -->
+  <div class="screen" id="screen-tilbud-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToOpgaveDetailFromTilbud">‹ Tilbage</button>
+    </div>
+    <div id="tilbudDetailWrap"></div>
+
+    <div class="section-label" style="margin-top:18px;">Eksportér til økonomisystem</div>
+    <div style="display:flex; gap:8px;">
+      <select id="oekonomisystemSelect" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-family:inherit; font-size:14px;"></select>
+      <button class="btn btn-secondary" id="eksporterOekonomiBtn" type="button" style="width:auto;">Eksportér</button>
+    </div>
+    <div class="error-banner" id="errorBannerOekonomi"></div>
+
+    <button class="btn btn-primary" id="genbrugTilbudBtn" style="margin-top:18px;">Genbrug som nyt tilbud</button>
+    <button class="btn btn-secondary" id="copyTilbudDetailBtn">Kopiér som tekst</button>
+  </div>
+
+  <!-- ================= SCREEN: TILBUD ================= -->
+  <div class="screen" id="screen-tilbud">
+
+    <!-- Trin 1: indtal -->
+    <div class="tilbud-step active" id="tilbudStep-record">
+      <div class="section-label">Indtal tilbud</div>
+      <p class="empty-note" style="margin-bottom:14px;">Sig kundens navn og adresse, og beskriv opgaven. Du bliver bedt om resten bagefter.</p>
+
+      <div class="recorder-card">
+        <button class="mic-btn" id="micBtnTilbud" title="Start optagelse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+        <button class="btn btn-secondary" id="pauseBtnTilbud" type="button" style="display:none; margin-top:10px; width:auto; padding-left:20px; padding-right:20px;">Pause</button>
+        <div class="wave-wrap idle" id="waveWrapTilbud">
+          <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        </div>
+        <div class="rec-status" id="recStatusTilbud">Tryk for at optage</div>
+        <div class="rec-time" id="recTimeTilbud"></div>
+        <p class="empty-note" style="margin-top:6px;">Hold telefonen tæt på, og tal tydeligt – det forbedrer kvaliteten markant på en støjende byggeplads.</p>
+
+        <details class="transcript-details">
+          <summary>Vis / ret transskription</summary>
+          <textarea id="editTranscriptTilbud" placeholder="Transskriptionen vises her, når optagelsen er behandlet…"></textarea>
+        </details>
+      </div>
+
+      <button class="btn btn-primary" id="analyzeTilbudBtn">Find kunde og fortsæt</button>
+      <div class="error-banner" id="errorBannerTilbud"></div>
+      <button class="btn btn-ghost" id="skipTilbudDictationBtn" style="margin-top:4px;">Spring over – vælg kunde og opgave manuelt</button>
+    </div>
+
+    <!-- Trin 2: bekræft kunde -->
+    <div class="tilbud-step" id="tilbudStep-kunde">
+      <div class="section-label">Bekræft kunde</div>
+      <div id="kundeMatchWrap"></div>
+      <button class="btn btn-ghost" id="backToTilbudRecord">‹ Tilbage til optagelse</button>
+    </div>
+
+    <!-- Trin 2b: vælg/opret opgave under kunden -->
+    <div class="tilbud-step" id="tilbudStep-opgave">
+      <div class="section-label" id="opgaveStepKundeName">Opgave</div>
+      <p class="empty-note" style="margin-bottom:12px;">Hvilken opgave hos kunden handler tilbuddet om? Referater og tidligere tilbud hænger på opgaven, ikke kunden generelt. Det er ikke et krav, at der findes et referat på opgaven – du kan lave et tilbud direkte.</p>
+      <div id="tilbudOpgaveListWrap"></div>
+      <div class="new-kunde-row" style="flex-direction:column; align-items:stretch; margin-top:10px;">
+        <input type="text" id="newTilbudOpgaveInput" placeholder="Ny opgave – titel" style="margin-bottom:8px;">
+        <button class="btn btn-primary" id="addTilbudOpgaveBtn">Opret ny opgave</button>
+      </div>
+      <button class="btn btn-ghost" id="backToTilbudKunde" style="margin-top:6px;">‹ Tilbage til kunde</button>
+    </div>
+
+    <!-- Trin 3: tjekliste -->
+    <div class="tilbud-step" id="tilbudStep-checklist">
+      <div class="section-label">Opgave og pris</div>
+      <label style="font-size:13px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;">Opgavebeskrivelse</label>
+      <textarea id="cbOpgave" style="width:100%; min-height:70px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:14px; margin-bottom:14px;"></textarea>
+
+      <label style="font-size:13px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;">Materialer</label>
+      <textarea id="cbMaterialer" style="width:100%; min-height:50px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:14px; margin-bottom:14px;" placeholder="fx maling, spartelmasse, træ…"></textarea>
+
+      <div style="display:flex; gap:10px; margin-bottom:14px;">
+        <div style="flex:1;">
+          <label style="font-size:13px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;">Timepris (kr)</label>
+          <input type="text" id="cbTimepris" inputmode="numeric" placeholder="fx 450">
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:13px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;">Est. timer</label>
+          <input type="text" id="cbTimer" inputmode="numeric" placeholder="fx 8">
+        </div>
+      </div>
+
+      <div id="bufferSection">
+        <div class="section-label" style="margin-top:4px;">Buffer på materialepriser?</div>
+        <div class="chip-row" id="cbBufferChips">
+          <div class="chip" data-val="ja">Ja</div>
+          <div class="chip" data-val="nej">Nej</div>
+        </div>
+        <div id="bufferPctWrap" style="display:none; margin-bottom:14px;">
+          <input type="text" id="cbBufferPct" inputmode="numeric" placeholder="Procent, fx 10">
+        </div>
+      </div>
+      <div id="bufferAutoNote" class="kontekst-note" style="display:none;"></div>
+
+      <div id="affaldSection">
+        <div class="section-label">Bortskaffelse af affald inkluderet?</div>
+        <div class="chip-row" id="cbAffaldChips" style="margin-bottom:14px;">
+          <div class="chip" data-val="ja">Ja</div>
+          <div class="chip" data-val="nej">Nej</div>
+        </div>
+      </div>
+      <div id="affaldAutoNote" class="kontekst-note" style="display:none;"></div>
+
+      <div class="section-label">Standardbetingelser?</div>
+      <div class="chip-row" id="cbBetingelserChips">
+        <div class="chip active" data-val="ja">Ja</div>
+        <div class="chip" data-val="nej">Nej</div>
+      </div>
+      <div id="betingelserTextWrap" style="margin-bottom:8px;">
+        <textarea id="cbBetingelserTekst" style="width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:13px; line-height:1.5; margin-top:8px;"></textarea>
+      </div>
+
+      <button class="btn btn-primary" id="generateTilbudBtn" style="margin-top:8px;">Generér tilbudsudkast</button>
+      <div class="error-banner" id="errorBannerChecklist"></div>
+    </div>
+
+    <!-- Trin 4: udkast med strukturerede linjer -->
+    <div class="tilbud-step" id="tilbudStep-output">
+      <div class="section-label">Tilbudsudkast – ret til efter behov</div>
+      <div id="tilbudOutputWrap"></div>
+
+      <div class="section-label" style="margin-top:18px;">Linjer</div>
+      <div id="linjerWrap"></div>
+      <button class="btn btn-secondary" id="addLinjeBtn" type="button">+ Tilføj linje</button>
+
+      <div class="recorder-card" style="margin-top:16px; padding:16px 14px;">
+        <div class="section-label" style="margin-top:0;">Tilføj eller ret en linje – tale eller skrift</div>
+        <p class="empty-note" style="margin-bottom:10px;">Fx "tilføj 10 meter brædder á 45 kr" eller "sæt arbejdsløn til 25 timer"</p>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <button class="mic-btn" id="micBtnLinjer" title="Optag en linje-instruks" style="width:56px; height:56px; flex-shrink:0;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px;">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
+          <div style="flex:1;">
+            <div class="rec-status" id="recStatusLinjer" style="font-size:13px;">Tryk for at optage</div>
+            <div class="rec-time" id="recTimeLinjer"></div>
+          </div>
+        </div>
+        <div class="wave-wrap idle" id="waveWrapLinjer" style="margin-top:10px;">
+          <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <input type="text" id="linjeInstruksInput" placeholder="Eller skriv instruksen her" style="flex:1;">
+          <button class="btn btn-primary" id="anvendLinjeInstruksBtn" type="button" style="width:auto; padding-left:18px; padding-right:18px;">Anvend</button>
+        </div>
+        <div class="error-banner" id="errorBannerLinjer"></div>
+      </div>
+
+      <div class="referat-section" style="margin-top:18px;">
+        <h3>Prisoversigt</h3>
+        <p><strong>Subtotal:</strong> <span id="prisSubtotal">0</span> kr</p>
+        <p><strong>Moms (<span id="prisMomsProcent">25</span>%):</strong> <span id="prisMomsBeloeb">0</span> kr</p>
+        <p style="margin-top:6px;"><strong>Total inkl. moms:</strong> <span id="prisTotal">0</span> kr</p>
+      </div>
+
+      <button class="btn btn-primary" id="visPdfBtn" style="margin-top:16px;">Vis tilbud som PDF</button>
+      <button class="btn btn-secondary" id="gemKladdeBtn" type="button">Gem som kladde</button>
+      <p class="empty-note" style="margin-top:6px;">Mangler du stadig de rigtige priser? Gem som kladde og fortsæt senere – kladden ligger under opgaven.</p>
+      <div class="error-banner" id="errorBannerOutput"></div>
+    </div>
+
+    <!-- Trin 5: forhåndsvisning af PDF - godkendes her -->
+    <div class="tilbud-step" id="tilbudStep-preview">
+      <div class="section-label">Sådan ser tilbuddet ud for kunden</div>
+      <p class="empty-note" style="margin-bottom:12px;">Gennemgå dokumentet, før det godkendes endeligt. Vil du rette noget, kan du gå tilbage til udkastet.</p>
+      <iframe id="pdfPreviewFrame" title="Forhåndsvisning af tilbud" style="width:100%; height:60vh; border:1px solid var(--line); border-radius:12px; background:white;"></iframe>
+      <div class="error-banner" id="errorBannerPreview"></div>
+
+      <button class="btn btn-primary" id="godkendTilbudBtn" style="margin-top:16px;">Godkend tilbud endeligt</button>
+      <button class="btn btn-secondary" id="downloadPdfBtn" type="button">Download PDF</button>
+      <button class="btn btn-ghost" id="backToTilbudOutputFromPreview" style="margin-top:6px;">‹ Tilbage og ret i tilbuddet</button>
+    </div>
+
+    <!-- Trin 6: godkendt - vælg opfølgning og markér som sendt -->
+    <div class="tilbud-step" id="tilbudStep-send">
+      <div class="section-label">Tilbud godkendt – klar til kunden</div>
+      <div class="kontekst-note">Tilbuddet er godkendt og låst. Priser og tekst hentes fra det, du netop gennemgik og fik vist som PDF.</div>
+      <div class="error-banner" id="errorBannerSend"></div>
+
+      <div class="section-label" style="margin-top:18px;">Automatisk opfølgning</div>
+      <p class="empty-note" style="margin-bottom:10px;">Hvornår skal der følges op, hvis kunden ikke har svaret?</p>
+      <div class="chip-row" id="opfoelgningChips" style="flex-wrap:wrap;">
+        <div class="chip active" data-val="ingen">Ingen</div>
+        <div class="chip" data-val="3">3 dage</div>
+        <div class="chip" data-val="7">7 dage</div>
+        <div class="chip" data-val="14">14 dage</div>
+      </div>
+
+      <button class="btn btn-primary" id="markerSendtBtn" style="margin-top:18px;">Markér som sendt & gem</button>
+      <p class="empty-note" style="margin-top:10px;">E-mail-afsendelse kræver jeres backend og er ikke bygget endnu — download PDF'en fra forrige trin, og send den manuelt indtil da.</p>
+    </div>
+
+  </div>
+
+  <!-- ================= SCREEN: FIRMAPROFIL ================= -->
+  <div class="screen" id="screen-firma">
+    <div class="section-label">Branche</div>
+    <p class="empty-note" style="margin-bottom:10px;">Vælg alle brancher, firmaet arbejder inden for. Timepriser og standardvalg tilpasses automatisk.</p>
+    <div class="chip-row" id="brancheChips" style="flex-wrap:wrap;"></div>
+
+    <div class="section-label" style="margin-top:18px;">Timepriser</div>
+    <p class="empty-note" style="margin-bottom:10px;">Udfyld de satser, I bruger. Felter, I ikke har, kan stå tomme.</p>
+    <div id="timeprisWrap"></div>
+
+    <div class="section-label" style="margin-top:18px;">Kørsel</div>
+    <div class="chip-row">
+      <div class="chip" data-val="km" id="koerselKmChip">Pr. km</div>
+      <div class="chip" data-val="time" id="koerselTimeChip">Pr. time</div>
+    </div>
+    <input type="text" id="fpKoerselSats" inputmode="numeric" placeholder="Sats i kr" style="margin-top:8px;">
+
+    <div class="section-label" style="margin-top:18px;">Moms (%)</div>
+    <input type="text" id="fpMoms" inputmode="numeric" placeholder="25">
+
+    <div class="section-label" style="margin-top:18px;">Standard betalingsbetingelser</div>
+    <textarea id="fpBetingelser" style="width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:13px; line-height:1.5;"></textarea>
+
+    <div class="section-label" style="margin-top:18px;">Gyldighed på tilbud (dage)</div>
+    <input type="text" id="fpGyldighed" inputmode="numeric" placeholder="14">
+
+    <div class="section-label" style="margin-top:18px;">Garanti</div>
+    <input type="text" id="fpGaranti" placeholder="fx 5 års reklamationsret jf. lovgivningen">
+
+    <div class="section-label" style="margin-top:18px;">Forsikringer</div>
+    <input type="text" id="fpForsikringer" placeholder="fx Erhvervs- og produktansvarsforsikring hos ...">
+
+    <div class="section-label" style="margin-top:18px;">CVR</div>
+    <input type="text" id="fpCvr" inputmode="numeric" placeholder="12345678">
+
+    <div class="section-label" style="margin-top:18px;">Bankoplysninger</div>
+    <input type="text" id="fpBank" placeholder="Reg.nr. og kontonr., eller MobilePay-nr.">
+
+    <div class="section-label" style="margin-top:18px;">Standardvalg</div>
+    <p class="empty-note" style="margin-bottom:10px;">Sæt hvert punkt til altid med, spørg hver gang, eller aldrig med. Kun punkter relevante for jeres branche vises.</p>
+    <div id="standardvalgWrap"></div>
+
+    <button class="btn btn-primary" id="saveFirmaBtn" style="margin-top:18px;">Gem firmaprofil</button>
+    <div class="error-banner" id="errorBannerFirma"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn active" data-screen="record">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      <span>Referat</span>
+    </button>
+    <button class="nav-btn" data-screen="tilbud">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      <span>Tilbud</span>
+    </button>
+    <button class="nav-btn" data-screen="customers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Kunder</span>
+    </button>
+    <button class="nav-btn" data-screen="firma">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+      <span>Firma</span>
+    </button>
+  </div>
+
+  <!-- ================= SHEET: vælg opgave (kunde → opgave) ================= -->
+  <div class="sheet-overlay" id="opgaveSheet">
+    <div class="sheet">
+      <!-- Pane A: vælg/opret kunde -->
+      <div id="sheetPaneKunder">
+        <h2>Vælg kunde</h2>
+        <div id="sheetKundeList"></div>
+        <div class="new-kunde-row" style="flex-direction:column; align-items:stretch;">
+          <input type="text" id="newKundeInput" placeholder="Ny kunde – navn" style="margin-bottom:8px;">
+          <input type="text" id="newKundeTelefon" placeholder="Telefon (valgfri)" style="margin-bottom:8px;">
+          <input type="text" id="newKundeAdresse" placeholder="Adresse (valgfri)" style="margin-bottom:8px;">
+          <button class="btn btn-primary" id="addKundeBtn">Tilføj kunde</button>
+        </div>
+      </div>
+      <!-- Pane B: vælg/opret opgave for valgt kunde -->
+      <div id="sheetPaneOpgaver" style="display:none;">
+        <button class="back-btn" id="sheetBackToKunder" style="margin-bottom:8px;">‹ Andre kunder</button>
+        <h2 id="sheetOpgaveKundeNavn">Opgaver</h2>
+        <div id="sheetOpgaveList"></div>
+        <div class="new-kunde-row" style="flex-direction:column; align-items:stretch;">
+          <input type="text" id="newSheetOpgaveInput" placeholder="Ny opgave – titel" style="margin-bottom:8px;">
+          <button class="btn btn-primary" id="addSheetOpgaveBtn">Opret og vælg opgave</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: opret kunde (fra Kunder-fanen) ================= -->
+  <div class="sheet-overlay" id="opretKundeSheet">
+    <div class="sheet">
+      <h2>Ny kunde</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="okKundeNavn" placeholder="Navn">
+        <input type="text" id="okKundeTelefon" placeholder="Telefon (valgfri)">
+        <input type="text" id="okKundeAdresse" placeholder="Adresse (valgfri)">
+        <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* =========================================================================
+   ================  BACKEND-GRÆNSEFLADE (TIL ANN)  ======================
+   =========================================================================
+   Alt data-lagring i værktøjet går IKKE gennem de 10 funktioner herunder.
+   De bruger lige nu Claude-artifactens indbyggede window.storage til at
+   simulere en database, så flowet kan testes fra ende til anden. Når dette
+   bygges ind i det rigtige system, er det KUN disse 10 funktioner, der skal
+   udskiftes med kald til jeres egen backend/database - resten af koden
+   (UI, optager, AI-prompts, trin-navigation) kan genbruges uændret, da alt
+   andet i appen udelukkende kalder disse funktioner for at læse/skrive data.
+
+   HIERARKI (jf. Ann's arkitektur-note): Kunde → Opgave → Referat/Tilbud.
+   Referater og tilbud hænger ALDRIG direkte på kunden, kun på en opgave.
+   En "Opgave" her svarer til en række i jeres eksisterende leads-tabel
+   (udvidet med kunde_id, som beskrevet) - denne fil simulerer det blot,
+   indtil det er koblet på jeres rigtige data.
+
+   FirmaProfil er IKKE en del af dette hierarki - den er ét singleton-objekt
+   pr. virksomhed (svarer til jeres firms-tabel), uafhængig af kunder/opgaver.
+
+   DATA-FORMER:
+
+   Kunde:
+   { id: string, navn: string, telefon: string, adresse: string, oprettet: ISO-dato-string }
+   (telefon er tomt som standard - det er nøglen, der på sigt skal matches
+   mod indkommende opkald, jf. Anns note)
+
+   Opgave (gemt pr. kunde):
+   { id: string, titel: string, beskrivelse: string, oprettet: ISO-dato-string }
+
+   Referat (gemt pr. opgave):
+   {
+     id: string, titel: string, type: "Noter",
+     // "type" har bevidst kun én mulig værdi - "Kundemøde" er fjernet som
+     // kategori af GDPR-hensyn (kundens stemme må ikke optages). Feltet er
+     // bevaret i datamodellen for stabilitet, men UI'et tilbyder ikke et valg.
+     dato: "YYYY-MM-DD", createdAt: ISO-dato-string,
+     data: {
+       opsummering: string,
+       emner: [{ titel: string, noter: string }],
+       beslutninger: [string],
+       opgaver: [{ opgave: string, ansvarlig: string, deadline: string }],
+       tilbudsNoter: string,   // bruges automatisk som kontekst i tilbud-modulet
+       naesteSkridt: string
+     }
+   }
+
+   Tilbud (gemt pr. opgave):
+   {
+     id: string, dato: "YYYY-MM-DD", createdAt: ISO-dato-string,
+     indledning: string, opgaveBeskrivelse: string,
+     linjer: [
+       { id: string, type: "arbejde"|"materiale"|"gebyr", beskrivelse: string,
+         antal: number, enhed: string, enhedspris: number }
+       // "samlet" pr. linje regnes altid som antal × enhedspris i koden,
+       // aldrig af AI'en - se "STRUKTUREREDE TILBUDSLINJER" i tilbud-modulet.
+     ],
+     momsProcent: number, subtotal: number, momsBeloeb: number, total: number,
+     afslutning: string, betingelser: string,
+     status: "udkast" | "godkendt" | "sendt",
+     godkendtAt: ISO-dato-string | null,
+     sendtAt: ISO-dato-string | null,
+     opfoelgning: { dage: number, status: "planlagt" } | null
+     // opfoelgning er KUN et ønske gemt som data i denne prototype - selve
+     // afsendelsen af en påmindelse efter X dage kræver en scheduler/cron
+     // job og en afsendelseskanal (e-mail/SMS) på jeres backend, som ikke
+     // findes her endnu. Se afsnittet "Godkend/send-loop" i handoff-dokumentet.
+   }
+   (linjer-strukturen er ny i denne version - ældre gemte tilbud i en
+   tidligere test kan mangle disse felter, hvis I har testdata fra før.)
+
+   FirmaProfil (singleton, ét pr. virksomhed - IKKE gemt pr. kunde/opgave):
+   {
+     brancher: string[],  // fx ["Tømrer", "Murer"] - firmaet kan have flere
+     timepriser: [
+       { id: string, branche: string, rolle: "Lærling"|"Svend"|"Mester", sats: string }
+     ],
+     koersel: { type: "km" | "time", sats: string },
+     moms: string,               // fx "25"
+     betalingsbetingelser: string,
+     gyldighedDage: string,      // fx "14"
+     garanti: string,
+     forsikringer: string,
+     cvr: string,
+     bankoplysninger: string,
+     standardvalg: { [feltId: string]: "altid" | "spoerg" | "aldrig" }
+     // feltId'erne matcher STANDARDFELTER-listen længere nede i filen -
+     // se kommentaren "CENTRALE STANDARDFELTER" for hvorfor den er en
+     // separat, central liste og ikke en del af selve firma-objektet.
+   }
+
+   DE 10 FUNKTIONER, DER SKAL UDSKIFTES:
+   - loadCustomers()               → hent alle kunder
+   - saveCustomers(list)           → gem hele kundelisten (opret/rediger)
+   - loadOpgaver(kundeId)          → hent alle opgaver for én kunde
+   - saveOpgaver(kundeId, list)    → gem opgave-listen for én kunde
+   - loadReferater(opgaveId)       → hent alle referater for én opgave
+   - saveReferater(opgaveId, list) → gem referat-listen for én opgave
+   - loadTilbud(opgaveId)          → hent alle tilbud for én opgave
+   - saveTilbud(opgaveId, list)    → gem tilbud-listen for én opgave
+   - loadFirmaProfil()             → hent firmaets profil (singleton)
+   - saveFirmaProfil(profil)       → gem firmaets profil (singleton)
+
+   Alle ti er async og returnerer/modtager almindelige JS-objekter/arrays -
+   ingen viden om window.storage lækker ud til resten af koden.
+   ========================================================================= */
+
+async function loadCustomers() {
+  try {
+    const res = await window.storage.get('customers', false);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function saveCustomers(list) {
+  try { await window.storage.set('customers', JSON.stringify(list), false); } catch (e) {}
+}
+async function loadOpgaver(kundeId) {
+  try {
+    const res = await window.storage.get('opgaver:' + kundeId, false);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function saveOpgaver(kundeId, list) {
+  try { await window.storage.set('opgaver:' + kundeId, JSON.stringify(list), false); } catch (e) {}
+}
+async function loadReferater(opgaveId) {
+  try {
+    const res = await window.storage.get('referater:' + opgaveId, false);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function saveReferater(opgaveId, list) {
+  try { await window.storage.set('referater:' + opgaveId, JSON.stringify(list), false); } catch (e) {}
+}
+async function loadTilbud(opgaveId) {
+  try {
+    const res = await window.storage.get('tilbud:' + opgaveId, false);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function saveTilbud(opgaveId, list) {
+  try { await window.storage.set('tilbud:' + opgaveId, JSON.stringify(list), false); } catch (e) {}
+}
+async function loadFirmaProfil() {
+  try {
+    const res = await window.storage.get('firmaprofil', false);
+    return res ? JSON.parse(res.value) : null;
+  } catch (e) {
+    return null;
+  }
+}
+async function saveFirmaProfil(profil) {
+  try { await window.storage.set('firmaprofil', JSON.stringify(profil), false); } catch (e) {}
+}
+function uid() {
+  return (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+}
+
+/* =========================================================================
+   CENTRALE STANDARDFELTER (ejes af Dit Digitale Kontor, ikke af den enkelte
+   virksomhed). Hver virksomheds FirmaProfil gemmer kun SVAR på disse felter
+   (altid/spørg/aldrig) i standardvalg - ikke selve felt-definitionen.
+
+   Hvorfor adskilt: kommer der et nyt lovkrav (fx et miljøgebyr, der bliver
+   obligatorisk for visse brancher), tilføjer I ét nyt objekt her centralt -
+   og alle relevante virksomheder kan vises "tag stilling til dette", uden
+   at appen skal bygges om. gaelderForBrancher: [] betyder "gælder alle
+   brancher". gyldigFra kan bruges til at lægge en kommende lovændring ind,
+   før den reelt træder i kraft.
+
+   TIL ANN: i produktion bør denne liste ligge i en tabel I selv kan
+   redigere (ikke hardcodet i appen), så I kan tilføje felter uden en
+   ny release. Strukturen herunder er tænkt som præcis den datamodel.
+   ========================================================================= */
+const STANDARDFELTER = [
+  { id: 'affald', label: 'Bortskaffelse af affald', gaelderForBrancher: [] },
+  { id: 'oprydning', label: 'Oprydning', gaelderForBrancher: [] },
+  { id: 'rengoering', label: 'Rengøring', gaelderForBrancher: [] },
+  { id: 'afdaekning', label: 'Afdækning', gaelderForBrancher: [] },
+  { id: 'etablering', label: 'Etablering af arbejdsplads', gaelderForBrancher: [] },
+  { id: 'koersel_tillaeg', label: 'Kørselstillæg', gaelderForBrancher: [] },
+  { id: 'materialepaalaeg', label: 'Materialepåslag', gaelderForBrancher: [] },
+  { id: 'miljoegebyr', label: 'Miljøgebyr', gaelderForBrancher: [], gyldigFra: '2026-01-01' }
+];
+const BRANCHER = ['Tømrer', 'Murer', 'Maler', 'Elektriker', 'VVS', 'Anlægsgartner', 'Snedker', 'Totalentreprenør', 'Andet'];
+const ROLLER = ['Lærling', 'Svend', 'Mester'];
+
+/* =========================================================================
+   APP STATE
+   ========================================================================= */
+let customers = [];
+let selectedKundeId = null;   // kunde valgt til den aktuelle optagelse (Optag-fanen)
+let selectedOpgaveId = null;  // opgave valgt til den aktuelle optagelse (Optag-fanen)
+// Kun én type findes bevidst (jf. GDPR: kundens stemme må ikke optages, så
+// "Kundemøde" som kategori er fjernet - der er kun "Noter" tilbage).
+const NOTE_TYPE = 'Noter';
+let currentKundeDetailId = null;
+let currentOpgaveDetailId = null;
+let currentReferatDetail = null;
+let currentTilbudDetail = null;
+let lastReferatEntry = null; // { data, meta } klar til at gemme
+
+/* =========================================================================
+   ONBOARDING: bed om mikrofonadgang, før værktøjet bruges første gang
+   ========================================================================= */
+const onboarding = document.getElementById('onboarding');
+const onboardingStatus = document.getElementById('onboardingStatus');
+const requestMicBtn = document.getElementById('requestMicBtn');
+let micPermissionGranted = false;
+
+async function requestMicOnboarding() {
+  onboardingStatus.className = 'status';
+  onboardingStatus.textContent = 'Beder om adgang…';
+  requestMicBtn.disabled = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS });
+    stream.getTracks().forEach(t => t.stop()); // vi skal kun bruge tilladelsen, ikke lyden endnu
+    micPermissionGranted = true;
+    onboardingStatus.className = 'status ok';
+    onboardingStatus.textContent = 'Mikrofon klar ✓';
+    setTimeout(() => onboarding.classList.add('hidden'), 500);
+  } catch (e) {
+    onboardingStatus.className = 'status err';
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      onboardingStatus.textContent = 'Adgang blev afvist. Åbn siden i Safari/Chrome (ikke i Claude-appen), eller tillad mikrofon i browserens indstillinger, og prøv igen.';
+    } else if (e.name === 'NotFoundError') {
+      onboardingStatus.textContent = 'Ingen mikrofon fundet på enheden.';
+    } else {
+      onboardingStatus.textContent = 'Kunne ikke få adgang: ' + e.message;
+    }
+  } finally {
+    requestMicBtn.disabled = false;
+  }
+}
+requestMicBtn.addEventListener('click', requestMicOnboarding);
+document.getElementById('skipMicBtn').addEventListener('click', () => onboarding.classList.add('hidden'));
+
+function reopenOnboarding() {
+  onboarding.classList.remove('hidden');
+  onboardingStatus.className = 'status';
+  onboardingStatus.textContent = '';
+}
+
+/* =========================================================================
+   NAVIGATION
+   ========================================================================= */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    showScreen(btn.dataset.screen);
+    if (btn.dataset.screen === 'customers') renderKundeList();
+    if (btn.dataset.screen === 'firma') openFirmaTab();
+  });
+});
+
+/* =========================================================================
+   OPGAVE-VALG (indlejret sheet: vælg kunde → vælg/opret opgave)
+   Bruges fra Optag-fanens "Vælg opgave"-boks. Referater hænger på opgaven,
+   ikke direkte på kunden, jf. Kunde → Opgave → Referat/Tilbud-hierarkiet.
+   ========================================================================= */
+const opgaveSheet = document.getElementById('opgaveSheet');
+const opgavePill = document.getElementById('opgavePill');
+const opgavePillText = document.getElementById('opgavePillText');
+const sheetPaneKunder = document.getElementById('sheetPaneKunder');
+const sheetPaneOpgaver = document.getElementById('sheetPaneOpgaver');
+let sheetActiveKundeId = null;
+let opgaveSheetOnSelect = null; // callback(kundeId, opgaveId, opgave), sat af den, der åbner sheet'en
+
+opgavePill.addEventListener('click', () => openOpgaveSheet(selectOpgaveForRecording));
+opgaveSheet.addEventListener('click', (e) => { if (e.target === opgaveSheet) opgaveSheet.classList.remove('open'); });
+
+async function openOpgaveSheet(onSelect) {
+  opgaveSheetOnSelect = onSelect;
+  customers = await loadCustomers();
+  renderSheetKundeList();
+  sheetPaneKunder.style.display = 'block';
+  sheetPaneOpgaver.style.display = 'none';
+  opgaveSheet.classList.add('open');
+}
+
+function renderSheetKundeList() {
+  const wrap = document.getElementById('sheetKundeList');
+  wrap.innerHTML = customers.length
+    ? customers.map(k => `<div class="sheet-kunde-row" data-id="${k.id}">${escapeHtml(k.navn)}</div>`).join('')
+    : `<p class="empty-note">Ingen kunder endnu – tilføj en herunder.</p>`;
+  wrap.querySelectorAll('.sheet-kunde-row').forEach(row => {
+    row.addEventListener('click', () => openSheetOpgavePane(row.dataset.id));
+  });
+}
+
+async function openSheetOpgavePane(kundeId) {
+  sheetActiveKundeId = kundeId;
+  const k = customers.find(c => c.id === kundeId);
+  document.getElementById('sheetOpgaveKundeNavn').textContent = 'Opgaver – ' + (k ? k.navn : '');
+  const opgaver = await loadOpgaver(kundeId);
+  const wrap = document.getElementById('sheetOpgaveList');
+  wrap.innerHTML = opgaver.length
+    ? opgaver.map(o => `<div class="sheet-kunde-row" data-id="${o.id}">${escapeHtml(o.titel)}</div>`).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde – opret en herunder.</p>`;
+  wrap.querySelectorAll('.sheet-kunde-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const opgave = opgaver.find(o => o.id === row.dataset.id);
+      opgaveSheet.classList.remove('open');
+      if (opgaveSheetOnSelect) opgaveSheetOnSelect(kundeId, row.dataset.id, opgave);
+    });
+  });
+  sheetPaneKunder.style.display = 'none';
+  sheetPaneOpgaver.style.display = 'block';
+}
+
+document.getElementById('sheetBackToKunder').addEventListener('click', () => {
+  sheetPaneOpgaver.style.display = 'none';
+  sheetPaneKunder.style.display = 'block';
+});
+
+document.getElementById('addKundeBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newKundeInput');
+  const telefonInput = document.getElementById('newKundeTelefon');
+  const adresseInput = document.getElementById('newKundeAdresse');
+  const navn = input.value.trim();
+  if (!navn) return;
+  const nyKunde = { id: uid(), navn: navn, telefon: telefonInput.value.trim(), adresse: adresseInput.value.trim(), oprettet: new Date().toISOString() };
+  customers.push(nyKunde);
+  await saveCustomers(customers);
+  input.value = ''; telefonInput.value = ''; adresseInput.value = '';
+  openSheetOpgavePane(nyKunde.id); // ny kunde har endnu ingen opgaver - lad brugeren oprette den første
+});
+
+document.getElementById('addSheetOpgaveBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newSheetOpgaveInput');
+  const titel = input.value.trim();
+  if (!titel || !sheetActiveKundeId) return;
+  const nyOpgave = { id: uid(), titel: titel, beskrivelse: '', oprettet: new Date().toISOString() };
+  const opgaver = await loadOpgaver(sheetActiveKundeId);
+  opgaver.push(nyOpgave);
+  await saveOpgaver(sheetActiveKundeId, opgaver);
+  input.value = '';
+  opgaveSheet.classList.remove('open');
+  if (opgaveSheetOnSelect) opgaveSheetOnSelect(sheetActiveKundeId, nyOpgave.id, nyOpgave);
+});
+
+function selectOpgaveForRecording(kundeId, opgaveId, opgave) {
+  selectedKundeId = kundeId;
+  selectedOpgaveId = opgaveId;
+  const k = customers.find(c => c.id === kundeId);
+  opgavePillText.textContent = (k ? k.navn : '') + ' – ' + (opgave ? opgave.titel : '');
+  opgavePillText.classList.remove('placeholder');
+}
+
+/* =========================================================================
+   OPRET KUNDE (fra Kunder-fanen - simpel, uden opgave-valg)
+   ========================================================================= */
+const opretKundeSheet = document.getElementById('opretKundeSheet');
+document.getElementById('fabAddKunde').addEventListener('click', () => {
+  document.getElementById('okKundeNavn').value = '';
+  document.getElementById('okKundeTelefon').value = '';
+  document.getElementById('okKundeAdresse').value = '';
+  opretKundeSheet.classList.add('open');
+});
+opretKundeSheet.addEventListener('click', (e) => { if (e.target === opretKundeSheet) opretKundeSheet.classList.remove('open'); });
+document.getElementById('okKundeGemBtn').addEventListener('click', async () => {
+  const navn = document.getElementById('okKundeNavn').value.trim();
+  if (!navn) return;
+  const nyKunde = {
+    id: uid(), navn: navn,
+    telefon: document.getElementById('okKundeTelefon').value.trim(),
+    adresse: document.getElementById('okKundeAdresse').value.trim(),
+    oprettet: new Date().toISOString()
+  };
+  customers = await loadCustomers();
+  customers.push(nyKunde);
+  await saveCustomers(customers);
+  opretKundeSheet.classList.remove('open');
+  await renderKundeList();
+  openKundeDetail(nyKunde.id);
+});
+
+/* =========================================================================
+   ================  WHISPER-INTEGRATION (TIL ANN)  =======================
+   =========================================================================
+   DETTE ER DET ENESTE STED I HELE APPEN, HVOR TALE-TIL-TEKST SKAL KOBLES PÅ.
+   Begge optagere (Optag-fanen og Tilbud-fanen) kalder udelukkende denne ene
+   funktion - ingen andre steder i koden rører ved transskription.
+
+   Lyden optages med browserens indbyggede MediaRecorder (bredt understøttet
+   på tværs af Chrome, Safari, Firefox og Edge - modsat den tidligere løsning
+   med Web Speech API, som slet ikke findes i Firefox og er upålidelig i
+   Safari på iPhone). Når optagelsen stoppes, sendes hele lydklippet samlet
+   til denne funktion som en Blob (typisk audio/webm eller audio/mp4,
+   afhængig af browser).
+
+   TIL ANN: Byg et backend-endpoint, der modtager lydfilen og sender den
+   videre til OpenAI Whisper, og lad denne funktion kalde det endpoint.
+   Eksempel på hvordan jeres backend-kald til Whisper typisk ser ud:
+
+     const form = new FormData();
+     form.append('file', audioBlob, 'optagelse.webm');
+     form.append('model', 'whisper-1'); // eller 'gpt-4o-transcribe'
+     form.append('language', 'da');
+     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+       method: 'POST',
+       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` }, // kun server-side!
+       body: form
+     });
+     const data = await res.json();
+     return data.text;
+
+   Denne prototype kan IKKE kalde Whisper direkte (der er ingen nøgle-adgang
+   her, i modsætning til Claude-kaldene andre steder i filen), så funktionen
+   fejler bevidst med en tydelig besked herunder, indtil I har koblet jeres
+   eget backend-endpoint på. Fejlen vises i den almindelige fejlbanner i UI'et,
+   så det er tydeligt for alle, der tester prototypen.
+   ========================================================================= */
+async function transcribeAudio(audioBlob) {
+  throw new Error('Whisper er endnu ikke koblet til. Se kommentaren "WHISPER-INTEGRATION (TIL ANN)" i koden for hvordan transcribeAudio() skal kobles til jeres backend.');
+}
+
+/* =========================================================================
+   ============  MATERIALE-LEVERANDØR-INTEGRATION (TIL ANN)  ==============
+   =========================================================================
+   Forberedt, men bevidst IKKE aktiv - appen fungerer fuldt ud uden nogen
+   leverandør tilkoblet (håndværkeren indtaster bare priser manuelt, som i
+   dag). Dette er stedet, hvor I kan koble jeres materiale-leverandørers
+   API'er på, når I er klar, uden at skulle røre resten af appen.
+
+   Registrér én leverandør pr. objekt i listen herunder. Hver leverandør skal
+   implementere funktionen soegPris(soegeterm), som slår en materialebetegnelse
+   op og returnerer en liste af mulige match:
+     [{ beskrivelse: string, enhedspris: number, enhed: string }, ...]
+
+   TIL ANN: Byg et backend-endpoint pr. leverandør (API-nøgler skal ligge
+   server-side, aldrig i browseren), og lad soegPris kalde det. Eksempel:
+
+     {
+       id: 'stark',
+       navn: 'STARK',
+       soegPris: async (soegeterm) => {
+         const res = await fetch('/api/leverandoerer/stark/soeg?q=' + encodeURIComponent(soegeterm));
+         return await res.json(); // [{ beskrivelse, enhedspris, enhed }, ...]
+       }
+     }
+
+   Er der flere leverandører tilkoblet på samme tid, kan UI'et i renderLinjer()
+   udvides til at lade håndværkeren vælge hvilken, der skal slås op hos - lige
+   nu bruges blot den første i listen.
+   ========================================================================= */
+const MATERIALE_LEVERANDOERER = [
+  // Tilføj leverandør-objekter her, se eksemplet i kommentaren ovenfor.
+];
+
+async function slaaMaterialePrisOp(soegeterm) {
+  if (!MATERIALE_LEVERANDOERER.length) return null; // ingen leverandør tilkoblet endnu - helt normal tilstand
+  try {
+    return await MATERIALE_LEVERANDOERER[0].soegPris(soegeterm);
+  } catch (e) {
+    return null; // fejler stille - materialepris slås op manuelt i stedet
+  }
+}
+
+/* =========================================================================
+   ================  ØKONOMISYSTEM-INTEGRATION (TIL ANN)  ==================
+   =========================================================================
+   Forberedt, men bevidst IKKE aktiv - et sendt tilbud gemmes fint i appen
+   uden noget økonomisystem tilkoblet. Dette er stedet, hvor I kan koble
+   eksport til fx e-conomic, Dinero eller Business Central på, uden at skulle
+   ændre selve tilbuds-datamodellen (de strukturerede linjer i Tilbud, se
+   BACKEND-GRÆNSEFLADEN, er allerede i det format, den slags eksport har brug
+   for - beskrivelse/antal/enhedspris pr. linje).
+
+   Registrér ét system pr. objekt i listen herunder. Hvert system skal
+   implementere eksporter(tilbud), hvor tilbud er ét element fra
+   loadTilbud()-listen (se datamodellen for Tilbud i BACKEND-GRÆNSEFLADEN).
+
+   TIL ANN: Byg et backend-endpoint pr. system (API-nøgler/OAuth skal ligge
+   server-side), og lad eksporter kalde det. Eksempel:
+
+     {
+       id: 'economic',
+       navn: 'e-conomic',
+       eksporter: async (tilbud) => {
+         const res = await fetch('/api/oekonomi/economic/eksporter-tilbud', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(tilbud)
+         });
+         return await res.json(); // fx { success: true, link: '...' }
+       }
+     }
+   ========================================================================= */
+const OEKONOMISYSTEM_CONNECTORER = [
+  // Tilføj system-objekter her, se eksemplet i kommentaren ovenfor.
+];
+
+async function eksporterTilOekonomisystem(tilbud, systemId) {
+  const connector = OEKONOMISYSTEM_CONNECTORER.find(c => c.id === systemId);
+  if (!connector) throw new Error('Dette økonomisystem er ikke forbundet endnu.');
+  return connector.eksporter(tilbud);
+}
+
+/* Mikrofon-indstillinger brugt ved al lydoptagelse i appen.
+   echoCancellation/noiseSuppression/autoGainControl er sat til true som
+   standard af browseren, men kan på mobil (særligt i PWA/standalone-tilstand
+   og på støjende arbejdspladser) nogle gange dæmpe eller klippe stemme, den
+   fejlagtigt tolker som baggrundsstøj. Sættes eksplicit til false her for at
+   få en mere "rå" optagelse - Whisper er selv god til at håndtere baggrunds-
+   støj, så vi behøver ikke browserens indbyggede støjreduktion. */
+const MIC_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+/* =========================================================================
+   GENBRUGELIG OPTAGER-KOMPONENT
+   Bruges af både Optag- og Tilbud-fanen. Optager lyd med MediaRecorder,
+   viser en simuleret, levende puls mens der optages (ikke ægte lydanalyse -
+   det kræver ikke adgang til rå lyddata, og konflikter derfor ikke med
+   optagelsen), og sender lydklippet til transcribeAudio() ved stop.
+   ========================================================================= */
+function createRecorder({ micBtn, pauseBtn, waveWrap, waveBars, recStatus, recTime, transcriptEl, unsupportedBanner, onError }) {
+  let isRec = false;
+  let isPaused = false;
+  let mediaRecorder = null;
+  let chunks = [];
+  let stream = null;
+  let wakeLock = null;
+  let audioCtx = null, analyser = null, waveRafId = null;
+  let recStartTime = null, pausedElapsed = 0, timerInterval = null, waveAnimInterval = null;
+
+  if (!window.MediaRecorder && unsupportedBanner) {
+    unsupportedBanner.style.display = 'block';
+  }
+
+  function pickMimeType() {
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
+    for (const c of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return '';
+  }
+
+  // Ægte lydniveau-visning ud fra samme stream som optages (kun muligt fordi
+  // MediaRecorder nu er den eneste mikrofon-forbruger - ingen konkurrerende
+  // talegenkendelse længere). Falder tilbage til en simuleret puls, hvis
+  // Web Audio API skulle fejle på en given browser.
+  function runWaveLoop() {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    waveWrap.classList.remove('idle');
+    const loop = () => {
+      if (!isRec || isPaused) return;
+      analyser.getByteFrequencyData(data);
+      waveBars.forEach((bar, i) => {
+        const v = data[i * 4] || 0;
+        bar.style.height = Math.max(4, Math.min(28, (v / 255) * 28)) + 'px';
+      });
+      waveRafId = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+  function startRealWave() {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      runWaveLoop();
+    } catch (e) {
+      startSimulatedWave();
+    }
+  }
+  function startSimulatedWave() {
+    waveWrap.classList.remove('idle');
+    waveAnimInterval = setInterval(() => {
+      if (isPaused) return;
+      waveBars.forEach(bar => { bar.style.height = (4 + Math.random() * 24) + 'px'; });
+    }, 120);
+  }
+  function pauseWaveVisual() {
+    if (waveRafId) cancelAnimationFrame(waveRafId);
+    waveWrap.classList.add('idle');
+    waveBars.forEach(b => b.style.height = '4px');
+  }
+  function resumeWaveVisual() {
+    if (analyser) runWaveLoop(); else if (!waveAnimInterval) startSimulatedWave();
+  }
+  function stopWave() {
+    if (waveRafId) cancelAnimationFrame(waveRafId);
+    clearInterval(waveAnimInterval);
+    waveAnimInterval = null;
+    if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; analyser = null; }
+    waveWrap.classList.add('idle');
+    waveBars.forEach(b => b.style.height = '4px');
+  }
+
+  // Timeren holder styr på reel optaget tid på tværs af evt. pauser -
+  // pausedElapsed akkumulerer den tid, der allerede er optaget før en pause.
+  function renderTime(ms) {
+    const secs = Math.floor(ms / 1000);
+    recTime.textContent = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
+  }
+  function startTimer() {
+    recStartTime = Date.now();
+    pausedElapsed = 0;
+    timerInterval = setInterval(() => renderTime(Date.now() - recStartTime), 1000);
+  }
+  function pauseTimer() {
+    clearInterval(timerInterval);
+    pausedElapsed += Date.now() - recStartTime;
+    renderTime(pausedElapsed);
+  }
+  function resumeTimer() {
+    recStartTime = Date.now();
+    timerInterval = setInterval(() => renderTime(pausedElapsed + Date.now() - recStartTime), 1000);
+  }
+
+  async function start() {
+    onError && onError('');
+    if (!window.MediaRecorder) {
+      onError && onError('Denne browser understøtter ikke lydoptagelse. Indsæt teksten manuelt i feltet nedenfor.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS });
+      const mimeType = pickMimeType();
+      const options = { audioBitsPerSecond: 128000 };
+      if (mimeType) options.mimeType = mimeType;
+      mediaRecorder = new MediaRecorder(stream, options);
+      chunks = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = handleStop;
+      mediaRecorder.start();
+
+      // Forhindr at skærmen dæmper/låser midt i optagelsen på mobilen, hvilket
+      // ellers kan afbryde MediaRecorder uden nogen fejlmeddelelse. Ikke alle
+      // browsere understøtter Wake Lock (bl.a. ældre iOS Safari) - fejler den,
+      // fortsætter optagelsen bare uden denne beskyttelse.
+      try {
+        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+      } catch (e) { /* ikke understøttet - fortsæt uden */ }
+
+      isRec = true;
+      isPaused = false;
+      micBtn.classList.add('recording');
+      if (pauseBtn) { pauseBtn.style.display = 'inline-block'; pauseBtn.textContent = 'Pause'; }
+      startRealWave();
+      recStatus.textContent = 'Optager…';
+      recStatus.classList.add('live');
+      startTimer();
+    } catch (e) {
+      onError && onError('Kunne ikke få adgang til mikrofonen. <span class="mic-warning-link" id="retryMicLink" style="display:inline; margin:0;">Prøv igen</span>');
+      const link = document.getElementById('retryMicLink');
+      if (link) link.addEventListener('click', reopenOnboarding);
+    }
+  }
+
+  function togglePause() {
+    if (!isRec || !mediaRecorder) return;
+    if (isPaused) {
+      isPaused = false;
+      mediaRecorder.resume();
+      resumeTimer();
+      resumeWaveVisual();
+      recStatus.textContent = 'Optager…';
+      recStatus.classList.add('live');
+      if (pauseBtn) pauseBtn.textContent = 'Pause';
+    } else {
+      isPaused = true;
+      mediaRecorder.pause();
+      pauseTimer();
+      pauseWaveVisual();
+      recStatus.textContent = 'På pause';
+      recStatus.classList.remove('live');
+      if (pauseBtn) pauseBtn.textContent = 'Fortsæt';
+    }
+  }
+  if (pauseBtn) pauseBtn.addEventListener('click', togglePause);
+
+  function stop() {
+    if (!isRec) return;
+    isRec = false;
+    // Læg den sidste aktive periode til den samlede varighed, medmindre vi
+    // allerede var på pause (så er den allerede talt med af pauseTimer()).
+    if (!isPaused && recStartTime) pausedElapsed += Date.now() - recStartTime;
+    isPaused = false;
+    clearInterval(timerInterval);
+    stopWave();
+    micBtn.classList.remove('recording');
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    recStatus.textContent = 'Transskriberer…';
+    recStatus.classList.remove('live');
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+
+  async function handleStop() {
+    const varighedSek = pausedElapsed / 1000;
+    const kortOptagelse = varighedSek < 1.5;
+    try {
+      const blob = new Blob(chunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
+      const text = await transcribeAudio(blob);
+      const sep = transcriptEl.value && !transcriptEl.value.endsWith(' ') ? ' ' : '';
+      transcriptEl.value += sep + (text || '').trim();
+      recStatus.textContent = 'Optagelse stoppet';
+      onError && onError(kortOptagelse ? 'Optagelsen var meget kort (under 1,5 sekund) - tjek at mikrofonen nåede at fange det hele.' : '');
+    } catch (e) {
+      recStatus.textContent = 'Optagelse stoppet';
+      onError && onError('Kunne ikke transskribere optagelsen: ' + e.message);
+    }
+  }
+
+  micBtn.addEventListener('click', () => { isRec ? stop() : start(); });
+
+  return { stop, isRecording: () => isRec };
+}
+
+/* =========================================================================
+   OPTAGER - Optag-fanen
+   ========================================================================= */
+const micBtn = document.getElementById('micBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const recStatus = document.getElementById('recStatus');
+const recTime = document.getElementById('recTime');
+const waveWrap = document.getElementById('waveWrap');
+const waveBars = document.querySelectorAll('.wave-bar');
+const editTranscript = document.getElementById('editTranscript');
+const unsupportedBanner = document.getElementById('unsupportedBanner');
+
+const referatRecorder = createRecorder({
+  micBtn, pauseBtn, waveWrap, waveBars, recStatus, recTime,
+  transcriptEl: editTranscript,
+  unsupportedBanner: unsupportedBanner,
+  onError: (msg) => { if (msg) showError(msg); else hideError(); }
+});
+
+/* =========================================================================
+   AI REFERAT-GENERERING
+   BEMÆRK: fetch til api.anthropic.com virker kun i Claude-artifact preview.
+   TIL ANN: I produktion skal dette kald gå gennem jeres egen backend.
+   ========================================================================= */
+const generateBtn = document.getElementById('generateBtn');
+const errorBanner = document.getElementById('errorBanner');
+const outputCard = document.getElementById('outputCard');
+const referatOutput = document.getElementById('referatOutput');
+let lastPlainText = '';
+let referatBilleder = []; // { id, mediaType, base64, dataUrl } - billeder af håndskrevne noter
+
+function showError(msg) { errorBanner.innerHTML = msg; errorBanner.style.display = 'block'; }
+function hideError() { errorBanner.style.display = 'none'; }
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('addImageBtn').addEventListener('click', () => document.getElementById('referatImageInput').click());
+document.getElementById('referatImageInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  for (const file of files) {
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      const match = dataUrl.match(/^data:(.*);base64,(.*)$/);
+      if (!match) continue;
+      referatBilleder.push({ id: uid(), mediaType: match[1], base64: match[2], dataUrl: dataUrl });
+    } catch (err) { /* spring filen over ved fejl */ }
+  }
+  e.target.value = ''; // så samme fil kan vælges igen senere
+  renderReferatImagePreviews();
+});
+
+function renderReferatImagePreviews() {
+  const wrap = document.getElementById('referatImagePreviewWrap');
+  wrap.innerHTML = referatBilleder.map(img => `
+    <div class="img-thumb" data-id="${img.id}">
+      <img src="${img.dataUrl}" alt="Billede af noter">
+      <button class="remove" data-id="${img.id}" title="Fjern billede">×</button>
+    </div>`).join('');
+  wrap.querySelectorAll('.remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      referatBilleder = referatBilleder.filter(i => i.id !== btn.dataset.id);
+      renderReferatImagePreviews();
+    });
+  });
+}
+
+generateBtn.addEventListener('click', async () => {
+  hideError();
+  if (referatRecorder.isRecording()) referatRecorder.stop();
+
+  const transcript = editTranscript.value.trim();
+  if (!transcript && !referatBilleder.length) {
+    showError('Der er hverken en transskription eller billeder endnu. Optag mødet, indsæt tekst, eller upload et billede af dine noter.');
+    return;
+  }
+
+  const kunde = customers.find(c => c.id === selectedKundeId);
+  const meta = {
+    titel: document.getElementById('mTitel').value.trim() || (NOTE_TYPE + (kunde ? ' – ' + kunde.navn : '')),
+    dato: new Date().toISOString().slice(0, 10),
+    type: NOTE_TYPE,
+    kundeNavn: kunde ? kunde.navn : 'Ikke valgt'
+  };
+
+  generateBtn.disabled = true;
+  generateBtn.innerHTML = '<span class="spinner"></span>Genererer referat…';
+
+  const system = `Du er en professionel note-assistent for et håndværker-administrationsfirma. Noterne dækker en opgave (fx egne arbejdsnoter eller noter fra et byggemøde) og skal senere kunne danne grundlag for et tilbud til kunden.
+Nogle beskeder indeholder også billeder af håndskrevne noter - læs teksten i billederne så godt som muligt, og kombinér den med en eventuel indtalt transskription til ét samlet referat. Er håndskriften svær at læse, så medtag kun det, du er rimeligt sikker på, og udelad resten fremfor at gætte.
+Svar UDELUKKENDE med gyldig JSON og intet andet - ingen indledning, ingen markdown-kodeblokke.
+JSON-struktur:
+{
+  "opsummering": "kort opsummering af noterne i 1-2 sætninger",
+  "emner": [{"titel": "emne", "noter": "hvad blev noteret"}],
+  "beslutninger": ["beslutning 1"],
+  "opgaver": [{"opgave": "hvad skal gøres", "ansvarlig": "navn eller tom streng", "deadline": "dato eller tom streng"}],
+  "tilbudsNoter": "relevante detaljer til brug for et senere tilbud - omfang af arbejde, materialer, mål, kundens ønsker, evt. nævnte priser eller budget. Tom streng hvis intet relevant blev nævnt.",
+  "naesteSkridt": "kort tekst om opfølgning, tom streng hvis ikke nævnt"
+}
+Skriv på flydende, professionelt dansk. Tomme arrays hvis intet relevant.`;
+
+  const introTekst = `Kunde: ${meta.kundeNavn}\nDato: ${meta.dato}` +
+    (transcript ? `\n\nIndtalt transskription:\n${transcript}` : '') +
+    (referatBilleder.length ? `\n\n(${referatBilleder.length} billede(r) af håndskrevne noter er vedhæftet nedenfor.)` : '');
+
+  const contentBlocks = [{ type: 'text', text: introTekst }];
+  referatBilleder.forEach(img => {
+    contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
+  });
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: system,
+        messages: [{ role: 'user', content: contentBlocks }]
+      })
+    });
+    if (!response.ok) throw new Error('API-kald fejlede (status ' + response.status + ')');
+    const data = await response.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('Intet svar fra modellen.');
+    const clean = textBlock.text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    lastReferatEntry = { data: parsed, meta: meta };
+    referatOutput.innerHTML = renderReferatHtml(parsed);
+    lastPlainText = buildPlainText(parsed, meta);
+    outputCard.style.display = 'block';
+    outputCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    showError('Kunne ikke generere referatet: ' + e.message);
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Generér referat';
+  }
+});
+
+function renderReferatHtml(data) {
+  let html = `<div class="referat-section"><h3>Opsummering</h3><p>${escapeHtml(data.opsummering || '')}</p></div>`;
+
+  if (data.emner && data.emner.length) {
+    html += `<div class="referat-section"><h3>Emner drøftet</h3><ul class="referat-list">` +
+      data.emner.map(e => `<li><strong>${escapeHtml(e.titel)}:</strong> ${escapeHtml(e.noter)}</li>`).join('') + `</ul></div>`;
+  }
+
+  html += `<div class="referat-section"><h3>Beslutninger</h3>`;
+  html += (data.beslutninger && data.beslutninger.length)
+    ? `<ul class="referat-list">` + data.beslutninger.map(b => `<li>${escapeHtml(b)}</li>`).join('') + `</ul>`
+    : `<p class="empty-note">Ingen beslutninger noteret.</p>`;
+  html += `</div>`;
+
+  html += `<div class="referat-section"><h3>Opgaver</h3>`;
+  if (data.opgaver && data.opgaver.length) {
+    html += data.opgaver.map(o => `<div class="task-item"><div>${escapeHtml(o.opgave)}</div><div class="who">${escapeHtml(o.ansvarlig || '–')} · ${escapeHtml(o.deadline || 'ingen deadline')}</div></div>`).join('');
+  } else {
+    html += `<p class="empty-note">Ingen opgaver noteret.</p>`;
+  }
+  html += `</div>`;
+
+  if (data.tilbudsNoter) {
+    html += `<div class="referat-section"><h3>Til brug for tilbud</h3><p>${escapeHtml(data.tilbudsNoter)}</p></div>`;
+  }
+  if (data.naesteSkridt) {
+    html += `<div class="referat-section"><h3>Næste skridt</h3><p>${escapeHtml(data.naesteSkridt)}</p></div>`;
+  }
+  return html;
+}
+
+function buildPlainText(data, meta) {
+  let t = `${meta.titel}\n${meta.type} · ${meta.dato} · Kunde: ${meta.kundeNavn}\n\n`;
+  t += `OPSUMMERING\n${data.opsummering || ''}\n\n`;
+  t += `OPGAVER\n`;
+  t += (data.opgaver && data.opgaver.length)
+    ? data.opgaver.map(o => `- ${o.opgave} (${o.ansvarlig || '–'}, ${o.deadline || 'ingen deadline'})`).join('\n')
+    : 'Ingen opgaver noteret.';
+  t += `\n\nTIL BRUG FOR TILBUD\n${data.tilbudsNoter || 'Ingen noter.'}\n`;
+  return t;
+}
+
+document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(lastPlainText, 'copyBtn'));
+async function copyToClipboard(text, btnId) {
+  const btn = document.getElementById(btnId);
+  const orig = btn.textContent;
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard API ikke tilgængelig');
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'Kopieret!';
+  } catch (e) {
+    // Fald tilbage til en ældre kopi-metode, der virker flere steder end
+    // Clipboard API'et (bl.a. hvis siden vises inde i Claude's eget vindue).
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = 'Kopieret!';
+    } catch (e2) {
+      btn.textContent = 'Kunne ikke kopiere';
+    }
+  }
+  setTimeout(() => { btn.textContent = orig; }, 1600);
+}
+
+/* =========================================================================
+   GEM REFERAT PÅ OPGAVE
+   ========================================================================= */
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (!selectedOpgaveId) { showError('Vælg en opgave, før du gemmer referatet.'); openOpgaveSheet(); return; }
+  if (!lastReferatEntry) return;
+
+  const entry = {
+    id: uid(),
+    titel: lastReferatEntry.meta.titel,
+    type: lastReferatEntry.meta.type,
+    dato: lastReferatEntry.meta.dato,
+    data: lastReferatEntry.data,
+    createdAt: new Date().toISOString()
+  };
+  const eksisterende = await loadReferater(selectedOpgaveId);
+  eksisterende.unshift(entry);
+  await saveReferater(selectedOpgaveId, eksisterende);
+
+  const btn = document.getElementById('saveBtn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Gemt på ' + opgavePillText.textContent;
+  setTimeout(() => {
+    btn.textContent = orig;
+    // Ryd op til næste referat
+    editTranscript.value = '';
+    referatBilleder = [];
+    renderReferatImagePreviews();
+    outputCard.style.display = 'none';
+    lastReferatEntry = null;
+  }, 2200);
+});
+
+/* =========================================================================
+   KUNDER → OPGAVER → REFERATER/TILBUD (browse-hierarki)
+   ========================================================================= */
+async function renderKundeList() {
+  customers = await loadCustomers();
+  const wrap = document.getElementById('kundeListWrap');
+  if (!customers.length) {
+    wrap.innerHTML = `<p class="empty-note">Ingen kunder endnu. Tryk på + for at tilføje en.</p>`;
+    return;
+  }
+  wrap.innerHTML = customers.map(k => `
+    <div class="kunde-row" data-id="${k.id}">
+      <div><div class="kn">${escapeHtml(k.navn)}</div><div class="kc">Tryk for at se opgaver</div></div>
+      <span class="chev">›</span>
+    </div>`).join('');
+  wrap.querySelectorAll('.kunde-row').forEach(row => {
+    row.addEventListener('click', () => openKundeDetail(row.dataset.id));
+  });
+}
+
+async function openKundeDetail(kundeId) {
+  currentKundeDetailId = kundeId;
+  const k = customers.find(c => c.id === kundeId);
+  document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
+  const opgaver = await loadOpgaver(kundeId);
+  const wrap = document.getElementById('kundeOpgaverWrap');
+  wrap.innerHTML = opgaver.length
+    ? opgaver.map(o => `
+        <div class="referat-list-row" data-id="${o.id}">
+          <div class="rt">${escapeHtml(o.titel)}</div>
+          <div class="rm">Oprettet ${escapeHtml((o.oprettet || '').slice(0, 10))}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde. Tryk på + for at oprette en.</p>`;
+  wrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', () => openOpgaveDetail(kundeId, row.dataset.id));
+  });
+  showScreen('kunde-detail');
+}
+
+document.getElementById('fabAddOpgave').addEventListener('click', async () => {
+  const titel = prompt('Titel på ny opgave (fx "Badeværelse" eller "Carport"):');
+  if (!titel || !titel.trim()) return;
+  const nyOpgave = { id: uid(), titel: titel.trim(), beskrivelse: '', oprettet: new Date().toISOString() };
+  const opgaver = await loadOpgaver(currentKundeDetailId);
+  opgaver.push(nyOpgave);
+  await saveOpgaver(currentKundeDetailId, opgaver);
+  openKundeDetail(currentKundeDetailId);
+});
+
+async function openOpgaveDetail(kundeId, opgaveId) {
+  currentKundeDetailId = kundeId;
+  currentOpgaveDetailId = opgaveId;
+  const opgaver = await loadOpgaver(kundeId);
+  const opgave = opgaver.find(o => o.id === opgaveId);
+  document.getElementById('opgaveDetailName').textContent = opgave ? opgave.titel : 'Opgave';
+
+  const referater = await loadReferater(opgaveId);
+  const referaterWrap = document.getElementById('opgaveReferaterWrap');
+  referaterWrap.innerHTML = referater.length
+    ? referater.map(r => `
+        <div class="referat-list-row" data-id="${r.id}">
+          <div class="rt">${escapeHtml(r.titel)}</div>
+          <div class="rm"><span class="type-badge">${escapeHtml(r.type)}</span> ${escapeHtml(r.dato)}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen referater gemt på denne opgave endnu.</p>`;
+  referaterWrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', async () => {
+      const list = await loadReferater(opgaveId);
+      currentReferatDetail = list.find(r => r.id === row.dataset.id);
+      openReferatDetail();
+    });
+  });
+
+  const tilbudListe = await loadTilbud(opgaveId);
+  const tilbudWrap = document.getElementById('opgaveTilbudWrap');
+  tilbudWrap.innerHTML = tilbudListe.length
+    ? tilbudListe.map(t => `
+        <div class="referat-list-row" data-id="${t.id}">
+          <div class="rt">Tilbud ${escapeHtml(t.dato)}${t.status === 'udkast' ? ' – tryk for at fortsætte' : ''}</div>
+          <div class="rm"><span class="type-badge">${escapeHtml(t.status || 'udkast')}</span> ${t.total ? formatKr(t.total) + ' kr' : ''}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen tilbud gemt på denne opgave endnu.</p>`;
+  tilbudWrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', async () => {
+      const list = await loadTilbud(opgaveId);
+      const tilbud = list.find(t => t.id === row.dataset.id);
+      if (!tilbud) return;
+      if (tilbud.status === 'udkast') {
+        openTilbudForEditing(kundeId, opgaveId, tilbud);
+      } else {
+        currentTilbudDetail = tilbud;
+        openTilbudDetail();
+      }
+    });
+  });
+
+  showScreen('opgave-detail');
+}
+
+function openReferatDetail() {
+  if (!currentReferatDetail) return;
+  const r = currentReferatDetail;
+  document.getElementById('referatDetailWrap').innerHTML =
+    `<div class="section-label">${escapeHtml(r.type)} · ${escapeHtml(r.dato)}</div>
+     <div id="outputCard" style="display:block; margin-top:0;"><h2 style="font-family:'Nunito',sans-serif; font-size:16px; margin:0 0 12px;">${escapeHtml(r.titel)}</h2>${renderReferatHtml(r.data)}</div>`;
+  lastPlainText = buildPlainText(r.data, { titel: r.titel, type: r.type, dato: r.dato, kundeNavn: (customers.find(c => c.id === currentKundeDetailId) || {}).navn || '' });
+  showScreen('referat-detail');
+}
+
+function openTilbudDetail() {
+  if (!currentTilbudDetail) return;
+  const t = currentTilbudDetail;
+  const linjerHtml = (t.linjer || []).map(l =>
+    `<p style="margin:2px 0;">${escapeHtml(l.beskrivelse)} — ${l.antal} ${escapeHtml(l.enhed)} × ${formatKr(l.enhedspris)} kr = <strong>${formatKr(l.antal * l.enhedspris)} kr</strong></p>`
+  ).join('');
+  const opfoelgningTekst = t.opfoelgning ? `Automatisk opfølgning efter ${t.opfoelgning.dage} dage (${t.opfoelgning.status})` : 'Ingen opfølgning valgt';
+  document.getElementById('tilbudDetailWrap').innerHTML = `
+    <div class="section-label">Tilbud · ${escapeHtml(t.dato)} · ${escapeHtml(t.status || 'udkast')}</div>
+    <div id="outputCard" style="display:block; margin-top:0;">
+      <div class="referat-section"><h3>Indledning</h3><p>${escapeHtml(t.indledning || '')}</p></div>
+      <div class="referat-section"><h3>Opgavebeskrivelse</h3><p>${escapeHtml(t.opgaveBeskrivelse || '')}</p></div>
+      <div class="referat-section"><h3>Linjer</h3>${linjerHtml || '<p class="empty-note">Ingen linjer</p>'}</div>
+      <div class="referat-section">
+        <p><strong>Subtotal:</strong> ${formatKr(t.subtotal || 0)} kr</p>
+        <p><strong>Moms (${t.momsProcent || 0}%):</strong> ${formatKr(t.momsBeloeb || 0)} kr</p>
+        <p><strong>Total:</strong> ${formatKr(t.total || 0)} kr</p>
+      </div>
+      <div class="referat-section"><h3>Afslutning</h3><p>${escapeHtml(t.afslutning || '')}</p></div>
+      ${t.betingelser ? `<div class="referat-section"><h3>Betingelser</h3><p>${escapeHtml(t.betingelser)}</p></div>` : ''}
+      <div class="referat-section"><h3>Opfølgning</h3><p>${escapeHtml(opfoelgningTekst)}</p></div>
+    </div>`;
+  lastPlainText = `Indledning: ${t.indledning}\nOpgave: ${t.opgaveBeskrivelse}\n` +
+    (t.linjer || []).map(l => `- ${l.beskrivelse}: ${l.antal} ${l.enhed} x ${l.enhedspris} kr = ${l.antal * l.enhedspris} kr`).join('\n') +
+    `\nTotal: ${t.total} kr\nAfslutning: ${t.afslutning}`;
+
+  const select = document.getElementById('oekonomisystemSelect');
+  const eksporterBtn = document.getElementById('eksporterOekonomiBtn');
+  document.getElementById('errorBannerOekonomi').style.display = 'none';
+  if (OEKONOMISYSTEM_CONNECTORER.length) {
+    select.innerHTML = OEKONOMISYSTEM_CONNECTORER.map(c => `<option value="${c.id}">${escapeHtml(c.navn)}</option>`).join('');
+    select.disabled = false;
+    eksporterBtn.disabled = false;
+  } else {
+    select.innerHTML = `<option>Ingen økonomisystemer forbundet endnu</option>`;
+    select.disabled = true;
+    eksporterBtn.disabled = true;
+  }
+
+  showScreen('tilbud-detail');
+}
+
+document.getElementById('backToKunder').addEventListener('click', () => { showScreen('customers'); renderKundeList(); });
+document.getElementById('backToKundeDetailFromOpgave').addEventListener('click', () => openKundeDetail(currentKundeDetailId));
+document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click', () => openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
+document.getElementById('backToOpgaveDetailFromTilbud').addEventListener('click', () => openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
+document.getElementById('copyDetailBtn').addEventListener('click', () => copyToClipboard(lastPlainText, 'copyDetailBtn'));
+
+/* Genbruger et allerede afsendt/godkendt tilbud som udgangspunkt for et
+   NYT tilbud - opretter aldrig en ændring af det oprindelige, kun en frisk
+   kopi. Lader håndværkeren vælge, hvilken kunde/opgave det nye tilbud skal
+   høre til (kan sagtens være en helt anden opgave end det oprindelige tilbud
+   kom fra - det er netop pointen ved genbrug som skabelon). */
+document.getElementById('eksporterOekonomiBtn').addEventListener('click', async () => {
+  const errBox = document.getElementById('errorBannerOekonomi');
+  errBox.style.display = 'none';
+  if (!currentTilbudDetail) return;
+  const systemId = document.getElementById('oekonomisystemSelect').value;
+  const btn = document.getElementById('eksporterOekonomiBtn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Eksporterer…';
+  try {
+    await eksporterTilOekonomisystem(currentTilbudDetail, systemId);
+    btn.textContent = '✓ Eksporteret';
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1800);
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = 'block';
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('genbrugTilbudBtn').addEventListener('click', () => {
+  if (!currentTilbudDetail) return;
+  const skabelon = currentTilbudDetail;
+  tilbudRedigererId = null; // dette skal blive en ny post, ikke en overskrivning af det oprindelige tilbud
+  openOpgaveSheet(async (kundeId, opgaveId, opgave) => {
+    tilbudKundeId = kundeId;
+    tilbudOpgaveId = opgaveId;
+    tilbudMomsProcent = skabelon.momsProcent || 25;
+    tilbudLinjer = (skabelon.linjer || []).map(l => nyLinje(l.type, l.beskrivelse, l.antal, l.enhed, l.enhedspris));
+
+    const kunde = customers.find(c => c.id === kundeId);
+    const draftLike = { indledning: skabelon.indledning, opgaveBeskrivelse: skabelon.opgaveBeskrivelse, afslutning: skabelon.afslutning };
+    const checklistLike = { betingelser: skabelon.betingelser };
+    renderTilbudOutput(draftLike, checklistLike, kunde, tilbudMomsProcent);
+
+    showScreen('tilbud');
+    showTilbudStep('output');
+  });
+});
+document.getElementById('copyTilbudDetailBtn').addEventListener('click', () => copyToClipboard(lastPlainText, 'copyTilbudDetailBtn'));
+
+/* =========================================================================
+   TILBUD-MODUL
+   Selvstændigt flow: indtal → find/opret kunde → tjekliste → AI-udkast → gem.
+   Genbruger samme kunde- og referat-lagring som resten af værktøjet.
+   ========================================================================= */
+
+// ---- Trin-navigation ----
+function showTilbudStep(step) {
+  document.querySelectorAll('.tilbud-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('tilbudStep-' + step).classList.add('active');
+}
+
+// ---- Optager (separat instans, samme mønster som referat-optageren) ----
+const micBtnTilbud = document.getElementById('micBtnTilbud');
+const pauseBtnTilbud = document.getElementById('pauseBtnTilbud');
+const recStatusTilbud = document.getElementById('recStatusTilbud');
+const recTimeTilbud = document.getElementById('recTimeTilbud');
+const waveWrapTilbud = document.getElementById('waveWrapTilbud');
+const waveBarsTilbud = waveWrapTilbud.querySelectorAll('.wave-bar');
+const editTranscriptTilbud = document.getElementById('editTranscriptTilbud');
+const errorBannerTilbud = document.getElementById('errorBannerTilbud');
+
+const tilbudRecorder = createRecorder({
+  micBtn: micBtnTilbud, pauseBtn: pauseBtnTilbud, waveWrap: waveWrapTilbud, waveBars: waveBarsTilbud,
+  recStatus: recStatusTilbud, recTime: recTimeTilbud,
+  transcriptEl: editTranscriptTilbud,
+  onError: (msg) => {
+    if (msg) { errorBannerTilbud.innerHTML = msg; errorBannerTilbud.style.display = 'block'; }
+    else { errorBannerTilbud.style.display = 'none'; }
+  }
+});
+
+// ---- Trin 1 -> AI-udtræk af kunde + opgave ----
+let tilbudExtraction = null; // seneste AI-udtræk
+let tilbudKundeId = null;    // valgt/oprettet kunde til dette tilbud
+let tilbudReferatKontekst = ''; // tekst-kontekst fra evt. gemte referater
+
+document.getElementById('analyzeTilbudBtn').addEventListener('click', async () => {
+  errorBannerTilbud.style.display = 'none';
+  tilbudRedigererId = null; // en ny optagelse er ikke en redigering af en gemt kladde
+  if (tilbudRecorder.isRecording()) tilbudRecorder.stop();
+  const transcript = editTranscriptTilbud.value.trim();
+  if (!transcript) {
+    errorBannerTilbud.textContent = 'Indtal eller indsæt en beskrivelse af kunden og opgaven først.';
+    errorBannerTilbud.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('analyzeTilbudBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyserer…';
+
+  const system = `Du hjælper en håndværker med at forberede et tilbud ud fra en indtalt beskrivelse.
+Svar UDELUKKENDE med gyldig JSON og intet andet:
+{
+  "kundeNavn": "kundens navn, tom streng hvis ikke nævnt",
+  "kundeAdresse": "adresse inkl. postnr/by hvis nævnt, ellers tom streng",
+  "opgaveBeskrivelse": "en professionel, sammenhængende beskrivelse af opgaven baseret på det indtalte",
+  "materialer": "materialer nævnt, tom streng hvis intet nævnt",
+  "timepris": "beløb i kr uden 'kr', tom streng hvis ikke nævnt",
+  "antalTimerEstimat": "estimeret antal timer, tom streng hvis ikke nævnt",
+  "bortskaffelseAffald": true, false, eller null hvis ikke nævnt,
+  "materialeBufferProcent": "procent hvis nævnt, ellers tom streng"
+}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: system,
+        messages: [{ role: 'user', content: transcript }]
+      })
+    });
+    if (!response.ok) throw new Error('API-kald fejlede (status ' + response.status + ')');
+    const data = await response.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('Intet svar fra modellen.');
+    const clean = textBlock.text.replace(/```json|```/g, '').trim();
+    tilbudExtraction = JSON.parse(clean);
+
+    customers = await loadCustomers();
+    await renderKundeMatch();
+    showTilbudStep('kunde');
+  } catch (e) {
+    errorBannerTilbud.textContent = 'Kunne ikke analysere optagelsen: ' + e.message;
+    errorBannerTilbud.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Find kunde og fortsæt';
+  }
+});
+
+document.getElementById('backToTilbudRecord').addEventListener('click', () => showTilbudStep('record'));
+
+// ---- Spring optagelse over: vælg kunde/opgave manuelt, ingen AI-udtræk ----
+document.getElementById('skipTilbudDictationBtn').addEventListener('click', () => {
+  tilbudRedigererId = null; // en ny, manuel start er ikke en redigering af en gemt kladde
+  openOpgaveSheet(async (kundeId, opgaveId, opgave) => {
+    // Tom "udtræk", så resten af flowet (tjekliste-prefill mv.) kan bruges uændret,
+    // selvom der reelt ikke er dikteret/analyseret noget.
+    tilbudExtraction = {
+      kundeNavn: '', kundeAdresse: '', opgaveBeskrivelse: '', materialer: '',
+      timepris: '', antalTimerEstimat: '', bortskaffelseAffald: null, materialeBufferProcent: ''
+    };
+    customers = await loadCustomers();
+    tilbudKundeId = kundeId;
+    await useTilbudOpgave(kundeId, opgaveId);
+  });
+});
+
+// ---- Trin 2: find eller opret kunde ----
+function normalizeStr(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
+
+async function renderKundeMatch() {
+  const wrap = document.getElementById('kundeMatchWrap');
+  const navnSoegt = normalizeStr(tilbudExtraction.kundeNavn);
+  let matches = [];
+  if (navnSoegt) {
+    matches = customers.filter(k => {
+      const navnK = normalizeStr(k.navn);
+      return navnK.includes(navnSoegt) || navnSoegt.includes(navnK);
+    });
+  }
+
+  let html = '';
+  if (!tilbudExtraction.kundeNavn) {
+    html += `<p class="empty-note" style="margin-bottom:12px;">Der blev ikke opfattet et kundenavn i optagelsen. Vælg eller opret kunden manuelt.</p>`;
+  } else if (matches.length) {
+    html += `<p class="empty-note" style="margin-bottom:12px;">Opfattet: "${escapeHtml(tilbudExtraction.kundeNavn)}"${tilbudExtraction.kundeAdresse ? ', ' + escapeHtml(tilbudExtraction.kundeAdresse) : ''}. Er det en af disse?</p>`;
+    matches.forEach(k => {
+      html += `<div class="match-card" data-id="${k.id}"><div class="mn">${escapeHtml(k.navn)}</div><div class="ma">${escapeHtml(k.adresse || 'Ingen adresse gemt')}</div></div>`;
+    });
+  } else {
+    html += `<p class="empty-note" style="margin-bottom:12px;">Ingen eksisterende kunde matcher "${escapeHtml(tilbudExtraction.kundeNavn)}". Er det en ny kunde?</p>`;
+  }
+
+  html += `<div class="match-card new" id="createNewKundeCard">
+      <div class="mn">+ Opret ny kunde</div>
+      <div class="ma">${escapeHtml(tilbudExtraction.kundeNavn || '')}${tilbudExtraction.kundeAdresse ? ', ' + escapeHtml(tilbudExtraction.kundeAdresse) : ''}</div>
+    </div>`;
+
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.match-card[data-id]').forEach(card => {
+    card.addEventListener('click', async () => { await useTilbudKunde(card.dataset.id); });
+  });
+  document.getElementById('createNewKundeCard').addEventListener('click', async () => {
+    const nyKunde = {
+      id: uid(),
+      navn: tilbudExtraction.kundeNavn || 'Ny kunde',
+      adresse: tilbudExtraction.kundeAdresse || '',
+      oprettet: new Date().toISOString()
+    };
+    customers.push(nyKunde);
+    await saveCustomers(customers);
+    await useTilbudKunde(nyKunde.id);
+  });
+}
+
+let tilbudOpgaveId = null; // valgt/oprettet opgave under kunden, som referat/tilbud skal hænge på
+let tilbudRedigererId = null; // id på den kladde der redigeres, hvis man er i gang med at genåbne én - så gem opdaterer i stedet for at duplikere
+
+async function useTilbudKunde(kundeId) {
+  tilbudKundeId = kundeId;
+  const k = customers.find(c => c.id === kundeId);
+  document.getElementById('opgaveStepKundeName').textContent = 'Opgave – ' + (k ? k.navn : '');
+  await renderTilbudOpgaveList(kundeId);
+  showTilbudStep('opgave');
+}
+
+async function renderTilbudOpgaveList(kundeId) {
+  const opgaver = await loadOpgaver(kundeId);
+  const wrap = document.getElementById('tilbudOpgaveListWrap');
+
+  // Foreslå en titel ud fra opgavebeskrivelsen, hvis den findes
+  const forslag = (tilbudExtraction && tilbudExtraction.opgaveBeskrivelse)
+    ? tilbudExtraction.opgaveBeskrivelse.split(/[.,]/)[0].slice(0, 40)
+    : '';
+  if (forslag && !document.getElementById('newTilbudOpgaveInput').value) {
+    document.getElementById('newTilbudOpgaveInput').value = forslag;
+  }
+
+  wrap.innerHTML = opgaver.length
+    ? opgaver.map(o => `<div class="match-card" data-id="${o.id}"><div class="mn">${escapeHtml(o.titel)}</div><div class="ma">Eksisterende opgave</div></div>`).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde.</p>`;
+  wrap.querySelectorAll('.match-card').forEach(card => {
+    card.addEventListener('click', () => useTilbudOpgave(kundeId, card.dataset.id));
+  });
+}
+
+document.getElementById('addTilbudOpgaveBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newTilbudOpgaveInput');
+  const titel = input.value.trim();
+  if (!titel || !tilbudKundeId) return;
+  const nyOpgave = { id: uid(), titel: titel, beskrivelse: '', oprettet: new Date().toISOString() };
+  const opgaver = await loadOpgaver(tilbudKundeId);
+  opgaver.push(nyOpgave);
+  await saveOpgaver(tilbudKundeId, opgaver);
+  input.value = '';
+  await useTilbudOpgave(tilbudKundeId, nyOpgave.id);
+});
+
+document.getElementById('backToTilbudKunde').addEventListener('click', () => showTilbudStep('kunde'));
+
+async function useTilbudOpgave(kundeId, opgaveId) {
+  tilbudKundeId = kundeId;
+  tilbudOpgaveId = opgaveId;
+  const referater = await loadReferater(opgaveId);
+  if (referater.length) {
+    tilbudReferatKontekst = referater.slice(0, 3).map(r =>
+      `Møde "${r.titel}" (${r.dato}): ${r.data.opsummering || ''} ${r.data.tilbudsNoter ? 'Relevant til tilbud: ' + r.data.tilbudsNoter : ''}`
+    ).join('\n');
+  } else {
+    tilbudReferatKontekst = '';
+  }
+  await prefillChecklist();
+  showTilbudStep('checklist');
+}
+
+/* Åbner en gemt kladde direkte i linje-editoren (Trin 4), så man kan
+   arbejde videre på den - i stedet for kun at kunne se den. Springer
+   dikterings- og tjekliste-trinnene over, da kladden allerede har alt
+   det, de trin ellers ville producere. */
+function openTilbudForEditing(kundeId, opgaveId, tilbud) {
+  tilbudKundeId = kundeId;
+  tilbudOpgaveId = opgaveId;
+  tilbudRedigererId = tilbud.id;
+  tilbudMomsProcent = tilbud.momsProcent || 25;
+  tilbudLinjer = JSON.parse(JSON.stringify(tilbud.linjer || []));
+
+  const kunde = customers.find(c => c.id === kundeId);
+  const draftLike = { indledning: tilbud.indledning, opgaveBeskrivelse: tilbud.opgaveBeskrivelse, afslutning: tilbud.afslutning };
+  const checklistLike = { betingelser: tilbud.betingelser };
+  renderTilbudOutput(draftLike, checklistLike, kunde, tilbudMomsProcent);
+
+  showScreen('tilbud');
+  showTilbudStep('output');
+}
+
+// ---- Trin 3: tjekliste ----
+async function prefillChecklist() {
+  document.getElementById('cbOpgave').value = tilbudExtraction.opgaveBeskrivelse || '';
+  document.getElementById('cbMaterialer').value = tilbudExtraction.materialer || '';
+  document.getElementById('cbTimer').value = tilbudExtraction.antalTimerEstimat || '';
+
+  if (tilbudReferatKontekst) {
+    const opgaveLabel = document.querySelector('#tilbudStep-checklist .section-label');
+    let note = document.getElementById('kontekstNote');
+    if (!note) {
+      note = document.createElement('div');
+      note.id = 'kontekstNote';
+      note.className = 'kontekst-note';
+      opgaveLabel.insertAdjacentElement('afterend', note);
+    }
+    note.textContent = 'Tidligere møder med denne kunde er inddraget i grundlaget for tilbuddet.';
+  }
+
+  // ---- PROFIL-INTEGRATION ----
+  // Felter, firmaprofilen allerede har taget stilling til ("altid"/"aldrig"),
+  // skal ikke spørges om igen her - kun "spørg hver gang" viser chippen.
+  const profil = await loadFirmaProfil();
+
+  // Timepris: brug det indtalte, ellers foreslå firmaets første satte sats
+  const profilTimepris = profil && profil.timepriser ? profil.timepriser.find(t => t.sats) : null;
+  document.getElementById('cbTimepris').value = tilbudExtraction.timepris || (profilTimepris ? profilTimepris.sats : '');
+
+  // Buffer på materialer (svarer til standardfeltet "materialepaalaeg")
+  const bufferValg = profil && profil.standardvalg ? profil.standardvalg.materialepaalaeg : null;
+  applyProfilStyretFelt({
+    valg: bufferValg,
+    sectionId: 'bufferSection', noteId: 'bufferAutoNote',
+    altidTekst: 'Materialepåslag er sat til altid med i jeres firmaprofil.',
+    aldrigTekst: 'Materialepåslag er sat til aldrig med i jeres firmaprofil.',
+    onAltid: () => { setChipGroup('cbBufferChips', 'ja'); document.getElementById('bufferPctWrap').style.display = 'block'; },
+    onAldrig: () => { setChipGroup('cbBufferChips', 'nej'); document.getElementById('bufferPctWrap').style.display = 'none'; },
+    onSpoergFallback: () => {
+      setChipGroup('cbBufferChips', tilbudExtraction.materialeBufferProcent ? 'ja' : null);
+      document.getElementById('bufferPctWrap').style.display = tilbudExtraction.materialeBufferProcent ? 'block' : 'none';
+    }
+  });
+  document.getElementById('cbBufferPct').value = tilbudExtraction.materialeBufferProcent || '';
+
+  // Bortskaffelse af affald
+  const affaldValg = profil && profil.standardvalg ? profil.standardvalg.affald : null;
+  applyProfilStyretFelt({
+    valg: affaldValg,
+    sectionId: 'affaldSection', noteId: 'affaldAutoNote',
+    altidTekst: 'Bortskaffelse af affald er sat til altid med i jeres firmaprofil.',
+    aldrigTekst: 'Bortskaffelse af affald er sat til aldrig med i jeres firmaprofil.',
+    onAltid: () => setChipGroup('cbAffaldChips', 'ja'),
+    onAldrig: () => setChipGroup('cbAffaldChips', 'nej'),
+    onSpoergFallback: () => setChipGroup('cbAffaldChips', tilbudExtraction.bortskaffelseAffald === true ? 'ja' : (tilbudExtraction.bortskaffelseAffald === false ? 'nej' : null))
+  });
+
+  // Betingelser: brug firmaets egne, hvis sat, ellers udkastet
+  setChipGroup('cbBetingelserChips', 'ja');
+  document.getElementById('betingelserTextWrap').style.display = 'block';
+  let betingelserTekst = (profil && profil.betalingsbetingelser) ? profil.betalingsbetingelser : STANDARD_BETINGELSER_UDKAST;
+  if (profil && profil.gyldighedDage) {
+    betingelserTekst = `Tilbuddet er gældende i ${profil.gyldighedDage} dage fra dato.\n` + betingelserTekst;
+  }
+  document.getElementById('cbBetingelserTekst').value = betingelserTekst;
+}
+
+/* Skjuler et tjekliste-felt, når firmaprofilen allerede har svaret "altid"
+   eller "aldrig", og viser i stedet en kort forklarende note. Er svaret
+   "spørg hver gang" (eller profilen ikke udfyldt), vises feltet som normalt. */
+function applyProfilStyretFelt({ valg, sectionId, noteId, altidTekst, aldrigTekst, onAltid, onAldrig, onSpoergFallback }) {
+  const section = document.getElementById(sectionId);
+  const note = document.getElementById(noteId);
+  if (valg === 'altid') {
+    section.style.display = 'none';
+    note.style.display = 'block';
+    note.textContent = altidTekst;
+    onAltid();
+  } else if (valg === 'aldrig') {
+    section.style.display = 'none';
+    note.style.display = 'block';
+    note.textContent = aldrigTekst;
+    onAldrig();
+  } else {
+    section.style.display = 'block';
+    note.style.display = 'none';
+    onSpoergFallback();
+  }
+}
+
+const STANDARD_BETINGELSER_UDKAST = `Betalingsbetingelser: Netto 8 dage fra fakturadato, medmindre andet er aftalt.
+Prisen er baseret på det aftalte omfang; ændringer i opgaven kan medføre tillæg.
+Der ydes reklamationsret i henhold til gældende lovgivning.`;
+
+function setChipGroup(groupId, activeVal) {
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.val === activeVal));
+}
+function wireChipGroup(groupId, onChange) {
+  document.getElementById(groupId).querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById(groupId).querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      onChange(chip.dataset.val);
+    });
+  });
+}
+wireChipGroup('cbBufferChips', (val) => {
+  document.getElementById('bufferPctWrap').style.display = (val === 'ja') ? 'block' : 'none';
+});
+wireChipGroup('cbAffaldChips', () => {});
+wireChipGroup('cbBetingelserChips', (val) => {
+  document.getElementById('betingelserTextWrap').style.display = (val === 'ja') ? 'block' : 'none';
+});
+
+function getChipVal(groupId) {
+  const active = document.querySelector('#' + groupId + ' .chip.active');
+  return active ? active.dataset.val : null;
+}
+
+// ---- Trin 3 -> Generér tilbudsudkast (strukturerede linjer) ----
+document.getElementById('generateTilbudBtn').addEventListener('click', async () => {
+  const errBox = document.getElementById('errorBannerChecklist');
+  errBox.style.display = 'none';
+
+  const timepris = document.getElementById('cbTimepris').value.trim();
+  if (!timepris) {
+    errBox.textContent = 'Angiv en timepris, før tilbuddet kan genereres.';
+    errBox.style.display = 'block';
+    return;
+  }
+  const bufferVal = getChipVal('cbBufferChips');
+  const affaldVal = getChipVal('cbAffaldChips');
+  if (!bufferVal || !affaldVal) {
+    errBox.textContent = 'Svar venligst på buffer og bortskaffelse af affald, før tilbuddet genereres.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const checklist = {
+    opgave: document.getElementById('cbOpgave').value.trim(),
+    materialer: document.getElementById('cbMaterialer').value.trim(),
+    timepris: parseFloat(timepris.replace(',', '.')) || 0,
+    timer: parseFloat(document.getElementById('cbTimer').value.trim().replace(',', '.')) || 0,
+    bufferProcent: bufferVal === 'ja' ? (parseFloat(document.getElementById('cbBufferPct').value.trim()) || 0) : 0,
+    affald: affaldVal === 'ja',
+    betingelser: getChipVal('cbBetingelserChips') === 'ja' ? document.getElementById('cbBetingelserTekst').value.trim() : ''
+  };
+
+  const kunde = customers.find(c => c.id === tilbudKundeId);
+  const profil = await loadFirmaProfil();
+  const moms = (profil && profil.moms) ? parseFloat(profil.moms) : 25;
+
+  const btn = document.getElementById('generateTilbudBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Genererer udkast…';
+
+  // AI'en foreslår KUN materiale-linjer (estimerede mængder/priser er usikre,
+  // og skal kunne rettes). Arbejdslinje og materialepåslag beregnes i kode
+  // herunder, så de tal aldrig hviler på AI-regnestykker.
+  const system = `Du hjælper en håndværker med at foreslå konkrete materialelinjer til et kundetilbud.
+Brug BEGGE kilder til at foreslå materialelinjer: dels den eventuelle materiale-fritekst, dels selve opgavebeskrivelsen (og evt. kontekst fra tidligere møder). Opgavebeskrivelsen indeholder ofte i sig selv informationer, der peger på nødvendige materialer (fx "ny terrasse i trykimprægneret træ på 20 m²" antyder brædder, bjælker, beslag, skruer, olie) - brug din faglige viden om denne type opgave til at foreslå de mest sandsynlige materialer, selvom de ikke er nævnt eksplicit i materiale-feltet.
+Svar UDELUKKENDE med gyldig JSON:
+{
+  "indledning": "kort, professionel indledning til kunden (2-3 sætninger)",
+  "opgaveBeskrivelse": "poleret beskrivelse af opgaven",
+  "materialelinjer": [{"beskrivelse": "fx Trykimprægneret brædder", "antal": 1, "enhed": "sæt/stk/m² e.l.", "enhedspris": 0}],
+  "afslutning": "kort afsluttende tekst med opfordring til at tage kontakt ved spørgsmål"
+}
+Skøn realistiske mængder/priser ud fra det samlede billede (opgavebeskrivelse + materiale-fritekst + evt. kontekst), men marker dem tydeligt som estimater i beskrivelsen, hvis der er stor usikkerhed. Returnér kun tom materialelinjer-liste, hvis opgaven er så uklart beskrevet, at intet fagligt kvalificeret bud kan gives.`;
+
+  const user = `Kunde: ${kunde ? kunde.navn : 'Ikke angivet'}${kunde && kunde.adresse ? ', ' + kunde.adresse : ''}
+${tilbudReferatKontekst ? 'Kontekst fra tidligere møder:\n' + tilbudReferatKontekst + '\n' : ''}
+Opgavebeskrivelse: ${checklist.opgave}
+Materialer (fritekst fra håndværkeren): ${checklist.materialer || 'Ikke angivet'}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: system,
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!response.ok) throw new Error('API-kald fejlede (status ' + response.status + ')');
+    const data = await response.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('Intet svar fra modellen.');
+    const clean = textBlock.text.replace(/```json|```/g, '').trim();
+    const draft = JSON.parse(clean);
+    buildInitialLinjer(draft, checklist, moms);
+    renderTilbudOutput(draft, checklist, kunde, moms);
+    showTilbudStep('output');
+  } catch (e) {
+    errBox.textContent = 'Kunne ikke generere tilbudsudkast: ' + e.message;
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generér tilbudsudkast';
+  }
+});
+
+/* =========================================================================
+   STRUKTUREREDE TILBUDSLINJER
+   Hver linje: { id, type: 'arbejde'|'materiale'|'gebyr', beskrivelse, antal,
+   enhed, enhedspris, samlet }. "samlet" beregnes altid i kode (antal × pris),
+   aldrig af AI'en - det er hele pointen med denne struktur: totalen kan
+   regnes pålideligt, og linjerne er allerede i det format, en fremtidig
+   connector til e-conomic/Dinero/osv. skal bruge.
+   ========================================================================= */
+let tilbudLinjer = [];
+let tilbudMomsProcent = 25;
+let tilbudBufferProcent = 0; // gemt til visning ("priserne inkluderer X% påslag"), ikke til genberegning
+let lastTilbudDraft = null;
+
+function nyLinje(type, beskrivelse, antal, enhed, enhedspris) {
+  return { id: uid(), type, beskrivelse, antal, enhed, enhedspris };
+}
+
+function buildInitialLinjer(draft, checklist, moms) {
+  tilbudMomsProcent = moms;
+  tilbudBufferProcent = checklist.bufferProcent || 0;
+  tilbudLinjer = [];
+
+  if (checklist.timer > 0 && checklist.timepris > 0) {
+    tilbudLinjer.push(nyLinje('arbejde', 'Arbejdsløn', checklist.timer, 'timer', checklist.timepris));
+  }
+
+  // Bufferen lægges direkte ind i hver materialelinjes pris, i stedet for at
+  // stå som en selvstændig gebyr-linje - den prisstigning håndværkeren ser
+  // pr. materiale ER prisen, ikke et ekstra tillæg ved siden af.
+  const bufferFaktor = 1 + (tilbudBufferProcent / 100);
+  (draft.materialelinjer || []).forEach(m => {
+    const antal = parseFloat(m.antal) || 1;
+    const grundpris = parseFloat(m.enhedspris) || 0;
+    const prisMedBuffer = Math.round(grundpris * bufferFaktor * 100) / 100;
+    tilbudLinjer.push(nyLinje('materiale', m.beskrivelse || 'Materiale', antal, m.enhed || 'stk', prisMedBuffer));
+  });
+
+  if (checklist.affald) {
+    tilbudLinjer.push(nyLinje('gebyr', 'Bortskaffelse af affald', 1, 'sum', 0));
+  }
+}
+
+function beregnTotaler() {
+  const subtotal = tilbudLinjer.reduce((sum, l) => sum + (parseFloat(l.antal) || 0) * (parseFloat(l.enhedspris) || 0), 0);
+  const momsBeloeb = subtotal * (tilbudMomsProcent / 100);
+  const total = subtotal + momsBeloeb;
+  return { subtotal, momsBeloeb, total };
+}
+
+function formatKr(n) {
+  return Math.round(n).toLocaleString('da-DK');
+}
+
+function renderLinjer() {
+  const wrap = document.getElementById('linjerWrap');
+  const typeLabel = { arbejde: 'Arbejde', materiale: 'Materiale', gebyr: 'Gebyr' };
+  wrap.innerHTML = tilbudLinjer.map(l => `
+    <div class="linje-row" data-id="${l.id}">
+      <div class="linje-top">
+        <span class="linje-type-badge">${typeLabel[l.type] || l.type}</span>
+        <input type="text" class="linje-beskrivelse" data-field="beskrivelse" value="${escapeHtml(l.beskrivelse)}" placeholder="Beskrivelse">
+        ${l.type === 'materiale' ? `<button class="linje-lookup" data-lookup="${l.id}" title="Slå pris op hos leverandør">🔎</button>` : ''}
+        <button class="linje-remove" data-remove="${l.id}" title="Fjern linje">×</button>
+      </div>
+      <div class="linje-bottom">
+        <input type="text" data-field="antal" inputmode="decimal" value="${l.antal}" placeholder="Antal">
+        <input type="text" class="linje-enhed" data-field="enhed" value="${escapeHtml(l.enhed)}" placeholder="Enhed">
+        <input type="text" data-field="enhedspris" inputmode="decimal" value="${l.enhedspris}" placeholder="Pris/stk">
+        <span class="linje-samlet">${formatKr((parseFloat(l.antal) || 0) * (parseFloat(l.enhedspris) || 0))} kr</span>
+      </div>
+      ${l.type === 'materiale' ? `<p class="empty-note" style="margin:6px 0 0; display:none;" data-lookup-note="${l.id}"></p>` : ''}
+    </div>`).join('');
+
+  wrap.querySelectorAll('.linje-row').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelectorAll('input[data-field]').forEach(input => {
+      input.addEventListener('input', () => {
+        const linje = tilbudLinjer.find(l => l.id === id);
+        if (!linje) return;
+        const field = input.dataset.field;
+        linje[field] = (field === 'antal' || field === 'enhedspris') ? (parseFloat(input.value.replace(',', '.')) || 0) : input.value;
+        if (field === 'antal' || field === 'enhedspris') {
+          row.querySelector('.linje-samlet').textContent = formatKr(linje.antal * linje.enhedspris) + ' kr';
+        }
+        opdaterPrisoversigt();
+      });
+    });
+    row.querySelector('.linje-remove[data-remove]').addEventListener('click', () => {
+      tilbudLinjer = tilbudLinjer.filter(l => l.id !== id);
+      renderLinjer();
+      opdaterPrisoversigt();
+    });
+    const lookupBtn = row.querySelector('[data-lookup]');
+    if (lookupBtn) {
+      lookupBtn.addEventListener('click', async () => {
+        const linje = tilbudLinjer.find(l => l.id === id);
+        const note = row.querySelector(`[data-lookup-note="${id}"]`);
+        if (!linje || !note) return;
+        note.style.display = 'block';
+        note.textContent = 'Slår pris op…';
+        const resultater = await slaaMaterialePrisOp(linje.beskrivelse);
+        if (!resultater || !resultater.length) {
+          note.textContent = 'Ingen leverandør tilkoblet endnu - indtast prisen manuelt.';
+        } else {
+          const bedste = resultater[0];
+          linje.enhedspris = bedste.enhedspris;
+          if (bedste.enhed) linje.enhed = bedste.enhed;
+          note.textContent = `Pris hentet: ${bedste.beskrivelse} - ${formatKr(bedste.enhedspris)} kr`;
+          renderLinjer();
+          opdaterPrisoversigt();
+        }
+      });
+    }
+  });
+}
+
+function opdaterPrisoversigt() {
+  const { subtotal, momsBeloeb, total } = beregnTotaler();
+  document.getElementById('prisSubtotal').textContent = formatKr(subtotal);
+  document.getElementById('prisMomsProcent').textContent = tilbudMomsProcent;
+  document.getElementById('prisMomsBeloeb').textContent = formatKr(momsBeloeb);
+  document.getElementById('prisTotal').textContent = formatKr(total);
+}
+
+document.getElementById('addLinjeBtn').addEventListener('click', () => {
+  tilbudLinjer.push(nyLinje('materiale', '', 1, 'stk', 0));
+  renderLinjer();
+  opdaterPrisoversigt();
+});
+
+/* =========================================================================
+   TILFØJ/RET LINJER MED TALE ELLER SKRIFT
+   Genbruger samme optager-komponent (MediaRecorder + transcribeAudio) som
+   resten af appen. Både den transskriberede tale og direkte indtastet tekst
+   ender i samme instruks-felt og behandles af samme funktion - "tale eller
+   skrift" er blot to måder at fylde det samme felt ud.
+   ========================================================================= */
+const linjerRecorder = createRecorder({
+  micBtn: document.getElementById('micBtnLinjer'),
+  waveWrap: document.getElementById('waveWrapLinjer'),
+  waveBars: document.getElementById('waveWrapLinjer').querySelectorAll('.wave-bar'),
+  recStatus: document.getElementById('recStatusLinjer'),
+  recTime: document.getElementById('recTimeLinjer'),
+  transcriptEl: document.getElementById('linjeInstruksInput'),
+  onError: (msg) => {
+    const box = document.getElementById('errorBannerLinjer');
+    if (msg) { box.innerHTML = msg; box.style.display = 'block'; } else { box.style.display = 'none'; }
+  }
+});
+
+document.getElementById('anvendLinjeInstruksBtn').addEventListener('click', async () => {
+  if (linjerRecorder.isRecording()) linjerRecorder.stop();
+  const input = document.getElementById('linjeInstruksInput');
+  const errBox = document.getElementById('errorBannerLinjer');
+  const instruks = input.value.trim();
+  errBox.style.display = 'none';
+  if (!instruks) { errBox.textContent = 'Skriv eller indtal en instruks først, fx "tilføj 10 brædder á 45 kr".'; errBox.style.display = 'block'; return; }
+
+  const btn = document.getElementById('anvendLinjeInstruksBtn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Anvender…';
+
+  const system = `Du redigerer en liste af tilbudslinjer for et håndværkertilbud ud fra en instruks fra håndværkeren.
+Du får den nuværende liste af linjer som JSON, og en instruks der beder om at tilføje, rette eller fjerne én eller flere linjer.
+Returnér den FULDE opdaterede linjeliste - inkludér alle linjer, også dem der ikke er ændret af instruksen.
+Svar UDELUKKENDE med gyldig JSON:
+{ "linjer": [{"type": "arbejde"|"materiale"|"gebyr", "beskrivelse": "...", "antal": number, "enhed": "...", "enhedspris": number}] }`;
+
+  const user = `Nuværende linjer:
+${JSON.stringify(tilbudLinjer.map(l => ({ type: l.type, beskrivelse: l.beskrivelse, antal: l.antal, enhed: l.enhed, enhedspris: l.enhedspris })))}
+
+Instruks: ${instruks}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: system,
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!response.ok) throw new Error('API-kald fejlede (status ' + response.status + ')');
+    const data = await response.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('Intet svar fra modellen.');
+    const clean = textBlock.text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    tilbudLinjer = (parsed.linjer || []).map(l => nyLinje(
+      l.type || 'materiale',
+      l.beskrivelse || '',
+      parseFloat(l.antal) || 0,
+      l.enhed || 'stk',
+      parseFloat(l.enhedspris) || 0
+    ));
+    renderLinjer();
+    opdaterPrisoversigt();
+    input.value = '';
+  } catch (e) {
+    errBox.textContent = 'Kunne ikke anvende instruksen: ' + e.message;
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+function renderTilbudOutput(draft, checklist, kunde, moms) {
+  lastTilbudDraft = { draft, checklist, kunde };
+  const wrap = document.getElementById('tilbudOutputWrap');
+  wrap.innerHTML = `
+    <div class="referat-section"><h3>Kunde</h3><p>${escapeHtml(kunde ? kunde.navn : '')}${kunde && kunde.adresse ? '<br>' + escapeHtml(kunde.adresse) : ''}</p></div>
+    <div class="referat-section"><h3>Indledning</h3><textarea id="editIndledning" style="width:100%; min-height:60px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13.5px;">${escapeHtml(draft.indledning || '')}</textarea></div>
+    <div class="referat-section"><h3>Opgavebeskrivelse</h3><textarea id="editOpgaveOut" style="width:100%; min-height:70px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13.5px;">${escapeHtml(draft.opgaveBeskrivelse || '')}</textarea></div>
+    <div class="referat-section"><h3>Afslutning</h3><textarea id="editAfslutning" style="width:100%; min-height:50px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13.5px;">${escapeHtml(draft.afslutning || '')}</textarea></div>
+    ${checklist.betingelser ? `<div class="referat-section"><h3>Betingelser</h3><textarea id="editBetingelserOut" style="width:100%; min-height:80px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13px;">${escapeHtml(checklist.betingelser)}</textarea></div>` : ''}
+  `;
+  renderLinjer();
+  opdaterPrisoversigt();
+
+  let bufferNote = document.getElementById('bufferNote');
+  if (tilbudBufferProcent > 0) {
+    if (!bufferNote) {
+      bufferNote = document.createElement('div');
+      bufferNote.id = 'bufferNote';
+      bufferNote.className = 'kontekst-note';
+      document.getElementById('linjerWrap').insertAdjacentElement('beforebegin', bufferNote);
+    }
+    bufferNote.textContent = `Materialepriserne herunder inkluderer allerede jeres påslag på ${tilbudBufferProcent}%.`;
+    bufferNote.style.display = 'block';
+  } else if (bufferNote) {
+    bufferNote.style.display = 'none';
+  }
+}
+
+/* =========================================================================
+   TRIN 4 -> 5 -> 6: VIS SOM PDF, GODKEND ENDELIGT, OPFØLGNING, MARKÉR SENDT
+   ========================================================================= */
+let godkendtTilbud = null; // hele det snapshottede tilbud, klar til visning/PDF/gem
+let pdfPreviewUrl = null;  // object-URL til iframen, ryddes op når den ikke bruges mere
+
+function byggSnapshot() {
+  const { subtotal, momsBeloeb, total } = beregnTotaler();
+  return {
+    kunde: lastTilbudDraft.kunde,
+    indledning: document.getElementById('editIndledning').value.trim(),
+    opgaveBeskrivelse: document.getElementById('editOpgaveOut').value.trim(),
+    afslutning: document.getElementById('editAfslutning').value.trim(),
+    betingelser: document.getElementById('editBetingelserOut') ? document.getElementById('editBetingelserOut').value.trim() : '',
+    linjer: JSON.parse(JSON.stringify(tilbudLinjer)), // frys en kopi - senere linje-redigering må ikke ændre det viste/godkendte tilbud
+    momsProcent: tilbudMomsProcent,
+    subtotal, momsBeloeb, total,
+    godkendtAt: new Date().toISOString()
+  };
+}
+
+/* Bygger selve PDF-dokumentet ud fra et snapshot. Bruges både til
+   forhåndsvisningen i iframen og til download-knappen, så de to altid
+   viser præcis det samme. */
+function byggPdfDoc(t) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 20;
+  doc.setFontSize(16); doc.text('Tilbud', 14, y); y += 10;
+  doc.setFontSize(10);
+  doc.text(`Dato: ${new Date().toLocaleDateString('da-DK')}`, 14, y); y += 6;
+  if (t.kunde) { doc.text(`Kunde: ${t.kunde.navn}${t.kunde.adresse ? ', ' + t.kunde.adresse : ''}`, 14, y); y += 10; }
+
+  doc.setFontSize(11);
+  const indledningLines = doc.splitTextToSize(t.indledning || '', 180);
+  doc.text(indledningLines, 14, y); y += indledningLines.length * 6 + 4;
+  const opgaveLines = doc.splitTextToSize(t.opgaveBeskrivelse || '', 180);
+  doc.text(opgaveLines, 14, y); y += opgaveLines.length * 6 + 8;
+
+  doc.setFontSize(10);
+  doc.text('Beskrivelse', 14, y); doc.text('Antal', 110, y); doc.text('Enhedspris', 140, y); doc.text('I alt', 175, y);
+  y += 5; doc.line(14, y, 196, y); y += 5;
+  t.linjer.forEach(l => {
+    const beskrivLines = doc.splitTextToSize(l.beskrivelse, 90);
+    doc.text(beskrivLines, 14, y);
+    doc.text(String(l.antal) + ' ' + l.enhed, 110, y);
+    doc.text(formatKr(l.enhedspris) + ' kr', 140, y);
+    doc.text(formatKr(l.antal * l.enhedspris) + ' kr', 175, y);
+    y += Math.max(6, beskrivLines.length * 6);
+  });
+  y += 4; doc.line(14, y, 196, y); y += 8;
+  doc.text(`Subtotal: ${formatKr(t.subtotal)} kr`, 140, y); y += 6;
+  doc.text(`Moms (${t.momsProcent}%): ${formatKr(t.momsBeloeb)} kr`, 140, y); y += 6;
+  doc.setFontSize(12);
+  doc.text(`Total: ${formatKr(t.total)} kr`, 140, y); y += 12;
+
+  doc.setFontSize(11);
+  const afslutLines = doc.splitTextToSize(t.afslutning || '', 180);
+  doc.text(afslutLines, 14, y); y += afslutLines.length * 6 + 8;
+
+  if (t.betingelser) {
+    doc.setFontSize(9);
+    doc.text('Betingelser:', 14, y); y += 5;
+    const betLines = doc.splitTextToSize(t.betingelser, 180);
+    doc.text(betLines, 14, y);
+  }
+  return doc;
+}
+
+// ---- Gem som kladde: ingen PDF, ingen godkendelse, bare gem det, der er nu ----
+document.getElementById('gemKladdeBtn').addEventListener('click', async () => {
+  const errBox = document.getElementById('errorBannerOutput');
+  errBox.style.display = 'none';
+  if (!tilbudOpgaveId) { errBox.textContent = 'Der mangler en opgave at gemme kladden på.'; errBox.style.display = 'block'; return; }
+
+  const { subtotal, momsBeloeb, total } = beregnTotaler();
+  const entry = {
+    id: uid(),
+    dato: new Date().toISOString().slice(0, 10),
+    indledning: document.getElementById('editIndledning').value.trim(),
+    opgaveBeskrivelse: document.getElementById('editOpgaveOut').value.trim(),
+    linjer: JSON.parse(JSON.stringify(tilbudLinjer)),
+    momsProcent: tilbudMomsProcent,
+    subtotal, momsBeloeb, total,
+    afslutning: document.getElementById('editAfslutning').value.trim(),
+    betingelser: document.getElementById('editBetingelserOut') ? document.getElementById('editBetingelserOut').value.trim() : '',
+    status: 'udkast',
+    godkendtAt: null,
+    sendtAt: null,
+    opfoelgning: null,
+    createdAt: new Date().toISOString()
+  };
+  const eksisterende = await loadTilbud(tilbudOpgaveId);
+  if (tilbudRedigererId) {
+    const idx = eksisterende.findIndex(t => t.id === tilbudRedigererId);
+    if (idx !== -1) eksisterende.splice(idx, 1);
+  }
+  eksisterende.unshift(entry);
+  await saveTilbud(tilbudOpgaveId, eksisterende);
+
+  const btn = document.getElementById('gemKladdeBtn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Gemt som kladde';
+  setTimeout(() => {
+    btn.textContent = orig;
+    editTranscriptTilbud.value = '';
+    tilbudExtraction = null; tilbudKundeId = null; tilbudOpgaveId = null; tilbudReferatKontekst = '';
+    lastTilbudDraft = null; tilbudLinjer = []; godkendtTilbud = null; tilbudRedigererId = null;
+    showTilbudStep('record');
+  }, 1400);
+});
+
+// ---- Trin 4 -> 5: byg snapshot, generér PDF, vis den til gennemsyn ----
+document.getElementById('visPdfBtn').addEventListener('click', () => {
+  const errBox = document.getElementById('errorBannerOutput');
+  errBox.style.display = 'none';
+
+  if (!window.jspdf) {
+    errBox.textContent = 'PDF-biblioteket kunne ikke indlæses. Det sker typisk, hvis siden vises inde i Claude\'s eget vindue - prøv i stedet at åbne den downloadede fil direkte i en browser (Chrome/Safari).';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  try {
+    godkendtTilbud = byggSnapshot();
+    const doc = byggPdfDoc(godkendtTilbud);
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    pdfPreviewUrl = URL.createObjectURL(doc.output('blob'));
+    document.getElementById('pdfPreviewFrame').src = pdfPreviewUrl;
+    document.getElementById('errorBannerPreview').style.display = 'none';
+    showTilbudStep('preview');
+  } catch (e) {
+    errBox.textContent = 'Kunne ikke generere PDF: ' + e.message;
+    errBox.style.display = 'block';
+  }
+});
+
+document.getElementById('backToTilbudOutputFromPreview').addEventListener('click', () => showTilbudStep('output'));
+
+// ---- Trin 5 -> 6: endelig godkendelse (data er allerede låst i snapshottet) ----
+document.getElementById('godkendTilbudBtn').addEventListener('click', () => {
+  setChipGroup('opfoelgningChips', 'ingen');
+  document.getElementById('errorBannerSend').style.display = 'none';
+  showTilbudStep('send');
+});
+
+wireChipGroup('opfoelgningChips', () => {});
+
+document.getElementById('downloadPdfBtn').addEventListener('click', () => {
+  const errBox = document.getElementById('errorBannerPreview');
+  errBox.style.display = 'none';
+  if (!godkendtTilbud || !window.jspdf) return;
+  try {
+    const doc = byggPdfDoc(godkendtTilbud);
+    doc.save(`tilbud-${(godkendtTilbud.kunde ? godkendtTilbud.kunde.navn : 'kunde').toLowerCase().replace(/[^a-z0-9æøå]+/gi, '-')}.pdf`);
+  } catch (e) {
+    errBox.textContent = 'Kunne ikke downloade PDF: ' + e.message;
+    errBox.style.display = 'block';
+  }
+});
+
+document.getElementById('markerSendtBtn').addEventListener('click', async () => {
+  if (!tilbudOpgaveId || !godkendtTilbud) return;
+  const opfoelgningVal = getChipVal('opfoelgningChips');
+
+  const entry = {
+    id: uid(),
+    dato: new Date().toISOString().slice(0, 10),
+    indledning: godkendtTilbud.indledning,
+    opgaveBeskrivelse: godkendtTilbud.opgaveBeskrivelse,
+    linjer: godkendtTilbud.linjer,
+    momsProcent: godkendtTilbud.momsProcent,
+    subtotal: godkendtTilbud.subtotal,
+    momsBeloeb: godkendtTilbud.momsBeloeb,
+    total: godkendtTilbud.total,
+    afslutning: godkendtTilbud.afslutning,
+    betingelser: godkendtTilbud.betingelser,
+    status: 'sendt',
+    godkendtAt: godkendtTilbud.godkendtAt,
+    sendtAt: new Date().toISOString(),
+    opfoelgning: opfoelgningVal === 'ingen' ? null : { dage: parseInt(opfoelgningVal, 10), status: 'planlagt' },
+    createdAt: new Date().toISOString()
+  };
+  const eksisterende = await loadTilbud(tilbudOpgaveId);
+  if (tilbudRedigererId) {
+    const idx = eksisterende.findIndex(t => t.id === tilbudRedigererId);
+    if (idx !== -1) eksisterende.splice(idx, 1);
+  }
+  eksisterende.unshift(entry);
+  await saveTilbud(tilbudOpgaveId, eksisterende);
+
+  const btn = document.getElementById('markerSendtBtn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Gemt';
+  setTimeout(() => {
+    btn.textContent = orig;
+    // Nulstil hele flowet til en ny optagelse
+    editTranscriptTilbud.value = '';
+    tilbudExtraction = null; tilbudKundeId = null; tilbudOpgaveId = null; tilbudReferatKontekst = '';
+    lastTilbudDraft = null; tilbudLinjer = []; godkendtTilbud = null; tilbudRedigererId = null;
+    if (pdfPreviewUrl) { URL.revokeObjectURL(pdfPreviewUrl); pdfPreviewUrl = null; }
+    document.getElementById('pdfPreviewFrame').src = '';
+    showTilbudStep('record');
+  }, 1400);
+});
+
+/* =========================================================================
+   FIRMAPROFIL-MODUL
+   Ét singleton-objekt pr. virksomhed. Bruges til at forudfylde og forkorte
+   tjeklisten i Tilbud-fanen (se "PROFIL-INTEGRATION" i tilbud-modulet).
+   ========================================================================= */
+let firmaProfilState = null; // seneste indlæste/redigerede profil, holdt i hukommelsen mens man er på fanen
+
+function tomFirmaProfil() {
+  return {
+    brancher: [],
+    timepriser: [],
+    koersel: { type: 'time', sats: '' },
+    moms: '25',
+    betalingsbetingelser: '',
+    gyldighedDage: '14',
+    garanti: '',
+    forsikringer: '',
+    cvr: '',
+    bankoplysninger: '',
+    standardvalg: {}
+  };
+}
+
+function relevanteStandardfelter(brancher) {
+  return STANDARDFELTER.filter(f => f.gaelderForBrancher.length === 0 || f.gaelderForBrancher.some(b => brancher.includes(b)));
+}
+
+async function openFirmaTab() {
+  const gemt = await loadFirmaProfil();
+  firmaProfilState = gemt || tomFirmaProfil();
+  renderBrancheChips();
+  renderTimeprisRows();
+  renderStandardvalg();
+
+  document.getElementById('koerselKmChip').classList.toggle('active', firmaProfilState.koersel.type === 'km');
+  document.getElementById('koerselTimeChip').classList.toggle('active', firmaProfilState.koersel.type === 'time');
+  document.getElementById('fpKoerselSats').value = firmaProfilState.koersel.sats || '';
+  document.getElementById('fpMoms').value = firmaProfilState.moms || '';
+  document.getElementById('fpBetingelser').value = firmaProfilState.betalingsbetingelser || '';
+  document.getElementById('fpGyldighed').value = firmaProfilState.gyldighedDage || '';
+  document.getElementById('fpGaranti').value = firmaProfilState.garanti || '';
+  document.getElementById('fpForsikringer').value = firmaProfilState.forsikringer || '';
+  document.getElementById('fpCvr').value = firmaProfilState.cvr || '';
+  document.getElementById('fpBank').value = firmaProfilState.bankoplysninger || '';
+}
+
+function renderBrancheChips() {
+  const wrap = document.getElementById('brancheChips');
+  wrap.innerHTML = BRANCHER.map(b => `<div class="chip${firmaProfilState.brancher.includes(b) ? ' active' : ''}" data-branche="${b}">${b}</div>`).join('');
+  wrap.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const b = chip.dataset.branche;
+      if (firmaProfilState.brancher.includes(b)) {
+        firmaProfilState.brancher = firmaProfilState.brancher.filter(x => x !== b);
+      } else {
+        firmaProfilState.brancher.push(b);
+      }
+      chip.classList.toggle('active');
+      renderTimeprisRows();
+      renderStandardvalg();
+    });
+  });
+}
+
+function renderTimeprisRows() {
+  const wrap = document.getElementById('timeprisWrap');
+  if (!firmaProfilState.brancher.length) {
+    wrap.innerHTML = `<p class="empty-note">Vælg mindst én branche ovenfor for at sætte timepriser.</p>`;
+    return;
+  }
+  wrap.innerHTML = '';
+  firmaProfilState.brancher.forEach(branche => {
+    ROLLER.forEach(rolle => {
+      let rate = firmaProfilState.timepriser.find(t => t.branche === branche && t.rolle === rolle);
+      if (!rate) {
+        rate = { id: uid(), branche, rolle, sats: '' };
+        firmaProfilState.timepriser.push(rate);
+      }
+      const row = document.createElement('div');
+      row.className = 'timepris-row';
+      row.innerHTML = `<div class="tp-label">${escapeHtml(branche)} – ${escapeHtml(rolle)}</div><input type="text" inputmode="numeric" placeholder="kr/time" value="${escapeHtml(rate.sats)}" data-rate-id="${rate.id}">`;
+      wrap.appendChild(row);
+    });
+  });
+  // Ryd satser op for brancher, der ikke længere er valgt
+  firmaProfilState.timepriser = firmaProfilState.timepriser.filter(t => firmaProfilState.brancher.includes(t.branche));
+  wrap.querySelectorAll('input[data-rate-id]').forEach(input => {
+    input.addEventListener('input', () => {
+      const rate = firmaProfilState.timepriser.find(t => t.id === input.dataset.rateId);
+      if (rate) rate.sats = input.value;
+    });
+  });
+}
+
+function renderStandardvalg() {
+  const wrap = document.getElementById('standardvalgWrap');
+  const felter = relevanteStandardfelter(firmaProfilState.brancher);
+  if (!felter.length) {
+    wrap.innerHTML = `<p class="empty-note">Vælg en branche for at se relevante standardvalg.</p>`;
+    return;
+  }
+  wrap.innerHTML = felter.map(felt => {
+    const nyBadge = felt.gyldigFra ? `<span class="sv-new-badge">Ny regel fra ${felt.gyldigFra}</span>` : '';
+    const valgt = firmaProfilState.standardvalg[felt.id] || 'spoerg';
+    return `
+      <div class="standardvalg-row">
+        <div class="sv-label">${escapeHtml(felt.label)}${nyBadge}</div>
+        <div class="chip-row" data-felt-id="${felt.id}">
+          <div class="chip${valgt === 'altid' ? ' active' : ''}" data-val="altid">Altid med</div>
+          <div class="chip${valgt === 'spoerg' ? ' active' : ''}" data-val="spoerg">Spørg hver gang</div>
+          <div class="chip${valgt === 'aldrig' ? ' active' : ''}" data-val="aldrig">Aldrig med</div>
+        </div>
+      </div>`;
+  }).join('');
+  wrap.querySelectorAll('.chip-row[data-felt-id]').forEach(row => {
+    row.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        firmaProfilState.standardvalg[row.dataset.feltId] = chip.dataset.val;
+      });
+    });
+  });
+}
+
+document.getElementById('koerselKmChip').addEventListener('click', () => {
+  document.getElementById('koerselKmChip').classList.add('active');
+  document.getElementById('koerselTimeChip').classList.remove('active');
+  firmaProfilState.koersel.type = 'km';
+});
+document.getElementById('koerselTimeChip').addEventListener('click', () => {
+  document.getElementById('koerselTimeChip').classList.add('active');
+  document.getElementById('koerselKmChip').classList.remove('active');
+  firmaProfilState.koersel.type = 'time';
+});
+
+document.getElementById('saveFirmaBtn').addEventListener('click', async () => {
+  firmaProfilState.koersel.sats = document.getElementById('fpKoerselSats').value.trim();
+  firmaProfilState.moms = document.getElementById('fpMoms').value.trim();
+  firmaProfilState.betalingsbetingelser = document.getElementById('fpBetingelser').value.trim();
+  firmaProfilState.gyldighedDage = document.getElementById('fpGyldighed').value.trim();
+  firmaProfilState.garanti = document.getElementById('fpGaranti').value.trim();
+  firmaProfilState.forsikringer = document.getElementById('fpForsikringer').value.trim();
+  firmaProfilState.cvr = document.getElementById('fpCvr').value.trim();
+  firmaProfilState.bankoplysninger = document.getElementById('fpBank').value.trim();
+
+  await saveFirmaProfil(firmaProfilState);
+
+  const btn = document.getElementById('saveFirmaBtn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Firmaprofil gemt';
+  setTimeout(() => { btn.textContent = orig; }, 2000);
+});
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+(async function init() {
+  customers = await loadCustomers();
+})();
+</script>
+</body>
+</html>
