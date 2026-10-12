@@ -2,41 +2,761 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tilbudsmodul — monteringstjek</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tilbud – Dit Digitale Kontor</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dit Kontor">
+<!--
+  tilbud/index.html — tilbudsmodulets side (Fase 1, trin 1: Kunder-fanen).
+  ⚠️ OFFENTLIG MAPPE (README.md, S17): kun HTML, CSS og klient-JS her.
+
+  Bygget på Annes prototype (docs/referater-app.html): samme skærme, samme
+  id'er, samme CSS og samme kaldesteder. Det, der er ændret, og hvorfor:
+    - dataadgangen går gennem graenseflade.js (ét kald pr. række, fejl vises)
+    - ingen egen login: siden bruger dashboardets session (samme origin)
+    - Referat-, Tilbud- og Firma-fanerne er lukket i dette trin
+    - en ny opgave beder om adresse, når kunden ingen har (NOT NULL i leads)
+  Siden er en Ø: den deler intet script med dashboardet og kan ikke vælte det.
+-->
+<script>
+  // Fejl-overlay som i dashboardet: uventede fejl vises på skærmen, så de
+  // kan ses på en iPhone uden remote inspection.
+  function visFejlOverlay(besked) {
+    var el = document.getElementById('js-fejl-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'js-fejl-overlay';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;' +
+        'background:#991b1b;color:#fff;font:13px/1.4 system-ui,sans-serif;' +
+        'padding:10px 14px;word-break:break-word';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent = '⚠ Teknisk fejl: ' + besked;
+  }
+  window.addEventListener('error', function (e) { visFejlOverlay(e.message || 'Ukendt fejl'); });
+  window.addEventListener('unhandledrejection', function (e) {
+    visFejlOverlay((e.reason && e.reason.message) || 'Ukendt fejl (promise)');
+  });
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; background: #F4F7FA; color: #1C2A38;
-         padding: 32px 16px; max-width: 460px; margin: 0 auto; line-height: 1.6; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .lille { color: #4A5D6E; font-size: 14px; }
-  pre { background: #fff; border: 1px solid #DDE4EC; border-radius: 10px;
-        padding: 14px; font-size: 13px; overflow-x: auto; margin-top: 20px; }
-  .advarsel { background: #FFF4E5; border: 1px solid #E8C99B; border-radius: 10px;
-              padding: 12px 14px; font-size: 14px; margin-top: 24px; }
+  /* ---------- Fra Annes prototype (docs/referater-app.html), uændret ---------- */
+  :root {
+    --navy: #1A3A5C;
+    --steel: #2C6B9E;
+    --forest: #2E7D52;
+    --smoke: #F4F7FA;
+    --white: #FFFFFF;
+    --ink-soft: #64798E;
+    --line: #E2E8EF;
+    --rec: #C4453D;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--smoke);
+    font-family: 'Source Sans 3', sans-serif;
+    color: var(--navy);
+    height: 100%;
+  }
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--smoke);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px 12px;
+    background: var(--navy);
+    color: white;
+    position: sticky; top: 0; z-index: 20;
+  }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--forest);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; margin: 0; }
+  .topbar span { font-size: 11px; color: #BFD3E6; display: block; }
+
+  /* ---------- Screens ---------- */
+  .screen { display: none; flex: 1; padding: 16px 16px 96px; }
+  .screen.active { display: block; }
+
+  .section-label {
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 0 0 8px;
+  }
+
+  /* ---------- Customer picker pill ---------- */
+  .kunde-pill {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 14px; cursor: pointer;
+  }
+  .kunde-pill .name { font-weight: 700; font-size: 15px; }
+  .kunde-pill .placeholder { color: var(--ink-soft); font-weight: 600; font-size: 14px; }
+  .kunde-pill .chev { color: var(--ink-soft); font-size: 13px; }
+
+  /* ---------- Chips (møde type) ---------- */
+  .chip-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    flex: 1; text-align: center; padding: 10px 8px; border-radius: 10px;
+    background: var(--white); border: 1px solid var(--line);
+    font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  }
+  .chip.active { background: var(--steel); border-color: var(--steel); color: white; }
+
+  input[type=text] {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; font-family: inherit; font-size: 14px; background: var(--white); color: var(--navy);
+  }
+  input:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,0.15); }
+
+  /* ---------- Recorder ---------- */
+  .recorder-card {
+    background: var(--white); border-radius: 18px; padding: 28px 16px 22px;
+    text-align: center; margin: 18px 0 16px; border: 1px solid var(--line);
+  }
+  .mic-btn {
+    width: 84px; height: 84px; border-radius: 50%; border: none;
+    background: var(--steel); color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; position: relative; z-index: 2;
+  }
+  .mic-btn.recording { background: var(--rec); }
+  .mic-btn svg { width: 32px; height: 32px; }
+
+  .wave-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; height: 28px; margin-bottom: 10px; }
+  .wave-bar {
+    width: 4px; border-radius: 2px; background: var(--rec);
+    height: 6px; transition: height 0.08s ease;
+  }
+  .wave-wrap.idle .wave-bar { background: var(--line); height: 4px !important; }
+
+  .rec-status { font-weight: 700; font-size: 14px; color: var(--ink-soft); }
+  .rec-status.live { color: var(--rec); }
+  .rec-time { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  details.transcript-details { margin-top: 6px; text-align: left; }
+  details.transcript-details summary {
+    font-size: 13px; font-weight: 700; color: var(--steel); cursor: pointer; padding: 4px 0;
+  }
+  textarea#editTranscript {
+    width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-family: inherit; font-size: 13px; line-height: 1.5; margin-top: 8px; resize: vertical;
+  }
+
+  .btn {
+    border: none; border-radius: 12px; padding: 14px 18px;
+    font-family: inherit; font-weight: 700; font-size: 15px; cursor: pointer; width: 100%;
+  }
+  .btn-primary { background: var(--forest); color: white; }
+  .btn-primary:disabled { background: #AFC9BC; }
+  .btn-secondary { background: var(--white); color: var(--navy); border: 1px solid var(--line); margin-top: 8px; }
+  .btn-ghost { background: transparent; color: var(--steel); font-weight: 700; }
+
+  .banner { background: #FFF6E9; border: 1px solid #F0D9A8; color: #7A5A16; font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .error-banner { background: #FDECEC; border: 1px solid #F3B9B4; color: #93261F; font-size: 13px; border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Referat output ---------- */
+  #outputCard { display: none; background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-top: 4px; }
+  .referat-section { margin-bottom: 16px; }
+  .referat-section:last-child { margin-bottom: 0; }
+  .referat-section h3 { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800; color: var(--steel); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  .referat-section p { margin: 0; font-size: 14px; line-height: 1.55; }
+  ul.referat-list { margin: 0; padding-left: 18px; }
+  ul.referat-list li { font-size: 14px; line-height: 1.55; margin-bottom: 4px; }
+  .task-item { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13.5px; }
+  .task-item:first-child { border-top: none; padding-top: 0; }
+  .task-item .who { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
+  .empty-note { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+  /* ---------- Customers screen ---------- */
+  .kunde-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .kunde-row .kn { font-weight: 700; font-size: 15px; }
+  .kunde-row .kc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .fab {
+    position: fixed; right: 50%; transform: translateX(214px); bottom: 88px;
+    width: 52px; height: 52px; border-radius: 50%; background: var(--forest); color: white;
+    border: none; font-size: 26px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18); z-index: 15; cursor: pointer;
+  }
+  @media (max-width: 480px) { .fab { right: 20px; transform: none; } }
+
+  .referat-list-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .referat-list-row .rt { font-weight: 700; font-size: 14px; }
+  .referat-list-row .rm { font-size: 12px; color: var(--ink-soft); margin-top: 3px; display: flex; gap: 8px; align-items: center; }
+  .type-badge { font-size: 10.5px; font-weight: 800; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: var(--smoke); color: var(--steel); }
+
+  .back-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .back-btn { background: none; border: none; color: var(--steel); font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; background: var(--white);
+    border-top: 1px solid var(--line); display: flex; z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .nav-btn { flex: 1; border: none; background: none; padding: 10px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; color: var(--ink-soft); }
+  .nav-btn.active { color: var(--forest); }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn span { font-size: 11px; font-weight: 700; }
+
+  /* ---------- Modal / sheet ---------- */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(15,30,45,0.45); z-index: 30;
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .sheet-overlay.open { display: flex; }
+  .sheet {
+    background: white; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0));
+    max-height: 75vh; overflow-y: auto;
+  }
+  .sheet h2 { font-family: 'Nunito', sans-serif; font-size: 16px; margin: 0 0 12px; }
+  .sheet-kunde-row { padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .sheet-kunde-row:last-of-type { border-bottom: none; }
+  .new-kunde-row { display: flex; gap: 8px; margin-top: 12px; }
+  .new-kunde-row input { flex: 1; }
+  .new-kunde-row button { flex-shrink: 0; }
+
+  /* ---------- Onboarding: mikrofon-adgang ---------- */
+  .onboarding {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--navy);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 26px; text-align: center;
+  }
+  .onboarding.hidden { display: none; }
+  .onboarding .logo-mark { width: 44px; height: 44px; border-radius: 12px; font-size: 16px; margin-bottom: 18px; }
+  .onboarding h2 { font-family: 'Nunito', sans-serif; color: white; font-size: 19px; margin: 0 0 10px; }
+  .onboarding p { color: #BFD3E6; font-size: 14px; line-height: 1.55; margin: 0 0 26px; max-width: 320px; }
+  .onboarding .btn-primary { max-width: 320px; }
+  .onboarding .status { color: #BFD3E6; font-size: 13px; margin-top: 14px; min-height: 18px; }
+  .onboarding .status.err { color: #F3B9B4; }
+  .onboarding .status.ok { color: #9FD9B7; }
+  .onboarding .skip-btn { background: none; border: none; color: #8FAAC4; font-size: 13px; font-weight: 700; margin-top: 18px; cursor: pointer; }
+  .mic-warning-link { display: block; text-align: center; font-size: 12.5px; color: var(--steel); font-weight: 700; margin-top: 8px; cursor: pointer; }
+
+  /* ---------- Tilbud-modul ---------- */
+  .tilbud-step { display: none; }
+  .tilbud-step.active { display: block; }
+  .match-card {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .match-card .mn { font-weight: 700; font-size: 15px; }
+  .match-card .ma { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .match-card.new { border-style: dashed; }
+  .kontekst-note {
+    background: #EAF2E9; border: 1px solid #C9E0C6; color: #2E5A3B;
+    font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+  }
+
+  /* ---------- Billed-upload (håndskrevne noter) ---------- */
+  .img-preview-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .img-thumb { position: relative; width: 68px; height: 68px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); flex-shrink: 0; }
+  .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-thumb .remove {
+    position: absolute; top: 3px; right: 3px; background: rgba(20,30,45,0.65); color: white;
+    border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 13px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---------- Firmaprofil ---------- */
+  .timepris-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .timepris-row .tp-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .timepris-row input { width: 100px; flex-shrink: 0; }
+  .standardvalg-row { margin-bottom: 14px; }
+  .standardvalg-row .sv-label { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .standardvalg-row .sv-new-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; background: #FFF6E9; color: #7A5A16; border-radius: 6px; padding: 2px 6px; margin-left: 6px; }
+
+  /* ---------- Strukturerede tilbudslinjer ---------- */
+  .linje-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+  }
+  .linje-row .linje-top { display: flex; gap: 8px; margin-bottom: 6px; }
+  .linje-row .linje-beskrivelse { flex: 1; }
+  .linje-row .linje-bottom { display: flex; gap: 8px; align-items: center; }
+  .linje-row .linje-bottom input { width: 72px; flex-shrink: 0; }
+  .linje-row .linje-enhed { width: 60px !important; }
+  .linje-row .linje-samlet { flex: 1; font-size: 13px; font-weight: 700; color: var(--navy); text-align: right; }
+  .linje-row .linje-remove {
+    background: none; border: none; color: var(--rec); font-size: 18px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-row .linje-lookup {
+    background: none; border: none; color: var(--steel); font-size: 15px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-type-badge {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 6px;
+    background: var(--smoke); color: var(--steel); flex-shrink: 0; align-self: center;
+  }
+  .linje-row input:disabled { background: var(--smoke); color: var(--ink-soft); cursor: not-allowed; }
+
+  /* ---------- Tilføjet til produktion (ikke i prototypen) ---------- */
+  .nav-btn.lukket { opacity: 0.35; cursor: default; }
+  .lukket-kort {
+    background: var(--white); border: 1px dashed var(--line); border-radius: 14px;
+    padding: 22px 18px; text-align: center; color: var(--ink-soft); font-size: 14px; line-height: 1.55;
+  }
+  .lukket-kort strong { display: block; color: var(--navy); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 6px; }
+  .indlaeser { font-size: 13px; color: var(--ink-soft); padding: 8px 2px; }
+  .felt-hjaelp { font-size: 12.5px; color: var(--ink-soft); margin: -2px 2px 4px; }
+  .referat-tekst { white-space: pre-wrap; font-size: 14px; line-height: 1.55; margin: 0; }
+  .status-badge-kladde { background: #FFF6E9; color: #7A5A16; }
+  .topbar a.til-dashboard { margin-left: auto; color: #BFD3E6; font-size: 13px; font-weight: 700; text-decoration: none; }
 </style>
 </head>
 <body>
-  <h1>Tilbudsmodulet er monteret</h1>
-  <p class="lille">Denne side beviser to ting, og kun to: at
-  <code>TILBUD_AKTIV</code> er tændt, og at <code>/tilbud/</code> bliver serveret.
-  Der er ingen funktion her endnu.</p>
 
-  <pre id="svar">henter /api/tilbud/status …</pre>
+<div class="app">
 
-  <div class="advarsel">
-    <strong>Midlertidig.</strong> Denne fil erstattes af referatmaskinens
-    egen side. Ser du den i staging efter det, er noget gået galt i en
-    udrulning — ikke i modulet.
+  <div class="topbar">
+    <div class="logo-mark">DDK</div>
+    <div>
+      <h1>Tilbud</h1>
+      <span>Dit Digitale Kontor</span>
+    </div>
+    <a class="til-dashboard" href="/dashboard">‹ Dashboard</a>
   </div>
 
+  <!-- ================= SCREEN: IKKE LOGGET IND ================= -->
+  <div class="screen" id="screen-login">
+    <div class="lukket-kort">
+      <strong>Du er ikke logget ind</strong>
+      Log ind i appen først, og åbn så Tilbud igen.
+      <div style="margin-top:16px;"><a class="btn btn-primary" style="display:block;text-decoration:none;" href="/dashboard">Gå til login</a></div>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN: OPTAG (lukket i trin 1) ================= -->
+  <div class="screen" id="screen-record">
+    <div class="lukket-kort"><strong>Referater kommer snart</strong>Her kan du indtale noter til en opgave og få et referat.</div>
+  </div>
+
+  <!-- ================= SCREEN: KUNDER (liste) ================= -->
+  <div class="screen" id="screen-customers">
+    <div class="section-label">Kunder</div>
+    <div class="error-banner" id="errorBannerKunder"></div>
+    <div id="kundeListWrap"><p class="indlaeser">Henter kunder …</p></div>
+    <button class="fab" id="fabAddKunde">+</button>
+  </div>
+
+  <!-- ================= SCREEN: KUNDE DETALJE (opgaver) ================= -->
+  <div class="screen" id="screen-kunde-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKunder">‹ Kunder</button>
+    </div>
+    <div class="section-label" id="kundeDetailName">Kunde</div>
+    <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
+    <div class="error-banner" id="errorBannerKundeDetail"></div>
+    <div id="kundeOpgaverWrap"></div>
+    <button class="fab" id="fabAddOpgave">+</button>
+  </div>
+
+  <!-- ================= SCREEN: OPGAVE DETALJE ================= -->
+  <div class="screen" id="screen-opgave-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKundeDetailFromOpgave">‹ Tilbage</button>
+    </div>
+    <div class="section-label" id="opgaveDetailName">Opgave</div>
+    <div class="error-banner" id="errorBannerOpgaveDetail"></div>
+    <div class="section-label" style="margin-top:18px;">Referater</div>
+    <div id="opgaveReferaterWrap"></div>
+  </div>
+
+  <!-- ================= SCREEN: REFERAT DETALJE ================= -->
+  <div class="screen" id="screen-referat-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToOpgaveDetailFromReferat">‹ Tilbage</button>
+    </div>
+    <div class="error-banner" id="errorBannerReferatDetail"></div>
+    <div id="referatDetailWrap"></div>
+  </div>
+
+  <!-- ================= SCREEN: TILBUD / FIRMA (lukket i Fase 1) ================= -->
+  <div class="screen" id="screen-tilbud">
+    <div class="lukket-kort"><strong>Tilbud kommer senere</strong>Først referater — så tilbud.</div>
+  </div>
+  <div class="screen" id="screen-firma">
+    <div class="lukket-kort"><strong>Firmaoplysninger kommer senere</strong>Timepriser og faste svar bruges først, når tilbuddene kommer.</div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn lukket" data-screen="record" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      <span>Referat</span>
+    </button>
+    <button class="nav-btn lukket" data-screen="tilbud" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      <span>Tilbud</span>
+    </button>
+    <button class="nav-btn active" data-screen="customers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Kunder</span>
+    </button>
+    <button class="nav-btn lukket" data-screen="firma" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+      <span>Firma</span>
+    </button>
+  </div>
+
+  <!-- ================= SHEET: opret kunde (fra Kunder-fanen) ================= -->
+  <div class="sheet-overlay" id="opretKundeSheet">
+    <div class="sheet">
+      <h2>Ny kunde</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="okKundeNavn" placeholder="Navn" autocomplete="off">
+        <input type="text" inputmode="tel" id="okKundeTelefon" placeholder="Telefon (valgfri)" autocomplete="off">
+        <input type="text" id="okKundeAdresse" placeholder="Adresse (valgfri)" autocomplete="off">
+        <div class="error-banner" id="errorBannerOpretKunde"></div>
+        <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: opret opgave (erstatter prototypens indtastningsboks) ================= -->
+  <div class="sheet-overlay" id="opretOpgaveSheet">
+    <div class="sheet">
+      <h2>Ny opgave</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="ooOpgaveTitel" placeholder='Titel, fx "Badeværelse" eller "Carport"' autocomplete="off">
+        <div id="ooAdresseRaekke" style="display:none;">
+          <input type="text" id="ooOpgaveAdresse" placeholder="Adresse" autocomplete="off">
+          <p class="felt-hjaelp" style="margin-top:6px;">Kunden har ingen adresse. En opgave skal have én.</p>
+        </div>
+        <div class="error-banner" id="errorBannerOpretOpgave"></div>
+        <button class="btn btn-primary" id="ooOpgaveGemBtn">Opret opgave</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script src="graenseflade.js"></script>
 <script>
-  // Hentes fra siden selv, saa monteringen kan tjekkes fra telefonen uden
-  // vaerktoej. Fejler kaldet, staar fejlen paa skaermen - ikke i konsollen,
-  // hvor ingen ser den paa en iPhone.
-  fetch("/api/tilbud/status")
-    .then(function (r) { return r.text().then(function (t) { return r.status + " " + t; }); })
-    .then(function (t) { document.getElementById("svar").textContent = t; })
-    .catch(function (e) { document.getElementById("svar").textContent = "FEJL: " + e.message; });
+'use strict';
+
+/* =========================================================================
+   OPSÆTNING — config, supabase og session (samme mønster som dashboardet)
+   ========================================================================= */
+const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
+const SUPABASE_ANON_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  visFejlOverlay('Kunne ikke hente appens konfiguration (/config.js). Prøv at genindlæse siden.');
+  throw new Error('APP_CONFIG mangler — /config.js ikke indlæst?');
+}
+if (!window.supabase) {
+  visFejlOverlay('Kunne ikke hente Supabase-biblioteket. Tjek forbindelsen og genindlæs siden.');
+  throw new Error('supabase-js mangler — cdn.jsdelivr.net ikke indlæst?');
+}
+if (!window.Graenseflade) {
+  visFejlOverlay('Kunne ikke hente graenseflade.js. Genindlæs siden.');
+  throw new Error('graenseflade.js mangler');
+}
+// Samme origin og samme standard-lagernøgle som dashboardet, så sessionen
+// derfra genbruges. Siden har ingen egen login — én login-vej, ikke to.
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+Graenseflade.saetAuth(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  return session && session.access_token ? { Authorization: 'Bearer ' + session.access_token } : {};
+});
+
+// Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
+const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
+        loadReferater, hentReferat, ApiFejl } = Graenseflade;
+
+/* =========================================================================
+   HJÆLPERE (fra prototypen)
+   ========================================================================= */
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : String(str); return d.innerHTML; }
+function uid() { return 'ny-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Fejl vises i det banner, der hører til skærmen. Teksten sættes som TEKST,
+// aldrig som HTML — beskeden kommer fra serveren.
+function visFejl(bannerId, e) {
+  const el = document.getElementById(bannerId);
+  if (!el) return;
+  el.textContent = (e && e.message) || String(e || 'Noget gik galt.');
+  el.style.display = 'block';
+}
+function skjulFejl(bannerId) {
+  const el = document.getElementById(bannerId);
+  if (el) el.style.display = 'none';
+}
+// 401 betyder, at sessionen er udløbet eller mangler: vis login-kortet.
+function erLoggetUd(e) { return e instanceof ApiFejl && e.status === 401; }
+
+/* =========================================================================
+   NAVIGATION (fra prototypen; lukkede faner kan ikke vælges)
+   ========================================================================= */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.lukket) return;
+    showScreen(btn.dataset.screen);
+    if (btn.dataset.screen === 'customers') renderKundeList();
+  });
+});
+
+/* =========================================================================
+   OPRET KUNDE (fra Kunder-fanen)
+   ========================================================================= */
+let customers = [];
+let currentKundeDetailId = null;
+let currentOpgaveDetailId = null;
+
+const opretKundeSheet = document.getElementById('opretKundeSheet');
+document.getElementById('fabAddKunde').addEventListener('click', () => {
+  document.getElementById('okKundeNavn').value = '';
+  document.getElementById('okKundeTelefon').value = '';
+  document.getElementById('okKundeAdresse').value = '';
+  skjulFejl('errorBannerOpretKunde');
+  opretKundeSheet.classList.add('open');
+});
+opretKundeSheet.addEventListener('click', (e) => { if (e.target === opretKundeSheet) opretKundeSheet.classList.remove('open'); });
+
+document.getElementById('okKundeGemBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('okKundeGemBtn');
+  const navn = document.getElementById('okKundeNavn').value.trim();
+  if (!navn) { visFejl('errorBannerOpretKunde', 'Skriv kundens navn.'); return; }
+  const nyKunde = {
+    id: uid(), navn: navn,
+    telefon: document.getElementById('okKundeTelefon').value.trim(),
+    adresse: document.getElementById('okKundeAdresse').value.trim(),
+    oprettet: new Date().toISOString()
+  };
+  btn.disabled = true;
+  skjulFejl('errorBannerOpretKunde');
+  try {
+    customers = await loadCustomers();
+    customers.push(nyKunde);
+    await saveCustomers(customers);       // sætter nyKunde.id til serverens id
+  } catch (e) {
+    // Mislykkedes det, må kunden ikke ligge i listen, som om den var gemt.
+    customers = customers.filter(k => k !== nyKunde);
+    visFejl('errorBannerOpretKunde', e);
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  opretKundeSheet.classList.remove('open');
+  await renderKundeList();
+  openKundeDetail(nyKunde.id);
+});
+
+/* =========================================================================
+   KUNDER → OPGAVER → REFERATER (browse-hierarki, fra prototypen)
+   ========================================================================= */
+async function renderKundeList() {
+  const wrap = document.getElementById('kundeListWrap');
+  skjulFejl('errorBannerKunder');
+  try {
+    customers = await loadCustomers();
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerKunder', e);
+    return;
+  }
+  if (!customers.length) {
+    wrap.innerHTML = `<p class="empty-note">Ingen kunder endnu. Tryk på + for at tilføje en.</p>`;
+    return;
+  }
+  wrap.innerHTML = customers.map(k => `
+    <div class="kunde-row" data-id="${escapeHtml(k.id)}">
+      <div><div class="kn">${escapeHtml(k.navn)}</div><div class="kc">${escapeHtml(k.adresse || 'Tryk for at se opgaver')}</div></div>
+      <span class="chev">›</span>
+    </div>`).join('');
+  wrap.querySelectorAll('.kunde-row').forEach(row => {
+    row.addEventListener('click', () => openKundeDetail(row.dataset.id));
+  });
+}
+
+async function openKundeDetail(kundeId) {
+  currentKundeDetailId = kundeId;
+  const k = customers.find(c => c.id === kundeId);
+  document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
+  const wrap = document.getElementById('kundeOpgaverWrap');
+  wrap.innerHTML = '<p class="indlaeser">Henter opgaver …</p>';
+  skjulFejl('errorBannerKundeDetail');
+  showScreen('kunde-detail');
+  let opgaver;
+  try {
+    opgaver = await loadOpgaver(kundeId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerKundeDetail', e);
+    return;
+  }
+  wrap.innerHTML = opgaver.length
+    ? opgaver.map(o => `
+        <div class="referat-list-row" data-id="${escapeHtml(o.id)}">
+          <div class="rt">${escapeHtml(o.titel)}</div>
+          <div class="rm">Oprettet ${escapeHtml((o.oprettet || '').slice(0, 10))}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde. Tryk på + for at oprette en.</p>`;
+  wrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', () => openOpgaveDetail(kundeId, row.dataset.id));
+  });
+}
+document.getElementById('backToKunder').addEventListener('click', () => {
+  showScreen('customers');
+  renderKundeList();
+});
+
+/* ---------- Ny opgave: prototypens indtastningsboks er erstattet af et ark, ------
+   fordi en opgave skal have en adresse (NOT NULL i leads). Har kunden en,
+   arves den, og feltet vises ikke. Har kunden ingen, spørger arket.
+   ------------------------------------------------------------------------- */
+const opretOpgaveSheet = document.getElementById('opretOpgaveSheet');
+document.getElementById('fabAddOpgave').addEventListener('click', () => {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  document.getElementById('ooOpgaveTitel').value = '';
+  document.getElementById('ooOpgaveAdresse').value = '';
+  document.getElementById('ooAdresseRaekke').style.display = (k && k.adresse) ? 'none' : 'block';
+  skjulFejl('errorBannerOpretOpgave');
+  opretOpgaveSheet.classList.add('open');
+});
+opretOpgaveSheet.addEventListener('click', (e) => { if (e.target === opretOpgaveSheet) opretOpgaveSheet.classList.remove('open'); });
+
+document.getElementById('ooOpgaveGemBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('ooOpgaveGemBtn');
+  const titel = document.getElementById('ooOpgaveTitel').value.trim();
+  if (!titel) { visFejl('errorBannerOpretOpgave', 'Skriv en titel på opgaven.'); return; }
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  const adresse = document.getElementById('ooOpgaveAdresse').value.trim();
+  if (!(k && k.adresse) && !adresse) { visFejl('errorBannerOpretOpgave', 'Skriv opgavens adresse.'); return; }
+
+  const nyOpgave = { id: uid(), titel: titel, beskrivelse: '', oprettet: new Date().toISOString() };
+  if (adresse) nyOpgave.adresse = adresse;
+  btn.disabled = true;
+  skjulFejl('errorBannerOpretOpgave');
+  try {
+    const opgaver = await loadOpgaver(currentKundeDetailId);
+    opgaver.push(nyOpgave);
+    await saveOpgaver(currentKundeDetailId, opgaver);
+  } catch (e) {
+    visFejl('errorBannerOpretOpgave', e);
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  opretOpgaveSheet.classList.remove('open');
+  openKundeDetail(currentKundeDetailId);
+});
+
+async function openOpgaveDetail(kundeId, opgaveId) {
+  currentKundeDetailId = kundeId;
+  currentOpgaveDetailId = opgaveId;
+  const referaterWrap = document.getElementById('opgaveReferaterWrap');
+  referaterWrap.innerHTML = '<p class="indlaeser">Henter referater …</p>';
+  skjulFejl('errorBannerOpgaveDetail');
+  showScreen('opgave-detail');
+  let opgaver, referater;
+  try {
+    opgaver = await loadOpgaver(kundeId);
+    referater = await loadReferater(opgaveId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    referaterWrap.innerHTML = '';
+    visFejl('errorBannerOpgaveDetail', e);
+    return;
+  }
+  const opgave = opgaver.find(o => o.id === opgaveId);
+  document.getElementById('opgaveDetailName').textContent = opgave ? opgave.titel : 'Opgave';
+
+  referaterWrap.innerHTML = referater.length
+    ? referater.map(r => `
+        <div class="referat-list-row" data-id="${escapeHtml(r.id)}">
+          <div class="rt">${escapeHtml(r.titel)}</div>
+          <div class="rm"><span class="type-badge${r.status === 'kladde' ? ' status-badge-kladde' : ''}">${r.status === 'kladde' ? 'Kladde' : 'Færdig'}</span> ${escapeHtml(r.dato)}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen referater gemt på denne opgave endnu.</p>`;
+  referaterWrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', () => openReferatDetail(row.dataset.id));
+  });
+}
+document.getElementById('backToKundeDetailFromOpgave').addEventListener('click', () => openKundeDetail(currentKundeDetailId));
+
+/* ---------- Referat-visning: indholdet hentes pr. referat --------------
+   Prototypens renderReferatHtml(data) viste en form, serveren ikke leverer.
+   Referatets visning med overskrift, punkter og teknik B-markeringer kommer
+   med Referat-fanen (trin 3). Indtil da vises det gemte indhold som tekst.
+   ------------------------------------------------------------------------- */
+async function openReferatDetail(referatId) {
+  const wrap = document.getElementById('referatDetailWrap');
+  wrap.innerHTML = '<p class="indlaeser">Henter referat …</p>';
+  skjulFejl('errorBannerReferatDetail');
+  showScreen('referat-detail');
+  let r;
+  try {
+    r = await hentReferat(referatId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerReferatDetail', e);
+    return;
+  }
+  const dato = (r.moede_dato || r.created_at || '').slice(0, 10);
+  const tekst = r.indhold || r.ai_udkast || '';
+  wrap.innerHTML =
+    `<div class="section-label">${r.status === 'kladde' ? 'Kladde' : 'Færdig'} · ${escapeHtml(dato)}</div>
+     <div style="background:var(--white); border:1px solid var(--line); border-radius:16px; padding:18px;">
+       <h2 style="font-family:'Nunito',sans-serif; font-size:16px; margin:0 0 12px;">${escapeHtml(r.titel || 'Referat')}</h2>
+       ${tekst ? `<p class="referat-tekst">${escapeHtml(tekst)}</p>` : '<p class="empty-note">Referatet er tomt.</p>'}
+     </div>`;
+}
+document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click', () =>
+  openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
+
+/* =========================================================================
+   START — er der en session? Ellers login-kortet.
+   ========================================================================= */
+(async function start() {
+  let session = null;
+  try {
+    ({ data: { session } } = await db.auth.getSession());
+  } catch (e) {
+    visFejl('errorBannerKunder', 'Vi kunne ikke læse din login. Genindlæs siden.');
+  }
+  if (!session) return showScreen('login');
+  showScreen('customers');
+  renderKundeList();
+})();
+
 </script>
 </body>
 </html>
