@@ -162,6 +162,7 @@ Fire regler, der gælder alt arbejde i dette repo.
 - Systemnummeret (`TWILIO_SYSTEM_NUMBER`) må aldrig i nummerpuljen.
 - **Læsning af `.env*`, `config.php` og andre hemmelighedsfiler.** Har du brug for en variabels værdi: spørg Ann.
 - **`railway variables`, `supabase secrets`, `gh secret` og lignende** — de omgår ovenstående ad bagvejen.
+- **`supabase migration repair`** — også når CLI'en selv foreslår den. Den markerer migrationer som rullet tilbage, der stadig ligger i databasen, og næste push kører dem igen. *"Remote migration versions not found"* betyder forkert gren eller forkert mappe: hotfix-migrationer lægges fra `staging`-grenen (runbookens Del 1b, faldgruber 10-11/10).
 - **Enhver adgang til `C:\Users\Bruger\sms-backend` fra en Cowork-session — læsning såvel som skrivning.** Sessionen har adgang til `claude-arbejdstrae` og kun den. Skal du se en fil fra repoet, så bed Ann lægge den i arbejdstræet (`sync-docs.ps1 -Hent`) frem for at bede om adgang eller om at få indholdet indsat. Foreslå ændringer; Ann udfører dem. **Spærringen er bevidst: den er grunden til, at et forkert forslag ikke kan blive til en forkert commit — og at ingen session kan komme til at læse `.env` ad omveje.**
 
 ## "Færdig"-tjekliste — gennemgås før hver commit

@@ -725,6 +725,92 @@ telefonen.
 - **Et forventet tal kan være forkert.** Passer et tælle-tjek ikke, så tæl i den
   leverede fil, før du konkluderer noget om prod.
 
+**Faldgruber set 10-11/10-26 (D79, telefonfeltet — hotfix med migration):**
+- **Migrationen lægges fra `staging`-grenen, aldrig fra hotfix-grenen.** Begge
+  databaser har `staging`s migrationer, så `supabase db push` fra `main` eller en
+  hotfix-gren afvises med *"Remote migration versions not found in local
+  migrations directory"*. Hent filen over på `staging`, commit, og tørkør:
+
+```powershell
+git switch staging
+git checkout hotfix/<emne-dato> -- supabase/migrations/<fil>.sql
+git commit -m "Migration: <hvad> (hotfix <emne>)"
+Get-Content supabase\.temp\project-ref                 # hehrvdmtzokzbnbihcel = staging
+npx supabase db push --dry-run                         # SKAL kun vise den nye fil
+.\push-staging.ps1
+```
+
+  Prod tørkøres ved at linke midlertidigt og straks tilbage — selve pushet går
+  gennem `push-prod.ps1`. **Migrationen på prod FØR merge**, når koden læser den nye
+  kolonne:
+
+```powershell
+npx supabase link --project-ref glymuxqtrbpeyzmflilf   # prod, kun til tørkørsel
+npx supabase db push --dry-run                         # SKAL kun vise den nye fil
+npx supabase link --project-ref hehrvdmtzokzbnbihcel   # tilbage til hviletilstand
+Get-Content supabase\.temp\project-ref                 # SKAL vaere staging igen
+```
+
+- **⛔ Kør aldrig `supabase migration repair`, som fejlbeskeden foreslår.** Den
+  markerer migrationer som rullet tilbage, der stadig ligger i databasen, og næste
+  push kører dem igen oven i sig selv. Et mismatch betyder forkert gren eller
+  forkert mappe — ikke en historik, der skal repareres.
+- **Kør i repoet.** Tørkørt i en anden mappe (fx arbejdstræet) mangler
+  migrationsmappen, og ALLE migrationer melder "not found". `cd` og
+  `git branch --show-current` først.
+- **Kontroller på prod må ikke skrive rækker ud.** En CHECK-fejl viser hele den
+  afviste række, inklusive navn og adresse. Prøv reglen i en blok, der kun
+  returnerer OK/FEJL:
+
+```sql
+do $$ begin
+  update public.<tabel> set <kolonne> = '<ugyldig vaerdi>' where id = (select id from public.<tabel> limit 1);
+  raise exception 'FEJL: reglen afviste IKKE vaerdien';
+exception when check_violation then
+  raise exception 'OK: reglen afviste vaerdien';
+end $$;
+```
+
+- **Test af hotfix-grenen på staging-MILJØET** (når ændringen er bygget direkte fra
+  `main` og ikke har været på `staging`-grenen): Railway → staging-tjenesten →
+  Settings → Source → Branch = `hotfix/<emne-dato>`. Fire ting:
+  - **`TILBUD_AKTIV=false` først.** `main`-kode har ikke `routes/tilbud`, og appen
+    crasher ved opstart med flaget tændt (med vilje, se `server.js`).
+  - **Et grenskift bygger ikke**, og med *Wait for CI* bygger et push til en
+    hotfix-gren heller ikke — CI kører kun på `staging` og PR'er. Åbn PR'en til
+    `main` som **kladde**: så kører CI, og Railway følger efter.
+  - **Tilbage i denne rækkefølge:** gren → `staging`, deploy den nyeste commit,
+    og FØRST derefter `TILBUD_AKTIV=true`. Omvendt genstarter Railway
+    hotfix-koden med flaget tændt, og staging crasher.
+  - **Bevis hver gang** med et tjek, der fejler uden ændringen (fx `True`/`401`
+    mod `False`/`404`). Tre gange 11/10 kørte staging en anden kode, end
+    deployet så ud til.
+- **Brug ikke Railways assistent (Ctrl+K) til deploy.** 11/10 deployede den den
+  gamle gren `hotfix/proxy-addr-0710` og tjenesten `vagt`, som ingen havde bedt om.
+- **En commit-besked må ikke nævne en anden commits hash.** `1175995` hed
+  *"samme fil som b3ea72c"* og lignede rettelsen i Railways liste. Railway viser
+  beskeden — kun hashen er beviset.
+- **GitHubs *"Compare & pull request"* efter et push til `staging`** åbner en PR
+  `staging` → `main` (#82, lukket umerget 11/10). Merges den, går alt ufærdigt i prod.
+- **`main` ind i `staging` (trin 9) kan give konflikter, der ikke er konflikter** —
+  når de samme ændringer er kommet ad to veje. Fortryd (`git merge --abort`) og mål:
+
+```powershell
+git --no-pager diff --stat <main-foer-hotfix> staging -- <kodefilerne>   # tom = main er staging + hotfix
+git diff staging origin/main --output=<fil>.diff -- docs/                # LAES den: har main noget, staging mangler?
+```
+
+  Er begge svar som forventet: koden fra `main`, dokumenterne fra `staging`, og
+  bevis før commit med tom `git diff` mod hver kilde:
+
+```powershell
+git merge origin/main --no-ff --no-commit
+git checkout origin/main -- <kodefilerne>
+git checkout HEAD -- <de konfliktramte docs>
+git --no-pager diff --stat origin/main -- <kodefilerne>                  # SKAL give intet output
+git --no-pager diff --stat HEAD -- docs/                                 # SKAL give intet output
+```
+
 ---
 
 ## Del 2 — Release-regler ("udviklingsstoppet")
