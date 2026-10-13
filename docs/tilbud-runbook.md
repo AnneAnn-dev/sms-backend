@@ -513,7 +513,7 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       — at sætte dem ville være at gætte på en anden del af produktet), og
       `transskript`/`ai_udkast` kan ikke rettes (kildemateriale; kunne de rettes,
       var sammenligningen med `indhold` intet værd).
-- [ ] ⚠️ **`dashboard.html` kan IKKE se en opgave uden opkald — to steder, og
+- [x] ⚠️ **`dashboard.html` kan IKKE se en opgave uden opkald — to steder, og
       de er ikke ens:** hovedforespørgslen bruger `calls!inner`, og polleren har
       slet intet join, men filtrerer med `.in("call_id", ...)`. En søgning efter
       `calls!inner` finder kun den ene. **De skal rettes sammen** — rettes kun
@@ -529,14 +529,14 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       ejerskab via opkaldet og giver 403 på en opgave uden opkald. Ellers får
       håndværkeren to lister med hver sin definition af sine egne opgaver.
       Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
-      ✅ **I STAGING 12/10 (`d88c773`) — PROD MANGLER.** Hovedforespørgslen og
+      ✅ **I STAGING 12/10 (`d88c773`) og I PROD 13/10 (hotfix-PR #83, `7ac95a8`).** Hovedforespørgslen og
       polleren læser nu begge med `.eq("firm_id", ...)` og et almindeligt join;
       polleren gør ingenting uden firma og springer over ved læsefejl. `/send-sms`
       og `/lead-telefon` slår ejerskab op via `leads.firm_id` (`egenOpgave()` i
       `onboarding.js`, fail-closed: 403 uden `firm_id` eller ved fremmed firma).
       `sw.js` v32. Enhedsprøve 7/7; en opgave uden opkald set i dashboardets
-      liste i staging. **Udløseren står uændret:** til prod, før `TILBUD_AKTIV`
-      tændes dér.
+      liste i staging. Prod 13/10: `uden_firma = 0` målt før merge, `sw.js` v32 og
+      `smoke:prod` 13/13 efter. Udløseren (før `TILBUD_AKTIV` i prod) er opfyldt.
 - [x] **Krydsfirma-halvdelen af `leads_select_firma` BEVIST 11/10.**
       `rls-isolation-test.js` sår et lead med `call_id = NULL` pr. firma og slår
       det op på id. En sådan række kan kun slippe igennem `leads_select_firma`,
