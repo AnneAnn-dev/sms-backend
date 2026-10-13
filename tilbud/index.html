@@ -19,7 +19,15 @@
     - Referat-, Tilbud- og Firma-fanerne er lukket i dette trin
     - en ny opgave beder om adresse, når kunden ingen har (NOT NULL i leads)
   Siden er en Ø: den deler intet script med dashboardet og kan ikke vælte det.
+  Undtagelse (Fase 1d, 13/10-26): /adressevaelger.js, et selvstændigt bibliotek,
+  som begge sider indlæser hver for sig.
+
+  INDLEJRET (?indlejret=1): siden vises som dashboardets Kunder-fane, i en
+  ramme. Så skjules egen topbar og bundbar — dashboardet har sine.
 -->
+<script>
+  if (/[?&]indlejret=1\b/.test(location.search)) document.documentElement.classList.add('indlejret');
+</script>
 <script>
   // Fejl-overlay som i dashboardet: uventede fejl vises på skærmen, så de
   // kan ses på en iPhone uden remote inspection.
@@ -226,6 +234,15 @@
   .nav-btn svg { width: 22px; height: 22px; }
   .nav-btn span { font-size: 11px; font-weight: 700; }
 
+  /* ---------- Indlejret i dashboardet (Fase 1d) ---------- */
+  html.indlejret .topbar, html.indlejret .bottom-nav { display: none !important; }
+  html.indlejret .app { min-height: 100%; }
+
+  /* ---------- Adresseforslag (adressevaelger.js) ---------- */
+  .adresse-felt { position: relative; }
+  .adresse-felt > input { width: 100%; box-sizing: border-box; }
+  .adresse-forslag { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 40; background: #fff; border: 1px solid #DDE4EC; border-radius: 8px; margin-top: 2px; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.1); color: var(--navy); }
+
   /* ---------- Modal / sheet ---------- */
   .sheet-overlay {
     position: fixed; inset: 0; background: rgba(15,30,45,0.45); z-index: 30;
@@ -350,7 +367,7 @@
     <div class="lukket-kort">
       <strong>Du er ikke logget ind</strong>
       Log ind i appen først, og åbn så Tilbud igen.
-      <div style="margin-top:16px;"><a class="btn btn-primary" style="display:block;text-decoration:none;" href="/dashboard">Gå til login</a></div>
+      <div style="margin-top:16px;"><a class="btn btn-primary" style="display:block;text-decoration:none;" href="/dashboard" target="_top">Gå til login</a></div>
     </div>
   </div>
 
@@ -433,7 +450,10 @@
       <div style="display:flex; flex-direction:column; gap:8px;">
         <input type="text" id="okKundeNavn" placeholder="Navn" autocomplete="off">
         <input type="text" inputmode="tel" id="okKundeTelefon" placeholder="Telefon (valgfri)" autocomplete="off">
-        <input type="text" id="okKundeAdresse" placeholder="Adresse (valgfri)" autocomplete="off">
+        <div class="adresse-felt">
+          <input type="text" id="okKundeAdresse" placeholder="Adresse (valgfri)" autocomplete="off">
+          <div class="adresse-forslag" id="okKundeAdresseForslag"></div>
+        </div>
         <div class="error-banner" id="errorBannerOpretKunde"></div>
         <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
       </div>
@@ -447,7 +467,10 @@
       <div style="display:flex; flex-direction:column; gap:8px;">
         <input type="text" id="ooOpgaveTitel" placeholder='Titel, fx "Badeværelse" eller "Carport"' autocomplete="off">
         <div id="ooAdresseRaekke" style="display:none;">
-          <input type="text" id="ooOpgaveAdresse" placeholder="Adresse" autocomplete="off">
+          <div class="adresse-felt">
+            <input type="text" id="ooOpgaveAdresse" placeholder="Adresse" autocomplete="off">
+            <div class="adresse-forslag" id="ooOpgaveAdresseForslag"></div>
+          </div>
           <p class="felt-hjaelp" style="margin-top:6px;">Kunden har ingen adresse. En opgave skal have én.</p>
         </div>
         <div class="error-banner" id="errorBannerOpretOpgave"></div>
@@ -459,6 +482,7 @@
 </div>
 
 <script src="/config.js"></script>
+<script src="/adressevaelger.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <script src="graenseflade.js"></script>
 <script>
@@ -741,6 +765,16 @@ async function openReferatDetail(referatId) {
 }
 document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click', () =>
   openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
+
+/* =========================================================================
+   ADRESSEFORSLAG — samme kode som dashboardets Ny opgave (adressevaelger.js).
+   Felterne er frie tekstfelter som før: et forslag udfylder hele adressen,
+   men man kan stadig skrive selv, også når tjenesten er nede.
+   ========================================================================= */
+if (typeof initDawa === 'function') {
+  initDawa({ inputId: 'okKundeAdresse', suggestionsId: 'okKundeAdresseForslag', fuldTekstIFelt: true });
+  initDawa({ inputId: 'ooOpgaveAdresse', suggestionsId: 'ooOpgaveAdresseForslag', fuldTekstIFelt: true });
+}
 
 /* =========================================================================
    START — er der en session? Ellers login-kortet.
