@@ -4,7 +4,7 @@ Lukker **D11** og årsagen **Å7** i `RISIKOREGISTER.md`. De andre runbøger
 beskriver det, Ann gør. Denne runbog starter i den anden ende: med en
 håndværker i røret, der kun kan beskrive det, han ser.
 
-Sidst opdateret: 2/10-2026 (ny — udkast, skal prøves af Anne). Sagskortet går til `support@ditdigitalekontor.dk`.
+Sidst opdateret: 13/10-2026 (A3 rettet efter første gennemløb — stadig udkast). Sagskortet går til `support@ditdigitalekontor.dk`.
 
 ---
 
@@ -200,14 +200,33 @@ det Del 3 (incident) og ikke triage.
 
 ### A3 — formularen er udfyldt, men der er ingen opgave
 
+**Fra Twilio til databasen.** *From* i Twilio-loggen er firmaets puljenummer
+(`firms.phone_number`), *To* er kundens nummer (`leads.telefon`). Om numrene
+står med eller uden `+45`, er ikke målt — søg derfor på de sidste 8 cifre.
+Twilio viser tiden i kontoens indstilling, Supabase gemmer i UTC: sammenlign
+tidspunkter, ikke klokkeslæt på skærmen. Del ikke skærmbilleder af loggen —
+*To*-kolonnen er kundernes numre (**S32**).
+
+```sql
+select id, name, phone_number from firms where phone_number like '%<8 cifre>';
+-- tidsstempelkolonnen i leads er ikke efterprøvet (13/10)
+select * from leads where firm_id = '<id>' order by created_at desc limit 10;
+select id, endpoint, created_at from push_subscriptions
+where firm_id = '<id>' order by created_at desc;
+```
+
 1. **`leads`** for firmaet omkring tidspunktet. Findes rækken, med
    `firm_id` sat?
    - **Findes, men ses ikke i appen:** RLS eller `firm_users`-koblingen.
      Tjek, at brugeren hænger på det rigtige firma.
    - **Findes ikke:** Railway-loggen for `/formular/:token` og AppSignal.
 2. **Rækken findes, og appen viser den, men der kom ingen besked:** push
-   (**D55**). Findes der et abonnement i `push_subscriptions` for firmaets
-   bruger(e)?
+   (**D55**). Findes der et abonnement i `push_subscriptions` for firmaet?
+   Tabellen har `firm_id`, **ikke** `user_id`: du kan se, hvor mange
+   abonnementer firmaet har, og hvornår de er oprettet — ikke hvis telefon de
+   tilhører. Har firmaet flere brugere, så spørg kunden, om netop hans telefon
+   har sagt ja til notifikationer. Kopiér aldrig `p256dh` og `auth_key` — det
+   er push-nøglerne.
 
 ### B — hilsenen
 
