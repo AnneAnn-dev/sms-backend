@@ -4,7 +4,7 @@ Lukker **D11** og årsagen **Å7** i `RISIKOREGISTER.md`. De andre runbøger
 beskriver det, Ann gør. Denne runbog starter i den anden ende: med en
 håndværker i røret, der kun kan beskrive det, han ser.
 
-Sidst opdateret: 13/10-2026 (A3 rettet efter første gennemløb — stadig udkast). Sagskortet går til `support@ditdigitalekontor.dk`.
+Sidst opdateret: 13/10-2026 (prøvet: rollespil med Anne og A3 fulgt på staging — D11 lukket). Sagskortet går til `support@ditdigitalekontor.dk`.
 
 ---
 
@@ -194,8 +194,11 @@ det Del 3 (incident) og ikke triage.
    Udeblivende SMS uden fejl: tjek saldoen på **hovedkontoen** (**D9**).
    Subkontoens $0.00 er normal.
 2. **Railway-loggen** for `/opkald` omkring tidspunktet: fandt koden et firma?
-   "Intet firma fundet" for et nummer, der burde være tildelt, peger på
-   puljen. Kør `afstem-numre.js`.
+   Søg på teksten `Intet firma fundet for nummer` — linjen lyder
+   `⚠  Intet firma fundet for nummer: <maskeret>` (`onboarding.js:243`).
+   Nummeret er maskeret, så der kan ikke søges på det: find linjen ud fra
+   tidspunktet. Står den der for et nummer, der burde være tildelt, peger det
+   på puljen. Kør `afstem-numre.js`.
 3. **`firm_whitelist`:** står kalderens nummer der, er udfaldet korrekt.
 
 ### A3 — formularen er udfyldt, men der er ingen opgave
@@ -209,7 +212,6 @@ tidspunkter, ikke klokkeslæt på skærmen. Del ikke skærmbilleder af loggen �
 
 ```sql
 select id, name, phone_number from firms where phone_number like '%<8 cifre>';
--- tidsstempelkolonnen i leads er ikke efterprøvet (13/10)
 select * from leads where firm_id = '<id>' order by created_at desc limit 10;
 select id, endpoint, created_at from push_subscriptions
 where firm_id = '<id>' order by created_at desc;

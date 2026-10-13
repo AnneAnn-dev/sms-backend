@@ -829,7 +829,8 @@ git --no-pager diff --stat HEAD -- docs/                                 # SKAL 
 0. **Er det overhovedet i stykker?** Løb Del 3b igennem først. Flere af de ting,
    der ligner et nedbrud, er bremser, vi selv har bygget — og de er hurtigere at
    udelukke end at feilsøge.
-1. Kunde melder fejl → tjek **health-check**, **Railway-logs** og de **tre webhooks**.
+1. Kunde melder fejl → **start i `docs/RUNBOOK-triage.md`:** find familien (A–G) ud fra det, kunden
+   siger, og følg dens rækkefølge. Anne tager lag 1, Ann får sagskortet. Derudover: tjek **health-check**, **Railway-logs** og de **tre webhooks**.
    **Se også i Healthchecks.io → "DDK prod":** hvilket vagt-tjek er rødt, og siden hvornår? Det er ofte svaret, før kunden har nået at ringe — se Del 0, **F2**.
 2. **Rollback koden først** — det er det hurtigste tilbage til en kendt god tilstand.
 3. DB-fejl (forkert data/migration) → vurder **PITR-gendannelse**. Husk: prod er **utilgængelig under restore**, og varigheden vokser med DB-størrelsen — meld evt. kort driftsstop.
