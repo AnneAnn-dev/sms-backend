@@ -586,6 +586,18 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       *Afsluttede*-filter og `isClosed` skal vise alt, der ikke er `open` — i dag
       kun `completed`/`rejected`, så `inactive`-opgaver ville forsvinde. Natjobbet
       selv er ikke bygget (Railway-cron som `vagt.js`, kald med `p_firm = null`).
+- [x] **Fase 1b — moduler pr. firma, I STAGING 13/10 (`657f882`).** Migration
+      `20261013120000_firma_moduler.sql`, `moduler.js` (`kraevModul`,
+      `GET /api/moduler`), spærren i `server.js` foran kvote, transskriber,
+      referat og skrivning af referater. Bevis: `proev-moduler.js` 15/0 mod den
+      deployede server. Staging-firmaet har fået `referat` med hånden.
+- [ ] ⚠️ **PROD: migrationen FØR koden.** Uden tabellen svarer `/api/moduler`
+      503. Spærren selv sidder inden for `TILBUD_AKTIV`, så den rammer ikke prod,
+      før flaget tændes — men pilotfirmaet skal have sin `referat`-række, FØR det
+      sker (udviklingsplanens Port 2).
+- [ ] ⚠️ **Prøver over HTTP: vent på grønt deploy, og spørg først en rute, kun
+      den nye kode har** (fx `/api/moduler` uden login: 401 = ny, 404 = gammel).
+      13/10 gav første kørsel 8/7, fordi Railway endnu kørte den gamle kode.
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
