@@ -573,6 +573,19 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       moduler pr. firma, opgavens forløb og de fire faner — bygges før
       Referater-fanen. Punkterne ovenfor er stadig gyldige; de lander i planens
       Fase 1 og 2.
+- [x] **Fase 1a — opgavens forløb, I STAGING 13/10 (`b0c73e4`).** Migration
+      `20261013100000_leads_forloeb.sql`: `startet_at`, `sidst_roert`, CHECK
+      `leads_status_gyldig`, `opgave_handling()`, `luk_inaktive()`. `/send-sms`
+      kalder `opgave_handling`. Bevis: `proev-forloeb.js` 13/0, udfyldning og
+      SMS-vej målt i staging.
+- [ ] ⚠️ **PROD: migrationen FØR `onboarding.js`.** Kommer koden først, findes
+      `opgave_handling` ikke, og `/send-sms` rapporterer en fejl ved hver SMS
+      (SMS'en sendes stadig). Samme fælde som D79: `push-prod.ps1` fra
+      `staging`-grenen, tørkørsel først, aldrig `migration repair`.
+- [ ] ⚠️ **FØR natjobbet (`luk_inaktive()`) kører i prod:** dashboardets
+      *Afsluttede*-filter og `isClosed` skal vise alt, der ikke er `open` — i dag
+      kun `completed`/`rejected`, så `inactive`-opgaver ville forsvinde. Natjobbet
+      selv er ikke bygget (Railway-cron som `vagt.js`, kald med `p_firm = null`).
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
