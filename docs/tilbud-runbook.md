@@ -529,6 +529,14 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       ejerskab via opkaldet og giver 403 på en opgave uden opkald. Ellers får
       håndværkeren to lister med hver sin definition af sine egne opgaver.
       Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
+      ✅ **I STAGING 12/10 (`d88c773`) — PROD MANGLER.** Hovedforespørgslen og
+      polleren læser nu begge med `.eq("firm_id", ...)` og et almindeligt join;
+      polleren gør ingenting uden firma og springer over ved læsefejl. `/send-sms`
+      og `/lead-telefon` slår ejerskab op via `leads.firm_id` (`egenOpgave()` i
+      `onboarding.js`, fail-closed: 403 uden `firm_id` eller ved fremmed firma).
+      `sw.js` v32. Enhedsprøve 7/7; en opgave uden opkald set i dashboardets
+      liste i staging. **Udløseren står uændret:** til prod, før `TILBUD_AKTIV`
+      tændes dér.
 - [x] **Krydsfirma-halvdelen af `leads_select_firma` BEVIST 11/10.**
       `rls-isolation-test.js` sår et lead med `call_id = NULL` pr. firma og slår
       det op på id. En sådan række kan kun slippe igennem `leads_select_firma`,
@@ -538,6 +546,11 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       prod. Testfirma nr. 2 (Trin 1) er stadig værd at have til QA, men var
       aldrig en forudsætning for dette.
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
+      ✅ **Trin 1 i staging 12/10 (`7155f1d`): Kunder-fanen.** `tilbud/index.html`
+      (Annes prototype, CSS uændret) og `tilbud/graenseflade.js` med de ti
+      funktionsnavne: én POST/PATCH pr. række, serverens id skrives tilbage, fejl
+      kastes i stedet for at blive slugt. Bruger dashboardets session.
+      **Mangler:** Referater-fanen (`saveReferater`), `loadTilbud` og firmaprofilen.
 - [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
       (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
       26/9 — se D66. Fanen kalder `start()`, `fortsaet()`, `stop()` og handler på
@@ -555,6 +568,11 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
+
+- [ ] **Rækkefølgen herfra følger udviklingsplanen 13/10 (D80).** Fundamentet —
+      moduler pr. firma, opgavens forløb og de fire faner — bygges før
+      Referater-fanen. Punkterne ovenfor er stadig gyldige; de lander i planens
+      Fase 1 og 2.
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
