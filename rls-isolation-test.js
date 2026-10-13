@@ -327,8 +327,11 @@ async function ryd(tenants) {
     if (!t) continue;
     // firms har ON DELETE CASCADE mod alle nye tabeller. calls ryddes
     // eksplicit, da dens kobling ikke er verificeret. Leadet uden opkald
-    // ryddes også eksplicit, FØR firms: om leads kaskaderer fra calls eller
-    // fra firms er ikke målt, og sletningen her virker i begge tilfælde.
+    // ryddes også eksplicit, FØR firms. Målt på staging 13/10-26: både
+    // leads_firm_id_fkey og leads_call_id_fkey er ON DELETE CASCADE, så
+    // kaskaden fra firms ville rydde rækken. Sletningen her bliver alligevel
+    // stående: den gør oprydningen uafhængig af den nøgle, og den siger
+    // højt, hvis rækken ikke kan slettes.
     if (t.leadUdenOpkald) {
       const { error } = await admin.from('leads').delete().eq('id', t.leadUdenOpkald);
       if (error) console.log(`  ⚠️ lead uden opkald (${t.navn}) IKKE slettet: ${error.message}`);
