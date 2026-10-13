@@ -1208,6 +1208,48 @@ module.exports = function registerOnboarding(app, supabase) {
     if (error) return res.status(500).json({ error: error.message });
     res.json({ ok: true });
   });
+  // ─── Ejerskab af en opgave (punkt 2, 12/10-26) ───────────────────────────
+  // Foer: lead -> call_id -> calls.firm_id. En opgave UDEN opkald (beslutning B,
+  // 9/10 - tilbudsmodulet opretter dem) fik 403 baade her og i /lead-telefon:
+  // den kunne hverken faa et nummer gemt eller en SMS sendt (D79, aaben ende b).
+  // Nu baerer leads.firm_id ejerskabet, som RLS-politikken leads_select_firma
+  // og dashboardets lister goer.
+  //
+  // FAIL-CLOSED: er leads.firm_id null, afvises kaldet - vi gaetter ikke paa
+  // ejeren via opkaldet. Har opgaven et opkald, skal ogsaa det vaere firmaets;
+  // er det ikke, er data inkonsistente (D21), og saa afvises kaldet ogsaa.
+  //
+  // Returnerer { lead, fraOpkald } eller svarer selv og returnerer null.
+  // fraOpkald er opkaldets nummer (undtagen markoeren "Manuel oprettelse"),
+  // eller null, naar der intet opkald er.
+  async function egenOpgave(res, firm_id, lead_id) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, firm_id, call_id, telefon")
+      .eq("id", lead_id)
+      .single();
+    if (!lead) { res.status(404).json({ error: "Lead findes ikke" }); return null; }
+    if (!lead.firm_id || lead.firm_id !== firm_id) {
+      res.status(403).json({ error: "Lead tilhoerer ikke dit firma" }); return null;
+    }
+
+    let fraOpkald = null;
+    if (lead.call_id) {
+      const { data: call } = await supabase
+        .from("calls")
+        .select("firm_id, from_number")
+        .eq("id", lead.call_id)
+        .single();
+      if (call && call.firm_id !== firm_id) {
+        rapporterFejl("Opgave og opkald tilhoerer forskellige firmaer", new Error("lead/call firm_id uenige"),
+          { firma: firm_id, lead: lead_id });
+        res.status(403).json({ error: "Lead tilhoerer ikke dit firma" }); return null;
+      }
+      if (call && call.from_number && call.from_number !== "Manuel oprettelse") fraOpkald = call.from_number;
+    }
+    return { lead, fraOpkald };
+  }
+
   // Sikkerhed: udled firma fra token; bekraeft at lead'et tilhoerer firmaet; og
   // send KUN til nummeret paa det lead (aldrig et frit "to" fra body'en). Sender
   // fra firmaets eget Twilio-nummer.
@@ -1220,31 +1262,16 @@ module.exports = function registerOnboarding(app, supabase) {
     if (!smsText || !smsText.trim()) return res.status(400).json({ error: "Tom besked" });
     if (!lead_id) return res.status(400).json({ error: "Mangler lead_id" });
 
-    // Find lead'et og det opkald det hoerer til
-    const { data: lead } = await supabase
-      .from("leads")
-      .select("id, call_id, telefon")
-      .eq("id", lead_id)
-      .single();
-    if (!lead) return res.status(404).json({ error: "Lead findes ikke" });
-
-    // Bekraeft ejerskab: opkaldet skal tilhoere DETTE firma
-    const { data: call } = await supabase
-      .from("calls")
-      .select("firm_id, from_number")
-      .eq("id", lead.call_id)
-      .single();
-    if (!call || call.firm_id !== firm_id) {
-      return res.status(403).json({ error: "Lead tilhoerer ikke dit firma" });
-    }
+    // Ejerskab via leads.firm_id (punkt 2). Virker ogsaa uden opkald.
+    const ejet = await egenOpgave(res, firm_id, lead_id);
+    if (!ejet) return;
+    const { lead, fraOpkald } = ejet;
 
     // Modtager = kundens nummer paa lead'et (ikke et frit nummer fra body'en).
     // Et indtastet/rettet nummer (leads.telefon, 10/10-26) gaar forud for
     // opkaldets. leads.telefon er altid valideret: af gyldigtSmsNummer() ved
     // skrivning og af CHECK-reglen leads_telefon_format i databasen.
     // SAMME regel staar i dashboardets leadTelefon() — ret begge, hvis den aendres.
-    const fraOpkald = call.from_number && call.from_number !== "Manuel oprettelse"
-      ? call.from_number : null;
     const to    = lead.telefon || fraOpkald;
     const kilde = lead.telefon ? "indtastet" : "opkald";
     if (!to) {
@@ -1284,7 +1311,7 @@ module.exports = function registerOnboarding(app, supabase) {
   //                             skal ikke staa som "indtastet")
   //   ellers                 -> normaliseres og gemmes, eller afvises med 400
   //
-  // Ejerskab tjekkes som i /send-sms: lead -> call -> firm_id fra token.
+  // Ejerskab tjekkes som i /send-sms: egenOpgave() via leads.firm_id (punkt 2).
   // Ingen persondata i log: hverken nummeret eller dele af det.
   app.post("/lead-telefon", async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);
@@ -1293,21 +1320,9 @@ module.exports = function registerOnboarding(app, supabase) {
     const { lead_id, telefon } = req.body || {};
     if (!lead_id) return res.status(400).json({ error: "Mangler lead_id" });
 
-    const { data: lead } = await supabase
-      .from("leads")
-      .select("id, call_id")
-      .eq("id", lead_id)
-      .single();
-    if (!lead) return res.status(404).json({ error: "Lead findes ikke" });
-
-    const { data: call } = await supabase
-      .from("calls")
-      .select("firm_id, from_number")
-      .eq("id", lead.call_id)
-      .single();
-    if (!call || call.firm_id !== firm_id) {
-      return res.status(403).json({ error: "Lead tilhoerer ikke dit firma" });
-    }
+    const ejet = await egenOpgave(res, firm_id, lead_id);
+    if (!ejet) return;
+    const { lead, fraOpkald } = ejet;
 
     let nyt = null;
     const raa = telefon == null ? "" : String(telefon).trim();
@@ -1316,7 +1331,8 @@ module.exports = function registerOnboarding(app, supabase) {
       if (!nyt) {
         return res.status(400).json({ error: "Telefonnummeret skal være et dansk nummer med 8 cifre" });
       }
-      if (nyt === normalizePhone(call.from_number)) nyt = null;
+      // Uden opkald er der intet at sammenligne med: nummeret gemmes.
+      if (fraOpkald && nyt === normalizePhone(fraOpkald)) nyt = null;
     }
 
     const { error } = await supabase

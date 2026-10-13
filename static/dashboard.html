@@ -1464,14 +1464,22 @@
   loadWhitelist();
 
   // Hent leads + deres opkald + billeder i ÉT kald.
-  // leads har ikke firm_id direkte — de hører til firmaet GENNEM deres opkald
-  // (call_id → calls.firm_id). calls!inner laver et inner join, og .eq filtrerer
-  // på det relaterede firmas id. lead.calls bliver det indlejrede opkalds-objekt,
-  // så from_number er straks tilgængelig i modalen — ingen efterbehandling nødvendig.
+  //
+  // ⚠️ OMSKREVET (punkt 2, beslutning B 9/10-26). Her stod, at leads "ikke har
+  // firm_id direkte" og derfor hentes GENNEM opkaldet med calls!inner. Det var
+  // sandt, da det blev skrevet, og usandt siden 27/7: leads.firm_id findes,
+  // server.js sætter den på begge indsættelsesveje (D21), og RLS læser den
+  // (leads_select_firma, 7/10). Et inner join skjuler en opgave UDEN opkald —
+  // og dem opretter tilbudsmodulet med vilje. Derfor:
+  //   - filtret er leads.firm_id, ikke calls.firm_id
+  //   - joinet er et ALMINDELIGT (venstre) join: lead.calls er null, når der
+  //     intet opkald er. leadTelefon() tåler det og giver { nummer: null }.
+  // Polleren nedenfor bruger SAMME definition — rettes den ene, rettes begge,
+  // ellers er sættene uenige, og dashboardet genindlæser hvert 30. sekund.
   const { data: leads } = await db
     .from("leads")
-    .select("*, lead_images(image_url), calls!inner(id, status, from_number, firm_id)")
-    .eq("calls.firm_id", firm?.id)
+    .select("*, lead_images(image_url), calls(id, status, from_number, firm_id)")
+    .eq("firm_id", firm?.id)
     .order("created_at", { ascending: false });
 
   allLeads = leads || [];
@@ -2568,18 +2576,21 @@ setInterval(async () => {
     .single();
 
   const firm = firmUser?.firms;
-  
-  const { data: calls } = await db
-    .from("calls")
-    .select("id")
-    .eq("firm_id", firm?.id);
+  if (!firm?.id) return;
 
-  const callIds = calls?.map(c => c.id) || [];
-
-  const { data: leads } = await db
+  // Samme definition som loadData: firmaets leads via leads.firm_id, med og
+  // uden opkald (punkt 2). Før hentede polleren firmaets opkalds-id'er og
+  // filtrerede med .in("call_id", ...) — en opgave uden opkald kom aldrig med,
+  // og hvert opkalds-id lå i URL'en, så et firma med mange opkald ville ramme
+  // URL-grænsen.
+  //
+  // FAIL-CLOSED: en fejl springer runden over. Før blev fejlen ignoreret, og
+  // en tom liste gjorde sættene uenige — genindlæsning hvert 30. sekund.
+  const { data: leads, error: leadsFejl } = await db
     .from("leads")
     .select("id, seen_at, status")
-    .in("call_id", callIds);
+    .eq("firm_id", firm.id);
+  if (leadsFejl) return;
 
   // Sammenlign IDENTITET, ikke antal — og brug samme definition af "ny" som
   // badge og "Ny"-mærket (!seen_at && status === 'open'). Før denne
