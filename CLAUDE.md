@@ -200,7 +200,7 @@ Gælder al kode i modulet. Er én af dem ikke opfyldt, er opgaven ikke færdig.
 - **Ændringer på tilbud er append-only.** Et afsendt tilbud redigeres ikke — det erstattes af en ny version.
 - **Modelstrengen låses eksplicit.** Ingen implicit "seneste model".
 - **Lyd persisteres ikke.** Transskription opbevares efter besluttet frist, aldrig længere.
-- **Tredjeparter informeres før optagelse** — tvungen skærm i produktet, ikke en linje i vilkårene.
+- **Referat-fanen optager kun håndværkerens egne noter — ingen samtykkeskærm** (J8, afgrænset 19/8). Værnet er afgrænsningen ("Noter", aldrig "Kundemøde" — i UI, prompts og markedsføring) plus tre tekster, Anne har godkendt: advarslen ved optage- og kameraknappen, uddybningen i onboarding og linjen i vilkårene. De er release-blokerende for diktafonen. Ordlyden er den, Anne senest har godkendt (9/9) — aldrig en, Claude har formuleret. Uddybning i `docs/tilbud-primer.md`, "Samtykke og afgrænsning".
 - ⚠️ **`tilbud/`-mappen serveres offentligt** (`server.js:108`). Kun det, browseren skal bruge, må ligge der — HTML, CSS, klient-JS, ikoner. Prompter, priser, modelkonfiguration og kvotelogik bor uden for. Reglen står i `tilbud/README.md`, hvor fejlen ville blive begået (**S17**).
 
 ## Deploy & frontend
