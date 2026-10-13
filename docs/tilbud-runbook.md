@@ -605,6 +605,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 - [ ] **PROD: `dashboard.html` kan gå i prod FØR migrationerne**, fordi fanerne
       kræver `tilbudAktiv:true` og ellers falder tilbage. Men 1a og 1b's
       migrationer skal i prod, før flaget tændes.
+- [x] **Fase 1d — Kunder-fanen, I STAGING 13/10 (`fefed66`).** Ramme med
+      `/tilbud/?indlejret=1`; `static/adressevaelger.js` delt af dashboardet og
+      `tilbud/index.html`. Bevist på iPhone.
+- [ ] **`/adressevaelger.js` caches IKKE af `sw.js`** (kun `/dashboard` gør).
+      Offline mangler forslagene derfor; Ny opgave falder tilbage til postnr/by,
+      og det er prøvet. Skal filen nogensinde caches, så bump `CACHE_NAME`.
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
