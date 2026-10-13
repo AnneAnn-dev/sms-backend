@@ -598,6 +598,13 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 - [ ] ⚠️ **Prøver over HTTP: vent på grønt deploy, og spørg først en rute, kun
       den nye kode har** (fx `/api/moduler` uden login: 401 = ny, 404 = gammel).
       13/10 gav første kørsel 8/7, fordi Railway endnu kørte den gamle kode.
+- [x] **Fase 1c — de fire faner, I STAGING 13/10 (`86a37c6`).** Vises kun, når
+      `/api/moduler` svarer `tilbudAktiv:true`; ellers dashboardet som i dag.
+      Bevist på iPhone med flaget både til og fra. Kunder-fanen åbner endnu
+      `/tilbud/` som egen side — at bygge den ind er Fase 1d.
+- [ ] **PROD: `dashboard.html` kan gå i prod FØR migrationerne**, fordi fanerne
+      kræver `tilbudAktiv:true` og ellers falder tilbage. Men 1a og 1b's
+      migrationer skal i prod, før flaget tændes.
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
