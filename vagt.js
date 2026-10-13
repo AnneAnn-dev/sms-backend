@@ -55,6 +55,9 @@
  *                                     egen API-noegle til vagten; ellers
  *                                     bruges TWILIO_ACCOUNT_SID/AUTH_TOKEN
  *             DOEDMANDS_TIMER, ARBEJDSTID_START, ARBEJDSTID_SLUT (som foer)
+ *   Talvaerdier: TOM (eller kun mellemrum) betyder IKKE SAT -> standard.
+ *             Et ugyldigt tal (bogstaver, negativt) goer TJEKKET roedt —
+ *             det slaar aldrig stille et vaern fra. Se tal() nedenfor.
  */
 
 "use strict";
@@ -111,6 +114,20 @@ async function supa(sti, noegle) {
 
 function basic(bruger, kode) {
   return "Basic " + Buffer.from(`${bruger}:${kode}`).toString("base64");
+}
+
+// Tal fra miljoeet. 9/10-26 slog en TOM VAGT_TWILIO_MIN_SALDO (kopieret fra
+// staging) saldotjekket fra i prod uden at sige det: Number("") er 0, og
+// ?? fanger kun en variabel, der helt mangler. Et ugyldigt tal er lige saa
+// farligt — NaN sammenligner altid falsk, saa "saldo < NaN" bliver aldrig
+// roedt. Derfor: tom = standard, ugyldigt = tjekket roedt med fast tekst
+// (vaerdien selv skrives ikke ud).
+function tal(navn, standard) {
+  const raa = String(process.env[navn] ?? "").trim();
+  if (raa === "") return standard;
+  const v = Number(raa);
+  if (!Number.isFinite(v) || v < 0) fejl(`${navn} er ikke et gyldigt tal`);
+  return v;
 }
 
 function dageTil(dato) {
@@ -190,7 +207,7 @@ const TJEK = [
       const konto = await kontoRes.json();
       if (konto.status !== "active") fejl(`kontoen er "${String(konto.status).slice(0, 20)}"`);
 
-      const minSaldo = Number(process.env.VAGT_TWILIO_MIN_SALDO ?? 10);
+      const minSaldo = tal("VAGT_TWILIO_MIN_SALDO", 10);
       if (minSaldo <= 0) return "konto aktiv (saldo ikke tjekket)";
       const saldoRes = await hent(`${base}/Balance.json`, { headers: { Authorization: auth } });
       if (saldoRes.status !== 200) fejl(`saldo svarer ${saldoRes.status}`);
@@ -234,7 +251,7 @@ const TJEK = [
       const s = await res.json();
       const tilbage = Number(s.character_limit) - Number(s.character_count);
       if (!Number.isFinite(tilbage)) fejl("kvoten kunne ikke laeses");
-      const min = Number(process.env.VAGT_STEMME_MIN_TEGN ?? 5000);
+      const min = tal("VAGT_STEMME_MIN_TEGN", 5000);
       if (tilbage < min) fejl(`under ${min} tegn tilbage af kvoten`);
       return "kvote over graensen";
     },
@@ -266,10 +283,10 @@ const TJEK = [
         s.on("timeout", () => { s.destroy(); nej(new Fejl("ingen forbindelse til certifikatet")); });
         s.on("error", () => nej(new Fejl("ingen forbindelse til certifikatet")));
       });
-      const certMin = Number(process.env.VAGT_CERT_MIN_DAGE ?? 14);
+      const certMin = tal("VAGT_CERT_MIN_DAGE", 14);
       if (certDage < certMin) fejl(`certifikatet udloeber om ${certDage} dage`);
 
-      const min = Number(process.env.VAGT_UDLOEB_MIN_DAGE ?? 30);
+      const min = tal("VAGT_UDLOEB_MIN_DAGE", 30);
       for (const par of String(process.env.VAGT_UDLOEBSDATOER || "").split(";").filter(Boolean)) {
         const [navn, dato] = par.split("=").map((x) => x.trim());
         if (!/^[a-z0-9-]{1,30}$/.test(navn || "") || !/^\d{4}-\d{2}-\d{2}$/.test(dato || "")) {
@@ -294,9 +311,9 @@ const TJEK = [
     // og fjern det, naar den foerste pilot ringer. (Pause i Healthchecks.io
     // virker ikke: naeste ping vaekker tjekket igen — maalt 8/10-26.)
     async koer() {
-      const start = Number(process.env.ARBEJDSTID_START ?? 7);
-      const slut  = Number(process.env.ARBEJDSTID_SLUT ?? 17);
-      const timer = Number(process.env.DOEDMANDS_TIMER ?? 4);
+      const start = tal("ARBEJDSTID_START", 7);
+      const slut  = tal("ARBEJDSTID_SLUT", 17);
+      const timer = tal("DOEDMANDS_TIMER", 4);
       const { ugedag, time } = koebenhavnNu();
       if (ugedag === "Sat" || ugedag === "Sun") return "weekend — ikke vurderet";
       if (time < start || time >= slut) return "uden for arbejdstid — ikke vurderet";
