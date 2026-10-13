@@ -8,6 +8,10 @@
  *   2. ADGANG   — firma A SKAL kunne læse sine egne rækker.
  *   3. SKRIVELÅS — authenticated må IKKE kunne insert/update/delete
  *                  på de seks nye tabeller (skrivning er server-side).
+ *   4. SKRIVELÅS PÅ LEADS (D24 skridt 1, 13/10-26) — på `leads` må
+ *                  authenticated opdatere sit EGET firmas rækker
+ *                  (`leads_update_firma`, 7/10), men ikke et fremmed firmas,
+ *                  og hverken indsætte eller slette noget.
  *
  * Punkt 2 er ikke pynt. Uden den ville en politik, der nægter ALT, bestå
  * testen med glans — og fejlen ville først vise sig som et tomt dashboard
@@ -241,6 +245,78 @@ async function testSkrivelaas(klient, egen, ider) {
   else                                  ok('referater: indhold uændret efter forsøg');
 }
 
+/**
+ * 4: skrivelåsen på `leads` (D24 skridt 1, 13/10-26).
+ *
+ * `leads` er ikke som de seks nye tabeller: siden 7/10 må authenticated
+ * bevidst opdatere sit EGET firmas leads (`leads_update_firma`). En låseprøve,
+ * der krævede alt afvist, ville være rød på korrekt adfærd. Derfor prøves:
+ * fremmed firma kan ikke opdateres eller slettes, intet kan indsættes, eget
+ * lead kan ikke slettes — og eget lead KAN opdateres, så prøven ikke består
+ * på en politik, der bare nægter alt.
+ *
+ * RLS afviser update/delete på usynlige rækker STILLE (nul rækker, ingen
+ * fejl). Derfor tælles de berørte rækker, og hver prøve efterkontrolleres
+ * med service-nøglen: "ingen fejl" er ikke et resultat.
+ */
+async function testSkrivelaasLeads(klient, egen, fremmed, iderEgen, iderFremmed) {
+  const leadNavn = async (id) => {
+    const { data } = await admin.from('leads').select('name, task').eq('id', id).maybeSingle();
+    return data;
+  };
+
+  // (a+b) Opdatér fremmed firmas leads — med og uden opkald.
+  for (const [hvad, id, navn] of [
+    ['med opkald',  iderFremmed.lead,           `Lead ${fremmed.navn}`],
+    ['uden opkald', iderFremmed.leadUdenOpkald, `Lead uden opkald ${fremmed.navn}`]
+  ]) {
+    const { data, error } = await klient.from('leads').update({ name: 'Kapret' }).eq('id', id).select('id');
+    const efter = await leadNavn(id);
+    if (error && efter && efter.name === navn) ok(`leads: update af ${fremmed.navn}s lead ${hvad} afvist (${error.code || 'fejl'})`);
+    else if (error)                            fejl(`leads: update ${hvad} gav fejl, men efterkontrollen fandt ${JSON.stringify(efter)}`);
+    else if ((data || []).length || !efter || efter.name !== navn)
+                                               fejl(`leads: UPDATE AF FREMMED LEAD ${hvad} — ${egen.navn} ændrede ${fremmed.navn}s række`);
+    else                                       ok(`leads: update af ${fremmed.navn}s lead ${hvad} ramte nul rækker, uændret`);
+  }
+
+  // (c) Indsæt — der findes ingen INSERT-politik, så det skal afvises.
+  {
+    const { data, error } = await klient.from('leads').insert({
+      firm_id: egen.firmId, call_id: null, name: 'Snydelead', address: 'Testvej 3, 8000 Aarhus C', task: 'RLS-test'
+    }).select('id');
+    if (error) ok(`leads: insert afvist (${error.code || 'fejl'})`);
+    else {
+      fejl('leads: INSERT TILLADT — authenticated kunne oprette et lead');
+      for (const r of data || []) await admin.from('leads').delete().eq('id', r.id);
+    }
+  }
+
+  // (d+e+f) Slet — fremmede leads og eget lead. Ingen DELETE-politik.
+  for (const [hvad, id] of [
+    [`${fremmed.navn}s lead med opkald`,  iderFremmed.lead],
+    [`${fremmed.navn}s lead uden opkald`, iderFremmed.leadUdenOpkald],
+    [`${egen.navn}s eget lead`,           iderEgen.leadUdenOpkald]
+  ]) {
+    const { data, error } = await klient.from('leads').delete().eq('id', id).select('id');
+    const findes = await leadNavn(id);
+    if (!findes)                     fejl(`leads: SLETNING TILLADT — ${hvad} er væk`);
+    else if (error)                  ok(`leads: sletning af ${hvad} afvist (${error.code || 'fejl'})`);
+    else if ((data || []).length)    fejl(`leads: sletning af ${hvad} meldte ${data.length} række(r), men rækken findes`);
+    else                             ok(`leads: sletning af ${hvad} ramte nul rækker, rækken findes`);
+  }
+
+  // (g) Kontrol: eget lead SKAL kunne opdateres (leads_update_firma).
+  {
+    const ny = `RLS-test ændret ${KOERSEL}`;
+    const { data, error } = await klient.from('leads').update({ task: ny }).eq('id', iderEgen.leadUdenOpkald).select('id');
+    const efter = await leadNavn(iderEgen.leadUdenOpkald);
+    if (error)                                       fejl(`leads: FOR STRAM — ${egen.navn} kan ikke opdatere sit eget lead: ${error.message}`);
+    else if ((data || []).length !== 1 || !efter || efter.task !== ny)
+                                                     fejl(`leads: FOR STRAM — update af eget lead ramte ${(data || []).length} rækker`);
+    else                                             ok('leads: eget lead kan opdateres (1 række, efterkontrolleret)');
+  }
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Oprydning                                                          */
@@ -289,7 +365,7 @@ async function ryd(tenants) {
     a = await opretTenant('a');
     b = await opretTenant('b');
     const iderA = await seed(a);
-    await seed(b);
+    const iderB = await seed(b);
     console.log(`  ✅ to firmaer med data oprettet\n`);
 
     const klientA = await logInd(a);
@@ -299,6 +375,9 @@ async function ryd(tenants) {
 
     console.log(`\nSkrivelås — authenticated på de seks nye tabeller:`);
     await testSkrivelaas(klientA, a, iderA);
+
+    console.log(`\nSkrivelås på leads — firma A mod sine egne og firma B's:`);
+    await testSkrivelaasLeads(klientA, a, b, iderA, iderB);
 
     // Omvendt retning: asymmetriske politikker er en klassisk fejl.
     const klientB = await logInd(b);
