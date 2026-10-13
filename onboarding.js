@@ -1291,6 +1291,11 @@ module.exports = function registerOnboarding(app, supabase) {
     try {
       await sendSms({ to, from: firm.phone_number, body: smsText });
       console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id, "nummer:", kilde);
+      // En SMS fra opgaven er en handling: opgaven gaar i gang (Fase 1a,
+      // migration 20261013100000). Fejler markeringen, er SMS'en stadig sendt
+      // -- derfor rapporteres det, men svaret til haandvaerkeren er uaendret.
+      const { error: hFejl } = await supabase.rpc("opgave_handling", { p_lead: lead_id });
+      if (hFejl) rapporterFejl("SMS sendt, men opgaven blev ikke markeret som i gang", hFejl, { firma: firm_id, lead: lead_id });
       res.json({ ok: true });
     } catch (err) {
       rapporterFejl("SMS fra dashboardet fejlede", err, { firma: firm_id, lead: lead_id, nummer: kilde });
