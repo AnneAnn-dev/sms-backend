@@ -24,7 +24,7 @@ function miljoe() {
   let nu = 1_000_000;
   let timere = [];
   let naesteId = 1;
-  const env = { tabSek: 0, sidsteSpor: null };
+  const env = { tabSek: 0, sidsteSpor: null, muted: false, recorderStartet: 0 };
 
   class FalskBlob {
     constructor(dele, valg) {
@@ -37,7 +37,7 @@ function miljoe() {
   }
   class FalskOptager {
     constructor() { this.mimeType = ""; }
-    start() { this._fra = nu; }
+    start() { this._fra = nu; env.recorderStartet++; }
     stop() {
       const sek = Math.max(0, (nu - this._fra) / 1000 - env.tabSek);
       const b = new FalskBlob([]); b.type = "audio/mp4"; b.size = 1000; b.dur = sek;
@@ -50,7 +50,7 @@ function miljoe() {
     close() {}
   }
   const strom = () => {
-    const spor = { stop() {} };
+    const spor = { muted: env.muted, stoppet: false, stop() { this.stoppet = true; } };
     env.sidsteSpor = spor;
     return { getAudioTracks: () => [spor], getTracks: () => [spor] };
   };
@@ -177,6 +177,32 @@ const MIN = 60 * 1000;
     tjek("intet graensekald efter manuelt stop", kald === 0, kald);
     tjek("stadig een del", o.dele.length === 1, o.dele.length);
   } catch (e) { tjek("scenarie 6 koerte til ende", false, e.message); }
+
+  // 8. Muted fra start (telefonopkald, maalt 14/10): afvis, foer der optages.
+  try {
+    const m = miljoe(); const o = new m.Optager();
+    m.env.muted = true;
+    let afvist = null;
+    try { await o.start(); } catch (e) { afvist = e; }
+    tjek("muted spor: start() afvist", afvist && afvist.kode === "mikrofon_optaget", afvist ? (afvist.kode || afvist.message) : "ikke afvist");
+    tjek("muted spor: optageren ikke startet", m.env.recorderStartet === 0, m.env.recorderStartet);
+    tjek("muted spor: sporet lukket igen", m.env.sidsteSpor && m.env.sidsteSpor.stoppet === true);
+    tjek("muted spor: tilstand ikke 'optager'", o.tilstand !== "optager", o.tilstand);
+    m.env.muted = false;
+    await o.start(); await m.frem(60 * 1000); const s = await o.stop();
+    tjek("efter opkaldet: ny start virker", s.ok === true, s.aarsag);
+  } catch (e) { tjek("scenarie 8 koerte til ende", false, e.message); }
+
+  // 9. Muted under fortsaet(): de gemte dele roeres ikke.
+  try {
+    const m = miljoe(); const o = new m.Optager();
+    await o.start(); await m.frem(60 * 1000); await o.stop();
+    m.env.muted = true;
+    let afvist = null;
+    try { await o.fortsaet(); } catch (e) { afvist = e; }
+    tjek("muted ved fortsaet(): afvist", afvist && afvist.kode === "mikrofon_optaget", afvist ? (afvist.kode || afvist.message) : "ikke afvist");
+    tjek("muted ved fortsaet(): delen fra foer er der stadig", o.dele.length === 1, o.dele.length);
+  } catch (e) { tjek("scenarie 9 koerte til ende", false, e.message); }
 
   // 7. S17: filen maa ligge i tilbud/.
   tjek("S17: ingen process.env, require( eller prompt", !/process\.env|require\(|prompt/.test(kilde));

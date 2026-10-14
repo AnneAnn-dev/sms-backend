@@ -59,6 +59,13 @@
        offentligt og kan ændres i browseren. Loftet skal også håndhæves af
        serveren.
 
+   MUTED FRA START (D66, målt 14/10-26): startes optagelsen under et
+   telefonopkald, giver iOS et spor, der er `live`, men `muted` fra start.
+   Værn 1 lytter efter `mute`-HÆNDELSEN, som ikke nødvendigvis kommer, når
+   sporet aldrig var aktivt — så ville modulet optage stilhed, og
+   længdetjekket ville godkende den. Derfor afvises et spor, der er muted,
+   før optageren startes (koden `mikrofon_optaget`).
+
    Lyd persisteres ikke. Modulet giver blobben videre og holder intet selv.
    ─────────────────────────────────────────────────────────────────────────── */
 
@@ -193,6 +200,15 @@
       mig._log("mikrofon", "adgang givet efter " + (Date.now() - kaldt) + " ms");
       mig._strom = strom;
       mig._spor = strom.getAudioTracks()[0] || null;
+
+      // Muted fra start = mikrofonen er optaget (typisk et telefonopkald).
+      // Afvis FØR optageren startes; ellers optages stilhed uden fejl.
+      if (mig._spor && mig._spor.muted) {
+        mig._log("afvist", "sporet er muted fra start — mikrofonen er optaget");
+        mig._ryd();
+        throw fejl("mikrofon_optaget",
+          "Mikrofonen bruges af et opkald eller en anden app. Prøv igen, når du har lagt på.");
+      }
 
       // VÆRN 1. Det er her, D66 fanges. `mute` kommer først og er det
       // tidligste varsel, vi kan få; `ended` kommer 4-6 sekunder senere.
