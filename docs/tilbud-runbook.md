@@ -551,10 +551,24 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       funktionsnavne: én POST/PATCH pr. række, serverens id skrives tilbage, fejl
       kastes i stedet for at blive slugt. Bruger dashboardets session.
       **Mangler:** Referater-fanen (`saveReferater`), `loadTilbud` og firmaprofilen.
-- [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
-      (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
-      26/9 — se D66. Fanen kalder `start()`, `fortsaet()`, `stop()` og handler på
-      `ok` / `kanBruges`.
+- [x] **Flyt optager-modulet ind — I STAGING 14/10 (`67a830c`).**
+      `tilbud/optager.js`, genskabt fra `02a1171` (spiken var fjernet i
+      `a3235fc`), med grænsen på **20 minutter samlet på tværs af dele**:
+      optageren stopper selv, kalder `paaGraense` og leverer en hel optagelse
+      (`stoppetVedGraense: true`); `fortsaet()` afviser med `graense_naaet`;
+      `restSek()` er til fanens varsel. Fanen kalder `start()`, `fortsaet()`,
+      `stop()` og handler på `ok` / `kanBruges`. `/tilbud` monteres kun med
+      `TILBUD_AKTIV` (`server.js`), så filen findes ikke i prod. Bevis:
+      `proev-optager.js` 25/0, mod spike-udgaven 9/16.
+- [ ] ⚠️ **Servergrænsen på 20 minutter.** Grænsen i `optager.js` er
+      brugervenlighed, ikke et værn: `tilbud/` er offentlig, og filen kan
+      ændres i browseren. Serveren skal afvise lyd over 20 minutter samlet pr.
+      referat. Undersøg, om dags- og månedsloftet allerede dækker det. Før
+      Port 2.
+- [ ] **SW-bump, når fanen indlæser `optager.js`** (Referat-fanen). Ingen side
+      indlæser filen endnu, så `CACHE_NAME` er ikke bumpet 14/10.
+- [ ] **`proev-optager.js` er ikke i CI.** Den køres lokalt (`node
+      proev-optager.js`), ligesom `proev-forloeb.js`.
 - [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
       sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
       lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
