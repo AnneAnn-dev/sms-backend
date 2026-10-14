@@ -283,7 +283,10 @@ Begge er expand/contract's anden halvdel. Skemaet er på plads; nogen skal skriv
       punktet frygtede, skal ikke bygges.** Mistral Voxtral forbliver ubrugt fallback.
 - [x] Annes nik: "opkald nr. 2 fra kendt nummer = ny opgave, altid" — **BEKRÆFTET 27/7**
 - [ ] Anne: indhold af STANDARDFELTER pr. branche (felter + brancher)
-- [ ] Anne: samtykke-tekst i optager-UI
+- [x] ~~Anne: samtykke-tekst i optager-UI~~ — **rettet 14/10:** der er ingen
+      samtykkeskærm (J8, `CLAUDE.md`). Værnet er tre tekster, Anne har
+      godkendt (26/8, revideret 9/9); 9/9-ordlyden af tekst 2 mangler i
+      repoet.
 - [ ] DPA-liste + privatlivspolitik: tilføj Anthropic + transskriptionsleverandør
 - [ ] **Annes prototype fastfryses i git** (`docs/referater-app.html` + handoffet).
       Den er UI-kontrakten for de 10 datafunktioner; ligger den kun i en mailtråd,
@@ -572,13 +575,43 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 - [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
       sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
       lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
-- [ ] ⚠️ **MÅL PERMISSION-FLOWET IGEN i dashboardets egen app.** iOS husker
-      mikrofon-tilladelsen **pr. installeret app**, og Spike 0 blev målt i to
-      andre installationer (`/spike0.html` og prøvebænken). Det, vi ved derfra,
-      gælder ikke automatisk her. **Målingen:** installer dashboardet på
-      hjemmeskærmen, luk appen helt, åbn den, og start én optagelse. Spørger den
-      om lov? Og spørger den igen ved næste optagelse? Svaret afgør onboarding-
-      teksten — og det er dyrt at opdage dagen før frigivelse.
+- [x] **Permission-flowet MÅLT 14/10** i den installerede app, i
+      Kunder-rammen, på to iPhones (iOS 26.6.2), med en midlertidig prøveknap
+      (`6f75009`, revertet). **Rettelse:** iOS husker IKKE tilladelsen pr.
+      installeret app. Med standardindstillingen spørger den **én gang pr.
+      sideindlæsning** — ikke igen i samme session, men igen efter log ud
+      eller en frisk indlæsning. Står Safaris mikrofonindstilling for domænet
+      på "Tillad", spørges der aldrig, heller ikke efter geninstallation.
+      Swipe-luk genstarter ikke appen. Dialogen viser **domænet** (i prod:
+      prod-domænet), ikke "Dit Kontor", på telefonens sprog. Dialogen kan stå
+      åben i minutter; optagerens ur starter først, når mikrofonen er givet.
+- [x] **Kunder-rammen får mikrofonen uden `allow="microphone"`** (samme
+      oprindelse, ingen Permissions-Policy-header). Målt 14/10;
+      `dashboard.html` er ikke ændret.
+- [ ] **Mikrofonteksterne (besluttet af Ann 14/10, ordlyden er Anns):** (1)
+      onboarding, sammen med J8 tekst 2: "Tryk Tillad, når
+      opgave.ditdigitalekontor.dk beder om tilladelse til at bruge din
+      mikrofon." (2) pop-up én gang pr. telefon (husket på telefonen), når han
+      optager første gang i en ny session og har optaget i en tidligere: samme
+      sætning + "Er du træt af at give tilladelse hver gang, så gå i
+      Indstillinger → Apps → Safari → Mikrofon og vælg Tillad." (3) ved
+      `NotAllowedError` (Annuller): samme sætning + "ellers kan du ikke bruge
+      Referathjælperen." Domænet sættes ind fra `location.hostname`, så
+      staging og prod altid er rigtige.
+- [ ] **Mål før teksterne låses:** åbnes prod-dashboardet fra
+      `opgave.ditdigitalekontor.dk`? Og spørger iOS igen i samme session efter
+      Annuller, eller først efter ny indlæsning? Hvis ikke, skal tekst 3 også
+      sige "luk og åbn appen".
+- [ ] **J8 tekst 3 = linje i vilkårene** (ikke kode). Anne skriver den. Åbent
+      for Ann/Anne: skal eksisterende kunder se linjen, når de får
+      Referathjælperen?
+- [ ] **Fanen må ikke bruge `navigator.permissions`** til at forudsige
+      dialogen — den svarede `granted`, mens iOS spurgte.
+- [ ] ⚠️ **Værn i `optager.js`: muted spor ved start (D66).** Under et
+      telefonopkald er sporet `live`, men `muted` fra start (målt 14/10). Tjek
+      `spor.muted` lige efter `getUserMedia` og afvis med en besked, ellers
+      kan modulet optage stilhed, som længdetjekket godkender. Prøve først:
+      falsk spor med `muted: true` skal afvises.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
