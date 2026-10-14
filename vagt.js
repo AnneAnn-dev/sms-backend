@@ -12,10 +12,20 @@
  * Alarmen gaar dermed ikke via Scaleway eller Twilio — den kommer ogsaa, naar
  * det er dem, der er nede.
  *
+ * STAGING MELDER SAMLET (14/10-26): Healthchecks.io-kontoen er paa gratis-
+ * planen med hoejst 20 tjek, og 21 holdt notifikationerne tilbage (UP-mailen
+ * udeblev). Prod melder hvert tjek for sig; staging melder KUN to:
+ * "staging-samlet" (roedt, hvis ét eller flere tjek er roede — teksten
+ * naevner hvilke) og "staging-vagt-liv". Det styres af miljoeet, ikke af en
+ * variabel, saa en lokal proevekoersel mod staging aldrig kan genoprette de
+ * gamle enkelttjek og fylde kontoen op igen. Prisen: er staging allerede
+ * roed, giver et tjek mere, der bliver roedt, ingen ny mail.
+ *
  * BRUG:
  *   node vagt.js                 -> koer alle tjek og meld til Healthchecks.io
  *   node vagt.js --toer          -> koer alle tjek, skriv resultatet, meld INTET
  *   node vagt.js --kun adresse   -> kun ét tjek (kan kombineres med --toer)
+ *                                   I staging melder --kun INTET (se ovenfor)
  *
  * SIKKERHED (vaernene i registret, D3):
  *   1. HC_PING_KEY er en hemmelighed. Den, der har den, kan melde "ok" og
@@ -92,6 +102,7 @@ if (!MILJOE) stop(`APPSIGNAL_APP_ENV er "${process.env.APPSIGNAL_APP_ENV || "(ik
 if (!toer && !process.env.HC_PING_KEY) stop("HC_PING_KEY mangler (eller koer med --toer)");
 const BASE_URL = (process.env.BASE_URL || "").trim().replace(/\/+$/, "");
 if (!/^https:\/\/[^\s/]+$/.test(BASE_URL)) stop("BASE_URL mangler eller er ikke en https-adresse uden sti");
+const SAMLET = MILJOE === "staging";          // se "STAGING MELDER SAMLET" oeverst
 
 // ─── Hjaelpere ───────────────────────────────────────────────────────────────
 class Fejl extends Error {}                    // en FORVENTET fejl med fast tekst
@@ -415,7 +426,9 @@ async function meld(navn, ok, tekst) {
   const slug = `${MILJOE}-${navn}`;
   const url  = `https://hc-ping.com/${process.env.HC_PING_KEY}/${slug}${ok ? "" : "/fail"}?create=1`;
   try {
-    const res = await hent(url, { method: "POST", body: tekst.slice(0, 200) });
+    // 1000 tegn: det samlede staging-tjek kan baere flere roede tekster.
+    // Alle tekster er vores egne faste (vaern 2), saa laengden er ufarlig.
+    const res = await hent(url, { method: "POST", body: tekst.slice(0, 1000) });
     if (res.status !== 200 && res.status !== 201) console.error(`  (melding om ${slug} gav ${res.status})`);
   } catch (e) {
     // URL'en indeholder noeglen — den maa ALDRIG staa i loggen. Kun typen.
@@ -436,7 +449,9 @@ async function meld(navn, ok, tekst) {
 
   console.log(`vagt — miljoe: ${MILJOE}${toer ? " (toerloeb: intet meldes)" : ""}`);
   if (!kun && springOver.length) console.log(`  sprunget over (VAGT_SPRING_OVER): ${springOver.join(", ")}`);
+  if (SAMLET) console.log(`  staging: melder samlet${kun ? " — --kun melder INTET" : ""}`);
   let roede = 0;
+  const roedeTekster = [];
 
   for (const t of valgte) {
     let ok, tekst;
@@ -465,7 +480,16 @@ async function meld(navn, ok, tekst) {
         : `${t.navn}: ingen forbindelse (${e.name})`;   // aldrig e.message
     }
     console.log(`  ${ok ? "OK  " : "ROED"}  ${tekst}`);
-    await meld(t.navn, ok, tekst);
+    if (!ok) roedeTekster.push(tekst);
+    if (!SAMLET) await meld(t.navn, ok, tekst);
+  }
+
+  // Staging: ét samlet tjek for hele koerslen. Kun ved en hel koersel —
+  // et enkelt tjek kan ikke sige, om resten er groent.
+  if (SAMLET && !kun) {
+    await meld("samlet", roede === 0, roede === 0
+      ? `samlet: ${valgte.length} tjek groenne`
+      : `samlet: ${roede} af ${valgte.length} roede — ${roedeTekster.join(" | ")}`);
   }
 
   // Livstegnet: meldes til sidst og KUN ved en hel koersel, ogsaa naar
