@@ -519,7 +519,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 | `app` | Appen nede, forkert deploy, Railway-udfald | Railway → app-servicen → Deployments/Logs. Var der et deploy lige nu? Ét enkelt rødt efterfulgt af grønt ved næste kørsel er set (8/10) — vagten prøver allerede igen efter 5 sek., så to i træk er ægte |
 | `adresse` | Adressevælgeren nede, den fælles token udløbet, `adresse.js` ikke monteret | Kald `/api/adresse/status` i browseren. Formularerne virker stadig (fail-open: postnr/by i hånden). Token død → `ADRESSE_TOKEN` på **app**-servicen, se registret D77 |
 | `supabase` | Supabase nede, anon-nøglen roteret uden at appen fulgte med | status.supabase.com · røgtesten (`npm run smoke:prod`) |
-| `twilio` | Kontoen suspenderet, saldoen under grænsen (auto-refill fejlet, fx udløbet kort) | Twilio Console → Billing. I staging tjekkes saldoen IKKE (`VAGT_TWILIO_MIN_SALDO=0`, underkontoen viser altid 0) |
+| `twilio` | Kontoen suspenderet, saldoen under grænsen (auto-refill fejlet, fx udløbet kort) | Twilio Console → Billing. I staging tjekkes saldoen IKKE (`VAGT_TWILIO_MIN_SALDO=0`): underkontoen har ingen saldo — konsollen viser $0.00, og API'et svarer 404 (målt 13/10) |
 | `mail` | Afsenderdomænet ikke længere godkendt hos Scaleway TEM (DNS/DKIM/SPF), nøglen ugyldig | Scaleway → Transactional Email → domænets status |
 | `stemme` | ElevenLabs-kvoten brugt op — nye telefonbeskeder kan ikke laves | ElevenLabs → abonnement/kvote |
 | `betaling` | Frisbii-nøglen ugyldig/roteret, kontoen utilgængelig | Frisbii-dashboardet · `RUNBOOK-noeglerotation.md` |
@@ -535,7 +535,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 **Faldgruber, vi har trådt i**
 - **Startkommandoen hører i *Deploy*-sektionen**, ikke *Build*. Står `node vagt.js` som build-kommando, kører Railway `npm start` — altså selve appen — og den crasher på manglende VAPID-variabler (set 8/10).
 - **Pause i Healthchecks.io virker ikke.** Næste ping vækker tjekket igen. Et tjek slås fra i KODEN med `VAGT_SPRING_OVER=<navn>[,<navn>]` på vagt-servicen. Et ukendt navn stopper vagten med vilje — en stavefejl må ikke ligne et slukket tjek. Slet derefter tjekket i Healthchecks.io (*Remove*); det oprettes selv igen (`?create=1`), den dag variablen fjernes.
-- **En TOM variabel er ikke det samme som en manglende.** En tom `VAGT_TWILIO_MIN_SALDO` (efter kopiering fra staging) slog saldotjekket fra i prod uden at sige det; kun loggens "saldo ikke tjekket" afslørede det (9/10). Slet en variabel helt i stedet for at tømme den. (Rettes i koden — registret D3.)
+- **En TOM variabel er ikke det samme som en manglende.** En tom `VAGT_TWILIO_MIN_SALDO` (efter kopiering fra staging) slog saldotjekket fra i prod uden at sige det; kun loggens "saldo ikke tjekket" afslørede det (9/10). Slet en variabel helt i stedet for at tømme den. **Rettet i koden 13/10 (`4bc07d2`):** tom betyder nu standard, og et ugyldigt tal gør tjekket rødt — registret D3. Gælder prod, når rettelsen er nået `main`.
 - **`HC_PING_KEY` er prod- og staging-specifik.** Står staging-nøglen i prod, havner prod-tjekkene i staging-projektet.
 - **Skærmbilleder af tjeklisten viser ping-adresserne** (`hc-ping.com/<uuid>`). Hver af dem kan melde "ok" eller "fejl" på sit tjek — del dem ikke fra prod.
 
