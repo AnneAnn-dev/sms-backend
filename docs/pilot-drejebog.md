@@ -64,6 +64,19 @@ TEST-tilstand — rigtige kort afvises; live kræver indløsningsaftalen.
 6. **Kalender-reminder:** prøve-udløb om 30 dage → kontakt kunden FØR udløb
    (konvertering eller afvikling — se nedenfor).
 
+## Når der er to-tre aktive piloter (Ann, én gang)
+
+- [ ] **Slå dødmandsknappen til** (registret D3 (d), besluttet 14/10-26). Før
+      det giver den alarm hele tiden — én kunde med få opkald er ikke trafik nok.
+      Fjern `opkald` fra `VAGT_SPRING_OVER` på vagt-servicen i **prod**
+      (staging har ingen rigtig trafik og beholder den slået fra). Overvej
+      `DOEDMANDS_TIMER` (standard 4 timer) ud fra den faktiske trafik.
+- [ ] **Se den rød én gang:** et tjek, du aldrig har set rødt, er dekoration.
+      Sæt fx `DOEDMANDS_TIMER=1` i en stille time på en hverdag, vent på
+      DOWN-mailen fra `prod-opkald`, sæt værdien tilbage og vent på UP-mailen.
+- [ ] **Tæl tjek i Healthchecks.io bagefter:** `prod-opkald` er et tjek mere
+      (grænsen er 20 i alt — registret D82).
+
 ## Overgang når indløsningsaftalen lander
 
 1. Frisbii live-nøgler → PROD (runbookens go-live-gate; staging beholder testkonto).
