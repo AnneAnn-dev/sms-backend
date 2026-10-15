@@ -1321,20 +1321,33 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
     - ✅ (1) Ægte kundeopkald set gå igennem i prod og blive til opgaveformularer.
     - ✅ (2) `OPKALD_SIGNATUR=haandhaev` oprettet i prod-servicen OG deployet.
       Staging står også på `haandhaev`, så de to miljøer er enige.
-    - ⬜ (3) **UDESTÅENDE — og det er det farlige:** ring et opkald +
-      `npm run smoke:prod` → skal vise `afvist med 403`. **Håndhævelse er live i
-      prod uden at afvisningsvejen er verificeret DER.** Fejler URL-bygningen,
-      afvises ALLE ægte opkald. Virker et rigtigt opkald ikke: sæt variablen
-      tilbage til `log` med det samme.
+    - ✅ (3) **VERIFICERET I PROD 14/10-26** (årshjulsopgave). Begge veje målt:
+      - *Falsk kald afvises:* `npm run smoke:prod` 13/13 grøn, med `URL:` =
+        backenden og `Supabase-ref:` = prod i hovedet. `/opkald`-linjen viser
+        `afvist med 403`, og `/health` melder `signatur: haandhaev`. Railway-loggen
+        har den tilsvarende `/opkald AFVIST - ugyldig Twilio-signatur` kl. 17:35:21.
+      - *Ægte opkald slipper igennem:* testopkald kl. 17:41:22 gav `Opkald modtaget`
+        og `Formular-SMS sendt` i Railway-loggen. Når der håndhæves, stopper en
+        ugyldig signatur ved `AFVIST`, før koden når så langt. URL-bygningen
+        (https + host) virker altså bag Railways TLS. Desuden findes der rækker
+        i prod-`calls` fra efter 2/8, så ægte opkald er kommet igennem hele perioden.
+      - 🔑 *Lærdom:* læg på, før viderestillingen slår til, og opkaldet når aldrig
+        Twilio. Teleselskabet viderestiller først ved manglende svar, så der kommer
+        hverken kald til `/opkald` eller en linje i Call Logs. Det er ikke en fejl.
+        Testopkaldet skal vente, til telefonsvareren tager det.
+      - 🔑 *Hvor svarkoden står:* nummerets fane **Call logs** → klik opkaldet →
+        Request Inspector. Ikke *Message logs*, som kun viser SMS'er.
     - ⚠️ Bekræftelsen `✅ signatur OK` findes ikke længere i loggen — den logges
       kun i log-tilstand. Fra nu af logges kun afvisninger.
     - ⚠️ **Variablen ruller med ved rollback.** Ruller du prod tilbage til en deploy
       fra før 2/8-26, forsvinder `OPKALD_SIGNATUR` uden varsel, standarden `log`
       træder i kraft, og håndhævelsen er slået fra igen. Se rollback-afsnittet, punkt 2.
-    - ⬜ `OPKALD_SIGNATUR` mangler i `.env.prod` og `.env.staging` — tilføjes under
-      D16-oprydningen, så lokale kørsler ikke opfører sig anderledes end skyen. **Derefter:** fjern variablen og gaflen i `onboarding.js`
+    - ✅ `OPKALD_SIGNATUR` tilføjet i `.env.prod` og `.env.staging` 5/8-26 under
+      D16-oprydningen (se variabeltabellen), så lokale kørsler ikke opfører sig anderledes end skyen. **Derefter:** fjern variablen og gaflen i `onboarding.js`
     igen, når `haandhaev` har kørt problemfrit et par uger — et flag har en
     dødsdato, og fjernelsen er kun sikker, mens flaget står TÆNDT.
+    ⏭️ **Forfalden pr. 14/10-26:** `haandhaev` har kørt siden 2/8 uden afviste ægte
+    opkald. Fjernelsen af flaget og gaflen er næste skridt.
     Bemærk: `✅ signatur OK` logges kun i log-tilstand; når der håndhæves, logges
     kun afvisninger (ellers er linjen tapet).
 25. **Røgtestens næste tjek (vedligeholdelsesreglen, lav prioritet):** to kandidater
