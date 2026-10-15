@@ -554,6 +554,9 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       funktionsnavne: én POST/PATCH pr. række, serverens id skrives tilbage, fejl
       kastes i stedet for at blive slugt. Bruger dashboardets session.
       **Mangler:** Referater-fanen (`saveReferater`), `loadTilbud` og firmaprofilen.
+      ✅ **Referat-fanen, skive 1 i staging 15/10 (`02c5b85`)** — se punktet
+      "Referat-fanen" nedenfor. `saveReferater` er bygget. **Mangler stadig:**
+      `loadTilbud` og firmaprofilen.
 - [x] **Flyt optager-modulet ind — I STAGING 14/10 (`67a830c`).**
       `tilbud/optager.js`, genskabt fra `02a1171` (spiken var fjernet i
       `a3235fc`), med grænsen på **20 minutter samlet på tværs af dele**:
@@ -568,13 +571,15 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       ændres i browseren. Serveren skal afvise lyd over 20 minutter samlet pr.
       referat. Undersøg, om dags- og månedsloftet allerede dækker det. Før
       Port 2.
-- [ ] **SW-bump, når fanen indlæser `optager.js`** (Referat-fanen). Ingen side
-      indlæser filen endnu, så `CACHE_NAME` er ikke bumpet 14/10.
+- [x] **SW-bump, når fanen indlæser `optager.js`** — `dashboard-v35` i
+      `02c5b85` (15/10), da `tilbud/index.html` begyndte at indlæse filen.
 - [ ] **`proev-optager.js` er ikke i CI.** Den køres lokalt (`node
       proev-optager.js`), ligesom `proev-forloeb.js`.
-- [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
-      sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
-      lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
+- [x] **Sammensæt delene — sker i `/api/tilbud/transskriber` (siden 1/10).**
+      Alle dele i ét kald, transskriberet hver for sig og sat sammen i
+      rækkefølge med en tom linje imellem, FØR referatmodellen ser dem; kvoten
+      tæller samlet. Fanen (15/10) sender kun de dele, der er med, i deres
+      rækkefølge — en kasseret del sendes ikke. Målt på iPhone 15/10.
 - [x] **Permission-flowet MÅLT 14/10** i den installerede app, i
       Kunder-rammen, på to iPhones (iOS 26.6.2), med en midlertidig prøveknap
       (`6f75009`, revertet). **Rettelse:** iOS husker IKKE tilladelsen pr.
@@ -597,11 +602,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       Indstillinger → Apps → Safari → Mikrofon og vælg Tillad." (3) ved
       `NotAllowedError` (Annuller): samme sætning + "ellers kan du ikke bruge
       Referathjælperen." Domænet sættes ind fra `location.hostname`, så
-      staging og prod altid er rigtige.
+      staging og prod altid er rigtige. ✅ **(3) bygget 15/10 (`02c5b85`)** og
+      målt på iPhone. **Mangler:** (1) i `onboarding.html` og (2) pop-uppen.
 - [ ] **Mål før teksterne låses:** åbnes prod-dashboardet fra
-      `opgave.ditdigitalekontor.dk`? Og spørger iOS igen i samme session efter
-      Annuller, eller først efter ny indlæsning? Hvis ikke, skal tekst 3 også
-      sige "luk og åbn appen".
+      `opgave.ditdigitalekontor.dk`? ✅ **Målt 15/10: efter Annuller spørger
+      iOS igen i samme session** ved næste tryk — tekst 3 behøver ikke sige
+      "luk og åbn appen". Tilbage: prod-domænet.
 - [ ] **J8 tekst 3 = linje i vilkårene** (ikke kode). Anne skriver den. Åbent
       for Ann/Anne: skal eksisterende kunder se linjen, når de får
       Referathjælperen?
@@ -612,7 +618,32 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       (telefonopkald), afvises før optageren startes, kode `mikrofon_optaget`;
       gælder `start()` og `fortsaet()`. Bevis: `proev-optager.js` 32/0 (26/6
       mod `67a830c`). Fanen viser beskeden; mål på telefon i F (start
-      optagelse under et opkald).
+      optagelse under et opkald). ✅ **Målt på iPhone 15/10:** beskeden kommer.
+      Et indgående opkald MIDT i en optagelse fanges også (værn 1,
+      `afbrudt_men_hel`), og fanen spørger.
+- [x] **Referat-fanen, skive 1 — I STAGING 15/10 (`02c5b85`).** Optag →
+      del(e) → samlet transskription, han kan rette → gem som kladde. Startes
+      fra opgaven ("+ Nyt referat"); bundbarens Referat-knap er stadig lukket.
+      Kvoten spørges, når skærmen åbnes (fail-closed). En del med tab
+      kasseres; en "afbrudt men hel" del SKAL han tage stilling til, før der
+      kan laves tekst. J8 tekst 1 (26/8) står under knappen. **Besluttet af
+      Ann 15/10:** (A) en kladde må gemmes med KUN `transskript`
+      (`routes/tilbud/data.js`); (B) `transskript` er hans RETTEDE tekst;
+      (C) tekst 1 = 26/8-ordlyden; (D) optagelsen kører videre ved faneskift
+      i dashboardet — målt, ingen kode. **Bevis:**
+      `proev-referat-graenseflade.js` 25/0 (mod `b2073c4` 3/7) · HTTP
+      400 `tomt_referat` før, 201 efter deploy · otte punkter på iPhone.
+- [ ] **Skive 2: udkastet** fra `/api/tilbud/referat` med teknik
+      B-markeringer. Beslut først, hvordan `ai_udkast` kommer på en kladde,
+      der er gemt uden (PATCH afviser feltet i dag, med vilje): "sæt én gang,
+      når tom" i PATCH, eller udkast før første gem.
+- [ ] **Åbne ender fra skive 1:** at rette en gemt kladde fra fanen (PATCH
+      kan titel/indhold/status — skærmen mangler) · at optage mere, efter
+      teksten er lavet (mikrofonen låses) · 20-min-grænsen tæller en
+      fravalgt "afbrudt men hel" del med (`brugtSek`) · "fordi appen kom i
+      baggrunden" står også ved et opkald (ordlyd til Ann) · kvotens feltnavn
+      `spaerret` er fra `kvote.js` 29/9 — bekræft · `proev-referat-graenseflade.js`
+      er ikke i CI.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
