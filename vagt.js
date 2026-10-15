@@ -12,10 +12,20 @@
  * Alarmen gaar dermed ikke via Scaleway eller Twilio — den kommer ogsaa, naar
  * det er dem, der er nede.
  *
+ * STAGING MELDER SAMLET (14/10-26): Healthchecks.io-kontoen er paa gratis-
+ * planen med hoejst 20 tjek, og 21 holdt notifikationerne tilbage (UP-mailen
+ * udeblev). Prod melder hvert tjek for sig; staging melder KUN to:
+ * "staging-samlet" (roedt, hvis ét eller flere tjek er roede — teksten
+ * naevner hvilke) og "staging-vagt-liv". Det styres af miljoeet, ikke af en
+ * variabel, saa en lokal proevekoersel mod staging aldrig kan genoprette de
+ * gamle enkelttjek og fylde kontoen op igen. Prisen: er staging allerede
+ * roed, giver et tjek mere, der bliver roedt, ingen ny mail.
+ *
  * BRUG:
  *   node vagt.js                 -> koer alle tjek og meld til Healthchecks.io
  *   node vagt.js --toer          -> koer alle tjek, skriv resultatet, meld INTET
  *   node vagt.js --kun adresse   -> kun ét tjek (kan kombineres med --toer)
+ *                                   I staging melder --kun INTET (se ovenfor)
  *
  * SIKKERHED (vaernene i registret, D3):
  *   1. HC_PING_KEY er en hemmelighed. Den, der har den, kan melde "ok" og
@@ -44,6 +54,9 @@
  *             VAGT_UDLOEB_MIN_DAGE    (standard 30)
  *             VAGT_UDLOEBSDATOER      fx "scaleway-genai=2027-10-03;adressevaelger=2026-12-31"
  *                                     (kun navne og datoer — ALDRIG noegler)
+ *             VAGT_LEVERING_TIMER     (standard 24) vinduet for tjekket levering
+ *             VAGT_LEVERING_MIN_ANTAL (standard 3)  roedt kraever mindst saa mange
+ *             VAGT_LEVERING_MAX_PCT   (standard 20) ... OG mindst saa stor en andel
  *             VAGT_SPRING_OVER        fx "opkald" eller "opkald,stemme" — de
  *                                     navngivne tjek koeres IKKE og meldes
  *                                     ikke. Et ukendt navn stopper vagten
@@ -55,6 +68,9 @@
  *                                     egen API-noegle til vagten; ellers
  *                                     bruges TWILIO_ACCOUNT_SID/AUTH_TOKEN
  *             DOEDMANDS_TIMER, ARBEJDSTID_START, ARBEJDSTID_SLUT (som foer)
+ *   Talvaerdier: TOM (eller kun mellemrum) betyder IKKE SAT -> standard.
+ *             Et ugyldigt tal (bogstaver, negativt) goer TJEKKET roedt —
+ *             det slaar aldrig stille et vaern fra. Se tal() nedenfor.
  */
 
 "use strict";
@@ -86,6 +102,7 @@ if (!MILJOE) stop(`APPSIGNAL_APP_ENV er "${process.env.APPSIGNAL_APP_ENV || "(ik
 if (!toer && !process.env.HC_PING_KEY) stop("HC_PING_KEY mangler (eller koer med --toer)");
 const BASE_URL = (process.env.BASE_URL || "").trim().replace(/\/+$/, "");
 if (!/^https:\/\/[^\s/]+$/.test(BASE_URL)) stop("BASE_URL mangler eller er ikke en https-adresse uden sti");
+const SAMLET = MILJOE === "staging";          // se "STAGING MELDER SAMLET" oeverst
 
 // ─── Hjaelpere ───────────────────────────────────────────────────────────────
 class Fejl extends Error {}                    // en FORVENTET fejl med fast tekst
@@ -111,6 +128,32 @@ async function supa(sti, noegle) {
 
 function basic(bruger, kode) {
   return "Basic " + Buffer.from(`${bruger}:${kode}`).toString("base64");
+}
+
+// Tal fra miljoeet. 9/10-26 slog en TOM VAGT_TWILIO_MIN_SALDO (kopieret fra
+// staging) saldotjekket fra i prod uden at sige det: Number("") er 0, og
+// ?? fanger kun en variabel, der helt mangler. Et ugyldigt tal er lige saa
+// farligt — NaN sammenligner altid falsk, saa "saldo < NaN" bliver aldrig
+// roedt. Derfor: tom = standard, ugyldigt = tjekket roedt med fast tekst
+// (vaerdien selv skrives ikke ud).
+function tal(navn, standard) {
+  const raa = String(process.env[navn] ?? "").trim();
+  if (raa === "") return standard;
+  const v = Number(raa);
+  if (!Number.isFinite(v) || v < 0) fejl(`${navn} er ikke et gyldigt tal`);
+  return v;
+}
+
+// Twilio-adgang til de to Twilio-tjek. Vagtens egen API-noegle, hvis den
+// findes (vaern 6); ellers kontoens AUTH_TOKEN. Kaster Fejl ved manglende
+// konfiguration, saa netop tjekket bliver roedt.
+function twilioAdgang() {
+  kraev("TWILIO_ACCOUNT_SID");
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const auth = process.env.VAGT_TWILIO_KEY_SID
+    ? basic(process.env.VAGT_TWILIO_KEY_SID, process.env.VAGT_TWILIO_KEY_SECRET || "")
+    : (kraev("TWILIO_AUTH_TOKEN"), basic(sid, process.env.TWILIO_AUTH_TOKEN));
+  return { base: `https://api.twilio.com/2010-04-01/Accounts/${sid}`, auth };
 }
 
 function dageTil(dato) {
@@ -178,19 +221,14 @@ const TJEK = [
     // fejle, fx paa et udloebet kort). KONFIG: TWILIO_ACCOUNT_SID +
     // (VAGT_TWILIO_KEY_SID/SECRET eller TWILIO_AUTH_TOKEN)
     async koer() {
-      kraev("TWILIO_ACCOUNT_SID");
-      const sid = process.env.TWILIO_ACCOUNT_SID;
-      const auth = process.env.VAGT_TWILIO_KEY_SID
-        ? basic(process.env.VAGT_TWILIO_KEY_SID, process.env.VAGT_TWILIO_KEY_SECRET || "")
-        : (kraev("TWILIO_AUTH_TOKEN"), basic(sid, process.env.TWILIO_AUTH_TOKEN));
-      const base = `https://api.twilio.com/2010-04-01/Accounts/${sid}`;
+      const { base, auth } = twilioAdgang();
 
       const kontoRes = await hent(`${base}.json`, { headers: { Authorization: auth } });
       if (kontoRes.status !== 200) fejl(`konto svarer ${kontoRes.status}`);
       const konto = await kontoRes.json();
       if (konto.status !== "active") fejl(`kontoen er "${String(konto.status).slice(0, 20)}"`);
 
-      const minSaldo = Number(process.env.VAGT_TWILIO_MIN_SALDO ?? 10);
+      const minSaldo = tal("VAGT_TWILIO_MIN_SALDO", 10);
       if (minSaldo <= 0) return "konto aktiv (saldo ikke tjekket)";
       const saldoRes = await hent(`${base}/Balance.json`, { headers: { Authorization: auth } });
       if (saldoRes.status !== 200) fejl(`saldo svarer ${saldoRes.status}`);
@@ -198,6 +236,71 @@ const TJEK = [
       if (!Number.isFinite(saldo)) fejl("saldo kunne ikke laeses");
       if (saldo < minSaldo) fejl(`saldo under ${minSaldo}`);
       return "konto aktiv, saldo over graensen";
+    },
+  },
+  {
+    navn: "levering",
+    // D3 (c), 14/10-26. Fanger: SMS'er, Twilio tog imod, men som aldrig
+    // naaede frem — tavshed uden en eneste fejl hos os. Taeller udgaaende SMS
+    // i vinduet efter status. Der laeses KUN status, retning, tidspunkt og
+    // fejlkode — aldrig nummer eller tekst (vaern 3).
+    //   delivered            -> leveret
+    //   failed / undelivered -> fejlet, MEDMINDRE koden er en, der skyldes
+    //                           modtageren og ikke os:
+    //                           30006 fastnet / uopnaaeligt nummer (en kunde,
+    //                                 der ringer fra fastnet, kan ikke faa SMS)
+    //                           21610 modtageren har skrevet STOP
+    //   alt andet (queued, sent, ...) -> endnu uafgjort, taeller ikke med
+    // Roedt kraever BAADE mindst VAGT_LEVERING_MIN_ANTAL fejlede OG en andel
+    // paa mindst VAGT_LEVERING_MAX_PCT af de afgjorte — én enkelt fejl ved
+    // lav trafik er stoej. Ingen SMS i vinduet er groent: tavshed er
+    // opkald-tjekkets opgave, ikke dette.
+    // Proeve (staging): VAGT_LEVERING_MIN_ANTAL=0 og VAGT_LEVERING_MAX_PCT=0
+    // goer tjekket roedt, saa snart der er én afgjort SMS i vinduet.
+    // KONFIG: som twilio.
+    async koer() {
+      const { base, auth } = twilioAdgang();
+      const timer    = tal("VAGT_LEVERING_TIMER", 24);
+      const minAntal = tal("VAGT_LEVERING_MIN_ANTAL", 3);
+      const maxPct   = tal("VAGT_LEVERING_MAX_PCT", 20);
+      if (timer <= 0) fejl("VAGT_LEVERING_TIMER er ikke et gyldigt tal");
+      const fra = Date.now() - timer * 3_600_000;
+
+      // Twilio filtrerer kun paa DATO (UTC); det praecise vindue skaeres nedenfor.
+      const dato = new Date(fra).toISOString().slice(0, 10);
+      let url = `${base}/Messages.json?DateSent%3E=${dato}&PageSize=1000`;
+      const IGNORER = new Set(["30006", "21610"]);
+      let leveret = 0, fejlet = 0, sider = 0;
+      const koder = {};
+
+      while (url && sider < 5) {
+        sider++;
+        const res = await hent(url, { headers: { Authorization: auth } });
+        if (res.status !== 200) fejl(`beskedlisten svarer ${res.status}`);
+        const side = await res.json();
+        for (const m of side.messages || []) {
+          if (!String(m.direction || "").startsWith("outbound")) continue;
+          const sendt = Date.parse(m.date_sent || "");
+          if (!Number.isFinite(sendt) || sendt < fra) continue;
+          if (m.status === "delivered") { leveret++; continue; }
+          if (m.status !== "failed" && m.status !== "undelivered") continue;
+          const kode = String(m.error_code ?? "").replace(/\D/g, "").slice(0, 6) || "ukendt";
+          if (IGNORER.has(kode)) continue;
+          fejlet++;
+          koder[kode] = (koder[kode] || 0) + 1;
+        }
+        url = side.next_page_uri ? `https://api.twilio.com${side.next_page_uri}` : null;
+      }
+      const afgjort = leveret + fejlet;
+      const loft = url ? " (over 5000 i vinduet — kun de nyeste talt)" : "";
+      if (afgjort === 0) return `ingen afgjorte SMS i ${timer} timer${loft}`;
+      const pct = Math.round((fejlet / afgjort) * 100);
+      const top = Object.entries(koder).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([k, n]) => `${k}x${n}`).join(", ");
+      if (fejlet >= minAntal && pct >= maxPct) {
+        fejl(`${fejlet} af ${afgjort} fejlede i ${timer} timer (${top || "ingen koder"})${loft}`);
+      }
+      return `${fejlet} af ${afgjort} fejlede i ${timer} timer — under graensen${loft}`;
     },
   },
   {
@@ -234,7 +337,7 @@ const TJEK = [
       const s = await res.json();
       const tilbage = Number(s.character_limit) - Number(s.character_count);
       if (!Number.isFinite(tilbage)) fejl("kvoten kunne ikke laeses");
-      const min = Number(process.env.VAGT_STEMME_MIN_TEGN ?? 5000);
+      const min = tal("VAGT_STEMME_MIN_TEGN", 5000);
       if (tilbage < min) fejl(`under ${min} tegn tilbage af kvoten`);
       return "kvote over graensen";
     },
@@ -266,10 +369,10 @@ const TJEK = [
         s.on("timeout", () => { s.destroy(); nej(new Fejl("ingen forbindelse til certifikatet")); });
         s.on("error", () => nej(new Fejl("ingen forbindelse til certifikatet")));
       });
-      const certMin = Number(process.env.VAGT_CERT_MIN_DAGE ?? 14);
+      const certMin = tal("VAGT_CERT_MIN_DAGE", 14);
       if (certDage < certMin) fejl(`certifikatet udloeber om ${certDage} dage`);
 
-      const min = Number(process.env.VAGT_UDLOEB_MIN_DAGE ?? 30);
+      const min = tal("VAGT_UDLOEB_MIN_DAGE", 30);
       for (const par of String(process.env.VAGT_UDLOEBSDATOER || "").split(";").filter(Boolean)) {
         const [navn, dato] = par.split("=").map((x) => x.trim());
         if (!/^[a-z0-9-]{1,30}$/.test(navn || "") || !/^\d{4}-\d{2}-\d{2}$/.test(dato || "")) {
@@ -294,9 +397,9 @@ const TJEK = [
     // og fjern det, naar den foerste pilot ringer. (Pause i Healthchecks.io
     // virker ikke: naeste ping vaekker tjekket igen — maalt 8/10-26.)
     async koer() {
-      const start = Number(process.env.ARBEJDSTID_START ?? 7);
-      const slut  = Number(process.env.ARBEJDSTID_SLUT ?? 17);
-      const timer = Number(process.env.DOEDMANDS_TIMER ?? 4);
+      const start = tal("ARBEJDSTID_START", 7);
+      const slut  = tal("ARBEJDSTID_SLUT", 17);
+      const timer = tal("DOEDMANDS_TIMER", 4);
       const { ugedag, time } = koebenhavnNu();
       if (ugedag === "Sat" || ugedag === "Sun") return "weekend — ikke vurderet";
       if (time < start || time >= slut) return "uden for arbejdstid — ikke vurderet";
@@ -323,7 +426,9 @@ async function meld(navn, ok, tekst) {
   const slug = `${MILJOE}-${navn}`;
   const url  = `https://hc-ping.com/${process.env.HC_PING_KEY}/${slug}${ok ? "" : "/fail"}?create=1`;
   try {
-    const res = await hent(url, { method: "POST", body: tekst.slice(0, 200) });
+    // 1000 tegn: det samlede staging-tjek kan baere flere roede tekster.
+    // Alle tekster er vores egne faste (vaern 2), saa laengden er ufarlig.
+    const res = await hent(url, { method: "POST", body: tekst.slice(0, 1000) });
     if (res.status !== 200 && res.status !== 201) console.error(`  (melding om ${slug} gav ${res.status})`);
   } catch (e) {
     // URL'en indeholder noeglen — den maa ALDRIG staa i loggen. Kun typen.
@@ -344,7 +449,9 @@ async function meld(navn, ok, tekst) {
 
   console.log(`vagt — miljoe: ${MILJOE}${toer ? " (toerloeb: intet meldes)" : ""}`);
   if (!kun && springOver.length) console.log(`  sprunget over (VAGT_SPRING_OVER): ${springOver.join(", ")}`);
+  if (SAMLET) console.log(`  staging: melder samlet${kun ? " — --kun melder INTET" : ""}`);
   let roede = 0;
+  const roedeTekster = [];
 
   for (const t of valgte) {
     let ok, tekst;
@@ -373,7 +480,16 @@ async function meld(navn, ok, tekst) {
         : `${t.navn}: ingen forbindelse (${e.name})`;   // aldrig e.message
     }
     console.log(`  ${ok ? "OK  " : "ROED"}  ${tekst}`);
-    await meld(t.navn, ok, tekst);
+    if (!ok) roedeTekster.push(tekst);
+    if (!SAMLET) await meld(t.navn, ok, tekst);
+  }
+
+  // Staging: ét samlet tjek for hele koerslen. Kun ved en hel koersel —
+  // et enkelt tjek kan ikke sige, om resten er groent.
+  if (SAMLET && !kun) {
+    await meld("samlet", roede === 0, roede === 0
+      ? `samlet: ${valgte.length} tjek groenne`
+      : `samlet: ${roede} af ${valgte.length} roede — ${roedeTekster.join(" | ")}`);
   }
 
   // Livstegnet: meldes til sidst og KUN ved en hel koersel, ogsaa naar
