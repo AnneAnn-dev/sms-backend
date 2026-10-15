@@ -510,7 +510,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 
 *Skrevet 9/10-26. Baggrund: DAWA lukkede 1/10, og kerneflowet stod stille i tre dage, uden at noget sagde fra (registret **D77**, hændelsesloggen 4/10). Beslutninger og sikkerhedsværn står i registret under **D3** — her står kun, hvordan den passes.*
 
-**Hvad den er.** `vagt.js` kører som sin egen Railway-service i **begge miljøer** — cron `*/15 * * * *`, start `node vagt.js`, Restart Policy *Never*. Prod-vagten bygger fra `main`, staging-vagten fra `staging`. Hvert tjek melder til **Healthchecks.io**, ét projekt pr. miljø: **"DDK staging"** og **"DDK prod"**, hver med sin egen ping-nøgle (`HC_PING_KEY` i Railway + Bitwarden). Healthchecks.io mailer Ann **kun ved skift** (grøn→rød og rød→grøn) — ikke ved hver kørsel. Alarmen går altså ikke via Scaleway eller Twilio og kommer også, når det er dem, der er nede.
+**Hvad den er.** `vagt.js` kører som sin egen Railway-service i **begge miljøer** — cron `*/15 * * * *`, start `node vagt.js`, Restart Policy *Never*. Prod-vagten bygger fra `main`, staging-vagten fra `staging`. Hvert tjek melder til **Healthchecks.io** i ét fælles projekt, **"DDK drift"**, med én ping-nøgle (`HC_PING_KEY` på begge vagt-services i Railway + Bitwarden). Prod og staging holdes adskilt af slug-præfikset (`prod-…`, `staging-…`), som vagten sætter ud fra `APPSIGNAL_APP_ENV`. *(Indtil 15/10-26 var det to projekter, "DDK staging" og "DDK prod".)* Healthchecks.io mailer Ann **kun ved skift** (grøn→rød og rød→grøn) — ikke ved hver kørsel. Alarmen går altså ikke via Scaleway eller Twilio og kommer også, når det er dem, der er nede.
 
 **Staging melder samlet (14/10-26).** Healthchecks.io-kontoen er på gratisplanen med højst 20 tjek i ALLE projekter tilsammen, og over grænsen blev UP-mailen holdt tilbage (registret **D82**). Derfor melder staging kun to tjek: `staging-samlet` (rødt, hvis ét eller flere tjek er røde — teksten nævner hvilke) og `staging-vagt-liv`. Prod melder hvert tjek for sig. Det styres af miljøet, ikke af en variabel. Prisen: er `staging-samlet` allerede rød, giver et nyt rødt tjek ingen ny mail — læs teksten i Healthchecks.io.
 
@@ -541,7 +541,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - **En TOM variabel er ikke det samme som en manglende.** En tom `VAGT_TWILIO_MIN_SALDO` (efter kopiering fra staging) slog saldotjekket fra i prod uden at sige det; kun loggens "saldo ikke tjekket" afslørede det (9/10). Slet en variabel helt i stedet for at tømme den. **Rettet i koden 13/10 (`4bc07d2`):** tom betyder nu standard, og et ugyldigt tal gør tjekket rødt — registret D3. I prod siden 15/10 (PR #84).
 - **En variabel fra en tidligere prøve kan blive hængende i terminalen.** 14/10 holdt `SMTP_FROM=vagt@example.invalid` fra gårsdagens brud `staging-samlet` rød, og UP-mailen kom ikke — det lignede en fejl i vagten. Kør prøver i en **frisk terminal**, og ryd hver `$env:`-variabel, du sætter.
 - **Et nyt tjek tæller mod kontoens grænse på 20** — i alle projekter tilsammen. `?create=1` opretter det ved første ping, også over grænsen. Tjek *Account Settings → Billing → Checks Used* før og efter (D82).
-- **`HC_PING_KEY` er prod- og staging-specifik.** Står staging-nøglen i prod, havner prod-tjekkene i staging-projektet.
+- **Miljøet afgøres alene af `APPSIGNAL_APP_ENV`.** Begge vagter bruger samme `HC_PING_KEY`, så intet andet skiller dem ad. Står prod-vagten med `staging`, melder den som `staging-samlet` — prod-tjekkene holder op med at blive opdateret. Det, der afslører det, er `prod-vagt-liv`, som går rød, når dens periode udløber (15 + 20 min) — de øvrige prod-tjek har en periode på et døgn. Tjek variablen efter hver ændring på vagt-servicen: loggens første linje siger `vagt — miljoe: prod`.
 - **Skærmbilleder af tjeklisten viser ping-adresserne** (`hc-ping.com/<uuid>`). Hver af dem kan melde "ok" eller "fejl" på sit tjek — del dem ikke fra prod.
 
 **Rutiner**
@@ -836,7 +836,7 @@ git --no-pager diff --stat HEAD -- docs/                                 # SKAL 
    udelukke end at feilsøge.
 1. Kunde melder fejl → **start i `docs/RUNBOOK-triage.md`:** find familien (A–G) ud fra det, kunden
    siger, og følg dens rækkefølge. Anne tager lag 1, Ann får sagskortet. Derudover: tjek **health-check**, **Railway-logs** og de **tre webhooks**.
-   **Se også i Healthchecks.io → "DDK prod":** hvilket vagt-tjek er rødt, og siden hvornår? Det er ofte svaret, før kunden har nået at ringe — se Del 0, **F2**.
+   **Se også i Healthchecks.io → "DDK drift" (tjekkene `prod-…`):** hvilket vagt-tjek er rødt, og siden hvornår? Det er ofte svaret, før kunden har nået at ringe — se Del 0, **F2**.
 2. **Rollback koden først** — det er det hurtigste tilbage til en kendt god tilstand.
 3. DB-fejl (forkert data/migration) → vurder **PITR-gendannelse**. Husk: prod er **utilgængelig under restore**, og varigheden vokser med DB-størrelsen — meld evt. kort driftsstop.
 4. Tjek Twilio- og Frisbii-status hvis opkald/betaling driller.
