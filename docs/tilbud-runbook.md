@@ -607,11 +607,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       Referathjælperen?
 - [ ] **Fanen må ikke bruge `navigator.permissions`** til at forudsige
       dialogen — den svarede `granted`, mens iOS spurgte.
-- [ ] ⚠️ **Værn i `optager.js`: muted spor ved start (D66).** Under et
-      telefonopkald er sporet `live`, men `muted` fra start (målt 14/10). Tjek
-      `spor.muted` lige efter `getUserMedia` og afvis med en besked, ellers
-      kan modulet optage stilhed, som længdetjekket godkender. Prøve først:
-      falsk spor med `muted: true` skal afvises.
+- [x] **Værn i `optager.js`: muted spor ved start (D66) — BYGGET 14/10
+      (`9646c8c`).** Et spor, der er muted lige efter `getUserMedia`
+      (telefonopkald), afvises før optageren startes, kode `mikrofon_optaget`;
+      gælder `start()` og `fortsaet()`. Bevis: `proev-optager.js` 32/0 (26/6
+      mod `67a830c`). Fanen viser beskeden; mål på telefon i F (start
+      optagelse under et opkald).
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
