@@ -287,15 +287,24 @@ module.exports = function (app, supabase) {
 
       // Referaterne i oversigtsform. INDHOLDET kommer ikke med i en liste -
       // det hentes pr. referat, saa en opgaveside ikke traekker al tekst med.
-      const { data: referater, error } = await supabase
+      //
+      // `har_referat` (15/10-26, skive 3): listen skal kunne sige "Indtalt
+      // tekst" eller "Referat" (Anns fund: fire ens "Noter 15/10 · Kladde",
+      // der ikke kunne skelnes). Teksterne laeses her, men kun for at blive
+      // til ét ja/nej — de forlader ikke serveren.
+      const { data: raekker, error } = await supabase
         .from("referater")
-        .select("id, titel, moede_dato, status, kilde, varighed_sek, created_at")
+        .select("id, titel, moede_dato, status, kilde, varighed_sek, created_at, ai_udkast, indhold")
         .eq("firm_id", firmId)
         .eq("lead_id", opgave.id)
-        .order("moede_dato", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
+      const referater = (raekker || []).map(({ ai_udkast, indhold, ...r }) => ({
+        ...r,
+        har_referat: !!(tekst(ai_udkast) || tekst(indhold)),
+      }));
 
-      res.json({ ok: true, opgave, referater: referater || [] });
+      res.json({ ok: true, opgave, referater });
     } catch (e) { svarPaaFejl(res, e, "opgave kunne ikke hentes"); }
   });
 
@@ -472,11 +481,41 @@ module.exports = function (app, supabase) {
     // felt. Saa kan vi se, hvor ofte og hvor meget han retter - et maal for
     // tale-til-tekst, ikke for referatmodellen. Kraever en migration.
 
+    // ─── LAASEN (besluttet af Ann 15/10-26, skive 3) ─────────────────────────
+    // "Kladde" = kan stadig rettes. "Faerdig" = laast. Et faerdigt referat kan
+    // IKKE rettes, heller ikke tilbage til kladde — ikke fra fanen og ikke fra
+    // en anden klient. Laasen staar HER og ikke kun i fanen; ellers er den pynt.
+    //
+    // Filteret `status = 'kladde'` sidder i SAMME opdatering (som udkastets
+    // `IS NULL`), saa en skaerm, der markerer faerdig, og en anden, der retter
+    // samtidig, ikke kan krydse hinanden: den sidste faar 409.
+    let raekke;
     try {
-      const referat = await opdaterEgenRaekke(supabase, "referater", req.params.id, firmId, aendringer);
-      res.json({ ok: true, referat });
+      raekke = await hentEgenRaekke(supabase, "referater", req.params.id, firmId, "id, status");
+    } catch (e) { return svarPaaFejl(res, e, "referat kunne ikke hentes til rettelse"); }
+    if (raekke.status === "faerdig") return afvisFaerdigt(res);
+
+    try {
+      const { data, error } = await supabase
+        .from("referater")
+        .update(aendringer)
+        .eq("id", raekke.id)
+        .eq("firm_id", firmId)
+        .eq("status", "kladde")
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return afvisFaerdigt(res);   // blev faerdigt imens
+      res.json({ ok: true, referat: data });
     } catch (e) { svarPaaFejl(res, e, "referat kunne ikke rettes"); }
   });
+
+  function afvisFaerdigt(res) {
+    return res.status(409).json({
+      error: "referat_faerdigt",
+      besked: "Referatet er markeret som færdigt og kan ikke rettes. Genindlæs, så ser du det.",
+    });
+  }
 
   // ─── UDKASTET PAA EN GEMT KLADDE — ÉN GANG (besluttet af Ann 15/10-26) ─────
   //
@@ -518,8 +557,10 @@ module.exports = function (app, supabase) {
 
     let raekke;
     try {
-      raekke = await hentEgenRaekke(supabase, "referater", req.params.id, firmId, "id, transskript, ai_udkast");
+      raekke = await hentEgenRaekke(supabase, "referater", req.params.id, firmId, "id, transskript, ai_udkast, status");
     } catch (e) { return svarPaaFejl(res, e, "referat kunne ikke hentes til udkast"); }
+
+    if (raekke.status === "faerdig") return afvisFaerdigt(res);   // skive 3
 
     if (raekke.ai_udkast) {
       return res.status(409).json({
@@ -548,6 +589,7 @@ module.exports = function (app, supabase) {
         .update(aendringer)
         .eq("id", raekke.id)
         .eq("firm_id", firmId)
+        .eq("status", "kladde")
         .is("ai_udkast", null)
         .select("id, titel, moede_dato, status, teknik_b_markeringer, teknik_b_ord")
         .maybeSingle();

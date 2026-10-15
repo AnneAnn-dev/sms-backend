@@ -29,6 +29,7 @@
  *
  * BYGGET 15/10-26 (Fase 2 punkt F, skive 1): saveReferater, transskriber,
  *   hentKvote. Skive 2 (samme dag): lavUdkast, saetUdkast, udkastSomTekst.
+ *   Skive 3: retReferat; loadReferater giver harReferat og tid.
  *
  * IKKE BYGGET ENDNU (kaster en tydelig fejl):
  *   loadTilbud / saveTilbud / loadFirmaProfil / saveFirmaProfil — Tilbud- og
@@ -235,10 +236,21 @@
       id: r.id, titel: r.titel || 'Referat', type: 'Noter',
       dato: (r.moede_dato || r.created_at || '').slice(0, 10),
       status: r.status || 'kladde', createdAt: r.created_at || '',
+      // Skive 3: så listen kan skelne "Indtalt tekst" fra "Referat", og fire
+      // referater fra samme dag fra hinanden.
+      harReferat: !!r.har_referat,
+      tid: klokkeslaet(r.created_at),
     }));
     referatIder.set(opgaveId, list.map((r) => r.id));
     list.forEach((r) => husk('referat', r, REFERAT_PROTO));
     return list;
+  }
+
+  // "09.05" i telefonens egen tidszone. Tom streng, hvis tidspunktet mangler.
+  function klokkeslaet(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0');
   }
 
   async function hentReferat(id) {
@@ -278,6 +290,18 @@
         husk('referat', r, REFERAT_PROTO);
       }
     }
+  }
+
+  // Skive 3: ret et gemt referat (titel, indhold) og/eller markér det som
+  // færdigt. Serveren afviser med 409 (`referat_faerdigt`), hvis det allerede
+  // er færdigt — låsen sidder dér, ikke her.
+  async function retReferat(id, { titel, indhold, faerdig }) {
+    const krop = {};
+    if (typeof titel === 'string') krop.titel = titel.trim() || null;
+    if (typeof indhold === 'string') krop.indhold = indhold;
+    if (faerdig) krop.status = 'faerdig';
+    const { referat } = await api('PATCH', '/api/tilbud/referater/' + encodeURIComponent(id), krop);
+    return referat;
   }
 
   /* ───────────────────────────  LYD OG KVOTE  ───────────────────────────── */
@@ -361,7 +385,7 @@
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
-    lavUdkast, saetUdkast, udkastSomTekst,
+    lavUdkast, saetUdkast, udkastSomTekst, retReferat,
     loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),
   };
