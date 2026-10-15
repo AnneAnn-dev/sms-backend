@@ -27,6 +27,9 @@
  *   registret har set fem gange på ti dage. Her kastes fejlen med serverens
  *   egen besked, og UI'et viser den.
  *
+ * BYGGET 15/10-26 (Fase 2 punkt F, skive 1): saveReferater, transskriber,
+ *   hentKvote.
+ *
  * IKKE BYGGET ENDNU (kaster en tydelig fejl):
  *   loadTilbud / saveTilbud / loadFirmaProfil / saveFirmaProfil — Tilbud- og
  *   Firma-fanerne er lukket i Fase 1 (tilbud-runbook.md).
@@ -49,12 +52,15 @@
 
   async function api(metode, sti, krop) {
     const headers = Object.assign({}, await hentAuthHeader());
-    if (krop !== undefined) headers['Content-Type'] = 'application/json';
+    // Lyd sendes som multipart (FormData). Så må Content-Type IKKE sættes her:
+    // browseren skal selv skrive den, fordi den indeholder grænsestrengen.
+    const erForm = typeof FormData !== 'undefined' && krop instanceof FormData;
+    if (krop !== undefined && !erForm) headers['Content-Type'] = 'application/json';
     let svar;
     try {
       svar = await fetch(sti, {
         method: metode, headers,
-        body: krop === undefined ? undefined : JSON.stringify(krop),
+        body: krop === undefined ? undefined : (erForm ? krop : JSON.stringify(krop)),
       });
     } catch (e) {
       // Intet svar overhovedet. Skal kunne skelnes fra et svar, der siger nej.
@@ -209,16 +215,30 @@
   // Indholdet hentes pr. referat med hentReferat(id) — en udvidelse, som
   // prototypen ikke havde, fordi den holdt alt i én liste i browseren.
   //
-  // saveReferater kommer med Referat-fanen (trin 3): den skal gemme
-  // transskript og ai_udkast uændret ved siden af indhold, så teknik B kan
-  // måles server-side. Den bygges ikke halvt nu.
+  // saveReferater (Fase 2 punkt F, skive 1, 15/10-26) gemmer samme vej som
+  // kunder og opgaver: en række uden server-id oprettes, en ændret rettes med
+  // netop de ændrede felter, og en fjernet række er en fejl.
+  //
+  // KILDEMATERIALET SENDES KUN VED OPRETTELSE. `transskript` og `ai_udkast`
+  // kan ikke rettes bagefter (serveren afviser dem i PATCH). Derfor er de
+  // ikke med i REFERAT_PROTO — en ændring af dem ville ellers blive sendt og
+  // afvist som ukendte felter.
+  //
+  // `transskript` er hans RETTEDE tekst (besluttet af Ann 15/10). En kladde
+  // må have transskriptionen alene, uden udkast.
+  const REFERAT_PROTO = ['titel', 'status', 'indhold'];
+  const referatIder = new Map();            // opgaveId → [id]
+
   async function loadReferater(opgaveId) {
     const { referater } = await api('GET', '/api/tilbud/opgaver/' + encodeURIComponent(opgaveId));
-    return (referater || []).map((r) => ({
+    const list = (referater || []).map((r) => ({
       id: r.id, titel: r.titel || 'Referat', type: 'Noter',
       dato: (r.moede_dato || r.created_at || '').slice(0, 10),
       status: r.status || 'kladde', createdAt: r.created_at || '',
     }));
+    referatIder.set(opgaveId, list.map((r) => r.id));
+    list.forEach((r) => husk('referat', r, REFERAT_PROTO));
+    return list;
   }
 
   async function hentReferat(id) {
@@ -226,8 +246,64 @@
     return referat;
   }
 
-  async function saveReferater(/* opgaveId, list */) {
-    throw new ApiFejl(0, { error: 'ikke_bygget', besked: 'Referater gemmes fra Referat-fanen, som kommer i næste trin.' });
+  async function saveReferater(opgaveId, list) {
+    if (!opgaveId) throw new ApiFejl(0, { error: 'opgave_mangler',
+      besked: 'Et referat skal høre til en opgave.' });
+    const væk = fjernede(referatIder.get(opgaveId) || [], list);
+    if (væk.length) throw new ApiFejl(0, { error: 'sletning_findes_ikke',
+      besked: 'Referater kan ikke slettes herfra endnu.' });
+    for (const r of list) {
+      if (!sidst.has(nøgle('referat', r.id))) {
+        const krop = { lead_id: opgaveId, titel: (r.titel || '').trim() || null };
+        if (r.dato) krop.moede_dato = r.dato;
+        if ((r.transskript || '').trim()) krop.transskript = r.transskript;
+        if ((r.ai_udkast || '').trim()) krop.ai_udkast = r.ai_udkast;
+        if ((r.indhold || '').trim()) krop.indhold = r.indhold;
+        if (typeof r.varighedSek === 'number' && isFinite(r.varighedSek)) {
+          krop.varighed_sek = Math.round(r.varighedSek);
+        }
+        const { referat } = await api('POST', '/api/tilbud/referater', krop);
+        r.id = referat.id;                  // kaldestedet kan bruge id'et bagefter
+        r.status = referat.status || 'kladde';
+        r.dato = (referat.moede_dato || r.dato || '').slice(0, 10);
+        husk('referat', r, REFERAT_PROTO);
+        const ider = referatIder.get(opgaveId) || [];
+        ider.push(r.id); referatIder.set(opgaveId, ider);
+        continue;
+      }
+      const æ = ændredeFelter('referat', r, REFERAT_PROTO);
+      if (æ && Object.keys(æ).length) {
+        await api('PATCH', '/api/tilbud/referater/' + encodeURIComponent(r.id), æ);
+        husk('referat', r, REFERAT_PROTO);
+      }
+    }
+  }
+
+  /* ───────────────────────────  LYD OG KVOTE  ───────────────────────────── */
+  // Ikke blandt Annes ti: prototypen havde én funktion, transcribeAudio(blob),
+  // som hun bad os koble til backend. Her er den, med to forskelle:
+  //   - den tager ALLE delene af en diktering i ét kald, i rækkefølge, fordi
+  //     serveren tæller kvoten på den samlede lydtid og sætter teksterne
+  //     sammen (routes/tilbud/index.js). Kaldestedet sender kun de dele, der
+  //     skal med — en kasseret del er allerede sorteret fra.
+  //   - fejl kastes som ApiFejl med serverens besked, som alle andre kald.
+  //
+  // dele: [{ blob, filnavn }]. Rækkefølgen er kaldestedets ansvar og ændres
+  // ikke her.
+  async function transskriber(dele) {
+    if (!Array.isArray(dele) || !dele.length) {
+      throw new ApiFejl(0, { error: 'ingen_lyd', besked: 'Der var ingen optagelse med.' });
+    }
+    const form = new FormData();
+    dele.forEach((d, i) => form.append('dele', d.blob, d.filnavn || ('del-' + (i + 1))));
+    return api('POST', '/api/tilbud/transskriber', form);
+  }
+
+  // Spørges, når optageskærmen åbnes — FØR han taler (besluttet 29/9). Svaret
+  // er serverens; fanen læser kun `spaerret`. Serveren tjekker kvoten igen
+  // ved selve kaldet, så dette er en høflighed, ikke værnet.
+  async function hentKvote() {
+    return api('GET', '/api/tilbud/kvote');
   }
 
   /* ────────────────────────  TILBUD OG FIRMAPROFIL  ─────────────────────── */
@@ -241,6 +317,7 @@
     loadCustomers, saveCustomers,
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
+    transskriber, hentKvote,
     loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),
   };

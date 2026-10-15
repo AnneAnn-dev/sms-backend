@@ -370,10 +370,21 @@ module.exports = function (app, supabase) {
     // lead_id staar i kroppen, men ikke i feltlisten - den haandteres for sig.
     const { felter, ukendte } = pluk(req.body, REFERAT_FELTER);
     if (afvisUkendte(res, ukendte, ["lead_id"])) return;
-    if (!tekst(felter.ai_udkast) && !tekst(felter.indhold)) {
+    // EN KLADDE MED KUN TRANSSKRIPTIONEN ER ET REFERAT (besluttet af Ann
+    // 15/10-26, Fase 2 punkt F, skive 1). Han kan staa paa pladsen, indtale,
+    // rette teksten og gemme - og lade udkastet vente, eller aldrig bede om
+    // det. Indtil 15/10 krævede ruten ai_udkast eller indhold, og saa var
+    // hans diktering vaek, hvis han ikke ville have et udkast med det samme.
+    //
+    // ⚠️ To ting, der IKKE er bygget endnu (aabne ender, skrevet i
+    // overdragelsen): at rette en kladde fra fanen (PATCH kan allerede rette
+    // titel, indhold og status - det er skaermen, der mangler), og at saette
+    // ai_udkast paa en kladde, der blev gemt uden. PATCH afviser ai_udkast i
+    // dag, med vilje, se nedenfor.
+    if (!tekst(felter.transskript) && !tekst(felter.ai_udkast) && !tekst(felter.indhold)) {
       return res.status(400).json({
         error: "tomt_referat",
-        besked: "Der var hverken et udkast eller et referat at gemme.",
+        besked: "Der var hverken en transskription, et udkast eller et referat at gemme.",
       });
     }
 
@@ -427,10 +438,20 @@ module.exports = function (app, supabase) {
       });
     }
     // ⚠️ `transskript` og `ai_udkast` kan IKKE rettes. De er kildematerialet:
-    // raateksten fra tale-til-tekst og modellens forslag, gemt uaendret saa de
-    // kan sammenlignes med `indhold`. Kunne de rettes, ville sammenligningen
-    // intet vaere vaerd - og teknik B-tallene ville maale noget andet end det,
+    // den tekst, modellen fik, og modellens forslag, gemt uaendret saa de kan
+    // sammenlignes med `indhold`. Kunne de rettes, ville sammenligningen intet
+    // vaere vaerd - og teknik B-tallene ville maale noget andet end det,
     // modellen skrev. Migration 20260727065703 siger det selv.
+    //
+    // HVAD `transskript` ER (besluttet af Ann 15/10-26): hans RETTEDE tekst -
+    // den, han godkendte i fanen, foer han gemte. Ikke tale-til-tekstens raa
+    // svar. Grunden: det er den tekst, /api/tilbud/referat sender til
+    // modellen, og teknik B skal maale modellen mod det, den faktisk fik.
+    // Retter han "USB-plader" til "OSB-plader", er det ikke modellens fortjeneste.
+    //
+    // MULIG FORBEDRING (ikke besluttet): gem OGSAA den raa tekst i et eget
+    // felt. Saa kan vi se, hvor ofte og hvor meget han retter - et maal for
+    // tale-til-tekst, ikke for referatmodellen. Kraever en migration.
 
     try {
       const referat = await opdaterEgenRaekke(supabase, "referater", req.params.id, firmId, aendringer);
