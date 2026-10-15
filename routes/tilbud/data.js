@@ -14,6 +14,7 @@
 //   POST   /api/tilbud/referater         gem et referat paa en opgave
 //   GET    /api/tilbud/referater/:id     hent ét
 //   PATCH  /api/tilbud/referater/:id     ret indhold/titel/status
+//   POST   /api/tilbud/referater/:id/udkast   saet udkastet ÉN gang (skive 2)
 //
 // ─── EN OPGAVE OPRETTES UDEN OPKALD (besluttet 9/10-2026) ───────────────────
 //
@@ -111,6 +112,19 @@ function afvisUkendte(res, ukendte, undtagen) {
 
 function tekst(v) {
   return typeof v === "string" ? v.trim() : "";
+}
+
+// Ophavet til et udkast (D14): { model, version } fra /api/tilbud/referat,
+// givet videre af klienten. Klienten kan ikke skrive feltnavnene selv (S17,
+// se routes/tilbud/index.js), derfor ét samlet felt, der oversaettes her.
+// Kun strenge, og korte: det er ophav, ikke indhold.
+function fraOphav(o) {
+  const kort = (v) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 200) : null);
+  if (!o || typeof o !== "object") return {};
+  const ud = {};
+  if (kort(o.model)) ud.ai_model = kort(o.model);
+  if (kort(o.version)) ud.ai_prompt_version = kort(o.version);
+  return ud;
 }
 
 // ─── Fejl, der peger paa den rigtige mekanisme ───────────────────────────────
@@ -330,22 +344,25 @@ module.exports = function (app, supabase) {
   // Retter haandvaerkeren selv et navn ind, er det hverken modellens
   // fortjeneste eller fejl.
   //
-  // Feltopdelingen (overskrift/punkter/fritekst) findes ikke paa dette
-  // tidspunkt - udkastet er gemt som tekst. Markeringernes `felt`-maerke gaar
-  // dermed tabt, og det er fint: det bruges kun til visning, og visningen sker
-  // i /api/tilbud/referat, hvor opdelingen stadig findes. Her gemmes kun tal.
-  function maalTeknikB(transskript, udkast, titel) {
+  // FELTOPDELINGEN GENSKABES (15/10-26, skive 2). Udkastet gemmes som tekst i
+  // et fast format (referat-format.js): overskrift, punkter med "- ",
+  // fritekst. tilFelter() laeser det tilbage, saa teknik B maales paa SAMME
+  // felter som i /api/tilbud/referat — ogsaa navnereglen, der er slaaet fra i
+  // overskriften. Foer 15/10 blev hele udkastet maalt som én fritekst, og saa
+  // ville overskriftens store bogstaver taelle som mulige navne.
+  //
+  // `teknik_b_ord` er teknik B's EGET ordtal (antalOrd). Foer 15/10 laeste
+  // koden et felt, der ikke findes (`v.ord`), og faldt altid tilbage til en
+  // optaelling af hele teksten — med "-"-tegn og overskrift.
+  function maalTeknikB(transskript, udkast) {
     if (!transskript || !udkast) return {};
     try {
       const teknikB = require("../../teknik-b");
-      const v = teknikB.marker(transskript, {
-        overskrift: titel || "",
-        punkter: [],
-        fritekst: udkast,
-      });
+      const { tilFelter } = require("../../referat-format");
+      const v = teknikB.marker(transskript, tilFelter(udkast));
       return {
         teknik_b_markeringer: v.antalMarkeringer,
-        teknik_b_ord: v.ord != null ? v.ord : String(udkast).split(/\s+/).filter(Boolean).length,
+        teknik_b_ord: v.antalOrd,
       };
     } catch (e) {
       // Vaernet maa aldrig kunne forhindre, at et referat bliver gemt. Et
@@ -369,18 +386,19 @@ module.exports = function (app, supabase) {
 
     // lead_id staar i kroppen, men ikke i feltlisten - den haandteres for sig.
     const { felter, ukendte } = pluk(req.body, REFERAT_FELTER);
-    if (afvisUkendte(res, ukendte, ["lead_id"])) return;
+    if (afvisUkendte(res, ukendte, ["lead_id", "ophav"])) return;
+    // Ophavet gaelder kun et udkast. Uden udkast er der intet ophav at gemme.
+    const ophav = tekst(felter.ai_udkast) ? fraOphav(req.body && req.body.ophav) : {};
     // EN KLADDE MED KUN TRANSSKRIPTIONEN ER ET REFERAT (besluttet af Ann
     // 15/10-26, Fase 2 punkt F, skive 1). Han kan staa paa pladsen, indtale,
     // rette teksten og gemme - og lade udkastet vente, eller aldrig bede om
     // det. Indtil 15/10 krævede ruten ai_udkast eller indhold, og saa var
     // hans diktering vaek, hvis han ikke ville have et udkast med det samme.
     //
-    // ⚠️ To ting, der IKKE er bygget endnu (aabne ender, skrevet i
-    // overdragelsen): at rette en kladde fra fanen (PATCH kan allerede rette
-    // titel, indhold og status - det er skaermen, der mangler), og at saette
-    // ai_udkast paa en kladde, der blev gemt uden. PATCH afviser ai_udkast i
-    // dag, med vilje, se nedenfor.
+    // Et udkast kan komme paa kladden BAGEFTER, én gang: se
+    // POST /api/tilbud/referater/:id/udkast nedenfor (skive 2, 15/10).
+    // At rette en kladde fra fanen er stadig ikke bygget (PATCH kan titel,
+    // indhold og status — det er skaermen, der mangler).
     if (!tekst(felter.transskript) && !tekst(felter.ai_udkast) && !tekst(felter.indhold)) {
       return res.status(400).json({
         error: "tomt_referat",
@@ -398,10 +416,11 @@ module.exports = function (app, supabase) {
         .from("referater")
         .insert(medFirma(firmId, {
           ...felter,
+          ...ophav,
           lead_id,
           // kilde og status har defaults ('optagelse', 'kladde'). Kommer
           // referatet ad en anden vej, saetter den rute kilden selv.
-          ...maalTeknikB(felter.transskript, felter.ai_udkast, felter.titel),
+          ...maalTeknikB(felter.transskript, felter.ai_udkast),
         }))
         .select("id, titel, moede_dato, status, teknik_b_markeringer, teknik_b_ord")
         .single();
@@ -457,6 +476,93 @@ module.exports = function (app, supabase) {
       const referat = await opdaterEgenRaekke(supabase, "referater", req.params.id, firmId, aendringer);
       res.json({ ok: true, referat });
     } catch (e) { svarPaaFejl(res, e, "referat kunne ikke rettes"); }
+  });
+
+  // ─── UDKASTET PAA EN GEMT KLADDE — ÉN GANG (besluttet af Ann 15/10-26) ─────
+  //
+  // Han kan indtale paa pladsen, gemme kladden og lave referatet paa kontoret.
+  // Saa skal `ai_udkast` kunne komme paa en raekke, der allerede findes. Men
+  // feltet er kildemateriale (se PATCH ovenfor): det maa saettes, ikke rettes.
+  //
+  // Derfor sin egen rute og ikke et felt i PATCH:
+  //   - Den kan KUN saette udkastet, naar det er tomt. Opdateringen filtrerer
+  //     paa `ai_udkast IS NULL` i SAMME kald, saa to skaerme, der begge trykker
+  //     "Lav referat", ikke kan overskrive hinanden: den ene faar 200, den
+  //     anden 409. Et tjek foer opdateringen alene ville ikke vaere nok — der
+  //     er tid mellem tjek og skrivning.
+  //   - Teknik B maales her, paa raekkens egen `transskript` — ikke paa en
+  //     tekst fra klienten (samme grund som ved oprettelse: tallet skal kunne
+  //     stoles paa).
+  //   - `indhold` (hans rettede version) kan komme med i samme kald. Er det
+  //     tomt, er udkastet hans version, uaendret (Ann 15/10: "der vil vaere
+  //     situationer, hvor der ikke bliver rettet i udkastet").
+  //
+  // `ophav` ({ model, version }) kommer fra klienten, som fik det af
+  // /api/tilbud/referat, og bliver til `ai_model` og `ai_prompt_version`. Det
+  // er ophav (D14), ikke maaletal; at klienten kunne lyve om det, flytter
+  // ingen penge og ingen fremmed data.
+  //
+  // Firmafilteret er en del af opdateringen (`.eq("firm_id", ...)`), som i
+  // ejerskab.js. Hjaelperen bruges ikke, fordi den ikke kan filtrere paa
+  // `ai_udkast IS NULL` — og det filter er hele pointen.
+  const UDKAST_FELTER = ["ai_udkast", "indhold", "ophav"];
+
+  app.post("/api/tilbud/referater/:id/udkast", async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+
+    const { felter, ukendte } = pluk(req.body, UDKAST_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
+    if (!tekst(felter.ai_udkast)) {
+      return res.status(400).json({ error: "udkast_mangler", besked: "Der var intet udkast at gemme." });
+    }
+
+    let raekke;
+    try {
+      raekke = await hentEgenRaekke(supabase, "referater", req.params.id, firmId, "id, transskript, ai_udkast");
+    } catch (e) { return svarPaaFejl(res, e, "referat kunne ikke hentes til udkast"); }
+
+    if (raekke.ai_udkast) {
+      return res.status(409).json({
+        error: "udkast_findes",
+        besked: "Referatet har allerede et udkast. Genindlæs, så ser du det.",
+      });
+    }
+    if (!tekst(raekke.transskript)) {
+      return res.status(400).json({
+        error: "ingen_transskription",
+        besked: "Referatet har ingen indtalt tekst at lave et udkast af.",
+      });
+    }
+
+    const aendringer = {
+      ai_udkast: felter.ai_udkast,
+      ai_model: null, ai_prompt_version: null,
+      ...fraOphav(felter.ophav),
+      ...(tekst(felter.indhold) ? { indhold: felter.indhold } : {}),
+      ...maalTeknikB(raekke.transskript, felter.ai_udkast),
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("referater")
+        .update(aendringer)
+        .eq("id", raekke.id)
+        .eq("firm_id", firmId)
+        .is("ai_udkast", null)
+        .select("id, titel, moede_dato, status, teknik_b_markeringer, teknik_b_ord")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        // Raekken fandtes og var hans et oejeblik siden, saa nul raekker her
+        // betyder: en anden skaerm naaede at saette udkastet imens.
+        return res.status(409).json({
+          error: "udkast_findes",
+          besked: "Referatet fik et udkast fra en anden skærm imens. Genindlæs, så ser du det.",
+        });
+      }
+      console.log(`✅ udkast sat paa referat ${data.id}`);
+      res.json({ ok: true, referat: data });
+    } catch (e) { svarPaaFejl(res, e, "udkast kunne ikke gemmes"); }
   });
 
   return RUTER;

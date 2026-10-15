@@ -28,7 +28,7 @@
  *   egen besked, og UI'et viser den.
  *
  * BYGGET 15/10-26 (Fase 2 punkt F, skive 1): saveReferater, transskriber,
- *   hentKvote.
+ *   hentKvote. Skive 2 (samme dag): lavUdkast, saetUdkast, udkastSomTekst.
  *
  * IKKE BYGGET ENDNU (kaster en tydelig fejl):
  *   loadTilbud / saveTilbud / loadFirmaProfil / saveFirmaProfil — Tilbud- og
@@ -259,6 +259,7 @@
         if ((r.transskript || '').trim()) krop.transskript = r.transskript;
         if ((r.ai_udkast || '').trim()) krop.ai_udkast = r.ai_udkast;
         if ((r.indhold || '').trim()) krop.indhold = r.indhold;
+        if (krop.ai_udkast && r.ophav) krop.ophav = r.ophav;   // se lavUdkast
         if (typeof r.varighedSek === 'number' && isFinite(r.varighedSek)) {
           krop.varighed_sek = Math.round(r.varighedSek);
         }
@@ -306,6 +307,48 @@
     return api('GET', '/api/tilbud/kvote');
   }
 
+  /* ──────────────────────────  REFERATUDKASTET  ─────────────────────────── */
+  // Skive 2 (15/10-26). Modellen svarer struktureret; `ai_udkast` er én
+  // tekstkolonne. udkastSomTekst() skriver det faste format, som serveren
+  // læser tilbage (referat-format.js), så teknik B måles på samme felter som
+  // på skærmen. Ændres formatet her, skal tilFelter() ændres med.
+  //
+  //   <overskrift>
+  //
+  //   - <punkt>
+  //   - <punkt>
+  //
+  //   <fritekst>
+  function udkastSomTekst(r) {
+    const dele = [];
+    if (r && r.overskrift) dele.push(String(r.overskrift).trim());
+    const punkter = (r && Array.isArray(r.punkter) ? r.punkter : [])
+      .map((p) => String(p).trim()).filter(Boolean);
+    if (punkter.length) dele.push(punkter.map((p) => '- ' + p).join('\n'));
+    if (r && r.fritekst) dele.push(String(r.fritekst).trim());
+    return dele.join('\n\n');
+  }
+
+  // Tekst ind, udkast + teknik B-markeringer ud. Gemmer INTET — det sker med
+  // saveReferater (nyt referat) eller saetUdkast (gemt kladde).
+  // Svaret har `ophav` ({ model, version }); giv det videre uændret til
+  // gemningen, så serveren kan skrive, hvad der lavede udkastet (D14).
+  async function lavUdkast(transskription) {
+    const t = String(transskription || '').trim();
+    if (!t) throw new ApiFejl(0, { error: 'ingen_tekst', besked: 'Der er ingen tekst at lave et referat af.' });
+    return api('POST', '/api/tilbud/referat', { transskription: t });
+  }
+
+  // Sætter udkastet på en GEMT kladde — én gang. Serveren svarer 409
+  // (`udkast_findes`), hvis kladden allerede har et.
+  async function saetUdkast(referatId, { aiUdkast, indhold, ophav }) {
+    const krop = { ai_udkast: aiUdkast };
+    if ((indhold || '').trim()) krop.indhold = indhold;
+    if (ophav) krop.ophav = ophav;
+    const { referat } = await api('POST', '/api/tilbud/referater/' + encodeURIComponent(referatId) + '/udkast', krop);
+    return referat;
+  }
+
   /* ────────────────────────  TILBUD OG FIRMAPROFIL  ─────────────────────── */
   const ikkeBygget = (hvad) => async () => {
     throw new ApiFejl(0, { error: 'ikke_bygget', besked: hvad + ' kommer ikke med i Fase 1.' });
@@ -318,6 +361,7 @@
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
+    lavUdkast, saetUdkast, udkastSomTekst,
     loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),
   };

@@ -505,10 +505,20 @@ module.exports = function (app, supabase) {
       // Kun markeringerne, ikke hele teksten en gang til.
       markeringer: vaern.markeringer,
       taethed: vaern.taethed,
+      // Ventilen (15/10-26, skive 2): over 10 % markeringer sendes INGEN
+      // enkeltsteder — og uden dette felt kunne fanen ikke skelne "intet at
+      // tjekke" fra "tjek det hele". Begge ville være en tom liste.
+      ventil: !!vaern.ventil,
+      besked: vaern.besked || null,
       prisOere: Math.round(r.prisOere * 100) / 100,
       restOere: Math.max(0, dom.loftOere - dom.forbrugtOere - r.prisOere),
       model: r.model,
       promptVersion: r.promptVersion,
+      // Ophavet samlet ét sted (15/10-26, skive 2), saa klienten kan give det
+      // videre til gemningen UDEN at naevne feltnavnene. S17-hooken afviser
+      // ordet for modellens instruktion i alt under tilbud/ — ogsaa i et
+      // feltnavn — og det er rigtigt, at den gør det.
+      ophav: { model: r.model, version: r.promptVersion },
     });
   });
 };

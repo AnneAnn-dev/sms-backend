@@ -22,8 +22,10 @@
     - en ny opgave beder om adresse, når kunden ingen har (NOT NULL i leads)
 
   SKIVE 1 AF REFERAT-FANEN (15/10-26): optag → del(e) → én samlet
-  transskription, han kan rette → gem som kladde. Udkastet fra referat-
-  modellen, "Indtal ny opgave" og mikrofon-pop-uppen er IKKE med endnu.
+  transskription, han kan rette → gem som kladde.
+  SKIVE 2 (samme dag): "Lav referat" → udkast med teknik B's tjek-steder →
+  han retter → gem. Både før første gem og på en gemt kladde uden udkast
+  (besluttet af Ann). "Indtal ny opgave" og mikrofon-pop-uppen er IKKE med.
   Optagelsen sker i optager.js (de tre værn fra D66 + grænsen på 20 min).
   Siden er en Ø: den deler intet script med dashboardet og kan ikke vælte det.
   Undtagelse (Fase 1d, 13/10-26): /adressevaelger.js, et selvstændigt bibliotek,
@@ -365,6 +367,18 @@
   .del-row.kasseret .dt { text-decoration: line-through; }
   .del-row .del-valg { display: flex; gap: 8px; margin-top: 8px; }
   .del-row .del-valg .btn { padding: 9px 12px; font-size: 13.5px; margin-top: 0; }
+
+  /* ---------- Referatudkastet (skive 2) ---------- */
+  textarea.referat-edit {
+    width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-family: inherit; font-size: 14px; line-height: 1.5; margin-top: 8px; resize: vertical;
+  }
+  textarea#editTranscript[readonly] { background: var(--smoke); color: var(--ink-soft); }
+  .tjek-boks { background: #FFF6E9; border: 1px solid #F0D9A8; color: #7A5A16; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.45; margin-top: 8px; }
+  .tjek-boks.rolig { background: var(--white); border-color: var(--line); color: var(--ink-soft); }
+  .tjek-boks ul { margin: 6px 0 0; padding-left: 18px; }
+  .tjek-boks li { margin-bottom: 3px; }
+  .tjek-boks .felt { font-weight: 700; }
 </style>
 </head>
 <body>
@@ -424,8 +438,12 @@
     <div id="transskriptWrap" style="display:none;">
       <div class="section-label" style="margin-top:18px;">Teksten — ret den, hvis noget er hørt forkert</div>
       <textarea id="editTranscript" placeholder="Transskriptionen vises her …"></textarea>
-      <button class="btn btn-primary" id="gemKladdeBtn" type="button" style="margin-top:12px;">Gem som kladde</button>
+      <button class="btn btn-primary" id="lavReferatBtn" type="button" style="margin-top:12px;">Lav referat</button>
+      <button class="btn btn-secondary" id="gemKladdeBtn" type="button">Gem som kladde (uden referat)</button>
     </div>
+
+    <!-- Skive 2: udkastet. Fyldes af tegnUdkast(). -->
+    <div id="udkastWrap" style="display:none;"></div>
   </div>
 
   <!-- ================= SCREEN: KUNDER (liste) ================= -->
@@ -570,7 +588,8 @@ Graenseflade.saetAuth(async () => {
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
 const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
         loadReferater, saveReferater, hentReferat,
-        transskriber, hentKvote, ApiFejl } = Graenseflade;
+        transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
+        ApiFejl } = Graenseflade;
 
 /* =========================================================================
    HJÆLPERE (fra prototypen)
@@ -826,7 +845,39 @@ async function openReferatDetail(referatId) {
        ${tekst ? `<p class="referat-tekst">${escapeHtml(tekst)}</p>`
          : kunTransskript ? `<div class="section-label">Din indtalte tekst</div><p class="referat-tekst">${escapeHtml(kunTransskript)}</p>`
          : '<p class="empty-note">Referatet er tomt.</p>'}
-     </div>`;
+     </div>
+     ${kunTransskript ? `<button class="btn btn-primary" id="lavReferatDetaljeBtn" type="button" style="margin-top:14px;">Lav referat af teksten</button>
+       <div id="detaljeUdkastWrap"></div>` : ''}`;
+
+  // Skive 2: en gemt kladde uden udkast kan få et — ÉN gang (Ann 15/10).
+  // Teksten, der sendes, er den gemte transskription, ikke noget nyt.
+  const knap = document.getElementById('lavReferatDetaljeBtn');
+  if (knap) knap.addEventListener('click', async () => {
+    skjulFejl('errorBannerReferatDetail');
+    knap.disabled = true;
+    knap.innerHTML = '<span class="spinner"></span>Skriver referat …';
+    let svar;
+    try {
+      svar = await lavUdkast(r.transskript);
+    } catch (e) {
+      knap.disabled = false;
+      knap.textContent = 'Lav referat af teksten';
+      if (erLoggetUd(e)) return showScreen('login');
+      return visFejl('errorBannerReferatDetail', e);
+    }
+    knap.style.display = 'none';
+    tegnUdkast(document.getElementById('detaljeUdkastWrap'), svar, async (aiUdkast, indhold) => {
+      try {
+        await saetUdkast(r.id, { aiUdkast, indhold, ophav: svar.ophav });
+      } catch (e) {
+        if (erLoggetUd(e)) { showScreen('login'); return false; }
+        visFejl('errorBannerReferatDetail', e);
+        return false;
+      }
+      openReferatDetail(r.id);
+      return true;
+    });
+  });
 }
 document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click', () =>
   openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
@@ -850,9 +901,14 @@ document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click
      5. Han retter teksten og gemmer. Det, der gemmes som `transskript`, er
         hans rettede tekst (besluttet af Ann 15/10).
 
-   Ikke med i skive 1: udkastet fra referatmodellen, at rette en gemt kladde,
-   "Indtal ny opgave", mikrofon-pop-uppen (én gang pr. telefon) og at optage
-   mere, efter teksten er lavet.
+     6. (Skive 2) "Lav referat" sender den rettede tekst til referatmodellen.
+        Udkastet vises med teknik B's tjek-steder, han retter, og "Gem
+        referat" gemmer transskript + udkast + hans version i ét kald. Teksten
+        låses, når udkastet er lavet — udkastet er lavet af netop den tekst.
+
+   Ikke med endnu: at rette en gemt kladde, "Indtal ny opgave",
+   mikrofon-pop-uppen (én gang pr. telefon) og at optage mere, efter teksten
+   er lavet.
    ========================================================================= */
 const optag = {
   optager: null,          // Optager fra optager.js — én pr. nyt referat
@@ -864,6 +920,7 @@ const optag = {
   varighedSek: null,      // samlet lydtid fra serveren — gemmes på referatet
   gemt: false,
   forladAdvaret: false,
+  udkast: null,           // { tekst, ophav } fra "Lav referat" (skive 2)
 };
 const micBtn = document.getElementById('micBtn');
 const recStatus = document.getElementById('recStatus');
@@ -873,6 +930,9 @@ const transskriberBtn = document.getElementById('transskriberBtn');
 const transskriptWrap = document.getElementById('transskriptWrap');
 const editTranscript = document.getElementById('editTranscript');
 const gemKladdeBtn = document.getElementById('gemKladdeBtn');
+const lavReferatBtn = document.getElementById('lavReferatBtn');
+const udkastWrap = document.getElementById('udkastWrap');
+const GEM_KLADDE_TEKST = 'Gem som kladde (uden referat)';
 
 function fmtTid(sek) {
   sek = Math.max(0, Math.round(Number(sek) || 0));
@@ -925,9 +985,16 @@ async function openOptag() {
   stopUr();
   document.getElementById('mTitel').value = '';
   editTranscript.value = '';
+  editTranscript.readOnly = false;
   deleWrap.innerHTML = '';
   transskriberBtn.style.display = 'none';
   transskriptWrap.style.display = 'none';
+  optag.udkast = null;
+  udkastWrap.innerHTML = '';
+  udkastWrap.style.display = 'none';
+  lavReferatBtn.style.display = 'block';
+  lavReferatBtn.disabled = false;
+  gemKladdeBtn.style.display = 'block';
   micBtn.classList.remove('recording');
   micBtn.disabled = true;               // først når kvoten har svaret
   recTime.textContent = '';
@@ -1135,13 +1202,13 @@ gemKladdeBtn.addEventListener('click', async () => {
     await saveReferater(opgaveId, liste);
   } catch (e) {
     gemKladdeBtn.disabled = false;
-    gemKladdeBtn.textContent = 'Gem som kladde';
+    gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
     if (erLoggetUd(e)) return showScreen('login');
     return visOptagFejl(e);
   }
   optag.gemt = true;
   gemKladdeBtn.disabled = false;
-  gemKladdeBtn.textContent = 'Gem som kladde';
+  gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
   openOpgaveDetail(currentKundeDetailId, opgaveId);
 });
 
@@ -1157,6 +1224,107 @@ document.getElementById('backFraOptag').addEventListener('click', () => {
     return visOptagFejl('Optagelsen er ikke gemt. Tryk Tilbage igen for at kassere den.');
   }
   openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId);
+});
+
+/* =========================================================================
+   REFERATUDKASTET (Fase 2 punkt F, skive 2, 15/10-26)
+
+   tegnUdkast() bruges to steder: på optageskærmen (før første gem) og på en
+   gemt kladde uden udkast. Den viser teknik B's tjek-steder og et felt, han
+   kan rette i, og kalder `gem(aiUdkast, indhold)`, når han trykker gem.
+
+   `aiUdkast` er modellens tekst UÆNDRET (kildemateriale — teknik B måles på
+   den). `indhold` er hans version; retter han intet, er det den samme tekst.
+
+   Tjek-stederne kan ikke farves inde i et tekstfelt, så de står i en liste
+   over feltet. Er der over 10 % markeringer, viser serveren ingen enkeltsteder
+   (ventilen), og så siger boksen det i stedet — "tjek det hele" og "intet at
+   tjekke" må ikke ligne hinanden.
+   ========================================================================= */
+const FELTNAVN = (felt) => felt === 'overskrift' ? 'Overskriften'
+  : felt === 'fritekst' ? 'Teksten'
+  : /^punkt-\d+$/.test(felt || '') ? 'Punkt ' + felt.slice(6)
+  : 'Referatet';
+
+function tjekHtml(svar) {
+  if (svar.ventil) {
+    return `<div class="tjek-boks"><strong>Læs hele referatet igennem.</strong> ${escapeHtml(svar.besked || 'Transskriptionen var usikker.')}</div>`;
+  }
+  const m = Array.isArray(svar.markeringer) ? svar.markeringer : [];
+  if (!m.length) {
+    return '<div class="tjek-boks rolig">Ingen tal, navne eller forkortelser i referatet, som ikke står i din tekst.</div>';
+  }
+  return `<div class="tjek-boks"><strong>Tjek ${m.length === 1 ? 'dette sted' : 'disse ' + m.length + ' steder'}</strong> — det står i referatet, men ikke i din indtalte tekst:
+      <ul>${m.map(x => `<li><span class="felt">${escapeHtml(FELTNAVN(x.felt))}:</span> ${escapeHtml(x.tekst)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+function tegnUdkast(wrap, svar, gem) {
+  const aiUdkast = udkastSomTekst(svar);
+  wrap.innerHTML =
+    `<div class="section-label" style="margin-top:18px;">Referatet — ret det, før du gemmer</div>
+     ${tjekHtml(svar)}
+     <textarea class="referat-edit"></textarea>
+     <button class="btn btn-primary" type="button" style="margin-top:12px;">Gem referat</button>`;
+  wrap.style.display = 'block';
+  const felt = wrap.querySelector('textarea');
+  const knap = wrap.querySelector('button');
+  felt.value = aiUdkast;
+  knap.addEventListener('click', async () => {
+    const indhold = felt.value.trim();
+    if (!indhold) return;
+    knap.disabled = true;
+    knap.innerHTML = '<span class="spinner"></span>Gemmer …';
+    const ok = await gem(aiUdkast, indhold);
+    if (!ok) { knap.disabled = false; knap.textContent = 'Gem referat'; }
+  });
+}
+
+lavReferatBtn.addEventListener('click', async () => {
+  const tekst = editTranscript.value.trim();
+  if (!tekst) return visOptagFejl('Der er ingen tekst at lave et referat af.');
+  skjulFejl('errorBannerOptag');
+  lavReferatBtn.disabled = true;
+  gemKladdeBtn.disabled = true;
+  lavReferatBtn.innerHTML = '<span class="spinner"></span>Skriver referat …';
+  let svar;
+  try {
+    svar = await lavUdkast(tekst);
+  } catch (e) {
+    lavReferatBtn.disabled = false;
+    gemKladdeBtn.disabled = false;
+    lavReferatBtn.textContent = 'Lav referat';
+    if (erLoggetUd(e)) return showScreen('login');
+    return visOptagFejl(e);
+  }
+  // Udkastet er lavet af NETOP denne tekst. Rettes teksten bagefter, passer
+  // udkast og transskription ikke længere sammen, og teknik B ville måle mod
+  // noget, modellen aldrig så. Derfor låses den.
+  editTranscript.readOnly = true;
+  lavReferatBtn.style.display = 'none';
+  gemKladdeBtn.style.display = 'none';
+  optag.udkast = { ophav: svar.ophav };
+  tegnUdkast(udkastWrap, svar, async (aiUdkast, indhold) => {
+    const opgaveId = currentOpgaveDetailId;
+    const nyt = {
+      id: uid(), titel: document.getElementById('mTitel').value.trim() || standardTitel(),
+      type: 'Noter', dato: iDag(), status: 'kladde',
+      transskript: tekst, ai_udkast: aiUdkast, indhold, ophav: svar.ophav,
+      varighedSek: optag.varighedSek,
+    };
+    try {
+      const liste = await loadReferater(opgaveId);
+      liste.push(nyt);
+      await saveReferater(opgaveId, liste);
+    } catch (e) {
+      if (erLoggetUd(e)) { showScreen('login'); return false; }
+      visOptagFejl(e);
+      return false;
+    }
+    optag.gemt = true;
+    openOpgaveDetail(currentKundeDetailId, opgaveId);
+    return true;
+  });
 });
 
 /* =========================================================================
