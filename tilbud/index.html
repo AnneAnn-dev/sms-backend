@@ -1067,6 +1067,9 @@ async function openOptag() {
   udkastWrap.style.display = 'none';
   lavReferatBtn.style.display = 'block';
   lavReferatBtn.disabled = false;
+  // Knappen genbruges: efter et lavet referat står "Skriver referat …" og
+  // hjulet stadig på den. Uden denne linje ser den ud til at arbejde (16/10).
+  lavReferatBtn.textContent = 'Lav referat';
   gemKladdeBtn.style.display = 'block';
   micBtn.classList.remove('recording');
   micBtn.disabled = true;               // først når kvoten har svaret
@@ -1449,6 +1452,7 @@ lavReferatBtn.addEventListener('click', async () => {
     return visOptagFejl(e);
   }
   udenFaser();
+  lavReferatBtn.textContent = 'Lav referat';
   // Udkastet er lavet af NETOP denne tekst. Rettes teksten bagefter, passer
   // udkast og transskription ikke længere sammen, og teknik B ville måle mod
   // noget, modellen aldrig så. Derfor låses den.
