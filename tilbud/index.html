@@ -1325,7 +1325,9 @@ function tegnRet(wrap, r, tekst) {
    (ventilen), og så siger boksen det i stedet — "tjek det hele" og "intet at
    tjekke" må ikke ligne hinanden.
 
-   ORDLYDEN ER ANNS (16/10, D36). Teknik B tjekker KUN tal, navne og
+   ORDLYDEN ER ANNS (16/10, D36; rettet samme dag: "Læs og ret …", og
+   overskriften over udkastet hedder bare "Referat" — før sagde overskrift
+   og boks det samme to gange). Teknik B tjekker KUN tal, navne og
    forkortelser. 15/10 byttede modellen "tåret" til "torvet", og boksen sagde
    at intet var fundet — det kunne læses som "alt er
    tjekket". Derfor beder boksen ham nu altid læse referatet igennem, og
@@ -1342,9 +1344,9 @@ function tjekHtml(svar) {
   }
   const m = Array.isArray(svar.markeringer) ? svar.markeringer : [];
   if (!m.length) {
-    return '<div class="tjek-boks rolig">Læs referatet igennem, før du gemmer.</div>';
+    return '<div class="tjek-boks rolig">Læs og ret referatet før du gemmer.</div>';
   }
-  return `<div class="tjek-boks">Læs referatet igennem før du gemmer, og vær særlig opmærksom på de fremhævede ord.
+  return `<div class="tjek-boks">Læs og ret referatet før du gemmer, og vær særlig opmærksom på de fremhævede ord.
       <ul>${m.map(x => `<li>${escapeHtml(FELTNAVN(x.felt))}: <strong>${escapeHtml(x.tekst)}</strong></li>`).join('')}</ul>
     </div>`;
 }
@@ -1352,7 +1354,7 @@ function tjekHtml(svar) {
 function tegnUdkast(wrap, svar, gem) {
   const aiUdkast = udkastSomTekst(svar);
   wrap.innerHTML =
-    `<div class="section-label" style="margin-top:18px;">Referatet — ret det, før du gemmer</div>
+    `<div class="section-label" style="margin-top:18px;">Referat</div>
      ${tjekHtml(svar)}
      <textarea class="referat-edit"></textarea>
      <button class="btn btn-primary" type="button" style="margin-top:12px;">Gem referat</button>`;
