@@ -115,7 +115,7 @@ class Advarsel extends Error {}
 // Udfyldes af /health-tjekket og bruges af de senere tjek, saa de kan SPOERGE
 // serveren om dens tilstand i stedet for at have en haardkodet forventning,
 // nogen skal huske at rette.
-const tilstand = { tilbud: null, opkaldSignatur: null };
+const tilstand = { tilbud: null };
 
 const erProd = process.argv.includes("--prod");
 const miljo  = erProd ? "prod" : "staging";
@@ -251,9 +251,8 @@ const TJEK = [
       const r = await hent(`${cfg.basisUrl}/health`);
       if (r.status !== 200) throw new Error(`status ${r.status}, forventede 200`);
       const krop = await r.json().catch(() => ({}));
-      tilstand.tilbud         = krop.tilbud ?? null;
-      tilstand.opkaldSignatur = krop.opkaldSignatur ?? null;
-      return `status 200 (tilbud: ${tilstand.tilbud === null ? "ukendt" : tilstand.tilbud ? "TAENDT" : "SLUKKET"}, signatur: ${tilstand.opkaldSignatur ?? "ukendt"})`;
+      tilstand.tilbud = krop.tilbud ?? null;
+      return `status 200 (tilbud: ${tilstand.tilbud === null ? "ukendt" : tilstand.tilbud ? "TAENDT" : "SLUKKET"})`;
     },
   },
 
@@ -312,16 +311,12 @@ const TJEK = [
         body: "From=&To=&SmokeTest=1",
       });
       if (r.status >= 500) throw new Error(`serverfejl ${r.status} - afviste, men af den forkerte grund`);
-
-      // Er serveren i "log"-tilstand, ER det meningen at den ikke afviser endnu.
-      // Saa er det en ADVARSEL med en huskeseddel - ikke en fejl.
-      if (tilstand.opkaldSignatur === "log") {
-        if (r.status !== 200) return `afvist med ${r.status} (bedre end forventet i log-tilstand)`;
-        throw new Advarsel("signaturkontrol koerer i LOG-tilstand - accepterer stadig. Saet OPKALD_SIGNATUR=haandhaev naar et rigtigt opkald er set godkendt i loggen");
-      }
-
       if (r.status === 200) throw new Error("ACCEPTEREDE et kald med ugyldig signatur");
-      return `afvist med ${r.status}`;
+
+      // Kun 403 er signaturkontrollens svar. Alt andet under 500 lignede foer
+      // en afvisning: et statisk sites 404 bestod som "afvist med 404" (5/8-26).
+      if (r.status !== 403) throw new Error(`svarede ${r.status}, forventede 403 - er det overhovedet backenden?`);
+      return `afvist med 403`;
     },
   },
 

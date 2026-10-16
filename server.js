@@ -49,7 +49,6 @@ app.get("/health", (req, res) =>
     ok: true,
     tilbud: TILBUD_AKTIV,
         kvote: kvoteKonfigureret(),
-    opkaldSignatur: process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log",
   })
 );
 
@@ -720,7 +719,6 @@ const PORT = process.env.PORT || 3000;
 // deploy: koerer den nye kode, og hvilket miljoe taler den med? Supabase-ref
 // staar med, fordi de to projekter ser ens ud i dashboardet - det har kostet
 // tid foer (10/7-26).
-const signaturTilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "LOG (afviser ikke)";
 const supabaseRef = (process.env.SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "ukendt";
 
 const server = app.listen(PORT, () => {
@@ -728,12 +726,8 @@ const server = app.listen(PORT, () => {
     "\n  Dit Digitale Kontor" +
     `\n  Port:              ${PORT}` +
     `\n  Supabase-projekt:  ${supabaseRef}` +
-    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}` +
-    `\n  Opkaldssignatur:   ${signaturTilstand}\n`
+    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}\n`
   );
-  if (signaturTilstand !== "haandhaev") {
-    console.warn("  HUSK: saet OPKALD_SIGNATUR=haandhaev naar et rigtigt opkald er set godkendt.\n");
-  }
 });
 
 // ─── PAEN NEDLUKNING ────────────────────────────────────────────────────────
