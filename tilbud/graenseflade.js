@@ -40,6 +40,10 @@
 
   // Sættes af siden, når supabase-klienten findes. Returnerer {Authorization}.
   let hentAuthHeader = async function () { return {}; };
+  // Skive "ventetid" (16/10-26): siden får at vide, hvilken fase et kald er i
+  // ('login' → 'server' → ''), så en knap kan vise, HVOR den venter.
+  let paaFase = function () {};
+  const fase = (f) => { try { paaFase(f); } catch (_) { /* må aldrig vælte et kald */ } };
 
   class ApiFejl extends Error {
     constructor(status, krop) {
@@ -51,23 +55,47 @@
     }
   }
 
-  async function api(metode, sti, krop) {
-    const headers = Object.assign({}, await hentAuthHeader());
+  // ─── VENTETID (målt 16/10-26) ───────────────────────────────────────────
+  // To referater nåede først serveren 3 og 10 minutter efter, Ann trykkede —
+  // og serveren brugte derefter 3 og 7 sekunder. Intet deploy imens. Tiden
+  // gik altså tabt i browseren, FØR kaldet blev sendt. Derfor:
+  //   - fasen meldes (login / server), så en knap kan vise, hvor den venter
+  //   - selve kaldet har en tidsgrænse; før ventede det for evigt
+  // Tidsgrænsen på login sidder i siden (saetAuth), fordi det er dér, login
+  // hentes.
+  const STANDARD_MS = 60000;
+  async function api(metode, sti, krop, { timeoutMs = STANDARD_MS } = {}) {
+    fase('login');
+    let auth;
+    try { auth = await hentAuthHeader(); } catch (e) { fase(''); throw e; }
+    const headers = Object.assign({}, auth);
     // Lyd sendes som multipart (FormData). Så må Content-Type IKKE sættes her:
     // browseren skal selv skrive den, fordi den indeholder grænsestrengen.
     const erForm = typeof FormData !== 'undefined' && krop instanceof FormData;
     if (krop !== undefined && !erForm) headers['Content-Type'] = 'application/json';
     let svar;
+    const afbryd = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const ur = afbryd ? setTimeout(() => afbryd.abort(), timeoutMs) : null;
+    fase('server');
     try {
       svar = await fetch(sti, {
         method: metode, headers,
         body: krop === undefined ? undefined : (erForm ? krop : JSON.stringify(krop)),
+        signal: afbryd ? afbryd.signal : undefined,
       });
     } catch (e) {
+      if (ur) clearTimeout(ur);
+      fase('');
+      if (e && e.name === 'AbortError') {
+        throw new ApiFejl(0, { error: 'tog_for_lang_tid',
+          besked: 'Det tog for lang tid at få svar. Intet er gået tabt — prøv igen.' });
+      }
       // Intet svar overhovedet. Skal kunne skelnes fra et svar, der siger nej.
       throw new ApiFejl(0, { error: 'ingen_forbindelse',
         besked: 'Vi kunne ikke få forbindelse. Tjek at du er på nettet, og prøv igen.' });
     }
+    if (ur) clearTimeout(ur);
+    fase('');
     let data = null;
     try { data = await svar.json(); } catch (_) { /* fx en HTML-fejlside */ }
     if (!svar.ok) throw new ApiFejl(svar.status, data);
@@ -321,7 +349,7 @@
     }
     const form = new FormData();
     dele.forEach((d, i) => form.append('dele', d.blob, d.filnavn || ('del-' + (i + 1))));
-    return api('POST', '/api/tilbud/transskriber', form);
+    return api('POST', '/api/tilbud/transskriber', form, { timeoutMs: 150000 });
   }
 
   // Spørges, når optageskærmen åbnes — FØR han taler (besluttet 29/9). Svaret
@@ -360,7 +388,7 @@
   async function lavUdkast(transskription) {
     const t = String(transskription || '').trim();
     if (!t) throw new ApiFejl(0, { error: 'ingen_tekst', besked: 'Der er ingen tekst at lave et referat af.' });
-    return api('POST', '/api/tilbud/referat', { transskription: t });
+    return api('POST', '/api/tilbud/referat', { transskription: t }, { timeoutMs: 150000 });
   }
 
   // Sætter udkastet på en GEMT kladde — én gang. Serveren svarer 409
@@ -380,6 +408,7 @@
 
   window.Graenseflade = {
     saetAuth(fn) { hentAuthHeader = fn; },
+    saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
     loadCustomers, saveCustomers,
     loadOpgaver, saveOpgaver,

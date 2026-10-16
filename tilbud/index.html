@@ -590,10 +590,55 @@ if (!window.Graenseflade) {
 // Samme origin og samme standard-lagernøgle som dashboardet, så sessionen
 // derfra genbruges. Siden har ingen egen login — én login-vej, ikke to.
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ─── LOGIN MED TIDSGRÆNSE (16/10-26) ────────────────────────────────────────
+// Målt 16/10: to "Lav referat" nåede først serveren 3 og 10 minutter efter
+// trykket, og serveren brugte derefter 3 og 7 sekunder. Intet deploy imens.
+// Mistanken er getSession(): siden ligger i en ramme i dashboardet, og de to
+// Supabase-klienter deler login og en lås, som getSession venter på — uden
+// tidsgrænse. Derfor: svarer getSession ikke inden for 10 sekunder, læses
+// tokenet direkte fra lageret (samme sted, token.ps1 henter det). Knappen
+// siger det højt ("Login svarede ikke …"), så vi kan SE, om det var dét.
+const LOGIN_MS = 10000;
+function tokenFraLager() {
+  try {
+    const n = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    if (!n) return null;
+    const s = JSON.parse(localStorage.getItem(n));
+    const t = s && s.access_token;
+    const udloeb = s && s.expires_at ? s.expires_at * 1000 : 0;
+    if (!t || (udloeb && udloeb < Date.now() + 30000)) return null;
+    return t;
+  } catch (_) { return null; }
+}
 Graenseflade.saetAuth(async () => {
-  const { data: { session } } = await db.auth.getSession();
-  return session && session.access_token ? { Authorization: 'Bearer ' + session.access_token } : {};
+  let ur;
+  const tidsgraense = new Promise(ok => { ur = setTimeout(() => ok('tidsgraense'), LOGIN_MS); });
+  const svar = await Promise.race([db.auth.getSession().catch(() => 'fejl'), tidsgraense]);
+  clearTimeout(ur);
+  if (svar !== 'tidsgraense' && svar !== 'fejl') {
+    const session = svar && svar.data && svar.data.session;
+    return session && session.access_token ? { Authorization: 'Bearer ' + session.access_token } : {};
+  }
+  visFase('omvej');
+  const t = tokenFraLager();
+  if (t) return { Authorization: 'Bearer ' + t };
+  throw new ApiFejl(0, { error: 'login_svarer_ikke',
+    besked: 'Dit login svarer ikke lige nu. Luk appen helt, og åbn den igen.' });
 });
+
+// Knappen, der venter lige nu, viser fasen: login → (omvej) → server.
+let faseKnap = null, faseArbejde = '';
+function visFase(f) {
+  if (!faseKnap) return;
+  const tekst = f === 'login' ? 'Venter på login …'
+    : f === 'omvej' ? 'Login svarede ikke — bruger det gemte …'
+    : f === 'server' ? faseArbejde
+    : null;
+  if (tekst) faseKnap.innerHTML = '<span class="spinner"></span>' + escapeHtml(tekst);
+}
+function medFaser(knap, arbejde) { faseKnap = knap; faseArbejde = arbejde; visFase('login'); }
+function udenFaser() { faseKnap = null; }
+Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
 const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
@@ -872,16 +917,18 @@ async function openReferatDetail(referatId) {
   if (knap) knap.addEventListener('click', async () => {
     skjulFejl('errorBannerReferatDetail');
     knap.disabled = true;
-    knap.innerHTML = '<span class="spinner"></span>Skriver referat …';
+    medFaser(knap, 'Skriver referat …');
     let svar;
     try {
       svar = await lavUdkast(r.transskript);
     } catch (e) {
+      udenFaser();
       knap.disabled = false;
       knap.textContent = 'Lav referat af teksten';
       if (erLoggetUd(e)) return showScreen('login');
       return visFejl('errorBannerReferatDetail', e);
     }
+    udenFaser();
     knap.style.display = 'none';
     tegnUdkast(document.getElementById('detaljeUdkastWrap'), svar, async (aiUdkast, indhold) => {
       try {
@@ -1178,17 +1225,19 @@ transskriberBtn.addEventListener('click', async () => {
   skjulFejl('errorBannerOptag');
   transskriberBtn.disabled = true;
   micBtn.disabled = true;
-  transskriberBtn.innerHTML = '<span class="spinner"></span>Laver tekst …';
+  medFaser(transskriberBtn, 'Laver tekst …');
   let svar;
   try {
     // Rækkefølgen er delenes egen. Serveren ændrer den ikke.
     svar = await transskriber(med.map(d => ({ blob: d.blob, filnavn: d.filnavn })));
   } catch (e) {
+    udenFaser();
     transskriberBtn.textContent = 'Lav tekst af optagelsen';
     if (erLoggetUd(e)) return showScreen('login');
     visDele();
     return visOptagFejl(e);
   }
+  udenFaser();
   transskriberBtn.textContent = 'Lav tekst af optagelsen';
   optag.transskriberet = true;
   optag.varighedSek = typeof svar.lydsekunderIAlt === 'number' ? svar.lydsekunderIAlt : null;
@@ -1378,17 +1427,19 @@ lavReferatBtn.addEventListener('click', async () => {
   skjulFejl('errorBannerOptag');
   lavReferatBtn.disabled = true;
   gemKladdeBtn.disabled = true;
-  lavReferatBtn.innerHTML = '<span class="spinner"></span>Skriver referat …';
+  medFaser(lavReferatBtn, 'Skriver referat …');
   let svar;
   try {
     svar = await lavUdkast(tekst);
   } catch (e) {
+    udenFaser();
     lavReferatBtn.disabled = false;
     gemKladdeBtn.disabled = false;
     lavReferatBtn.textContent = 'Lav referat';
     if (erLoggetUd(e)) return showScreen('login');
     return visOptagFejl(e);
   }
+  udenFaser();
   // Udkastet er lavet af NETOP denne tekst. Rettes teksten bagefter, passer
   // udkast og transskription ikke længere sammen, og teknik B ville måle mod
   // noget, modellen aldrig så. Derfor låses den.
