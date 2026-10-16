@@ -120,6 +120,25 @@ const MAX_BYTES_PR_DEL = 30 * 1024 * 1024;
 const MAX_BYTES_I_ALT = 30 * 1024 * 1024;
 const LAVESTE_BYTES_PR_SEK = 3000;
 
+// ─── 20 minutter pr. referat (Ann 13/10, servervaernet 16/10-26) ─────────────
+// Optageren stopper selv ved 20 minutter, men `tilbud/` er offentlig, saa
+// det er ikke et vaern. Her haandhaeves det.
+//
+// Laengden kan IKKE ses foer betaling: iPhonen sender mp4 i smaa stykker, og
+// laengden staar normalt ikke i filens hoved. Den eneste praecise laengde er
+// den, transskriberingen selv melder (`lydsekunder`) — det er ogsaa den, vi
+// afregnes efter. Derfor laegges den sammen del for del, og overskrides
+// graensen, stoppes der: ingen flere dele sendes, og ingen tekst gaar retur.
+// Det, der allerede er transskriberet, ER betalt og bogfoeres som altid.
+// Prisen for det er hoejst en del over graensen, og den er under kaldsloftet.
+//
+// Marginen (2 min, Ann 16/10) daekker forskellen paa optagerens vaegur og
+// leverandoerens maaling, saa en rigtig optagelse fra fanen ALDRIG rammes:
+// fanen stopper selv ved 20 min. Kun den, der gaar uden om fanen, ser beskeden.
+// Kasserede dele kommer aldrig med til serveren og taeller derfor ikke.
+const MAKS_LYDSEKUNDER = 20 * 60;
+const MARGIN_LYDSEKUNDER = 120;
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_BYTES_PR_DEL, files: MAX_DELE },
@@ -362,6 +381,19 @@ module.exports = function (app, supabase) {
         tekster.push(del.tekst);
         // Kun tal. Aldrig teksten — den er persondata.
         svar.push({ nr: i + 1, tegn: del.tekst.length, lydsekunder: del.lydsekunder });
+
+        const lydIAlt = svar.reduce((n, d) => n + (d.lydsekunder || 0), 0);
+        if (lydIAlt > MAKS_LYDSEKUNDER + MARGIN_LYDSEKUNDER) {
+          const g = new Error(`Optagelsen over 20 min: ${Math.round(lydIAlt)} s efter del ${i + 1}/${dele.length}`);
+          g.name = "Lydgraense";
+          console.warn("⚠️ LYDGRAENSE", { firmId, lydsekunder: Math.round(lydIAlt), del: i + 1, afDele: dele.length });
+          sendError(g);
+          return res.status(413).json({
+            error: "optagelse_for_lang",
+            lydsekunder: Math.round(lydIAlt),
+            besked: "Optagelsen er for lang til at blive lavet til tekst. Et referat kan højst være 20 minutter.",
+          });
+        }
       }
 
       // Delene sættes sammen i den rækkefølge, klienten sendte dem. Der er
