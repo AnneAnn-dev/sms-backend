@@ -554,9 +554,9 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       funktionsnavne: én POST/PATCH pr. række, serverens id skrives tilbage, fejl
       kastes i stedet for at blive slugt. Bruger dashboardets session.
       **Mangler:** Referater-fanen (`saveReferater`), `loadTilbud` og firmaprofilen.
-      ✅ **Referat-fanen, skive 1 i staging 15/10 (`02c5b85`)** — se punktet
-      "Referat-fanen" nedenfor. `saveReferater` er bygget. **Mangler stadig:**
-      `loadTilbud` og firmaprofilen.
+      ✅ **Referat-fanen, skive 1–3 i staging 15/10 (`02c5b85`, `45cf440`,
+      `9122a9f`)** — se punkterne nedenfor. **Mangler stadig:** `loadTilbud`
+      og firmaprofilen.
 - [x] **Flyt optager-modulet ind — I STAGING 14/10 (`67a830c`).**
       `tilbud/optager.js`, genskabt fra `02a1171` (spiken var fjernet i
       `a3235fc`), med grænsen på **20 minutter samlet på tværs af dele**:
@@ -633,17 +633,32 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       i dashboardet — målt, ingen kode. **Bevis:**
       `proev-referat-graenseflade.js` 25/0 (mod `b2073c4` 3/7) · HTTP
       400 `tomt_referat` før, 201 efter deploy · otte punkter på iPhone.
-- [ ] **Skive 2: udkastet** fra `/api/tilbud/referat` med teknik
-      B-markeringer. Beslut først, hvordan `ai_udkast` kommer på en kladde,
-      der er gemt uden (PATCH afviser feltet i dag, med vilje): "sæt én gang,
-      når tom" i PATCH, eller udkast før første gem.
-- [ ] **Åbne ender fra skive 1:** at rette en gemt kladde fra fanen (PATCH
-      kan titel/indhold/status — skærmen mangler) · at optage mere, efter
-      teksten er lavet (mikrofonen låses) · 20-min-grænsen tæller en
-      fravalgt "afbrudt men hel" del med (`brugtSek`) · "fordi appen kom i
-      baggrunden" står også ved et opkald (ordlyd til Ann) · kvotens feltnavn
-      `spaerret` er fra `kvote.js` 29/9 — bekræft · `proev-referat-graenseflade.js`
-      er ikke i CI.
+- [x] **Skive 2: udkastet — I STAGING 15/10 (`45cf440`).** "Lav referat" →
+      udkast med teknik B's tjek-steder → han retter → gem, både før første
+      gem og på en gemt kladde (besluttet af Ann). `POST
+      /api/tilbud/referater/:id/udkast` sætter `ai_udkast` ÉN gang (`IS NULL`
+      i samme opdatering, 409 `udkast_findes`). Fast tekstformat
+      (`referat-format.js`), så teknik B måles feltopdelt. Ophavet kommer som
+      `ophav` (S17). `/referat` svarer også `ventil`/`besked`. Bevis:
+      `proev-referat-udkast.js` 26/0 (3/11 mod `40070f3`) · HTTP 404 → 200 →
+      409 · målt på iPhone.
+- [x] **Skive 3: ret og færdig — I STAGING 15/10 (`9122a9f`).** "Kladde" =
+      kan stadig rettes, "Færdig" = låst (besluttet af Ann). Listen med
+      klokkeslæt og Indtalt tekst / Referat / Færdig. Ret (titel, tekst),
+      Markér som færdigt (to tryk). Låsen på serveren: PATCH og udkast-ruten
+      giver 409 `referat_faerdigt`. Bevis: `proev-referat-ret.js` 18/0 (4/13
+      mod `45cf440`) · HTTP: markér færdig 200, rettelse 409 · målt på iPhone
+      16/10.
+- [ ] **Åbne ender fra skive 1–3:** tjek kladden FØR modelkaldet (to skærme
+      betaler begge for et udkast) · minimumslængde før "Lav referat" · et
+      færdigt referat kan ikke genåbnes (beslutning) · titlen på en kladde
+      med kun indtalt tekst kan ikke rettes · tjek-boksen dækker kun tal,
+      navne og forkortelser og kan læses som "alt tjekket" (D36, "tåret" →
+      "torvet") · at optage mere, efter teksten er lavet · 20-min-grænsen
+      tæller en fravalgt "afbrudt men hel" del med (`brugtSek`) · "fordi appen
+      kom i baggrunden" står også ved et opkald (ordlyd til Ann) · kvotens
+      feltnavn `spaerret` er fra `kvote.js` 29/9 — bekræft · de tre
+      `proev-referat-*.js` er ikke i CI.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
