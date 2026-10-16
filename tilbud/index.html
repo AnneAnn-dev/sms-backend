@@ -1087,6 +1087,10 @@ async function openOptag() {
   lavReferatBtn.textContent = 'Lav referat';
   opdaterMinimum();
   gemKladdeBtn.style.display = 'block';
+  // Samme fejl som Lav referat-knappen (16/10): efter et lavet referat stod
+  // den låst, men den hvide knap ser ens ud låst og ulåst.
+  gemKladdeBtn.disabled = false;
+  gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
   micBtn.classList.remove('recording');
   micBtn.disabled = true;               // først når kvoten har svaret
   recTime.textContent = '';
