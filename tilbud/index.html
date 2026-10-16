@@ -610,18 +610,27 @@ function tokenFraLager() {
     return t;
   } catch (_) { return null; }
 }
+// MÅLINGEN (16/10, Ann bad om den): hvert kald fortæller serveren, hvor
+// længe login tog (X-Login-Ms), og om det gemte login blev brugt
+// (X-Login-Omvej: 1). Serveren skriver en linje i loggen, når det tog over
+// 2 s, eller omvejen blev brugt — så vi kan se, HVOR TIT det sker, uden at
+// nogen skal stå og kigge på knappen. Kun et tal; intet om personen.
 Graenseflade.saetAuth(async () => {
   let ur;
+  const t0 = Date.now();
   const tidsgraense = new Promise(ok => { ur = setTimeout(() => ok('tidsgraense'), LOGIN_MS); });
   const svar = await Promise.race([db.auth.getSession().catch(() => 'fejl'), tidsgraense]);
   clearTimeout(ur);
+  const maaling = { 'X-Login-Ms': String(Date.now() - t0) };
   if (svar !== 'tidsgraense' && svar !== 'fejl') {
     const session = svar && svar.data && svar.data.session;
-    return session && session.access_token ? { Authorization: 'Bearer ' + session.access_token } : {};
+    return session && session.access_token
+      ? Object.assign({ Authorization: 'Bearer ' + session.access_token }, maaling) : maaling;
   }
   visFase('omvej');
   const t = tokenFraLager();
-  if (t) return { Authorization: 'Bearer ' + t };
+  maaling['X-Login-Omvej'] = svar === 'fejl' ? 'fejl' : 'tidsgraense';
+  if (t) return Object.assign({ Authorization: 'Bearer ' + t }, maaling);
   throw new ApiFejl(0, { error: 'login_svarer_ikke',
     besked: 'Dit login svarer ikke lige nu. Luk appen helt, og åbn den igen.' });
 });

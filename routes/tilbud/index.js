@@ -141,6 +141,30 @@ const FORBEREDELSESKODER = {
 };
 
 module.exports = function (app, supabase) {
+  // ─── MÅLING: LOGIN I FANEN (16/10-26, Ann bad om den) ──────────────────────
+  // Målt 16/10: to "Lav referat" nåede først serveren 3 og 10 minutter efter
+  // trykket, uden deploy imens. Mistanken er getSession() i fanen (en lås, den
+  // deler med dashboardet). Fanen giver nu op efter 10 s og bruger det gemte
+  // login — og sender med, hvor længe login tog (X-Login-Ms) og om omvejen
+  // blev brugt (X-Login-Omvej: tidsgraense | fejl).
+  //
+  // Her skrives én linje, når det er værd at se: login over 2 s, eller
+  // omvejen brugt. Kun metode, sti og tal — ingen token, ingen tekst, intet
+  // firma. Søg i Railways log efter "login-maaling".
+  //
+  // FJERNES, når årsagen er afgjort. Det er en måling, ikke et værn.
+  app.use("/api/tilbud", (req, res, next) => {
+    try {
+      const ms = parseInt(req.get("x-login-ms"), 10);
+      const omvej = req.get("x-login-omvej");
+      if (omvej || (Number.isFinite(ms) && ms > 2000)) {
+        console.warn(`⚠️ login-maaling: ${req.method} ${req.baseUrl}${req.path} login ${Number.isFinite(ms) ? ms : "?"} ms` +
+          (omvej ? ` · omvej (${String(omvej).slice(0, 20)})` : ""));
+      }
+    } catch (_) { /* en måling må aldrig vælte et kald */ }
+    next();
+  });
+
   // Datafunktionerne: kunder, opgaver, referater. Returnerer sine egne stier,
   // saa status-ruten kan vise dem uden at der er to lister at holde ens.
   const RUTER_I_ALT = RUTER.concat(require("./data")(app, supabase));
