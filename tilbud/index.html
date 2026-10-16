@@ -542,6 +542,16 @@
     </div>
   </div>
 
+  <!-- ================= SHEET: mikrofon-tip (Ann 14/10, tekst 2) =================
+       Vises ÉN gang pr. telefon: første optagelse i en ny sideindlæsning, når
+       han har optaget før — altså lige før iOS spørger igen. -->
+  <div class="sheet-overlay" id="mikTipSheet">
+    <div class="sheet">
+      <p id="mikTipTekst" style="font-size:15px; line-height:1.5; margin:0 0 14px;"></p>
+      <button class="btn btn-primary" id="mikTipOkBtn" type="button">OK</button>
+    </div>
+  </div>
+
   <!-- ================= SHEET: opret opgave (erstatter prototypens indtastningsboks) ================= -->
   <div class="sheet-overlay" id="opretOpgaveSheet">
     <div class="sheet">
@@ -1144,10 +1154,43 @@ function stopUr() {
   if (optag.ur) { clearInterval(optag.ur); optag.ur = null; }
 }
 
-micBtn.addEventListener('click', async () => {
+// ─── Mikrofon-tippet (Ann 14/10, tekst 2; "én gang pr. telefon" bekræftet 16/10)
+// iOS spørger om mikrofonen én gang pr. sideindlæsning (målt 14/10). Har han
+// optaget før, og er det første optagelse siden siden blev åbnet, kommer
+// spørgsmålet igen — og lige dér vises tippet om Safari-indstillingen. Kun én
+// gang nogensinde på telefonen. Kan lageret ikke læses, vises intet.
+const MIK_HAR_OPTAGET = 'ddk-mik-har-optaget';
+const MIK_TIP_VIST = 'ddk-mik-tip-vist';
+let mikStartetPaaSiden = false;
+function lagerLaes(k) { try { return localStorage.getItem(k); } catch (_) { return '?'; } }
+function lagerSaet(k) { try { localStorage.setItem(k, '1'); } catch (_) { /* intet tip er bedre end en fejl */ } }
+function skalViseMikTip() {
+  return !mikStartetPaaSiden && lagerLaes(MIK_HAR_OPTAGET) === '1' && lagerLaes(MIK_TIP_VIST) === null;
+}
+const mikTipSheet = document.getElementById('mikTipSheet');
+document.getElementById('mikTipOkBtn').addEventListener('click', () => {
+  mikTipSheet.classList.remove('open');
+  startOptagelse();
+});
+mikTipSheet.addEventListener('click', (e) => { if (e.target === mikTipSheet) mikTipSheet.classList.remove('open'); });
+
+micBtn.addEventListener('click', () => {
   const o = optag.optager;
   if (!o || optag.stopper) return;
   if (o.tilstand === 'optager') return afslutDel();
+  if (skalViseMikTip()) {
+    lagerSaet(MIK_TIP_VIST);            // sat ved visning: lukkes det uden OK, kommer det ikke igen
+    document.getElementById('mikTipTekst').textContent = mikrofonSaetning() +
+      '. Er du træt af at give tilladelse hver gang, så gå i Indstillinger → Apps → Safari → Mikrofon og vælg Tillad.';
+    mikTipSheet.classList.add('open');
+    return;
+  }
+  startOptagelse();
+});
+
+async function startOptagelse() {
+  const o = optag.optager;
+  if (!o || optag.stopper || o.tilstand === 'optager') return;
   skjulFejl('errorBannerOptag');
   micBtn.disabled = true;               // iOS' dialog kan stå åben i minutter
   saetStatus('Venter på mikrofonen …');
@@ -1158,11 +1201,13 @@ micBtn.addEventListener('click', async () => {
     visDele();
     return visOptagFejl(mikrofonFejl(e));
   }
+  mikStartetPaaSiden = true;
+  lagerSaet(MIK_HAR_OPTAGET);
   micBtn.disabled = false;
   micBtn.classList.add('recording');
   saetStatus('Optager — tryk for at stoppe', true);
   startUr();
-});
+}
 
 async function afslutDel() {
   const o = optag.optager;
