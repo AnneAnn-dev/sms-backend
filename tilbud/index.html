@@ -449,6 +449,7 @@
       <div class="section-label" style="margin-top:18px;">Teksten — ret den, hvis noget er hørt forkert</div>
       <textarea id="editTranscript" placeholder="Transskriptionen vises her …"></textarea>
       <button class="btn btn-primary" id="lavReferatBtn" type="button" style="margin-top:12px;">Lav referat</button>
+      <p class="empty-note" id="forKortNote" style="display:none; margin:6px 0 0;"></p>
       <button class="btn btn-secondary" id="gemKladdeBtn" type="button">Gem som kladde (uden referat)</button>
     </div>
 
@@ -653,7 +654,7 @@ Graenseflade.saetFase(visFase);
 const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
-        retReferat, ApiFejl } = Graenseflade;
+        retReferat, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
 
 /* =========================================================================
    HJÆLPERE (fra prototypen)
@@ -902,6 +903,8 @@ async function openReferatDetail(referatId) {
   const dato = (r.moede_dato || r.created_at || '').slice(0, 10);
   const tekst = r.indhold || r.ai_udkast || '';
   const kunTransskript = !tekst && r.transskript ? r.transskript : '';
+  // Minimumslængden (Ann 16/10): en for kort kladde får ingen knap, men en linje om hvorfor.
+  const forKort = !!kunTransskript && antalOrd(kunTransskript) < MIN_ORD_REFERAT;
   const faerdig = r.status === 'faerdig';
   const kanRettes = !faerdig && !!tekst;
   wrap.innerHTML =
@@ -912,7 +915,8 @@ async function openReferatDetail(referatId) {
          : kunTransskript ? `<div class="section-label">Din indtalte tekst</div><p class="referat-tekst">${escapeHtml(kunTransskript)}</p>`
          : '<p class="empty-note">Referatet er tomt.</p>'}
      </div>
-     ${kunTransskript ? `<button class="btn btn-primary" id="lavReferatDetaljeBtn" type="button" style="margin-top:14px;">Lav referat af teksten</button>
+     ${forKort ? '<p class="empty-note" id="forKortDetalje" style="margin-top:14px;">Teksten er for kort til et referat.</p>' : ''}
+     ${kunTransskript && !forKort ? `<button class="btn btn-primary" id="lavReferatDetaljeBtn" type="button" style="margin-top:14px;">Lav referat af teksten</button>
        <div id="detaljeUdkastWrap"></div>` : ''}
      ${kanRettes ? `<button class="btn btn-secondary" id="retReferatBtn" type="button" style="margin-top:14px;">Ret</button>` : ''}`;
 
@@ -1004,6 +1008,17 @@ const transskriptWrap = document.getElementById('transskriptWrap');
 const editTranscript = document.getElementById('editTranscript');
 const gemKladdeBtn = document.getElementById('gemKladdeBtn');
 const lavReferatBtn = document.getElementById('lavReferatBtn');
+const forKortNote = document.getElementById('forKortNote');
+// Minimumslængden (Ann 16/10): under 10 ord er knappen spærret, og der står
+// hvorfor. Han kan stadig gemme teksten som kladde. Serveren afviser også.
+function opdaterMinimum() {
+  const forKort = antalOrd(editTranscript.value) < MIN_ORD_REFERAT;
+  const synlig = lavReferatBtn.style.display !== 'none';
+  lavReferatBtn.disabled = forKort;
+  forKortNote.textContent = FOR_KORT_BESKED;
+  forKortNote.style.display = forKort && synlig ? 'block' : 'none';
+}
+editTranscript.addEventListener('input', opdaterMinimum);
 const udkastWrap = document.getElementById('udkastWrap');
 const GEM_KLADDE_TEKST = 'Gem som kladde (uden referat)';
 
@@ -1070,6 +1085,7 @@ async function openOptag() {
   // Knappen genbruges: efter et lavet referat står "Skriver referat …" og
   // hjulet stadig på den. Uden denne linje ser den ud til at arbejde (16/10).
   lavReferatBtn.textContent = 'Lav referat';
+  opdaterMinimum();
   gemKladdeBtn.style.display = 'block';
   micBtn.classList.remove('recording');
   micBtn.disabled = true;               // først når kvoten har svaret
@@ -1255,6 +1271,7 @@ transskriberBtn.addEventListener('click', async () => {
   optag.varighedSek = typeof svar.lydsekunderIAlt === 'number' ? svar.lydsekunderIAlt : null;
   editTranscript.value = svar.tekst || '';
   transskriptWrap.style.display = 'block';
+  opdaterMinimum();
   visDele();
   if (!(svar.tekst || '').trim()) {
     visOptagFejl('Der blev ikke hørt nogen ord i optagelsen. Du kan skrive teksten selv i feltet.');
@@ -1445,9 +1462,9 @@ lavReferatBtn.addEventListener('click', async () => {
     svar = await lavUdkast(tekst);
   } catch (e) {
     udenFaser();
-    lavReferatBtn.disabled = false;
     gemKladdeBtn.disabled = false;
     lavReferatBtn.textContent = 'Lav referat';
+    opdaterMinimum();
     if (erLoggetUd(e)) return showScreen('login');
     return visOptagFejl(e);
   }
@@ -1458,6 +1475,7 @@ lavReferatBtn.addEventListener('click', async () => {
   // noget, modellen aldrig så. Derfor låses den.
   editTranscript.readOnly = true;
   lavReferatBtn.style.display = 'none';
+  opdaterMinimum();
   gemKladdeBtn.style.display = 'none';
   optag.udkast = { ophav: svar.ophav };
   tegnUdkast(udkastWrap, svar, async (aiUdkast, indhold) => {

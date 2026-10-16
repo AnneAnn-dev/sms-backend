@@ -385,9 +385,21 @@
   // saveReferater (nyt referat) eller saetUdkast (gemt kladde).
   // Svaret har `ophav` ({ model, version }); giv det videre uændret til
   // gemningen, så serveren kan skrive, hvad der lavede udkastet (D14).
+  // Minimumslængden (Ann 16/10-26): under 10 ord laves der intet referat.
+  // Et fejltryk, et "øh" eller en optagelse uden ord koster ellers et kald og
+  // giver et ubrugeligt referat. Et ord er en klump uden mellemrum, der har
+  // mindst ét bogstav eller tal. SAMME regel står i routes/tilbud/index.js —
+  // serveren er den, der bestemmer; fanen spærrer bare knappen i forvejen.
+  const MIN_ORD_REFERAT = 10;
+  const FOR_KORT_BESKED = 'Teksten er for kort til et referat. Du kan gemme den, som den er.';
+  function antalOrd(tekst) {
+    return String(tekst || '').split(/\s+/).filter((o) => /[\p{L}\p{N}]/u.test(o)).length;
+  }
+
   async function lavUdkast(transskription) {
     const t = String(transskription || '').trim();
     if (!t) throw new ApiFejl(0, { error: 'ingen_tekst', besked: 'Der er ingen tekst at lave et referat af.' });
+    if (antalOrd(t) < MIN_ORD_REFERAT) throw new ApiFejl(0, { error: 'for_lidt_tekst', besked: FOR_KORT_BESKED });
     return api('POST', '/api/tilbud/referat', { transskription: t }, { timeoutMs: 150000 });
   }
 
@@ -415,6 +427,7 @@
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat,
+    antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED,
     loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),
   };

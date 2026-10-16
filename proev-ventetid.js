@@ -17,6 +17,8 @@ const vm = require("vm");
 
 const fil = process.argv[2] || path.join(__dirname, "tilbud", "graenseflade.js");
 const kilde = fs.readFileSync(fil, "utf8");
+// Ti ord: under ti afviser klienten selv (minimumslaengden, 16/10-26).
+const TI_ORD = "min tekst om fliserne i badet hos Jensen paa torsdag";
 let ok = 0, fejl = 0;
 const tjek = (n, b, d) => { if (b) { ok++; console.log("  OK    " + n); } else { fejl++; console.log("  FEJL  " + n + (d !== undefined ? "  (" + d + ")" : "")); } };
 
@@ -56,7 +58,7 @@ function miljoe({ svarAldrig = false } = {}) {
     const start = Date.now();
     let afvist = null;
     const vagt = new Promise((_, nej) => setTimeout(() => nej(new Error("hang over 3 s")), 3000));
-    try { await Promise.race([G.lavUdkast("noget tekst"), vagt]); } catch (e) { afvist = e; }
+    try { await Promise.race([G.lavUdkast(TI_ORD), vagt]); } catch (e) { afvist = e; }
     tjek("server svarer aldrig: kaldet afbrydes (haenger ikke)", afvist && afvist.kode === "tog_for_lang_tid", afvist ? (afvist.kode || afvist.message) : "intet");
     tjek("... med en besked, han kan handle paa", afvist && /prøv igen/.test(afvist.message), afvist && afvist.message);
     tjek("... og fasen nulstilles", faser[faser.length - 1] === "", JSON.stringify(faser));
@@ -64,7 +66,7 @@ function miljoe({ svarAldrig = false } = {}) {
   } catch (e) { tjek("scenarie 2 koerte til ende", false, e.message); }
 
   try {
-    const a = miljoe(); await a.G.lavUdkast("x");
+    const a = miljoe(); await a.G.lavUdkast(TI_ORD);
     const b = miljoe(); await b.G.transskriber([{ blob: {}, filnavn: "d" }]);
     const c = miljoe(); await c.G.hentKvote();
     tjek("Lav referat: graense 150 s", a.ventetider.includes(150000), JSON.stringify(a.ventetider));

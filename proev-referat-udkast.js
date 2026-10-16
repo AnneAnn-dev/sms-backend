@@ -202,9 +202,10 @@ function svarObjekt() {
       return null;
     });
     tjek("lavUdkast findes", typeof G.lavUdkast === "function");
-    const s = await G.lavUdkast("  min tekst ");
+    // Ti ord: under ti afviser klienten selv (minimumslaengden, 16/10-26).
+    const s = await G.lavUdkast("  min tekst om fliserne i badet hos Jensen paa torsdag ");
     tjek("lavUdkast: POST /api/tilbud/referat med transskription",
-      kald[0] && kald[0].sti === "/api/tilbud/referat" && kald[0].krop.transskription === "min tekst", JSON.stringify(kald[0]));
+      kald[0] && kald[0].sti === "/api/tilbud/referat" && kald[0].krop.transskription === "min tekst om fliserne i badet hos Jensen paa torsdag", JSON.stringify(kald[0]));
     await G.saetUdkast("r1", { aiUdkast: "U", indhold: "I", ophav: s.ophav });
     const k = kald[1] || {};
     tjek("saetUdkast: POST /referater/r1/udkast", k.metode === "POST" && k.sti === "/api/tilbud/referater/r1/udkast", k.sti);

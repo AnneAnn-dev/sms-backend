@@ -73,6 +73,18 @@ const RUTER = [
 //   4.000 tokens ud (adapterens maksTokens)  ×  5.595 øre/mio.  =  22 øre
 //   I alt ca. 45 øre — langt under kaldsloftet på 5 kr.
 const MAKS_TEGN_IND = 60000;
+
+// ─── Minimumslængden (Ann 16/10-26) ──────────────────────────────────────────
+// Under 10 ord laves der intet referat: et fejltryk, et "øh" eller en
+// optagelse uden ord koster ellers et kald og giver et ubrugeligt referat
+// (`referat_ubrugeligt`, betalt). Afvises FØR kvoten, så det koster intet.
+// Et ord er en klump uden mellemrum med mindst ét bogstav eller tal. SAMME
+// regel står i tilbud/graenseflade.js, som spærrer knappen i forvejen — men
+// det er her, den gælder.
+const MIN_ORD_REFERAT = 10;
+function antalOrd(tekst) {
+  return String(tekst || "").split(/\s+/).filter((o) => /[\p{L}\p{N}]/u.test(o)).length;
+}
 const TEGN_PR_TOKEN = 3;
 const MAKS_TOKENS_UD = 4000;
 
@@ -402,6 +414,12 @@ module.exports = function (app, supabase) {
       return res.status(413).json({
         error: "for_meget_tekst",
         besked: "Transskriptionen er for lang til ét referat. Del den op i to møder.",
+      });
+    }
+    if (antalOrd(tekst) < MIN_ORD_REFERAT) {
+      return res.status(400).json({
+        error: "for_lidt_tekst",
+        besked: "Teksten er for kort til et referat. Du kan gemme den, som den er.",
       });
     }
 
