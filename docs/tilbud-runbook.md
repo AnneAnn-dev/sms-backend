@@ -593,7 +593,7 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 - [x] **Kunder-rammen får mikrofonen uden `allow="microphone"`** (samme
       oprindelse, ingen Permissions-Policy-header). Målt 14/10;
       `dashboard.html` er ikke ændret.
-- [ ] **Mikrofonteksterne (besluttet af Ann 14/10, ordlyden er Anns):** (1)
+- [x] **Mikrofonteksterne (besluttet af Ann 14/10, ordlyden er Anns):** (1)
       onboarding, sammen med J8 tekst 2: "Tryk Tillad, når
       opgave.ditdigitalekontor.dk beder om tilladelse til at bruge din
       mikrofon." (2) pop-up én gang pr. telefon (husket på telefonen), når han
@@ -603,7 +603,15 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       `NotAllowedError` (Annuller): samme sætning + "ellers kan du ikke bruge
       Referathjælperen." Domænet sættes ind fra `location.hostname`, så
       staging og prod altid er rigtige. ✅ **(3) bygget 15/10 (`02c5b85`)** og
-      målt på iPhone. **Mangler:** (1) i `onboarding.html` og (2) pop-uppen.
+      målt på iPhone. **16/10: (1) droppet som onboardingtrin** (Ann, via
+      onboarding-chatten): en advarsel dage før iOS' dialog er glemt, når han
+      trykker optag. Sætningen står allerede forrest i (2); `onboarding.html`
+      er ikke ændret. ✅ **(2) bygget 16/10 (`2026-10-16-mikrofon-tip`):** et ark
+      i Referat-fanen FØR iOS' dialog, én gang nogensinde pr. telefon
+      (`localStorage`: `ddk-mik-har-optaget`, `ddk-mik-tip-vist`). Målt på
+      iPhone 16/10: intet tip ved første optagelse; tip ved næste
+      sideindlæsning, og iOS' dialog kom bagefter; efter log ud og ind kun
+      iOS' dialog.
 - [ ] **Mål før teksterne låses:** åbnes prod-dashboardet fra
       `opgave.ditdigitalekontor.dk`? ✅ **Målt 15/10: efter Annuller spørger
       iOS igen i samme session** ved næste tryk — tekst 3 behøver ikke sige
