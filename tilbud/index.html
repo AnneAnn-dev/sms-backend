@@ -1267,7 +1267,10 @@ function visDele() {
   }).join('');
   deleWrap.querySelectorAll('button[data-svar]').forEach(b => {
     b.addEventListener('click', () => {
-      optag.valg[Number(b.dataset.del)] = b.dataset.svar === 'ja';
+      const nr = Number(b.dataset.del);
+      optag.valg[nr] = b.dataset.svar === 'ja';
+      // Et nej betyder, at delen ikke tæller mod de 20 minutter (16/10).
+      if (!optag.valg[nr] && optag.optager) optag.optager.fravaelg(nr);
       visDele();
     });
   });

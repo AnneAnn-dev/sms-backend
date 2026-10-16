@@ -48,6 +48,10 @@
        derfor ikke bruges til at komme uden om den.
      - Det, der tæller, er vægur-tiden for de BRUGBARE dele. En kasseret del
        (tab inde i lyden) tæller ikke — den bliver ikke transskriberet.
+     - Det samme gælder en afbrudt men hel del, som brugeren har sagt NEJ
+       til: fanen kalder `fravaelg(nr)`, og delen tæller ikke mere (16/10-26;
+       før talte den med, så grænsen kom for tidligt). Har han ikke svaret
+       endnu, tæller den — hellere for forsigtig end over grænsen.
      - Når grænsen nås, stopper optageren af sig selv, kalder `paaGraense`
        med det samme og leverer det optagne som en hel optagelse
        (`stoppetVedGraense: true`). Brugeren skal ikke spørges.
@@ -131,8 +135,18 @@
      kortere end lyden. */
   Optager.prototype.brugtSek = function () {
     var sek = 0;
-    this.dele.forEach(function (d) { if (d.ok || d.kanBruges) sek += (d.vaegurSek || 0); });
+    this.dele.forEach(function (d) { if (erBrugbar(d)) sek += (d.vaegurSek || 0); });
     return sek;
+  };
+
+  // Brugeren har sagt nej til en afbrudt men hel del. Kun den slags del kan
+  // fravælges; en godkendt del er hans optagelse og kan ikke smides ud her.
+  Optager.prototype.fravaelg = function (nr) {
+    var d = this.dele.filter(function (x) { return x.del === nr; })[0];
+    if (!d || d.ok || !d.kanBruges) return false;
+    d.fravalgt = true;
+    this._log("fravalgt", "del " + nr + " fravalgt af brugeren — tæller ikke mod grænsen");
+    return true;
   };
 
   Optager.prototype.restSek = function () {
@@ -445,8 +459,8 @@
   // lyden hel. En del med tab INDE i sig kasseres — vi ved ikke, hvad der
   // forsvandt, og resten af dikteringen er stadig god.
   Optager.prototype.samlet = function () {
-    var brugbare = this.dele.filter(function (d) { return d.ok || d.kanBruges; });
-    var kasserede = this.dele.filter(function (d) { return !d.ok && !d.kanBruges; });
+    var brugbare = this.dele.filter(erBrugbar);
+    var kasserede = this.dele.filter(function (d) { return !erBrugbar(d); });
     var sek = 0;
     brugbare.forEach(function (d) { sek += (d.varighedSek || 0); });
     return {
@@ -461,6 +475,8 @@
   };
 
   /* ── Hjælpere ─────────────────────────────────────────────────────────── */
+  function erBrugbar(d) { return d.ok || (d.kanBruges && !d.fravalgt); }
+
   function afkodVarighed(blob) {
     var AC = global.AudioContext || global.webkitAudioContext;
     if (!AC) return Promise.reject(new Error("ingen AudioContext"));
