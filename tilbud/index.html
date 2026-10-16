@@ -1324,6 +1324,12 @@ function tegnRet(wrap, r, tekst) {
    over feltet. Er der over 10 % markeringer, viser serveren ingen enkeltsteder
    (ventilen), og så siger boksen det i stedet — "tjek det hele" og "intet at
    tjekke" må ikke ligne hinanden.
+
+   ORDLYDEN ER ANNS (16/10, D36). Teknik B tjekker KUN tal, navne og
+   forkortelser. 15/10 byttede modellen "tåret" til "torvet", og boksen sagde
+   at intet var fundet — det kunne læses som "alt er
+   tjekket". Derfor beder boksen ham nu altid læse referatet igennem, og
+   nævner ikke længere, hvad der er tjekket.
    ========================================================================= */
 const FELTNAVN = (felt) => felt === 'overskrift' ? 'Overskriften'
   : felt === 'fritekst' ? 'Teksten'
@@ -1336,10 +1342,10 @@ function tjekHtml(svar) {
   }
   const m = Array.isArray(svar.markeringer) ? svar.markeringer : [];
   if (!m.length) {
-    return '<div class="tjek-boks rolig">Ingen tal, navne eller forkortelser i referatet, som ikke står i din tekst.</div>';
+    return '<div class="tjek-boks rolig">Læs referatet igennem, før du gemmer.</div>';
   }
-  return `<div class="tjek-boks"><strong>Tjek ${m.length === 1 ? 'dette sted' : 'disse ' + m.length + ' steder'}</strong> — det står i referatet, men ikke i din indtalte tekst:
-      <ul>${m.map(x => `<li><span class="felt">${escapeHtml(FELTNAVN(x.felt))}:</span> ${escapeHtml(x.tekst)}</li>`).join('')}</ul>
+  return `<div class="tjek-boks">Læs referatet igennem før du gemmer, og vær særlig opmærksom på de fremhævede ord.
+      <ul>${m.map(x => `<li>${escapeHtml(FELTNAVN(x.felt))}: <strong>${escapeHtml(x.tekst)}</strong></li>`).join('')}</ul>
     </div>`;
 }
 
