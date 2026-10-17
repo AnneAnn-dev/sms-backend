@@ -664,7 +664,7 @@ Graenseflade.saetFase(visFase);
 const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
-        retReferat, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
+        retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
 
 /* =========================================================================
    HJÆLPERE (fra prototypen)
@@ -928,7 +928,13 @@ async function openReferatDetail(referatId) {
      ${forKort ? '<p class="empty-note" id="forKortDetalje" style="margin-top:14px;">Teksten er for kort til et referat.</p>' : ''}
      ${kunTransskript && !forKort ? `<button class="btn btn-primary" id="lavReferatDetaljeBtn" type="button" style="margin-top:14px;">Lav referat af teksten</button>
        <div id="detaljeUdkastWrap"></div>` : ''}
-     ${kanRettes ? `<button class="btn btn-secondary" id="retReferatBtn" type="button" style="margin-top:14px;">Ret</button>` : ''}`;
+     ${kanRettes ? `<button class="btn btn-secondary" id="retReferatBtn" type="button" style="margin-top:14px;">Ret</button>` : ''}
+     ${kunTransskript && !faerdig ? `<button class="btn btn-secondary" id="indtalMereBtn" type="button" style="margin-top:14px;">Indtal mere eller ret teksten</button>` : ''}`;
+
+  // Indtal mere (Ann 17/10): kun en kladde med indtalt tekst og intet referat.
+  const indtalMere = document.getElementById('indtalMereBtn');
+  if (indtalMere) indtalMere.addEventListener('click', () =>
+    openOptag({ id: r.id, titel: r.titel || '', transskript: kunTransskript }));
 
   // Skive 3: et referat i kladde kan rettes og markeres som færdigt.
   const retKnap = document.getElementById('retReferatBtn');
@@ -1031,6 +1037,7 @@ function opdaterMinimum() {
 editTranscript.addEventListener('input', opdaterMinimum);
 const udkastWrap = document.getElementById('udkastWrap');
 const GEM_KLADDE_TEKST = 'Gem som kladde (uden referat)';
+function gemTekst() { return optag.tilfoej ? 'Gem teksten' : GEM_KLADDE_TEKST; }
 
 function fmtTid(sek) {
   sek = Math.max(0, Math.round(Number(sek) || 0));
@@ -1072,8 +1079,11 @@ function mikrofonFejl(e) {
   return 'Optagelsen kunne ikke startes (' + ((e && (e.name || e.message)) || 'ukendt fejl') + ').';
 }
 
-async function openOptag() {
+// `tilfoej` = { id, titel, transskript } på en gemt kladde (Indtal mere, Ann 17/10),
+// ellers et nyt referat.
+async function openOptag(tilfoej) {
   skjulFejl('errorBannerOptag');
+  optag.tilfoej = (tilfoej && tilfoej.id) ? tilfoej : null;
   optag.valg = {};
   optag.stopper = false;
   optag.transskriberet = false;
@@ -1097,16 +1107,25 @@ async function openOptag() {
   lavReferatBtn.textContent = 'Lav referat';
   opdaterMinimum();
   gemKladdeBtn.style.display = 'block';
+  if (optag.tilfoej) {
+    // Teksten står i feltet fra start, så han kan rette den uden at optage.
+    // Referatet laves bagefter fra kladden, derfor ingen Lav referat-knap her.
+    document.getElementById('mTitel').value = optag.tilfoej.titel;
+    editTranscript.value = optag.tilfoej.transskript;
+    transskriptWrap.style.display = 'block';
+    lavReferatBtn.style.display = 'none';
+    opdaterMinimum();
+  }
   // Samme fejl som Lav referat-knappen (16/10): efter et lavet referat stod
   // den låst, men den hvide knap ser ens ud låst og ulåst.
   gemKladdeBtn.disabled = false;
-  gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
+  gemKladdeBtn.textContent = gemTekst();
   micBtn.classList.remove('recording');
   micBtn.disabled = true;               // først når kvoten har svaret
   recTime.textContent = '';
   saetStatus('Tjekker din kvote …');
   document.getElementById('optagOpgaveNavn').textContent =
-    'Nyt referat' + (currentOpgaveTitel ? ' · ' + currentOpgaveTitel : '');
+    (optag.tilfoej ? 'Indtal mere' : 'Nyt referat') + (currentOpgaveTitel ? ' · ' + currentOpgaveTitel : '');
   showScreen('record');
 
   if (!window.Optager) {
@@ -1137,7 +1156,7 @@ async function openOptag() {
   micBtn.disabled = false;
   saetStatus('Tryk for at optage');
 }
-document.getElementById('nytReferatBtn').addEventListener('click', openOptag);
+document.getElementById('nytReferatBtn').addEventListener('click', () => openOptag());
 
 function startUr() {
   stopUr();
@@ -1321,7 +1340,14 @@ transskriberBtn.addEventListener('click', async () => {
   transskriberBtn.textContent = 'Lav tekst af optagelsen';
   optag.transskriberet = true;
   optag.varighedSek = typeof svar.lydsekunderIAlt === 'number' ? svar.lydsekunderIAlt : null;
-  editTranscript.value = svar.tekst || '';
+  if (optag.tilfoej) {
+    // Den nye tekst sættes efter det, der står i feltet nu (også hans rettelser).
+    const foer = editTranscript.value.trim();
+    const ny = (svar.tekst || '').trim();
+    editTranscript.value = foer && ny ? foer + '\n\n' + ny : (foer || ny);
+  } else {
+    editTranscript.value = svar.tekst || '';
+  }
   transskriptWrap.style.display = 'block';
   opdaterMinimum();
   visDele();
@@ -1337,6 +1363,21 @@ gemKladdeBtn.addEventListener('click', async () => {
   skjulFejl('errorBannerOptag');
   gemKladdeBtn.disabled = true;
   gemKladdeBtn.innerHTML = '<span class="spinner"></span>Gemmer …';
+  if (optag.tilfoej) {
+    const id = optag.tilfoej.id;
+    try {
+      await saetTransskript(id, { transskript: tekst, titel: document.getElementById('mTitel').value });
+    } catch (e) {
+      gemKladdeBtn.disabled = false;
+      gemKladdeBtn.textContent = gemTekst();
+      if (erLoggetUd(e)) return showScreen('login');
+      return visOptagFejl(e);
+    }
+    optag.gemt = true;
+    gemKladdeBtn.disabled = false;
+    gemKladdeBtn.textContent = gemTekst();
+    return openReferatDetail(id);
+  }
   const nyt = {
     id: uid(), titel: document.getElementById('mTitel').value.trim() || standardTitel(),
     type: 'Noter', dato: iDag(), status: 'kladde',
@@ -1349,13 +1390,13 @@ gemKladdeBtn.addEventListener('click', async () => {
     await saveReferater(opgaveId, liste);
   } catch (e) {
     gemKladdeBtn.disabled = false;
-    gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
+    gemKladdeBtn.textContent = gemTekst();
     if (erLoggetUd(e)) return showScreen('login');
     return visOptagFejl(e);
   }
   optag.gemt = true;
   gemKladdeBtn.disabled = false;
-  gemKladdeBtn.textContent = GEM_KLADDE_TEKST;
+  gemKladdeBtn.textContent = gemTekst();
   openOpgaveDetail(currentKundeDetailId, opgaveId);
 });
 
@@ -1370,6 +1411,7 @@ document.getElementById('backFraOptag').addEventListener('click', () => {
     optag.forladAdvaret = true;
     return visOptagFejl('Optagelsen er ikke gemt. Tryk Tilbage igen for at kassere den.');
   }
+  if (optag.tilfoej) return openReferatDetail(optag.tilfoej.id);
   openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId);
 });
 

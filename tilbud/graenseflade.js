@@ -403,6 +403,18 @@
     return api('POST', '/api/tilbud/referat', { transskription: t }, { timeoutMs: 150000 });
   }
 
+  // Indtal mere (Ann 17/10): erstatter teksten på en kladde, der endnu ikke har
+  // et udkast. `transskript` er HELE den nye tekst (gammel + ny, som han har
+  // rettet den). Serveren svarer 409 `tekst_laast`, hvis der er lavet et udkast.
+  async function saetTransskript(referatId, { transskript, titel }) {
+    const t = String(transskript || '').trim();
+    if (!t) throw new ApiFejl(0, { error: 'ingen_tekst', besked: 'Der er ingen tekst at gemme.' });
+    const krop = { transskript: t };
+    if ((titel || '').trim()) krop.titel = titel.trim();
+    const { referat } = await api('POST', '/api/tilbud/referater/' + encodeURIComponent(referatId) + '/transskript', krop);
+    return referat;
+  }
+
   // Sætter udkastet på en GEMT kladde — én gang. Serveren svarer 409
   // (`udkast_findes`), hvis kladden allerede har et.
   async function saetUdkast(referatId, { aiUdkast, indhold, ophav }) {
@@ -426,7 +438,7 @@
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
-    lavUdkast, saetUdkast, udkastSomTekst, retReferat,
+    lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,
     antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED,
     loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),

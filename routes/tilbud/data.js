@@ -15,6 +15,8 @@
 //   GET    /api/tilbud/referater/:id     hent ét
 //   PATCH  /api/tilbud/referater/:id     ret indhold/titel/status
 //   POST   /api/tilbud/referater/:id/udkast   saet udkastet ÉN gang (skive 2)
+//   POST   /api/tilbud/referater/:id/transskript  indtal mere / ret teksten,
+//                                          kun FØR der er lavet et udkast (17/10)
 //
 // ─── EN OPGAVE OPRETTES UDEN OPKALD (besluttet 9/10-2026) ───────────────────
 //
@@ -606,6 +608,74 @@ module.exports = function (app, supabase) {
       res.json({ ok: true, referat: data });
     } catch (e) { svarPaaFejl(res, e, "udkast kunne ikke gemmes"); }
   });
+
+  // ─── INDTAL MERE PAA EN KLADDE (besluttet af Ann 17/10-26) ─────────────────
+  //
+  // En kladde med kun indtalt tekst kan faa mere tekst: han optager igen, den
+  // nye tekst saettes efter den gamle i et felt, han kan rette, og han gemmer.
+  // Hver tilfoejelse er sin egen optagelse med op til 20 minutter.
+  //
+  // `transskript` er kildemateriale (se PATCH ovenfor), og det gaelder stadig
+  // — FRA det oejeblik, der findes et udkast. Udkastet er lavet af netop den
+  // tekst, og teknik B maaler mod den. Foer udkastet er teksten hans kladde,
+  // og den maa han rette. Derfor:
+  //   - KUN kladder (`status = 'kladde'`) UDEN udkast (`ai_udkast IS NULL`) —
+  //     begge filtre i SAMME opdatering, saa en anden skaerm, der laver
+  //     referatet imens, faar teksten laast foerst (409 `tekst_laast`).
+  //   - `titel` kan komme med; en kladde med kun indtalt tekst havde ellers
+  //     ingen maade at faa titlen rettet paa.
+  const TRANSSKRIPT_FELTER = ["transskript", "titel"];
+  const MAKS_TEGN_TRANSSKRIPT = 60000;   // samme som /api/tilbud/referat
+
+  app.post("/api/tilbud/referater/:id/transskript", async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+
+    const { felter, ukendte } = pluk(req.body, TRANSSKRIPT_FELTER);
+    if (afvisUkendte(res, ukendte)) return;
+    const ny = tekst(felter.transskript);
+    if (!ny) {
+      return res.status(400).json({ error: "ingen_tekst", besked: "Der er ingen tekst at gemme." });
+    }
+    if (ny.length > MAKS_TEGN_TRANSSKRIPT) {
+      return res.status(413).json({
+        error: "for_meget_tekst",
+        besked: "Teksten er for lang til ét referat. Start et nyt referat til resten.",
+      });
+    }
+
+    let raekke;
+    try {
+      raekke = await hentEgenRaekke(supabase, "referater", req.params.id, firmId, "id, status, ai_udkast");
+    } catch (e) { return svarPaaFejl(res, e, "referat kunne ikke hentes til tilfoejelse"); }
+    if (raekke.status === "faerdig") return afvisFaerdigt(res);
+    if (raekke.ai_udkast) return afvisLaast(res);
+
+    const aendringer = { transskript: ny };
+    if (tekst(felter.titel)) aendringer.titel = tekst(felter.titel);
+
+    try {
+      const { data, error } = await supabase
+        .from("referater")
+        .update(aendringer)
+        .eq("id", raekke.id)
+        .eq("firm_id", firmId)
+        .eq("status", "kladde")
+        .is("ai_udkast", null)
+        .select("id, titel, moede_dato, status")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return afvisLaast(res);   // fik udkast eller blev faerdig imens
+      console.log(`✅ tekst tilfoejet paa referat ${data.id}`);
+      res.json({ ok: true, referat: data });
+    } catch (e) { svarPaaFejl(res, e, "teksten kunne ikke gemmes"); }
+  });
+
+  function afvisLaast(res) {
+    return res.status(409).json({
+      error: "tekst_laast",
+      besked: "Der er lavet et referat af teksten, så den kan ikke ændres længere. Genindlæs, så ser du det.",
+    });
+  }
 
   return RUTER;
 };
