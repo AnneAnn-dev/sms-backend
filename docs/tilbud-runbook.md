@@ -566,11 +566,16 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       `stop()` og handler på `ok` / `kanBruges`. `/tilbud` monteres kun med
       `TILBUD_AKTIV` (`server.js`), så filen findes ikke i prod. Bevis:
       `proev-optager.js` 25/0, mod spike-udgaven 9/16.
-- [ ] ⚠️ **Servergrænsen på 20 minutter.** Grænsen i `optager.js` er
-      brugervenlighed, ikke et værn: `tilbud/` er offentlig, og filen kan
-      ændres i browseren. Serveren skal afvise lyd over 20 minutter samlet pr.
-      referat. Undersøg, om dags- og månedsloftet allerede dækker det. Før
-      Port 2.
+- [x] **Servergrænsen på 20 minutter — I STAGING 16/10
+      (`2026-10-16-servergraense`).** Grænsen i `optager.js` er
+      brugervenlighed, ikke et værn. `/transskriber` lægger leverandørens
+      `lydsekunder` sammen del for del (længden kan ikke læses af filen før
+      betaling); over 20 min + 2 min margin (Ann) svarer den 413
+      `optagelse_for_lang`, sender ingen flere dele, og det allerede
+      transskriberede bogføres. Beskeden (Ann): "Optagelsen er for lang til at
+      blive lavet til tekst. Et referat kan højst være 20 minutter." Bevis:
+      `proev-servergraense.js` 9/0. Ikke bevist over HTTP (kræver over 20
+      minutters lyd).
 - [x] **SW-bump, når fanen indlæser `optager.js`** — `dashboard-v35` i
       `02c5b85` (15/10), da `tilbud/index.html` begyndte at indlæse filen.
 - [ ] **`proev-optager.js` er ikke i CI.** Den køres lokalt (`node
@@ -657,16 +662,34 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       giver 409 `referat_faerdigt`. Bevis: `proev-referat-ret.js` 18/0 (4/13
       mod `45cf440`) · HTTP: markér færdig 200, rettelse 409 · målt på iPhone
       16/10.
-- [ ] **Åbne ender fra skive 1–3:** tjek kladden FØR modelkaldet (to skærme
-      betaler begge for et udkast) · minimumslængde før "Lav referat" · et
-      færdigt referat kan ikke genåbnes (beslutning) · titlen på en kladde
-      med kun indtalt tekst kan ikke rettes · tjek-boksen dækker kun tal,
-      navne og forkortelser og kan læses som "alt tjekket" (D36, "tåret" →
-      "torvet") · at optage mere, efter teksten er lavet · 20-min-grænsen
-      tæller en fravalgt "afbrudt men hel" del med (`brugtSek`) · "fordi appen
-      kom i baggrunden" står også ved et opkald (ordlyd til Ann) · kvotens
-      feltnavn `spaerret` er fra `kvote.js` 29/9 — bekræft · de tre
-      `proev-referat-*.js` er ikke i CI.
+- [x] **Rettelser 16/10 — I STAGING, målt på iPhone.** Tjek-boks og overskrift
+      (Anns ordlyd: "Læs og ret referatet før du gemmer.") · "Lav
+      referat"-knappen beholdt "Skriver referat …" efter et lavet referat og
+      så ud til at hænge (`2026-10-16-knap-tekst`; login-hypotesen holdt ikke,
+      se D80) · "Gem som kladde" stod låst efter et referat
+      (`2026-10-16-gem-knap`) · minimumslængde 10 ord, afvist FØR kvoten
+      (`2026-10-16-referat-minimum`) · en kasseret del tæller ikke mod de 20
+      minutter (`2026-10-16-fravalgt-del`) · mikrofon-tippet én gang pr.
+      telefon (`2026-10-16-mikrofon-tip`). Bevidst accepteret (Ann): to skærme
+      kan betale for samme kladdes udkast. **Lærdom:** knapper, der genbruges
+      mellem optagelser, nulstilles i `openOptag` — tekst OG låst.
+- [ ] **Venter på test udefra (Ann 16/10: opgaverne ligger her, til nogen har
+      testet):** titlen på en kladde med kun indtalt tekst kan ikke rettes ·
+      at optage mere, efter teksten er lavet · "fordi appen kom i baggrunden"
+      står også ved et opkald (ordlyd til Ann) · den hvide knap har ingen grå
+      udgave, når den er låst · kvotens feltnavn `spaerret` er fra `kvote.js`
+      29/9 — bekræft · et færdigt referat kan ikke genåbnes (beslutning) ·
+      fjern login-målingen (`150d0c5`), når Railway Logs ikke har vist
+      `login-maaling`, og afgør, om login-omvejen (`d4539d7`) bliver ·
+      `proev-optager*.js` og `proev-referat-*.js` er ikke i CI.
+- [ ] **Annes QA 16–17/10 (`QA af Referat-fanen`, 16 tests):** OK på 1–4, 6,
+      8–12, 15 og 16. **Åbent:** test 5 (afbrydelse: "Man kan ikke sige nej")
+      og test 7 ("?") — detaljer efterspurgt · test 13 (Ret) og 14 (Færdig)
+      ikke testet · mikrofonen spørger ved hvert referat — mål, om siden
+      genindlæses uden at appen lukkes · en opgave fra Nye opretter ikke en
+      kunde (givet til dashboard-chatten) · Anne mener at have testet foto;
+      fanen har ingen kameraknap (kun prøvebænkens måling 27/9,
+      `FOTOSAETTET.md`) — afklares.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
