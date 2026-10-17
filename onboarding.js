@@ -195,14 +195,12 @@ module.exports = function registerOnboarding(app, supabase) {
     // TLS foran appen: req.protocol ville sige "http", signaturen ville aldrig
     // matche, og saa afvises ALLE aegte opkald. Det er den farlige fejlmaade.
     //
-    // OPKALD_SIGNATUR=log (standard)  -> beregn og log, afvis ALDRIG
-    // OPKALD_SIGNATUR=haandhaev       -> afvis ugyldige kald med 403
-    //
-    // Rulles ud i to trin: koer i "log" indtil et rigtigt opkald er set godkendt
-    // i loggen i BEGGE miljoeer -> saet derefter "haandhaev". Naar det har koert
-    // et par uger, fjernes variablen og gaffelen igen.
+    // Ugyldige kald afvises ALTID med 403. Kontrollen blev rullet ud i to trin
+    // bag variablen OPKALD_SIGNATUR (log -> haandhaev, prod 2/8-26) og blev
+    // verificeret i prod 14/10-26: falsk kald 403, aegte opkald godkendt.
+    // Variablen og gaffelen er fjernet, saa en rollback ikke kan slaa
+    // kontrollen fra i tavshed. Kun afvisninger logges.
     {
-      const tilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log";
       const url      = `https://${req.get("host")}${req.originalUrl}`;
       const gyldig   = twilio.validateRequest(
         process.env.TWILIO_AUTH_TOKEN,
@@ -212,16 +210,8 @@ module.exports = function registerOnboarding(app, supabase) {
       );
 
       if (!gyldig) {
-        if (tilstand === "haandhaev") {
-          console.warn("🚫 /opkald AFVIST - ugyldig Twilio-signatur. URL:", url);
-          return res.status(403).type("text/plain").send("Ugyldig signatur");
-        }
-        console.warn("⚠️  /opkald: ugyldig signatur (KUN LOG - ikke afvist). URL:", url);
-      } else {
-        // I log-tilstand er kvitteringen hele pointen - den er beviset paa at
-        // URL-opbygningen holder. Naar der HAANDHAEVES, er "det gik godt" paa
-        // hvert eneste opkald bare tapet: saa logges kun afvisninger.
-        if (tilstand === "log") console.log("✅ /opkald: signatur OK");
+        console.warn("🚫 /opkald AFVIST - ugyldig Twilio-signatur. URL:", url);
+        return res.status(403).type("text/plain").send("Ugyldig signatur");
       }
     }
 
@@ -571,9 +561,8 @@ module.exports = function registerOnboarding(app, supabase) {
   //   failed     — opkaldet naaede aldrig frem. DET er fejlen, og den er
   //   canceled     usynlig uden denne rute.
   app.post("/twilio/opkaldsstatus", async (req, res) => {
-    // Samme signaturkontrol og samme gaffel som /opkald. Uden den kan hvem
-    // som helst sende os et udfald og udloese en alarm.
-    const tilstand = process.env.OPKALD_SIGNATUR === "haandhaev" ? "haandhaev" : "log";
+    // Samme signaturkontrol som /opkald. Uden den kan hvem som helst sende
+    // os et udfald og udloese en alarm.
     const url      = `https://${req.get("host")}${req.originalUrl}`;
     const gyldig   = twilio.validateRequest(
       process.env.TWILIO_AUTH_TOKEN,
@@ -583,11 +572,8 @@ module.exports = function registerOnboarding(app, supabase) {
     );
 
     if (!gyldig) {
-      if (tilstand === "haandhaev") {
-        console.warn("🚫 /twilio/opkaldsstatus AFVIST - ugyldig Twilio-signatur. URL:", url);
-        return res.status(403).type("text/plain").send("Ugyldig signatur");
-      }
-      console.warn("⚠️  /twilio/opkaldsstatus: ugyldig signatur (KUN LOG - ikke afvist).");
+      console.warn("🚫 /twilio/opkaldsstatus AFVIST - ugyldig Twilio-signatur. URL:", url);
+      return res.status(403).type("text/plain").send("Ugyldig signatur");
     }
 
     const sid     = req.body.CallSid || "ukendt";
