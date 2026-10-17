@@ -393,10 +393,15 @@
     return afkodVarighed(blob).then(function (varighed) {
       svar.varighedSek = rund(varighed);
       svar.tabSek = rund(vaegurSek - varighed);
+      // D85 (17/10-26): afgørelsen sker på de UAFRUNDEDE tal; afrunding er kun
+      // visning. Før blev to afrundede tal sammenlignet, og under 2,5 s blev
+      // grænsen (2 %) afrundet til 0.
+      var tabRaa = vaegurSek - varighed;
+      var graenseRaa = mig.graenseSek(vaegurSek);
 
       if (varighed < STANDARD.minVarighedSek) {
         svar.aarsag = "for_kort";
-        svar.forklaring = "Optagelsen er kun " + svar.varighedSek + " sekunder lang.";
+        svar.forklaring = "Optagelsen er kun " + komma(varighed) + " sekunder lang.";
       } else if (mig._afbrudt) {
         svar.aarsag = "afbrudt";
         // Maalt 26/9 i den installerede app: `mute` kommer ca. 2 sekunder FOER
@@ -404,7 +409,7 @@
         // tabet typisk 0, og beskeden maa ikke sige "der mangler 0 sekunder".
         // Skelnen er vigtig for brugeren: er lyden hel indtil afbrydelsen, er
         // der noget at bruge — ellers er der ikke.
-        svar.helIndtilAfbrydelse = svar.tabSek <= svar.graenseSek;
+        svar.helIndtilAfbrydelse = tabRaa <= graenseRaa;
         // Fanen er afgraenset til EGEN-DIKTERING (besluttet 19/8, se J8). Det,
         // haandvaerkeren naaede at sige, er derfor en hel tanke — ikke halvdelen
         // af en samtale, hvor modparten mangler. Er lyden hel frem til
@@ -413,15 +418,20 @@
         svar.kanBruges = svar.helIndtilAfbrydelse;
         svar.aarsag = svar.helIndtilAfbrydelse ? "afbrudt_men_hel" : "afbrudt_med_tab";
         svar.forklaring = svar.helIndtilAfbrydelse
-          ? ("Optagelsen stoppede efter " + svar.varighedSek + " sekunder, fordi appen kom i " +
-             "baggrunden (" + mig._afbrudtAarsag + "). Alt det, du nåede at sige, er med.")
-          : ("Optagelsen blev afbrudt: " + mig._afbrudtAarsag + ". Der mangler " +
-             svar.tabSek + " sekunder lyd inde i optagelsen.");
-      } else if (svar.tabSek > svar.graenseSek) {
+          // Ordlyd (Ann 17/10): et opkald er den hyppigste årsag, ikke kun baggrunden.
+          ? ("Optagelsen stoppede efter " + komma(varighed) + " sekunder, fordi den blev " +
+             "afbrudt (fx af et opkald, eller fordi appen kom i baggrunden). " +
+             "Alt det, du nåede at sige, er med.")
+          : ("Optagelsen blev afbrudt, og der mangler " + komma(tabRaa) +
+             " sekunder lyd inde i den, så den kan ikke bruges. Optag den igen.");
+      } else if (tabRaa > graenseRaa) {
         svar.aarsag = "for_stort_tab";
-        svar.forklaring = "Der mangler " + svar.tabSek + " sekunder lyd i forhold til " +
-                          "de " + svar.vaegurSek + " sekunder, optagelsen varede. " +
-                          "Grænsen er " + svar.graenseSek + ".";
+        // Ordlyd (Ann 17/10): ingen grænse i teksten. Under KORT_SEK er
+        // grænsen (2 %) så lille, at et tal ikke siger ham noget.
+        svar.forklaring = vaegurSek < KORT_SEK
+          ? "Optagelsen er for kort til at måle sikkert. Prøv igen."
+          : ("Der mangler " + komma(tabRaa) + " sekunder lyd inde i optagelsen, " +
+             "så den kan ikke bruges. Optag den igen.");
       } else {
         svar.ok = true;
         if (mig._graenseNaaet) {
@@ -503,6 +513,15 @@
   }
 
   function rund(n) { return Math.round(n * 10) / 10; }
+  // Til tekst på skærmen: én decimal med komma, og aldrig "0" for noget, der
+  // ikke er nul (D85).
+  function komma(n) {
+    var r = rund(n);
+    if (r === 0 && n > 0) r = 0.1;
+    return String(r).replace(".", ",");
+  }
+  // Under denne længde siger tab og grænse i sekunder ham ikke noget (D85).
+  var KORT_SEK = 2.5;
 
   function fejl(kode, tekst) {
     var e = new Error(tekst);
