@@ -391,6 +391,7 @@
     .indtal-label-row label { margin-bottom: 0; }
     .indtal-knap { display: inline-flex; align-items: center; gap: 5px; background: var(--white); border: 1.5px solid var(--line); color: var(--accent); border-radius: 10px; padding: 5px 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
     .indtal-knap svg { width: 15px; height: 15px; }
+    .indtal-knap:disabled { opacity: .4; cursor: default; }
     .indtal-panel { margin-top: 10px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); padding: 12px; }
     .indtal-optag { display: flex; align-items: center; gap: 12px; }
     .indtal-mic { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%; border: none; background: var(--steel); display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -892,7 +893,12 @@
       </div>
 
       <div class="mfield">
-        <label>Beskriv opgaven</label>
+        <!-- Indtal i en eksisterende opgave (Ann 17/10: han vaelger feltet).
+             Panelet flyttes ind under det felt, han trykkede ved. -->
+        <div class="indtal-label-row">
+          <label for="modal-task">Beskriv opgaven</label>
+          <button type="button" class="indtal-knap" data-maal="modal-task" id="indtal-aabn-modal-task" style="display:none" onclick="aabnIndtaling('modal-task')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="modal-task"></textarea>
       </div>
 
@@ -904,7 +910,10 @@
       </div>
 
       <div class="mfield">
-        <label>Noter (interne)</label>
+        <div class="indtal-label-row">
+          <label for="modal-notes">Noter (interne)</label>
+          <button type="button" class="indtal-knap" data-maal="modal-notes" id="indtal-aabn-modal-notes" style="display:none" onclick="aabnIndtaling('modal-notes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="modal-notes" placeholder="Ses kun af dig..."></textarea>
       </div>
 
@@ -1019,7 +1028,7 @@
              mulig (se aktiverIndtaling). -->
         <div class="indtal-label-row">
           <label for="new-task">Beskriv opgaven</label>
-          <button type="button" class="indtal-knap" id="indtal-aabn" style="display:none" onclick="aabnIndtaling()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+          <button type="button" class="indtal-knap" data-maal="new-task" id="indtal-aabn-new-task" style="display:none" onclick="aabnIndtaling('new-task')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
         </div>
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
         <div class="indtal-panel" id="indtal-panel" style="display:none">
@@ -1806,6 +1815,11 @@ function leadKort(lead) {
   //     hver indtaling er sit eget kald med sine egne 20 minutter, og teksten
   //     saettes EFTER den, der staar i feltet. Kun i Ny opgave — Referat-fanen
   //     laaser stadig mikrofonen efter "Lav tekst".
+  //   - Ogsaa i en EKSISTERENDE opgave (Ann 17/10, forslag 3), og han vaelger
+  //     feltet: en Indtal-knap ved "Beskriv opgaven" og en ved "Noter
+  //     (interne)". Der er ét panel; det flyttes ind under det felt, han
+  //     trykkede ved, og teksten saettes i det felt (`indtal.maal`). Teksten
+  //     gemmes af closeModal() som hans egne rettelser — intet nyt gem-kald.
   //
   // Optagelsen er Referat-fanens (tilbud/optager.js, D66-vaernene og 20 min).
   // Flowet her er kopieret fra tilbud/index.html: dele, "skal den med?",
@@ -1821,6 +1835,7 @@ function leadKort(lead) {
     valg: {},              // del-nr → true/false (afbrudt men hel: med eller ej)
     stopper: false,
     antalTekster: 0,       // hvor mange indtalinger der er lavet til tekst i dette vindue
+    maal: null,            // id paa feltet, teksten skal i: new-task, modal-task eller modal-notes
     arbejder: false,       // transskribering i gang
     ur: null,
     startMs: 0,
@@ -1838,11 +1853,17 @@ function leadKort(lead) {
     sc.onerror = () => console.warn('Indtal: /tilbud/optager.js kunne ikke hentes — ingen mikrofon i Ny opgave');
     document.head.appendChild(sc);
   }
+  // Alle Indtal-knapper: vist, naar indtaling er mulig — undtagen knappen ved
+  // det felt, panelet allerede staar under. Laast, mens der er lyd, han kan
+  // miste, saa panelet ikke kan flyttes midt i en optagelse.
   function visIndtalKnap() {
-    // Kun hvis panelet ikke allerede er aabent i et aabent vindue.
-    if (document.getElementById('indtal-panel').style.display === 'none') {
-      document.getElementById('indtal-aabn').style.display = indtal.mulig ? '' : 'none';
-    }
+    const panelAabent = indtalEl('indtal-panel').style.display !== 'none';
+    const travl = indtalHarUafsluttet() || indtal.arbejder || indtal.stopper;
+    document.querySelectorAll('.indtal-knap').forEach((b) => {
+      const herUnder = panelAabent && b.dataset.maal === indtal.maal;
+      b.style.display = indtal.mulig && !herUnder ? '' : 'none';
+      b.disabled = travl;
+    });
   }
 
   function indtalEl(id) { return document.getElementById(id); }
@@ -1873,6 +1894,7 @@ function leadKort(lead) {
     const o = indtal.optager;
     const optager = !!(o && o.tilstand === 'optager');
     indtalEl('new-lead-opret').disabled = optager || indtal.stopper || indtal.arbejder;
+    visIndtalKnap();
   }
 
   // Der er lyd, han kan miste: dele, der ikke er lavet til tekst endnu.
@@ -1896,8 +1918,8 @@ function leadKort(lead) {
     indtal.stopper = false;
     indtal.antalTekster = 0;
     indtal.arbejder = false;
+    indtal.maal = null;
     indtalEl('indtal-panel').style.display = 'none';
-    indtalEl('indtal-aabn').style.display = indtal.mulig ? '' : 'none';
     indtalFejl('');
     const mic = indtalEl('indtal-mic');
     mic.classList.remove('recording');
@@ -1911,6 +1933,7 @@ function leadKort(lead) {
     knap.textContent = INDTAL_TEKST_KNAP;
     indtalEl('indtal-tip-bg').classList.remove('open');
     indtalEl('new-lead-opret').disabled = false;
+    visIndtalKnap();
   }
 
   // Kald til serveren med to faser (login → server) og en tidsgraense, som
@@ -1964,11 +1987,21 @@ function leadKort(lead) {
     });
   }
 
-  async function aabnIndtaling() {
+  async function aabnIndtaling(maal) {
     if (!indtal.mulig || !window.Optager) return;
+    const felt = indtalEl(maal);
+    if (!felt) return;
+    // Panelet flyttes ikke, mens der er lyd, han kan miste (knappen er ogsaa laast).
+    if (indtal.optager && (indtalHarUafsluttet() || indtal.arbejder || indtal.stopper)) return;
+    const panel = indtalEl('indtal-panel');
+    felt.insertAdjacentElement('afterend', panel);
+    indtal.maal = maal;
+    panel.style.display = 'block';
+    visIndtalKnap();
+    // Var panelet allerede aabent ved det andet felt, er kvoten spurgt:
+    // samme optager, ny modtager.
+    if (indtal.optager) { indtalVisDele(); return; }
     const gen = indtal.gen;
-    indtalEl('indtal-aabn').style.display = 'none';
-    indtalEl('indtal-panel').style.display = 'block';
     indtalFejl('');
     indtalEl('indtal-mic').disabled = true;           // foerst naar kvoten har svaret
     indtalStatus('Tjekker din kvote …');
@@ -2169,7 +2202,7 @@ function leadKort(lead) {
     const tekst = (svar.tekst || '').trim();
     if (tekst) {
       // Har han allerede skrevet noget, kommer teksten EFTER — intet overskrives.
-      const felt = indtalEl('new-task');
+      const felt = indtalEl(indtal.maal);
       felt.value = felt.value.trim() ? felt.value.replace(/\s+$/, '') + '\n\n' + tekst : tekst;
     }
     // Delene er lavet til tekst og glemt. En ny optager giver en ny indtaling
@@ -2589,6 +2622,7 @@ function leadKort(lead) {
   ];
 
   async function openModal(lead) {
+    nulstilIndtaling();
     currentLead = lead;
     afslutOpen = false;
     document.getElementById('afslut-panel').classList.remove('open');
@@ -2755,6 +2789,11 @@ function leadKort(lead) {
   let lukker = false;
   async function closeModal() {
     if (lukker) return;
+    // Indtal (17/10): en optagelse, der ikke er lavet til tekst, forsvinder,
+    // naar vinduet lukker. Teksten, der allerede staar i feltet, gemmes nedenfor.
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Luk alligevel? Så forsvinder den.')) return;
+    nulstilIndtaling();
     lukker = true;
     try { await lukModal(); } finally { lukker = false; }
   }
