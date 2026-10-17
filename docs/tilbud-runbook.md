@@ -673,23 +673,27 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       telefon (`2026-10-16-mikrofon-tip`). Bevidst accepteret (Ann): to skærme
       kan betale for samme kladdes udkast. **Lærdom:** knapper, der genbruges
       mellem optagelser, nulstilles i `openOptag` — tekst OG låst.
+- [x] **Rettelser 17/10 — I STAGING, målt på iPhone.** D85: optagerens
+      beskeder med komma og uden grænse, afgørelse på uafrundede tal, opkald
+      nævnt (`6289cee`) · Indtal mere eller ret teksten på en kladde uden
+      udkast, titlen kan rettes (`2026-10-17-indtal-mere`, ny rute `POST
+      /referater/:id/transskript`, 409 `tekst_laast`). Ikke set efter deploy:
+      den nye opkaldstekst på telefonen.
 - [ ] **Venter på test udefra (Ann 16/10: opgaverne ligger her, til nogen har
-      testet):** titlen på en kladde med kun indtalt tekst kan ikke rettes ·
-      at optage mere, efter teksten er lavet · "fordi appen kom i baggrunden"
-      står også ved et opkald (ordlyd til Ann) · den hvide knap har ingen grå
-      udgave, når den er låst · kvotens feltnavn `spaerret` er fra `kvote.js`
-      29/9 — bekræft · et færdigt referat kan ikke genåbnes (beslutning) ·
-      fjern login-målingen (`150d0c5`), når Railway Logs ikke har vist
-      `login-maaling`, og afgør, om login-omvejen (`d4539d7`) bliver ·
-      `proev-optager*.js` og `proev-referat-*.js` er ikke i CI.
-- [ ] **Annes QA 16–17/10 (`QA af Referat-fanen`, 16 tests):** OK på 1–4, 6,
-      8–12, 15 og 16. **Åbent:** test 5 (afbrydelse: "Man kan ikke sige nej")
-      og test 7 ("?") — detaljer efterspurgt · test 13 (Ret) og 14 (Færdig)
-      ikke testet · mikrofonen spørger ved hvert referat — mål, om siden
-      genindlæses uden at appen lukkes · en opgave fra Nye opretter ikke en
-      kunde (givet til dashboard-chatten) · Anne mener at have testet foto;
-      fanen har ingen kameraknap (kun prøvebænkens måling 27/9,
-      `FOTOSAETTET.md`) — afklares.
+      testet):** den hvide knap har ingen grå udgave, når den er låst ·
+      kvotens feltnavn `spaerret` er fra `kvote.js` 29/9 — bekræft · et
+      færdigt referat kan ikke genåbnes (beslutning) · fjern login-målingen
+      (`150d0c5`), når Railway Logs ikke har vist `login-maaling`, og afgør,
+      om login-omvejen (`d4539d7`) bliver · overvej en præcisere besked end
+      `referat_ubrugeligt` ved indholdsløs tekst ("Der var ikke nok indhold
+      til et referat"; to betalte forsøg 17/10) · `proev-optager*.js`,
+      `proev-referat-*.js` og `proev-indtal-mere.js` er ikke i CI.
+- [x] **Annes QA 16–17/10 (`QA af Referat-fanen`, 16 tests): alle OK** — test
+      5, 7, 13 og 14 bekræftet af Anne 17/10. At mikrofonen kun spørger nogle
+      gange, er iOS' egen opførsel med "Spørg", ikke en genindlæsning.
+      **Tilbage fra QA:** en opgave fra Nye opretter ikke en kunde
+      (dashboard-chatten) · Anne mener at have testet foto; fanen har ingen
+      kameraknap (kun prøvebænkens måling 27/9, `FOTOSAETTET.md`) — afklares.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
