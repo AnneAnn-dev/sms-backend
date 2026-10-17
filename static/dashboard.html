@@ -383,6 +383,37 @@
     .sort-btn { background: var(--white); border: 1.5px solid var(--line); border-radius: 20px; padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--muted); font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
     .sort-btn.active { background: var(--steel); color: white; border-color: var(--steel); }
     .sort-btn:hover:not(.active) { background: var(--smoke); }
+
+    /* ── Indtal ny opgave (16/10-26) ──────────────────────────────────────
+       Mikrofonen i "+ Ny opgave". Vises kun, naar /api/moduler svarer
+       tilbudAktiv:true, og /tilbud/optager.js er hentet. */
+    .indtal-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .indtal-label-row label { margin-bottom: 0; }
+    .indtal-knap { display: inline-flex; align-items: center; gap: 5px; background: var(--white); border: 1.5px solid var(--line); color: var(--accent); border-radius: 10px; padding: 5px 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    .indtal-knap svg { width: 15px; height: 15px; }
+    .indtal-panel { margin-top: 10px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); padding: 12px; }
+    .indtal-optag { display: flex; align-items: center; gap: 12px; }
+    .indtal-mic { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%; border: none; background: var(--steel); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .indtal-mic svg { width: 24px; height: 24px; }
+    .indtal-mic.recording { background: var(--danger); }
+    .indtal-mic:disabled { opacity: .4; cursor: default; }
+    .indtal-status { font-weight: 700; font-size: 14px; color: var(--ink-muted); }
+    .indtal-status.live { color: var(--danger); }
+    .indtal-tid { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+    .indtal-j8 { font-size: 12.5px; color: var(--ink-muted); margin: 10px 2px 0; line-height: 1.45; }
+    .indtal-fejl { background: var(--danger-light); color: var(--danger-dark); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.45; margin-bottom: 10px; }
+    #indtal-dele { margin-top: 10px; }
+    #indtal-dele:empty { display: none; }
+    .indtal-del { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13.5px; }
+    .indtal-del .dt { font-weight: 700; }
+    .indtal-del .dm { color: var(--ink-muted); font-size: 12.5px; margin-top: 2px; line-height: 1.4; }
+    .indtal-del.kasseret { opacity: .6; }
+    .indtal-del.kasseret .dt { text-decoration: line-through; }
+    .indtal-del-valg { display: flex; gap: 8px; margin-top: 8px; }
+    .indtal-tekst-knap { width: 100%; margin-top: 6px; }
+    .indtal-tekst-knap:disabled, #new-lead-opret:disabled { opacity: .55; cursor: default; }
+    #indtal-tip-bg { z-index: 200; align-items: flex-end; }
+    #indtal-tip-bg .modal { padding: 20px; margin: auto auto 0; }
   </style>
 </head>
 <body>
@@ -953,7 +984,7 @@
           <div class="mhead-phone">Opret manuelt</div>
         </div>
       </div>
-      <button class="close-btn" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
+      <button class="close-btn" onclick="lukNyOpgave()" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
     <div class="mbody">
       <div class="mfield">
@@ -983,8 +1014,29 @@
         <input type="email" id="new-mail" placeholder="anders@eksempel.dk">
       </div>
       <div class="mfield">
-        <label>Beskriv opgaven</label>
+        <!-- Indtal ny opgave (16/10-26): teksten bliver opgavebeskrivelsen, og
+             han kan rette den i feltet. Knappen vises kun, naar indtaling er
+             mulig (se aktiverIndtaling). -->
+        <div class="indtal-label-row">
+          <label for="new-task">Beskriv opgaven</label>
+          <button type="button" class="indtal-knap" id="indtal-aabn" style="display:none" onclick="aabnIndtaling()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
+        <div class="indtal-panel" id="indtal-panel" style="display:none">
+          <div class="indtal-fejl" id="indtal-fejl" style="display:none"></div>
+          <div class="indtal-optag">
+            <button type="button" class="indtal-mic" id="indtal-mic" disabled onclick="indtalMicTryk()" aria-label="Start optagelse"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
+            <div>
+              <div class="indtal-status" id="indtal-status"></div>
+              <div class="indtal-tid" id="indtal-tid"></div>
+            </div>
+          </div>
+          <!-- J8 tekst 1: ordlyden godkendt af Anne 26/8, ordret som i
+               Referat-fanen (Ann 16/10). Rettes kun efter Annes ordlyd. -->
+          <p class="indtal-j8">Kun dine egne noter. Nævnes andre, er det dit ansvar, at de ved det.</p>
+          <div id="indtal-dele"></div>
+          <button type="button" class="btn-afslut indtal-tekst-knap" id="indtal-tekst-knap" style="display:none" onclick="indtalLavTekst()">Lav tekst af optagelsen</button>
+        </div>
       </div>
       <!-- SKJULT 20/7 (kodeopgave 14): se kommentaren i opgave-modalen. -->
       <div class="mfield" style="display:none">
@@ -1006,9 +1058,19 @@
     </div>
     <div class="mfoot">
       <div class="mfoot-spacer"></div>
-      <button class="btn-luk" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')">Annuller</button>
-      <button class="btn-afslut" onclick="saveNewLead(this)">Opret opgave</button>
+      <button class="btn-luk" onclick="lukNyOpgave()">Annuller</button>
+      <button class="btn-afslut" id="new-lead-opret" onclick="saveNewLead(this)">Opret opgave</button>
     </div>
+  </div>
+</div>
+
+<!-- Mikrofon-tippet (Ann 14/10, tekst 2) — samme ark som i Referat-fanen og
+     samme to noegler i localStorage, saa det vises én gang pr. telefon, uanset
+     hvor han optager. Teksten saettes af indtalMicTryk(). -->
+<div class="modal-bg" id="indtal-tip-bg" onclick="if (event.target === this) this.classList.remove('open')">
+  <div class="modal">
+    <p id="indtal-tip-tekst" style="font-size:15px;line-height:1.5;margin:0 0 14px"></p>
+    <button type="button" class="btn-afslut" style="width:100%" onclick="indtalTipOk()">OK</button>
   </div>
 </div>
 
@@ -1635,15 +1697,25 @@ function leadKort(lead) {
     newDawaValgt = false;
     document.getElementById('new-task').value = '';
     document.getElementById('new-mail').value = '';
+    // Noterne stod tilbage fra forrige opgave (fundet 17/10-26 under Indtal).
+    document.getElementById('new-notes').value = '';
     document.getElementById('new-urgent-cb').checked = false;
     document.getElementById('new-urgent-row').classList.remove('checked');
+    nulstilIndtaling();
     document.getElementById('new-lead-modal-bg').classList.add('open');
   }
 
   function closeNewLeadModal(event) {
-    if (event.target === document.getElementById('new-lead-modal-bg')) {
-      document.getElementById('new-lead-modal-bg').classList.remove('open');
-    }
+    if (event.target === document.getElementById('new-lead-modal-bg')) lukNyOpgave();
+  }
+
+  // Alle tre veje ud af vinduet (krydset, Annuller, baggrunden) gaar herigennem,
+  // saa en optagelse aldrig kan blive staaende og koere, naar vinduet er lukket.
+  function lukNyOpgave() {
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Luk alligevel? Så forsvinder den.')) return;
+    stopIndtaling();
+    document.getElementById('new-lead-modal-bg').classList.remove('open');
   }
 
   function toggleNewUrgent() {
@@ -1656,6 +1728,8 @@ function leadKort(lead) {
   let savingLead = false;                       // vagt mod dobbelt-submit
   async function saveNewLead(btn) {
     if (savingLead) return;                     // ignorér klik nr. 2
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Opret opgaven uden den?')) return;
     savingLead = true;
     if (btn) btn.disabled = true;
     try {
@@ -1711,12 +1785,388 @@ function leadKort(lead) {
         return;
       }
 
+      stopIndtaling();
       document.getElementById('new-lead-modal-bg').classList.remove('open');
       loadData();
     } finally {
       savingLead = false;                        // nulstil, så man kan rette og gemme igen
       if (btn) btn.disabled = false;
     }
+  }
+
+  // ══ INDTAL NY OPGAVE (16/10-26) ═══════════════════════════════════════════
+  // Beslutninger (Ann 16/10):
+  //   - Indgangen er "+ Ny opgave". Teksten bliver opgavebeskrivelsen, ikke et
+  //     referat, og han kan rette den i feltet. Kunden udfyldes i haanden.
+  //   - Intet modul. Kun naar TILBUD_AKTIV er taendt (/api/moduler).
+  //   - Samme kvote som Referat-fanen, bogfoert som `opgave_transskription`
+  //     (/api/indtaling/*, routes/tilbud/index.js).
+  //   - J8 tekst 1 staar ordret som i fanen.
+  //
+  // Optagelsen er Referat-fanens (tilbud/optager.js, D66-vaernene og 20 min).
+  // Flowet her er kopieret fra tilbud/index.html: dele, "skal den med?",
+  // fravaelg(), mikrofon-tippet og teksten efter Annuller.
+  //
+  // ⚠️ FAELDEN FRA FANEN (16/10, to fejl samme dag): knapper, der genbruges,
+  // skal nulstilles HVER gang vinduet aabnes — tekst OG disabled. Det goer
+  // nulstilIndtaling(), og den kaldes fra openNewLeadModal().
+  const indtal = {
+    mulig: false,          // optager.js hentet og flaget taendt
+    gen: 0,                // stiger ved hver nulstilling; svar fra en gammel runde ignoreres
+    optager: null,
+    valg: {},              // del-nr → true/false (afbrudt men hel: med eller ej)
+    stopper: false,
+    transskriberet: false,
+    arbejder: false,       // transskribering i gang
+    ur: null,
+    startMs: 0,
+  };
+  const INDTAL_TEKST_KNAP = 'Lav tekst af optagelsen';
+  const MIK_HAR_OPTAGET = 'ddk-mik-har-optaget';   // samme noegler som Referat-fanen
+  const MIK_TIP_VIST = 'ddk-mik-tip-vist';
+  let mikStartetPaaSiden = false;
+
+  function aktiverIndtaling() {
+    if (window.Optager) { indtal.mulig = true; visIndtalKnap(); return; }
+    const sc = document.createElement('script');
+    sc.src = '/tilbud/optager.js';
+    sc.onload = () => { if (window.Optager) { indtal.mulig = true; visIndtalKnap(); } };
+    sc.onerror = () => console.warn('Indtal: /tilbud/optager.js kunne ikke hentes — ingen mikrofon i Ny opgave');
+    document.head.appendChild(sc);
+  }
+  function visIndtalKnap() {
+    // Kun hvis panelet ikke allerede er aabent i et aabent vindue.
+    if (document.getElementById('indtal-panel').style.display === 'none') {
+      document.getElementById('indtal-aabn').style.display = indtal.mulig ? '' : 'none';
+    }
+  }
+
+  function indtalEl(id) { return document.getElementById(id); }
+  function indtalEsc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function indtalTid(sek) {
+    sek = Math.max(0, Math.round(sek || 0));
+    return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0');
+  }
+  function indtalStatus(tekst, live) {
+    const el = indtalEl('indtal-status');
+    el.textContent = tekst;
+    el.classList.toggle('live', !!live);
+  }
+  function indtalFejl(besked) {
+    const el = indtalEl('indtal-fejl');
+    if (!besked) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = besked;
+    el.style.display = 'block';
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+  }
+  function indtalStopUr() { if (indtal.ur) { clearInterval(indtal.ur); indtal.ur = null; } }
+
+  // Opret-knappen er laast, mens der optages eller laves tekst — ellers
+  // kunne opgaven oprettes, foer teksten var naaet frem.
+  function indtalOpdaterOpret() {
+    const o = indtal.optager;
+    const optager = !!(o && o.tilstand === 'optager');
+    indtalEl('new-lead-opret').disabled = optager || indtal.stopper || indtal.arbejder;
+  }
+
+  // Der er lyd, han kan miste: dele, der ikke er lavet til tekst endnu.
+  function indtalHarUafsluttet() {
+    const o = indtal.optager;
+    return !!(o && !indtal.transskriberet && (o.tilstand === 'optager' || o.dele.some(d => d.ok || d.kanBruges)));
+  }
+
+  // Stopper en igangvaerende optagelse og glemmer lyden. Lyd persisteres aldrig.
+  function stopIndtaling() {
+    indtal.gen++;
+    indtalStopUr();
+    const o = indtal.optager;
+    indtal.optager = null;
+    if (o && o.tilstand === 'optager') { try { o.stop().catch(() => {}); } catch (_) {} }
+  }
+
+  function nulstilIndtaling() {
+    stopIndtaling();
+    indtal.valg = {};
+    indtal.stopper = false;
+    indtal.transskriberet = false;
+    indtal.arbejder = false;
+    indtalEl('indtal-panel').style.display = 'none';
+    indtalEl('indtal-aabn').style.display = indtal.mulig ? '' : 'none';
+    indtalFejl('');
+    const mic = indtalEl('indtal-mic');
+    mic.classList.remove('recording');
+    mic.disabled = true;
+    indtalStatus('');
+    indtalEl('indtal-tid').textContent = '';
+    indtalEl('indtal-dele').innerHTML = '';
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.style.display = 'none';
+    knap.disabled = false;
+    knap.textContent = INDTAL_TEKST_KNAP;
+    indtalEl('indtal-tip-bg').classList.remove('open');
+    indtalEl('new-lead-opret').disabled = false;
+  }
+
+  // Kald til serveren med to faser (login → server) og en tidsgraense, som
+  // Referat-fanen: en knap, der venter, skal kunne sige HVOR den venter.
+  async function indtalApi(metode, sti, krop, { timeoutMs = 60000, paaFase = () => {} } = {}) {
+    paaFase('login');
+    const headers = await authHeader();
+    const afbryd = new AbortController();
+    const ur = setTimeout(() => afbryd.abort(), timeoutMs);
+    paaFase('server');
+    let svar;
+    try {
+      svar = await fetch(sti, { method: metode, headers, body: krop, signal: afbryd.signal });
+    } catch (e) {
+      throw Object.assign(new Error(e && e.name === 'AbortError'
+        ? 'Det tog for lang tid at få svar. Optagelsen er her stadig — prøv igen.'
+        : 'Vi kunne ikke få forbindelse. Tjek at du er på nettet, og prøv igen.'), { status: 0 });
+    } finally {
+      clearTimeout(ur);
+      paaFase('');
+    }
+    let data = null;
+    try { data = await svar.json(); } catch (_) { /* fx en HTML-fejlside */ }
+    if (!svar.ok) {
+      throw Object.assign(new Error((data && (data.besked || data.error)) || ('Serveren svarede ' + svar.status)),
+        { status: svar.status, kode: data && data.error });
+    }
+    if (!data) throw Object.assign(new Error('Serveren svarede uden indhold.'), { status: svar.status });
+    return data;
+  }
+  function indtalFejltekst(e) {
+    if (e && e.status === 401) return 'Du er blevet logget ud. Genindlæs siden, og log ind igen.';
+    return (e && e.message) || 'Noget gik galt. Prøv igen.';
+  }
+
+  // Mikrofonteksterne er Anns (14/10). Domaenet tages fra sidens adresse.
+  function indtalMikSaetning() {
+    return 'Tryk Tillad, når ' + location.hostname + ' beder om tilladelse til at bruge din mikrofon';
+  }
+  function indtalMikFejl(e) {
+    if (e && e.name === 'NotAllowedError') return indtalMikSaetning() + ', ellers kan du ikke indtale opgaven.';
+    if (e && e.kode) return e.message;  // optager.js' egne afvisninger har en faerdig besked
+    return 'Optagelsen kunne ikke startes (' + ((e && (e.name || e.message)) || 'ukendt fejl') + ').';
+  }
+
+  async function aabnIndtaling() {
+    if (!indtal.mulig || !window.Optager) return;
+    const gen = indtal.gen;
+    indtalEl('indtal-aabn').style.display = 'none';
+    indtalEl('indtal-panel').style.display = 'block';
+    indtalFejl('');
+    indtalEl('indtal-mic').disabled = true;           // foerst naar kvoten har svaret
+    indtalStatus('Tjekker din kvote …');
+    indtal.optager = new Optager({
+      paaAfbrydelse: function (aarsag) { indtalStatus('Optagelsen stoppede: ' + aarsag); indtalAfslutDel(); },
+      paaGraense: function () { indtalStatus('Grænsen på 20 minutter er nået'); indtalAfslutDel(); },
+    });
+    let kvote;
+    try {
+      kvote = await indtalApi('GET', '/api/indtaling/kvote');
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      indtalStatus('Der kan ikke optages lige nu');
+      return indtalFejl(indtalFejltekst(e));
+    }
+    if (gen !== indtal.gen) return;                   // vinduet er lukket/genaabnet imens
+    if (kvote && kvote.spaerret === true) {
+      indtalStatus('Der kan ikke optages lige nu');
+      return indtalFejl(kvote.besked || 'Du har brugt din kvote. Kontakt os, hvis du har brug for mere.');
+    }
+    indtalEl('indtal-mic').disabled = false;
+    indtalStatus('Tryk for at optage');
+  }
+
+  function indtalLagerLaes(k) { try { return localStorage.getItem(k); } catch (_) { return '?'; } }
+  function indtalLagerSaet(k) { try { localStorage.setItem(k, '1'); } catch (_) { /* intet tip er bedre end en fejl */ } }
+
+  function indtalMicTryk() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper) return;
+    if (o.tilstand === 'optager') return indtalAfslutDel();
+    // Tippet: har han optaget foer, og er det foerste optagelse paa denne
+    // sideindlaesning, spoerger iOS igen. Kun én gang nogensinde pr. telefon.
+    if (!mikStartetPaaSiden && indtalLagerLaes(MIK_HAR_OPTAGET) === '1' && indtalLagerLaes(MIK_TIP_VIST) === null) {
+      indtalLagerSaet(MIK_TIP_VIST);                  // sat ved visning, som i fanen
+      indtalEl('indtal-tip-tekst').textContent = indtalMikSaetning() +
+        '. Er du træt af at give tilladelse hver gang, så gå i Indstillinger → Apps → Safari → Mikrofon og vælg Tillad.';
+      indtalEl('indtal-tip-bg').classList.add('open');
+      return;
+    }
+    indtalStartOptagelse();
+  }
+  function indtalTipOk() {
+    indtalEl('indtal-tip-bg').classList.remove('open');
+    indtalStartOptagelse();
+  }
+
+  async function indtalStartOptagelse() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper || o.tilstand === 'optager') return;
+    const gen = indtal.gen;
+    indtalFejl('');
+    const mic = indtalEl('indtal-mic');
+    mic.disabled = true;                              // iOS' dialog kan staa aaben i minutter
+    indtalStatus('Venter på mikrofonen …');
+    try {
+      if (o.dele.length) await o.fortsaet(); else await o.start();
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      mic.disabled = false;
+      indtalVisDele();
+      return indtalFejl(indtalMikFejl(e));
+    }
+    if (gen !== indtal.gen) { try { o.stop().catch(() => {}); } catch (_) {} return; }
+    mikStartetPaaSiden = true;
+    indtalLagerSaet(MIK_HAR_OPTAGET);
+    mic.disabled = false;
+    mic.classList.add('recording');
+    indtalStatus('Optager — tryk for at stoppe', true);
+    indtalOpdaterOpret();
+    indtalStopUr();
+    indtal.startMs = Date.now();
+    const vis = () => {
+      if (!indtal.optager || indtal.optager.tilstand !== 'optager') return;
+      indtalEl('indtal-tid').textContent = indtalTid((Date.now() - indtal.startMs) / 1000) + ' · ' + indtalTid(indtal.optager.restSek()) + ' tilbage';
+    };
+    vis();
+    indtal.ur = setInterval(vis, 500);
+  }
+
+  async function indtalAfslutDel() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper) return;
+    const gen = indtal.gen;
+    indtal.stopper = true;
+    indtalStopUr();
+    const mic = indtalEl('indtal-mic');
+    mic.classList.remove('recording');
+    mic.disabled = true;
+    try {
+      await o.stop();
+    } catch (e) {
+      if (gen === indtal.gen) indtalFejl('Optagelsen kunne ikke afsluttes (' + (e && e.message) + ').');
+    } finally {
+      if (gen === indtal.gen) indtal.stopper = false;
+    }
+    if (gen !== indtal.gen) return;
+    indtalVisDele();
+  }
+
+  // En del er med, hvis optager.js har godkendt den, eller hvis den stoppede
+  // med lyden hel OG han har sagt ja til den.
+  function indtalErMed(d) { return d.ok || (d.kanBruges && indtal.valg[d.del] === true); }
+  function indtalVenter(d) { return !d.ok && d.kanBruges && indtal.valg[d.del] === undefined; }
+
+  function indtalVisDele() {
+    const o = indtal.optager;
+    if (!o) return;
+    const wrap = indtalEl('indtal-dele');
+    wrap.innerHTML = o.dele.map(d => {
+      const laengde = indtalTid(d.varighedSek != null ? d.varighedSek : d.vaegurSek);
+      let klasse = 'indtal-del', tekst, valg = '';
+      if (d.ok) {
+        tekst = 'Med' + (d.forklaring ? ' — ' + d.forklaring : '');
+      } else if (d.kanBruges && indtal.valg[d.del] === undefined) {
+        tekst = d.forklaring + ' Skal den med?';
+        valg = `<div class="indtal-del-valg">
+            <button class="btn-afslut" type="button" data-del="${d.del}" data-svar="ja">Ja, brug den</button>
+            <button class="btn-luk" type="button" data-del="${d.del}" data-svar="nej">Nej, kassér den</button>
+          </div>`;
+      } else if (d.kanBruges && indtal.valg[d.del] === true) {
+        tekst = 'Med — ' + d.forklaring;
+      } else if (d.kanBruges) {
+        klasse += ' kasseret';
+        tekst = 'Kasseret af dig. Den kommer ikke med i teksten.';
+      } else {
+        klasse += ' kasseret';
+        tekst = 'Kasseret: ' + (d.forklaring || 'optagelsen kunne ikke bruges.') + ' Den kommer ikke med i teksten.';
+      }
+      return `<div class="${klasse}">
+          <div class="dt">Del ${d.del} · ${indtalEsc(laengde)}</div>
+          <div class="dm">${indtalEsc(tekst)}</div>${valg}
+        </div>`;
+    }).join('');
+    wrap.querySelectorAll('button[data-svar]').forEach(b => {
+      b.addEventListener('click', () => {
+        const nr = Number(b.dataset.del);
+        indtal.valg[nr] = b.dataset.svar === 'ja';
+        // Et nej betyder, at delen ikke taeller mod de 20 minutter (16/10).
+        if (!indtal.valg[nr] && indtal.optager) indtal.optager.fravaelg(nr);
+        indtalVisDele();
+      });
+    });
+
+    const med = o.dele.filter(indtalErMed);
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.style.display = (!indtal.transskriberet && med.length) ? 'block' : 'none';
+    knap.disabled = indtal.arbejder || o.dele.some(indtalVenter);
+    indtalOpdaterOpret();
+
+    if (o.tilstand === 'optager') return;
+    const mic = indtalEl('indtal-mic');
+    const rest = o.restSek();
+    if (indtal.transskriberet) {
+      mic.disabled = true;
+      indtalStatus('Teksten står i feltet — ret den, hvis noget er hørt forkert');
+      indtalEl('indtal-tid').textContent = '';
+    } else if (indtal.arbejder) {
+      mic.disabled = true;
+    } else if (rest < 1) {
+      mic.disabled = true;
+      indtalStatus('Grænsen på 20 minutter er nået');
+      indtalEl('indtal-tid').textContent = '';
+    } else {
+      mic.disabled = false;
+      indtalStatus(o.dele.length ? 'Tryk for at fortsætte optagelsen' : 'Tryk for at optage');
+      indtalEl('indtal-tid').textContent = o.dele.length ? indtalTid(rest) + ' tilbage' : '';
+    }
+  }
+
+  async function indtalLavTekst() {
+    const o = indtal.optager;
+    if (!o || indtal.arbejder) return;
+    const med = o.dele.filter(indtalErMed);
+    if (!med.length || o.dele.some(indtalVenter)) return;
+    const gen = indtal.gen;
+    indtalFejl('');
+    indtal.arbejder = true;
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.disabled = true;
+    indtalEl('indtal-mic').disabled = true;
+    indtalOpdaterOpret();
+    const form = new FormData();
+    // Raekkefoelgen er delenes egen. Serveren aendrer den ikke.
+    med.forEach((d, i) => form.append('dele', d.blob, d.filnavn || ('del-' + (i + 1))));
+    let svar;
+    try {
+      svar = await indtalApi('POST', '/api/indtaling/transskriber', form, {
+        timeoutMs: 150000,
+        paaFase: (f) => { if (gen === indtal.gen) knap.textContent = f === 'login' ? 'Logger ind …' : f === 'server' ? 'Laver tekst …' : INDTAL_TEKST_KNAP; },
+      });
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      indtal.arbejder = false;
+      knap.textContent = INDTAL_TEKST_KNAP;
+      indtalVisDele();
+      return indtalFejl(indtalFejltekst(e));
+    }
+    if (gen !== indtal.gen) return;                   // vinduet er lukket imens: teksten hoerer ikke til en ny opgave
+    indtal.arbejder = false;
+    indtal.transskriberet = true;
+    knap.textContent = INDTAL_TEKST_KNAP;
+    const tekst = (svar.tekst || '').trim();
+    if (tekst) {
+      // Har han allerede skrevet noget, kommer teksten EFTER — intet overskrives.
+      const felt = indtalEl('new-task');
+      felt.value = felt.value.trim() ? felt.value.replace(/\s+$/, '') + '\n\n' + tekst : tekst;
+    }
+    indtalVisDele();
+    if (!tekst) indtalFejl('Der blev ikke hørt nogen ord i optagelsen. Du kan skrive teksten selv i feltet.');
   }
 
   function setPage(page) {
@@ -1741,6 +2191,9 @@ function leadKort(lead) {
       const svar = await r.json();
       if (svar.tilbudAktiv !== true) return;
       aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : []);
+      // Indtal ny opgave foelger TILBUD_AKTIV (Ann 16/10) — men intet modul:
+      // alle firmaer faar mikrofonen.
+      aktiverIndtaling();
     } catch (err) {
       console.warn('Faner: /api/moduler svarede ikke — bliver ved den gamle liste:', err);
     }

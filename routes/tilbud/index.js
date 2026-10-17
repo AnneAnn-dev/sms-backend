@@ -39,6 +39,8 @@ const RUTER = [
   "/api/tilbud/kvote",
   "/api/tilbud/transskriber",
   "/api/tilbud/referat",
+  "/api/indtaling/kvote",
+  "/api/indtaling/transskriber",
 ];
 
 // ─── Grænsen for ÉN transskription ind i referatet ───────────────────────────
@@ -228,7 +230,13 @@ module.exports = function (app, supabase) {
   // ─── Kvotestatus — spørges FØR han trykker optag ───────────────────────────
   // Besluttet 29/9: han skal have besked, INDEN han har talt i to et halvt
   // minut. En databaseforespørgsel er gratis; en tabt optagelse er ikke.
-  app.get("/api/tilbud/kvote", async (req, res) => {
+  //
+  // INDTAL NY OPGAVE (Ann 16/10-26): samme kvote, men ruten findes to steder.
+  // /api/tilbud/kvote er spærret med modulet `referat` (server.js), mens
+  // /api/indtaling/kvote ikke kræver noget modul — "+ Ny opgave" har
+  // mikrofonen for alle firmaer. Begge kræver login, og begge findes kun,
+  // når TILBUD_AKTIV er tændt, fordi denne fil kun monteres da.
+  const kvoteRute = async (req, res) => {
     const firmId = await firmIdFromToken(supabase, req);
     if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
     try {
@@ -241,7 +249,9 @@ module.exports = function (app, supabase) {
         besked: "Vi kan ikke se dit forbrug lige nu. Prøv igen om lidt.",
       });
     }
-  });
+  };
+  app.get("/api/tilbud/kvote", kvoteRute);
+  app.get("/api/indtaling/kvote", kvoteRute);
 
   // ─── Transskription ────────────────────────────────────────────────────────
   // ÉT kald med ALLE dele. Kvoten tælles på den samlede lydtid, ikke pr. del —
@@ -250,7 +260,35 @@ module.exports = function (app, supabase) {
   // Delene transskriberes hver for sig og sættes sammen i den rækkefølge,
   // klienten sendte dem. Adapteren kender kun ÉN fil, med vilje
   // (docs/asr-adapter.md); sammensætningen hører til her.
-  app.post("/api/tilbud/transskriber", (req, res) => {
+  //
+  // TO INDGANGE, ÉN RUTE (Indtal ny opgave, Ann 16/10-26). Referat-fanen og
+  // "+ Ny opgave" transskriberer med samme værn: kvoten før kaldet, kaldsloftet,
+  // 20 minutter + 2, ingen halv tekst. De adskiller sig kun i
+  //   - FORMÅLET, der bogføres i ai_forbrug, så forbruget kan skilles ad
+  //     (`opgave_transskription`, Ann 16/10 — kræver migrationen
+  //     20261017070000_ai_forbrug_opgave_transskription.sql FØR denne kode)
+  //   - de to beskeder, der nævner "referat"
+  //   - modulspærren, som server.js sætter på /api/tilbud/transskriber og
+  //     IKKE på /api/indtaling/transskriber (Ann 16/10: intet modul).
+  //
+  // ⚠️ RÆKKEFØLGEN MIGRATION → KODE ER IKKE PYNT. Mangler formålet i
+  // CHECK-reglen ai_forbrug_formaal_gyldig, afviser databasen rækken, og
+  // kvote.bogfoer() logger fejlen og lader svaret gå igennem (den må aldrig
+  // vælte et betalt svar). Så transskriberes der gratis, og loftet virker ikke.
+  const TRANSSKRIBERING = {
+    tilbud: {
+      formaal: "transskription",
+      forMangeDele: `En diktering kan bestå af højst ${MAX_DELE} dele. Gem det, du har, og start et nyt referat.`,
+      forLang: "Optagelsen er for lang til at blive lavet til tekst. Et referat kan højst være 20 minutter.",
+    },
+    opgave: {
+      formaal: "opgave_transskription",
+      forMangeDele: `En indtaling kan bestå af højst ${MAX_DELE} dele.`,
+      forLang: "Optagelsen er for lang til at blive lavet til tekst. En indtaling kan højst være 20 minutter.",
+    },
+  };
+
+  const transskriberRute = (indgang) => (req, res) => {
     upload.array("dele", MAX_DELE)(req, res, async (multerFejl) => {
       if (multerFejl) {
         const forStor = multerFejl.code === "LIMIT_FILE_SIZE";
@@ -261,7 +299,7 @@ module.exports = function (app, supabase) {
           // slaas op i driftrunbookens Del 3b.
           besked: forStor
             ? "Optagelsen er for lang til at behandles i ét stykke. Stop og start forfra, eller kontakt os."
-            : `En diktering kan bestå af højst ${MAX_DELE} dele. Gem det, du har, og start et nyt referat.`,
+            : indgang.forMangeDele,
         });
       }
 
@@ -364,7 +402,7 @@ module.exports = function (app, supabase) {
 
         // Bogføres PR. KALD, fordi det er pr. kald, leverandøren afregner.
         await kvote.bogfoer({
-          firmId, formaal: "transskription",
+          firmId, formaal: indgang.formaal,
           leverandoer: del.leverandoer, model: del.model,
           enhed: "lydsekund", maengde: del.lydsekunder, prisOere,
         }, supabase);
@@ -386,12 +424,12 @@ module.exports = function (app, supabase) {
         if (lydIAlt > MAKS_LYDSEKUNDER + MARGIN_LYDSEKUNDER) {
           const g = new Error(`Optagelsen over 20 min: ${Math.round(lydIAlt)} s efter del ${i + 1}/${dele.length}`);
           g.name = "Lydgraense";
-          console.warn("⚠️ LYDGRAENSE", { firmId, lydsekunder: Math.round(lydIAlt), del: i + 1, afDele: dele.length });
+          console.warn("⚠️ LYDGRAENSE", { firmId, formaal: indgang.formaal, lydsekunder: Math.round(lydIAlt), del: i + 1, afDele: dele.length });
           sendError(g);
           return res.status(413).json({
             error: "optagelse_for_lang",
             lydsekunder: Math.round(lydIAlt),
-            besked: "Optagelsen er for lang til at blive lavet til tekst. Et referat kan højst være 20 minutter.",
+            besked: indgang.forLang,
           });
         }
       }
@@ -414,7 +452,9 @@ module.exports = function (app, supabase) {
         restOere: Math.max(0, dom.loftOere - forbrugtFoer),
       });
     });
-  });
+  };
+  app.post("/api/tilbud/transskriber", transskriberRute(TRANSSKRIBERING.tilbud));
+  app.post("/api/indtaling/transskriber", transskriberRute(TRANSSKRIBERING.opgave));
 
   // ─── Referatet ─────────────────────────────────────────────────────────────
   // Tekst ind, referat ud — plus teknik B's markeringer, så han kan se HVAD
