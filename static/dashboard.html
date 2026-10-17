@@ -1802,6 +1802,10 @@ function leadKort(lead) {
   //   - Samme kvote som Referat-fanen, bogfoert som `opgave_transskription`
   //     (/api/indtaling/*, routes/tilbud/index.js).
   //   - J8 tekst 1 staar ordret som i fanen.
+  //   - Han kan indtale MERE, efter teksten er lavet (Ann 17/10, forslag 2):
+  //     hver indtaling er sit eget kald med sine egne 20 minutter, og teksten
+  //     saettes EFTER den, der staar i feltet. Kun i Ny opgave — Referat-fanen
+  //     laaser stadig mikrofonen efter "Lav tekst".
   //
   // Optagelsen er Referat-fanens (tilbud/optager.js, D66-vaernene og 20 min).
   // Flowet her er kopieret fra tilbud/index.html: dele, "skal den med?",
@@ -1816,7 +1820,7 @@ function leadKort(lead) {
     optager: null,
     valg: {},              // del-nr → true/false (afbrudt men hel: med eller ej)
     stopper: false,
-    transskriberet: false,
+    antalTekster: 0,       // hvor mange indtalinger der er lavet til tekst i dette vindue
     arbejder: false,       // transskribering i gang
     ur: null,
     startMs: 0,
@@ -1874,7 +1878,7 @@ function leadKort(lead) {
   // Der er lyd, han kan miste: dele, der ikke er lavet til tekst endnu.
   function indtalHarUafsluttet() {
     const o = indtal.optager;
-    return !!(o && !indtal.transskriberet && (o.tilstand === 'optager' || o.dele.some(d => d.ok || d.kanBruges)));
+    return !!(o && (o.tilstand === 'optager' || o.dele.some(d => d.ok || d.kanBruges)));
   }
 
   // Stopper en igangvaerende optagelse og glemmer lyden. Lyd persisteres aldrig.
@@ -1890,7 +1894,7 @@ function leadKort(lead) {
     stopIndtaling();
     indtal.valg = {};
     indtal.stopper = false;
-    indtal.transskriberet = false;
+    indtal.antalTekster = 0;
     indtal.arbejder = false;
     indtalEl('indtal-panel').style.display = 'none';
     indtalEl('indtal-aabn').style.display = indtal.mulig ? '' : 'none';
@@ -1952,6 +1956,14 @@ function leadKort(lead) {
     return 'Optagelsen kunne ikke startes (' + ((e && (e.name || e.message)) || 'ukendt fejl') + ').';
   }
 
+  // En ny optager = en ny indtaling med fulde 20 minutter og ingen dele.
+  function nyIndtalOptager() {
+    return new Optager({
+      paaAfbrydelse: function (aarsag) { indtalStatus('Optagelsen stoppede: ' + aarsag); indtalAfslutDel(); },
+      paaGraense: function () { indtalStatus('Grænsen på 20 minutter er nået'); indtalAfslutDel(); },
+    });
+  }
+
   async function aabnIndtaling() {
     if (!indtal.mulig || !window.Optager) return;
     const gen = indtal.gen;
@@ -1960,10 +1972,7 @@ function leadKort(lead) {
     indtalFejl('');
     indtalEl('indtal-mic').disabled = true;           // foerst naar kvoten har svaret
     indtalStatus('Tjekker din kvote …');
-    indtal.optager = new Optager({
-      paaAfbrydelse: function (aarsag) { indtalStatus('Optagelsen stoppede: ' + aarsag); indtalAfslutDel(); },
-      paaGraense: function () { indtalStatus('Grænsen på 20 minutter er nået'); indtalAfslutDel(); },
-    });
+    indtal.optager = nyIndtalOptager();
     let kvote;
     try {
       kvote = await indtalApi('GET', '/api/indtaling/kvote');
@@ -2103,18 +2112,14 @@ function leadKort(lead) {
 
     const med = o.dele.filter(indtalErMed);
     const knap = indtalEl('indtal-tekst-knap');
-    knap.style.display = (!indtal.transskriberet && med.length) ? 'block' : 'none';
+    knap.style.display = med.length ? 'block' : 'none';
     knap.disabled = indtal.arbejder || o.dele.some(indtalVenter);
     indtalOpdaterOpret();
 
     if (o.tilstand === 'optager') return;
     const mic = indtalEl('indtal-mic');
     const rest = o.restSek();
-    if (indtal.transskriberet) {
-      mic.disabled = true;
-      indtalStatus('Teksten står i feltet — ret den, hvis noget er hørt forkert');
-      indtalEl('indtal-tid').textContent = '';
-    } else if (indtal.arbejder) {
+    if (indtal.arbejder) {
       mic.disabled = true;
     } else if (rest < 1) {
       mic.disabled = true;
@@ -2122,7 +2127,9 @@ function leadKort(lead) {
       indtalEl('indtal-tid').textContent = '';
     } else {
       mic.disabled = false;
-      indtalStatus(o.dele.length ? 'Tryk for at fortsætte optagelsen' : 'Tryk for at optage');
+      indtalStatus(o.dele.length ? 'Tryk for at fortsætte optagelsen'
+        : indtal.antalTekster ? 'Teksten står i feltet — ret den, eller tryk for at indtale mere'
+        : 'Tryk for at optage');
       indtalEl('indtal-tid').textContent = o.dele.length ? indtalTid(rest) + ' tilbage' : '';
     }
   }
@@ -2157,7 +2164,7 @@ function leadKort(lead) {
     }
     if (gen !== indtal.gen) return;                   // vinduet er lukket imens: teksten hoerer ikke til en ny opgave
     indtal.arbejder = false;
-    indtal.transskriberet = true;
+    indtal.antalTekster++;
     knap.textContent = INDTAL_TEKST_KNAP;
     const tekst = (svar.tekst || '').trim();
     if (tekst) {
@@ -2165,6 +2172,10 @@ function leadKort(lead) {
       const felt = indtalEl('new-task');
       felt.value = felt.value.trim() ? felt.value.replace(/\s+$/, '') + '\n\n' + tekst : tekst;
     }
+    // Delene er lavet til tekst og glemt. En ny optager giver en ny indtaling
+    // med fulde 20 minutter; den naeste tekst saettes efter den, der staar.
+    indtal.optager = nyIndtalOptager();
+    indtal.valg = {};
     indtalVisDele();
     if (!tekst) indtalFejl('Der blev ikke hørt nogen ord i optagelsen. Du kan skrive teksten selv i feltet.');
   }
