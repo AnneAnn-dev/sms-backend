@@ -864,7 +864,7 @@ månedsloft. Du husker, at han siger, den ikke svarer.
 | Symptom | Bremse | Spørg sådan | Slip den sådan |
 |---|---|---|---|
 | `/api/tilbud/*` og `/tilbud/*` giver 404, som om modulet ikke findes | `TILBUD_AKTIV=false` | `GET /health` → `"tilbud"` | Variablen i Railway + genstart |
-| Opkald når ikke frem, men Twilio siger, de er sendt | `OPKALD_SIGNATUR=haandhaev` afviser opkald med forkert signatur | `GET /health` → `"opkaldSignatur"` | Se opkaldsafsnittet — rul ikke bare tilbage til `log` |
+| Opkald når ikke frem, men Twilio siger, de er sendt | Signaturkontrollen i `onboarding.js` afviser kald med forkert signatur med 403. Altid: der er ingen variabel siden 17/10-26 | Railway-loggen: `🚫 /opkald AFVIST`. Twilio: opkaldet → Request Inspector → svarkode 403 | Ingen variabel at slå om. Rollback til en deploy fra før 17/10-26 (se punkt 24), og ret derefter URL-bygningen i koden |
 | Det virkede, og så holdt det op midt i en arbejdsgang. Svaret er 429 | `ratelimit.js` (S12) | Railway-loggen + grænserne i `ratelimit.js` | Grænsen hæves i koden, ikke i en variabel |
 | Ét firma kan ikke lave referater. Beskeden nævner **måneden** | Firmaets månedsloft er nået | `GET /api/tilbud/kvote` → `spaerret` | `firma_profil.ai_maanedsloft_dkk` hæves med én linje SQL |
 | Ét firma kan ikke lave referater. Beskeden nævner **i dag** | Firmaets dagsloft er nået | Samme | `firma_profil.ai_dagsloft_dkk`, eller vent til i morgen |
@@ -1303,7 +1303,7 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
 
 23. **Mulighed for at sætte MFA op på dashboardet (todo — tilføjet 29/7):** brugeren (håndværkeren) skal selv kunne aktivere to-faktor-login (MFA/TOTP, fx Google Authenticator/Authy) på sin konto. Supabase Auth understøtter TOTP-MFA indbygget (`auth.mfa.enroll` → QR-kode → `auth.mfa.challenge`/`verify`), så det er ikke en ny mekanisme, der skal bygges fra bunden. **Vigtig afgrænsning ift. eksisterende funktioner:** dette er noget ANDET end engangskoden (`email_otp`), der allerede findes i redningsvejen (pkt. 1a-1d) — den er en genvej IND i appen ved glemt adgangskode; MFA er et EKSTRA lag OVENPÅ login. UI-teksten skal holde de to begreber adskilt, ellers bliver "kode" tvetydigt for brugeren. **Reel kompleksitet, ikke kun én skærm:** login har allerede tre veje ind (adgangskode, magic link, engangskode) og en PWA/Safari-session-arkitektur, der har krævet flere runder hærdning (16/7, 19/7, 20/7) — en MFA-udfordring skal fungere i ALLE tre veje og inde i den installerede app, ikke kun i Safari. En Supabase-session efter bestået MFA-udfordring får et andet AAL-niveau (aal2) — tjek om noget i koden (RLS-politikker, sessions-tjek) forudsætter aal1 og skal opdateres. **AFKLAR M. ANNE FØRST (produktbeslutning, ikke kun teknik):** skal MFA være valgfrit (brugeren slår det til selv, fx under en ny "Sikkerhed"-sektion på profilsiden) eller obligatorisk? Målgruppen (håndværkere, ofte på farten, i forvejen udfordret af PWA-installationen, jf. pkt. 1e) taler for valgfrit indtil videre — ufrivillig ekstra friktion ved login er en reel risiko. **Prioritet: lav / efter piloten** — ingen pilotkunder har efterspurgt det, og det rører login-stien, som lige er blevet stabil (samme forsigtighed som pkt. 20 om adressefelterne: rør ikke tre lige-stabiliserede filer uden god grund).
 
-24. **Twilio-signaturkontrol på `/opkald` — udrulning i prod (fundet 31/7 af `smoke.js`):**
+24. **Twilio-signaturkontrol på `/opkald` — udrulning i prod (fundet 31/7 af `smoke.js`):** ✅ **LUKKET 17/10-26.**
     Ruten havde INGEN signaturvalidering: den læste `req.body.To`/`.From` og handlede
     på dem, som var de sandheden. Enhver, der kendte adressen, kunne dermed sende
     SMS fra håndværkerens nummer til et vilkårligt nummer (linje ~371), oprette
@@ -1330,26 +1330,36 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
         og `Formular-SMS sendt` i Railway-loggen. Når der håndhæves, stopper en
         ugyldig signatur ved `AFVIST`, før koden når så langt. URL-bygningen
         (https + host) virker altså bag Railways TLS. Desuden findes der rækker
-        i prod-`calls` fra efter 2/8, så ægte opkald er kommet igennem hele perioden.
+        i prod-`calls` fra efter 2/8, så ægte opkald er kommet igennem under håndhævelse.
       - 🔑 *Lærdom:* læg på, før viderestillingen slår til, og opkaldet når aldrig
         Twilio. Teleselskabet viderestiller først ved manglende svar, så der kommer
         hverken kald til `/opkald` eller en linje i Call Logs. Det er ikke en fejl.
         Testopkaldet skal vente, til telefonsvareren tager det.
       - 🔑 *Hvor svarkoden står:* nummerets fane **Call logs** → klik opkaldet →
         Request Inspector. Ikke *Message logs*, som kun viser SMS'er.
-    - ⚠️ Bekræftelsen `✅ signatur OK` findes ikke længere i loggen — den logges
-      kun i log-tilstand. Fra nu af logges kun afvisninger.
-    - ⚠️ **Variablen ruller med ved rollback.** Ruller du prod tilbage til en deploy
-      fra før 2/8-26, forsvinder `OPKALD_SIGNATUR` uden varsel, standarden `log`
-      træder i kraft, og håndhævelsen er slået fra igen. Se rollback-afsnittet, punkt 2.
-    - ✅ `OPKALD_SIGNATUR` tilføjet i `.env.prod` og `.env.staging` 5/8-26 under
-      D16-oprydningen (se variabeltabellen), så lokale kørsler ikke opfører sig anderledes end skyen. **Derefter:** fjern variablen og gaflen i `onboarding.js`
-    igen, når `haandhaev` har kørt problemfrit et par uger — et flag har en
-    dødsdato, og fjernelsen er kun sikker, mens flaget står TÆNDT.
-    ⏭️ **Forfalden pr. 14/10-26:** `haandhaev` har kørt siden 2/8 uden afviste ægte
-    opkald. Fjernelsen af flaget og gaflen er næste skridt.
-    Bemærk: `✅ signatur OK` logges kun i log-tilstand; når der håndhæves, logges
-    kun afvisninger (ellers er linjen tapet).
+    - ✅ (4) **FLAGET FJERNET 16-17/10-26** (commit `7fa1dd4`, hotfix-gren fra `main`).
+      `OPKALD_SIGNATUR` og gaflen er væk. Begge ruter, `/opkald` og
+      `/twilio/opkaldsstatus`, afviser nu altid ugyldige kald med 403, og kun
+      afvisninger logges. `/health` melder ikke længere `opkaldSignatur`, og
+      opstartsblokken har ikke længere linjen `Opkaldssignatur:`. `smoke.js` kræver
+      nu præcis 403; før godtog den alt under 500, så et statisk sites 404 bestod.
+      - *Staging 16/10:* røgtest 13/13, ægte opkald igennem, og et verifikationsopkald
+        via onboardingens **Ring til mig** gav `Verifikationsopkald forbundet` kl. 07:28.
+        Det er den første positive måling af `/twilio/opkaldsstatus` med signaturkontrol.
+      - *Prod 17/10:* opstartsblok uden `Opkaldssignatur:`, `npm run smoke:prod` 13/13
+        med `afvist med 403`, og et ægte opkald kl. 08:10 gav `Opkald modtaget` og
+        `Formular-SMS sendt`. `/twilio/opkaldsstatus` er **ikke** målt positivt i prod;
+        det kræver en ny onboarding. Indicier: ingen fejl i Twilios Debugger på de to
+        verifikationsopkald 7/10, og callback-URL'en ligger på samme domæne som `/opkald`.
+      - *Variablen slettet* i Railway (prod og staging) og i `.env.prod`/`.env.staging`
+        efter prod-deployet. `afstem-railway-env.js` viser den ingen steder.
+      - 🔑 *Rækkefølgen var pointen:* koden først, variablen sidst. Slettes variablen,
+        mens gammel kode kører, falder den tilbage til `log`, og kontrollen er slået fra.
+      - ⚠️ *Der er ingen bremse længere.* Afvises ægte opkald, findes der ingen variabel
+        at slå om. Vejen er rollback i Railway til en deploy fra før 17/10-26. Variablerne
+        ruller med (rollback-afsnittet, punkt 2), så den gamle kode får
+        `OPKALD_SIGNATUR=haandhaev` tilbage og kan sættes på `log` derfra. Ret derefter
+        koden.
 25. **Røgtestens næste tjek (vedligeholdelsesreglen, lav prioritet):** to kandidater
     fra egen historik — (a) at Twilio-nummerets voice-webhook peger på det RIGTIGE
     miljø (staging-nummer → staging-URL); et nummer, der peger forkert, fejler
