@@ -301,8 +301,11 @@
     .mbody { padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .mfield label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 6px; margin-top: 0; font-weight: 700; font-family: 'Nunito', sans-serif; }
-    .mfield input[type=text], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 14px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
-    .mfield input[type=text]:focus, .mfield input[type=date]:focus, .mfield textarea:focus, .mfield select:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    /* 16px, ikke 14: iOS zoomer siden ind ved fokus i et felt under 16px og zoomer
+       ikke ud igen — saa sad bundbjaelken midt paa skaermen, og venstre side var
+       skaaret af (17-18/10-26). type=tel var slet ikke med foer. */
+    .mfield input[type=text], .mfield input[type=tel], .mfield input[type=date], .mfield textarea, .mfield select { width: 100%; padding: 11px 13px; font-size: 16px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; transition: border-color .2s, box-shadow .2s; }
+    .mfield input[type=text]:focus, .mfield input[type=tel]:focus, .mfield input[type=date]:focus, .mfield textarea:focus, .mfield select:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
     .mfield textarea { height: 72px; }
     .date-wrap { position: relative; }
     .date-wrap input { padding-right: 32px; cursor: pointer; }
@@ -330,7 +333,7 @@
     .tpl-btn { font-size: 12px; padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: none; color: var(--ink-muted); cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 600; }
     .tpl-btn:hover { background: var(--smoke); }
     .tpl-btn.active { background: var(--steel-light); border-color: var(--steel); color: var(--navy); }
-    .sms-textarea { width: 100%; padding: 11px 13px; font-size: 13px; font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; height: 80px; margin-top: 8px; transition: border-color .2s, box-shadow .2s; }
+    .sms-textarea { width: 100%; padding: 11px 13px; font-size: 16px; /* 16px: se .mfield */ font-family: inherit; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); outline: none; resize: none; height: 80px; margin-top: 8px; transition: border-color .2s, box-shadow .2s; }
     .sms-textarea:focus { border-color: var(--steel); background: var(--white); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
     .char-count { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 3px; }
 
@@ -409,7 +412,7 @@
      (se onAuthStateChange) — et abonnement kan ikke gemmes uden en session. -->
 <div id="push-spoerg" style="display:none;position:fixed;inset:0;z-index:9998;background:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
   <div style="font-size:26px;font-weight:800;color:#16232F;margin-bottom:12px">Få besked om nye opgaver</div>
-  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0">Om lidt bliver du spurgt, om du vil tillade notifikationer.<br><strong style="color:#16232F">Tryk &bdquo;Tillad&ldquo;.</strong><br>Så får du et badge med et tal, der viser nye opgaver.</p>
+  <p style="font-size:17px;line-height:1.5;color:#5B6B7A;max-width:320px;margin:0"><strong style="color:#16232F">Tryk &bdquo;Tillad&ldquo;</strong> &ndash; når du bliver spurgt om du vil tillade notifikationer.</p>
   <button id="push-spoerg-ja" type="button"
           style="margin-top:28px;min-height:54px;padding:0 32px;border:none;border-radius:14px;background:#2C6B9E;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Ja tak, giv mig besked</button>
   <button id="push-spoerg-nej" type="button"
@@ -2388,7 +2391,7 @@ let sidsteBadgeAntal = 0;
 
 function updateBadge(count) {
   sidsteBadgeAntal = count;
-  document.title = count > 0 ? `(${count}) Leads` : 'Leads';
+  document.title = count > 0 ? `(${count}) Dit Digitale Kontor` : 'Dit Digitale Kontor';
   anvendBadge();
 }
 
