@@ -3,10 +3,13 @@
 //   node kor-proever.js
 //
 // Hver proeve koeres for sig med `node <fil>` fra repoets rod, UDEN dine
-// miljoevariabler (ingen noegler, tokens eller .env) og med en tidsgraense.
-// Saa opfoerer den sig lokalt, som den goer i GitHub Actions, og en proeve,
-// der i virkeligheden har brug for en noegle eller et rigtigt net, fejler
-// ogsaa her - foer den goer CI roed uden grund.
+// miljoevariabler og med en tidsgraense.
+//
+// FORBEHOLD (maalt 18/10): en proeve, der selv laeser .env med dotenv, faar
+// alligevel noeglerne lokalt - .env ligger paa disken, ikke i miljoeet.
+// Lokalt groent er derfor ikke det samme som groent i CI, hvor der ingen
+// .env er. Det var saadan proev-forloeb og proev-moduler slap igennem
+// lokalt og blev roede i CI. CI-koerslen er facit.
 //
 // TO LISTER, OG ALLE PROEVER SKAL STAA PAA EN AF DEM:
 //   KOERES    - koeres i CI; en fejl goer koerslen roed.
@@ -24,11 +27,9 @@ const { spawnSync } = require("child_process");
 const KOERES = [
   "proev-asr-adapter.js",
   "proev-ejerskab.js",
-  "proev-forloeb.js",
   "proev-indtal-mere.js",
   "proev-kvote.js",
   "proev-login-maaling.js",
-  "proev-moduler.js",
   "proev-optager-besked.js",
   "proev-optager-fravalg.js",
   "proev-optager.js",
@@ -47,6 +48,8 @@ const IKKE_I_CI = {
   "proev-referat-rute.js":   "kalder staging over nettet med TILBUD_TEST_TOKEN (maalt 18/10)",
   "proev-transskriber.js":   "kalder staging over nettet med TILBUD_TEST_TOKEN (maalt 18/10)",
   "proev-teknik-b.js":       "kraever stien til proevebaenken som argument (maalt 18/10)",
+  "proev-forloeb.js":        "laeser Supabase-noegler fra .env og kalder databasen (roed i CI 18/10)",
+  "proev-moduler.js":        "laeser Supabase-noegler og BASE_URL fra .env og kalder databasen (roed i CI 18/10)",
 };
 
 const TIDSGRAENSE_MS = 120000;
