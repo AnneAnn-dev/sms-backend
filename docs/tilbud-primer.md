@@ -184,24 +184,33 @@ Den beskrivelse er ikke længere gældende.
   "Kundemøde" er fjernet som valgmulighed; kun "Noter" er tilbage. Restrisikoen er
   **misbrug** — at håndværkeren optager et møde alligevel — ikke en manglende
   samtykkemekanik. Derfor er værnet tekst og ansvarsplacering, ikke en samtykkeskærm.
-- **Tre tekster er release-blokerende for diktafonen.** Godkendt af Anne 26/8;
-  implementering i koden udestår. Ordlyden er den godkendte:
-  1. **Advarsel ved optageknappen:** "Kun dine egne noter. Nævnes andre, er det dit
-     ansvar, at de ved det."
-  2. **Uddybning i onboarding:** "Referat-fanen er til dine egne noter — ikke til at
-     optage kundemøder. Du taler frit ind, og vi laver et referat af det, du selv
-     siger. Nævner du andre i optagelsen, en kollega, en kunde, er det dig, der har
-     ansvaret for at fortælle dem, at du optager."
-  3. **Linje i vilkårene:** "Referat-funktionen ('Noter') er til brugerens egne
-     notater. Nævnes tredjeparter i en optagelse, er det brugerens eget ansvar at
-     oplyse dem om det — Dit Digitale Kontor indhenter ikke samtykke på
-     tredjeparters vegne."
+- **Tre tekster er release-blokerende for diktafonen.** Godkendt af Anne 26/8 og
+  **revideret 9/9**, da fotovejen var besluttet (28/8): tekst 2 og 3 dækker nu både
+  indtaling og fotograferet seddel. **9/9-ordlyden manglede i repoet; Ann fandt den
+  18/10, og her står den.** Ordlyden er den godkendte:
+  1. **Advarsel ved optageknappen — uændret:** "Kun dine egne noter. Nævnes andre,
+     er det dit ansvar, at de ved det." Teksten er formatneutral. **Den skal stå
+     BEGGE steder: ved optageknappen og ved kameraknappen.**
+  2. **Uddybning i onboarding — omskrevet 9/9:** "Referat-fanen er til dine egne
+     noter — ikke til at optage kundemøder. Du kan tale frit ind, eller tage et
+     billede af en seddel, du selv har skrevet, og vi laver et referat af det.
+     Nævner du andre — en kollega, en kunde — i det, du taler ind, eller på den
+     seddel, du fotograferer, er det dig, der har ansvaret for, at de ved det."
+  3. **Linje i vilkårene — omskrevet 9/9:** "Referat-funktionen ('Noter') er til
+     brugerens egne notater, indtalte eller håndskrevne og fotograferede. Nævnes
+     tredjeparter i en optagelse eller på en fotograferet note, er det brugerens
+     eget ansvar at oplyse dem om det — Dit Digitale Kontor indhenter ikke samtykke
+     på tredjeparters vegne."
+- **Status 18/10:** tekst 1 står ved optageknappen i Referat-fanen (staging 15/10)
+  og i dashboardets Indtal; kameraknappen findes ikke endnu. Tekst 2 er ikke lagt
+  ind i onboardingen. Tekst 3 skrives ind i vilkårene af Anne — og J13 (17/10):
+  linjen nævner kun Referat-funktionen, ikke indtaling i opgaver.
 - **Konsekvens for CLAUDE.md's tilbuds-invariant.** Invarianten siger "tvungen
   samtykkeskærm i produktet, ikke en linje i vilkårene". Den blev skrevet, da fanen
   stadig var en mødeoptager. Med tredjeparter udelukket fra optagelse er der ikke
   længere en tredjepart at indhente samtykke fra — værnet er flyttet fra en skærm
   til en afgrænsning plus de tre tekster. **Invarianten bør omformuleres, så den
-  ikke læses som et krav, der er sprunget over.** Ikke gjort endnu.
+  ikke læses som et krav, der er sprunget over.** Gjort 13/10 (`c095d8d`, D80).
 
 ## Claude-proxy (4 AI-kald) — besluttet
 

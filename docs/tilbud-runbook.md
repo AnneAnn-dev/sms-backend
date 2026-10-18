@@ -617,10 +617,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       iPhone 16/10: intet tip ved første optagelse; tip ved næste
       sideindlæsning, og iOS' dialog kom bagefter; efter log ud og ind kun
       iOS' dialog.
-- [ ] **Mål før teksterne låses:** åbnes prod-dashboardet fra
-      `opgave.ditdigitalekontor.dk`? ✅ **Målt 15/10: efter Annuller spørger
-      iOS igen i samme session** ved næste tryk — tekst 3 behøver ikke sige
-      "luk og åbn appen". Tilbage: prod-domænet.
+- [x] **Mål før teksterne låses — MÅLT.** Prod-domænet (18/10):
+      `opgave.ditdigitalekontor.dk/` svarer 302 til hjemmesiden,
+      `manifest.json` har `start_url /dashboard`, og `/dashboard` svarer 200 —
+      appen og `/tilbud/` ligger på opgave.ditdigitalekontor.dk. Efter
+      Annuller spørger iOS igen i samme session (15/10), så tekst 3 behøver
+      ikke sige "luk og åbn appen".
 - [ ] **J8 tekst 3 = linje i vilkårene** (ikke kode). Anne skriver den. Åbent
       for Ann/Anne: skal eksisterende kunder se linjen, når de får
       Referathjælperen?
@@ -677,11 +679,11 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       beskeder med komma og uden grænse, afgørelse på uafrundede tal, opkald
       nævnt (`6289cee`) · Indtal mere eller ret teksten på en kladde uden
       udkast, titlen kan rettes (`2026-10-17-indtal-mere`, ny rute `POST
-      /referater/:id/transskript`, 409 `tekst_laast`). Ikke set efter deploy:
-      den nye opkaldstekst på telefonen.
+      /referater/:id/transskript`, 409 `tekst_laast`). Opkaldsteksten set på
+      iPhone 18/10. `spaerret` bekræftet mod `GET /api/tilbud/kvote` 18/10.
+      **Næste `sw.js`-bump: v50.**
 - [ ] **Venter på test udefra (Ann 16/10: opgaverne ligger her, til nogen har
-      testet):** den hvide knap har ingen grå udgave, når den er låst ·
-      kvotens feltnavn `spaerret` er fra `kvote.js` 29/9 — bekræft · et
+      testet):** den hvide knap har ingen grå udgave, når den er låst · et
       færdigt referat kan ikke genåbnes (beslutning) · fjern login-målingen
       (`150d0c5`), når Railway Logs ikke har vist `login-maaling`, og afgør,
       om login-omvejen (`d4539d7`) bliver · overvej en præcisere besked end
