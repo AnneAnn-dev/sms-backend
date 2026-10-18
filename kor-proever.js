@@ -28,6 +28,7 @@ const KOERES = [
   "proev-asr-adapter.js",
   "proev-ejerskab.js",
   "proev-indtal-mere.js",
+  "proev-kundenoegle.js",
   "proev-kvote.js",
   "proev-login-maaling.js",
   "proev-optager-besked.js",
@@ -50,6 +51,7 @@ const IKKE_I_CI = {
   "proev-teknik-b.js":       "kraever stien til proevebaenken som argument (maalt 18/10)",
   "proev-forloeb.js":        "laeser Supabase-noegler fra .env og kalder databasen (roed i CI 18/10)",
   "proev-moduler.js":        "laeser Supabase-noegler og BASE_URL fra .env og kalder databasen (roed i CI 18/10)",
+  "proev-kunde-telefoner.js": "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88, 18/10)",
 };
 
 const TIDSGRAENSE_MS = 120000;
