@@ -7,7 +7,17 @@
 #  0) FOERST: koerer rls-isolation-test.js mod STAGING og stopper, hvis den
 #     ikke er groen (beslutning 13/10-26: RLS-proeven er et vaern foer prod)
 # Brug:  .\push-prod.ps1     (typisk KUN som del af en release, jf. runbook Del 1)
+#        .\push-prod.ps1 -IncludeAll
+#           -- KUN naar 'db push --dry-run' har sagt "Found local migration files
+#           to be inserted before the last migration on remote database", OG
+#           'db push --dry-run --include-all' viser praecis de forventede filer.
+#           Indfoert 18/10-26: Fase 1a og 1b (13/10) var aeldre end prods
+#           nyeste migration (17/10), og scriptet kunne ikke sende flaget med.
 # -----------------------------------------------------------------------------
+param(
+    [switch]$IncludeAll
+)
+
 $PROD_REF    = "glymuxqtrbpeyzmflilf"
 $STAGING_REF = "hehrvdmtzokzbnbihcel"
 
@@ -63,8 +73,18 @@ if ($ref -ne $PROD_REF) {
 }
 
 Write-Host "[OK] Link verificeret: prod -- pusher migrationer..." -ForegroundColor Green
-npx supabase db push
+if ($IncludeAll) {
+    Write-Host "[INFO]  --include-all: ogsaa migrationer, der er AELDRE end prods nyeste." -ForegroundColor Yellow
+    npx supabase db push --include-all
+} else {
+    npx supabase db push
+}
+$pushKode = $LASTEXITCODE
+if ($pushKode -ne 0) {
+    Write-Host "[FEJL] db push sluttede med kode $pushKode -- laes outputtet ovenfor." -ForegroundColor Red
+}
 
 # Skift ALTID tilbage til staging som hviletilstand, saa naeste push er sikkert:
 Write-Host "[SKIFT]  Skifter link tilbage til staging (fast hviletilstand)..."
 npx supabase link --project-ref $STAGING_REF
+exit $pushKode
