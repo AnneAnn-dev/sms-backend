@@ -681,15 +681,26 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       udkast, titlen kan rettes (`2026-10-17-indtal-mere`, ny rute `POST
       /referater/:id/transskript`, 409 `tekst_laast`). Opkaldsteksten set på
       iPhone 18/10. `spaerret` bekræftet mod `GET /api/tilbud/kvote` 18/10.
-      **Næste `sw.js`-bump: v50.**
+      **Næste `sw.js`-bump: v52** (dashboard-chatten brugte v50 og v51 18/10;
+      tjek `CACHE_NAME` i HEAD før hvert bump).
+- [x] **18/10 — prøverne i CI og D86.** Jobbet "Proever" i `ci.yml` kører
+      `kor-proever.js`: 15 prøver ved hvert push til staging og hver PR; 6 er
+      udeladt med begrundelse i filen (`.env`, staging-token, prøvebænk).
+      ⚠️ En prøve, der selv læser `.env`, er grøn lokalt og rød i CI — CI er
+      facit (`004dde9`, `4320cd7`). D86: en fejlet bogføring sender
+      `Bogfoeringsfejl` til AppSignal (`3682bc9`).
+      **Bevis af kode uden egen rute, i staging:** `railway ssh` (SSH-nøgle
+      registreret 18/10) → ved Linux-prompten `root@…:/app#`: `node -r
+      ./appsignal.cjs -e '…'`. Aldrig lokalt — fund (c) ovenfor gælder stadig;
+      det første D86-forsøg 18/10 blev kørt på Windows og gav intet.
 - [ ] **Venter på test udefra (Ann 16/10: opgaverne ligger her, til nogen har
       testet):** den hvide knap har ingen grå udgave, når den er låst · et
       færdigt referat kan ikke genåbnes (beslutning) · fjern login-målingen
       (`150d0c5`), når Railway Logs ikke har vist `login-maaling`, og afgør,
       om login-omvejen (`d4539d7`) bliver · overvej en præcisere besked end
       `referat_ubrugeligt` ved indholdsløs tekst ("Der var ikke nok indhold
-      til et referat"; to betalte forsøg 17/10) · `proev-optager*.js`,
-      `proev-referat-*.js` og `proev-indtal-mere.js` er ikke i CI.
+      til et referat"; to betalte forsøg 17/10) · ~~prøverne er ikke i CI~~
+      (i CI fra 18/10, se ovenfor).
 - [x] **Annes QA 16–17/10 (`QA af Referat-fanen`, 16 tests): alle OK** — test
       5, 7, 13 og 14 bekræftet af Anne 17/10. At mikrofonen kun spørger nogle
       gange, er iOS' egen opførsel med "Spørg", ikke en genindlæsning.
