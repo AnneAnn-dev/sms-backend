@@ -1672,12 +1672,12 @@ function renderLeads() {
 function leadKort(lead) {
   const faner = document.body.classList.contains('faner');
   return `
-    <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${JSON.stringify(lead).replace(/"/g, '&quot;')})">
+    <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${esc(JSON.stringify(lead))})">
       <div class="lead-top">
-        <div class="lead-name">${lead.name}</div>
+        <div class="lead-name">${esc(lead.name)}</div>
         ${faner && !lead.seen_at && lead.status === 'open' ? '<span class="prik-ulaest" aria-hidden="true"></span><span class="sr-only">Ulæst</span>' : ''}
       </div>
-      <div class="lead-address">${formatAddress(lead.address)}</div>
+      <div class="lead-address">${esc(formatAddress(lead.address))}</div>
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
         <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
           ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
@@ -2505,7 +2505,14 @@ function leadKort(lead) {
   let whitelist = [];
   let whitelistMax = 20;
 
-  function wlEsc(s) {
+  // Escape af ALT, der saettes ind via innerHTML/skabelonstreng (S33, 17/10-26).
+  // Hed foer wlEsc og blev kun brugt af hvidlisten — mens opgavekortene satte
+  // kundens navn og adresse ind raat. Navnet kommer fra den offentlige formular,
+  // saa enhver med et SMS-link kunne faa kode til at koere i det indloggede
+  // dashboard. Beskytter i HTML-tekst og i attributter i "…"/'…' — IKKE inde i
+  // en JS-streng i onclick (dér afkoder browseren entiteterne foer JS'en koerer;
+  // byg elementet med DOM i stedet, som billederne i opgavevinduet).
+  function esc(s) {
     return String(s ?? '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -2533,9 +2540,9 @@ function leadKort(lead) {
     }
     list.innerHTML = whitelist.map(n => `
       <div class="wl-row">
-        <div class="wl-row-name">${wlEsc(n.label || n.number)}</div>
-        <div class="wl-row-num">${n.label ? wlEsc(n.number) : ''}</div>
-        <button class="wl-row-del" onclick="deleteWhitelistNumber('${wlEsc(n.id)}')" aria-label="Slet">×</button>
+        <div class="wl-row-name">${esc(n.label || n.number)}</div>
+        <div class="wl-row-num">${n.label ? esc(n.number) : ''}</div>
+        <button class="wl-row-del" onclick="deleteWhitelistNumber('${esc(n.id)}')" aria-label="Slet">×</button>
       </div>`).join('');
   }
 
@@ -2690,9 +2697,17 @@ function leadKort(lead) {
         if (error) { console.warn('Signering fejlede for', path, '→', error.message); return null; }
         return data?.signedUrl || null;
       }));
-      imagesEl.innerHTML = signed.filter(Boolean).map(url =>
-        `<img src="${url}" onclick="window.open('${url}')" style="cursor:pointer">`
-      ).join('');
+      // Bygget med DOM, ikke skabelonstreng (S33): URL'en indeholder kundens
+      // filnavn, og i onclick="window.open('…')" ville et ' i navnet bryde ud
+      // af JS-strengen — det fanger esc() ikke.
+      imagesEl.textContent = '';
+      signed.filter(Boolean).forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', () => window.open(url));
+        imagesEl.appendChild(img);
+      });
     } else {
       imagesEl.innerHTML = '';
     }
