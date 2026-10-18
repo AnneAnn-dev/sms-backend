@@ -8,6 +8,19 @@
 
 "use strict";
 
+// D86: AppSignal erstattes af en attrap, saa proeven kan se, hvad der sendes.
+// Skal staa FOER kvote.js hentes.
+const Module = require("module");
+const sendt = [];
+let sendErrorKaster = false;
+const _load = Module._load;
+Module._load = function (navn, ...rest) {
+  if (navn === "@appsignal/nodejs") {
+    return { sendError: (e) => { sendt.push(e); if (sendErrorKaster) throw new Error("appsignal nede"); } };
+  }
+  return _load.call(this, navn, ...rest);
+};
+
 const k = require("./kvote");
 
 let bestaaet = 0, fejlet = 0;
@@ -32,7 +45,7 @@ const LOFTER_DRIFT = {
 const LOFTER = { ...LOFTER_DRIFT, AI_FIRMA_DAGSLOFT_DKK: "5000" };
 
 // Attrap: raekker = liste af {firm_id, created_at, pris_oere}
-function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa = null }) {
+function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa = null, insertFejl = null }) {
   return {
     from(tabel) {
       if (tabel === "firma_profil") {
@@ -57,7 +70,7 @@ function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa 
           res(svar);
         },
       });
-      return { select: () => byg([]), insert: async () => ({ error: null }) };
+      return { select: () => byg([]), insert: async () => ({ error: insertFejl ? { message: insertFejl } : null }) };
     },
   };
 }
@@ -166,6 +179,27 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   lig("rammer graensen praecis", k.krydsedeVarsel(5599, 1, L), true);
   lig("springer forbi i ét kald", k.krydsedeVarsel(100, 6900, L), true);
   lig("uden loft varsles der ikke", k.krydsedeVarsel(100, 100, 0), false);
+
+  console.log("\nBOGFOERINGEN — en fejl skal larme i AppSignal (D86)");
+  const POST = { firmId: "F-hemmelig", formaal: "referat", leverandoer: "scaleway",
+    model: "m", enhed: "token", maengde: 10, prisOere: 7 };
+  sendt.length = 0;
+  const b1 = await k.bogfoer(POST, attrap({}));
+  lig("vellykket bogfoering", b1.bogfoert, true);
+  lig("vellykket bogfoering sender intet", sendt.length, 0);
+  sendt.length = 0;
+  const b2 = await k.bogfoer(POST, attrap({ insertFejl: "violates check constraint" }));
+  lig("fejlet bogfoering vaelter ikke svaret", b2.bogfoert, false);
+  lig("fejlet bogfoering sendes til AppSignal", sendt.length, 1);
+  lig("navnet er Bogfoeringsfejl", sendt[0] && sendt[0].name, "Bogfoeringsfejl");
+  lig("beskeden naevner formaal og fejltekst",
+    !!(sendt[0] && /referat/.test(sendt[0].message) && /violates check constraint/.test(sendt[0].message)), true);
+  lig("beskeden indeholder ikke firm_id", !!(sendt[0] && sendt[0].message.includes("F-hemmelig")), false);
+  sendt.length = 0; sendErrorKaster = true;
+  let b3, kastet = false;
+  try { b3 = await k.bogfoer(POST, attrap({ insertFejl: "nede" })); } catch (_) { kastet = true; }
+  sendErrorKaster = false;
+  lig("AppSignal nede vaelter heller ikke svaret", `${kastet} ${b3 && b3.bogfoert}`, "false false");
 
   console.log(`\n${bestaaet} bestaaet, ${fejlet} fejlet.`);
   if (fejlet) process.exit(1);

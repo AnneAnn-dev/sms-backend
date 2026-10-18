@@ -33,6 +33,9 @@
 
 "use strict";
 
+// D86: en fejlet bogfoering skal larme i AppSignal, ikke kun i Railway-loggen.
+const { sendError } = require("@appsignal/nodejs");
+
 const TIDSZONE = "Europe/Copenhagen";
 
 // Månedsskiftet følger DANSK tid, ikke UTC (besluttet 29/9). Med UTC ville
@@ -300,6 +303,15 @@ async function bogfoer({ firmId, formaal, leverandoer, model, enhed, maengde, pr
   // et forbrug, der ikke bogføres, er et loft, der ikke virker.
   if (error) {
     console.error("❌ ai_forbrug kunne ikke skrives:", error.message, { firmId, formaal });
+    // D86 (fundet 17/10-26): loggen alene er ikke nok. Ingen kaldesteder laeser
+    // returvaerdien, saa et loft, der holder op med at virke (forkert formaal i
+    // CHECK-reglen, en tabel der er vaek), saas ellers kun af den, der tilfaeldigt
+    // laeser Railway-loggen. Samme navnemoenster som Kvoteafvisning, saa den
+    // larmer i driftrunbookens Del 3b. Kun formaal og fejltekst - ingen
+    // persondata, intet firm_id.
+    const f = new Error("Bogfoering fejlede (" + formaal + "): " + error.message);
+    f.name = "Bogfoeringsfejl";
+    try { sendError(f); } catch (_) { /* AppSignal maa aldrig vaelte svaret */ }
     return { bogfoert: false };
   }
   return { bogfoert: true };
