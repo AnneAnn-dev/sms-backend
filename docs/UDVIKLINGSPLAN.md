@@ -1,10 +1,10 @@
 # Udviklingsplan: fra telefonpasser til modulær app
 
 > **Kopi til repoet.** Masteren er Claude Doc-udgaven: https://claude.ai/code/artifact/2ff8f1a7-b1d0-42ce-bfeb-8da2b8bbdaea
-> Denne fil er eksporteret derfra 18/10-26 (rev 52) og opdateres kun ved en ny eksport. Ret i Claude Doc-udgaven, ikke her.
-> Fase 2 punkt F holdes i synk med overdragelsen `claude/overdragelse-fase2-F.md` i projektet "tilbud".
+> Denne fil er eksporteret derfra 19/10-26 (rev 62) og opdateres kun ved en ny eksport. Ret i Claude Doc-udgaven, ikke her.
+> Fotovejen (Trin 3b) fortsætter i projektets `claude/overdragelse-fotovejen.md`.
 
-18/10-26 · Ann
+19/10-26 · Ann
 
 ## Kort fortalt
 
@@ -172,20 +172,20 @@ Seksten punkter skal afgøres, før `TILBUD_AKTIV` tændes i prod (opgjort 18/10
 
 **A. Indhold og jura (Ann og Anne)**
 
-- [ ] **1. J13 og J8 tekst 3:** Skal linjen i vilkårene udvides fra "Referat-funktionen" til al indtaling, fx "Indtalte noter og opgavebeskrivelser …"? Passer "Kun dine egne noter" (tekst 1) også i opgavevinduet? Skal afgøres, før `TILBUD_AKTIV` tændes.
+- [ ] **1. J13 og J8 tekst 3:** Afgjort af Ann 18/10: tekst 3 udvides til al indtaling, og "Kun dine egne noter" virker også i opgavevinduet. Tilbage: Annes ordlyd af den udvidede vilkårslinje, før `TILBUD_AKTIV` tændes.
 - [ ] **2. J9, leverandør og overførselsgrundlag:** Er leverandørerne til tale og tekst i prod dem, der er målt på, og er der en databehandleraftale? Opfølgningen hos Syvai står som "ikke bekræftet sendt".
 
 **B. Hvornår er det godt nok (Ann)**
 
-- [ ] **3. D36, stopkriteriet:** Der findes intet skriftligt stopkriterie for hele den tynde skive. Hvad skal være sandt, før prod tændes?
+- [x] **3. D36, stopkriteriet:** ✅ Skrevet og godkendt af Ann 18/10: diktafonvejen (bygget), fotovejen (beslutninger → måling af vision-model → samme JSON → penge først → bevis → Annes QA), fælles krav før TILBUD\_AKTIV, og hvad der bevidst ikke er krav. Under 150 ord er afskriften selv referatet. Åbent: værnet på fotovejen og roterede fotos. Fuld tekst i projektets claude/overdragelse-fotovejen.md; skal i D36 ved næste docs-levering.
 - [ ] **4. D36, hullet i teknik B:** Teknik B ser ikke et almindeligt ord, som modellen har byttet ud ("tåret" → "torvet"). Boksens tekst blev ændret 16/10, men værnet er ikke rettet. Accepteres hullet i prod?
-- [ ] **5. Kamera og notefoto:** Med i første prod-udgave eller ej? Afklaringen med Anne står åben, og S6 regner `notefoto` med til Fase 1.
+- [x] **5. Kamera og notefoto:** ✅ Ja, kamera og notefoto er med i første prod-udgave (Ann 18/10, fastholder D36 og S6). Fotoknappen skal derfor bygges og måles før Port 2. Anne har afklaret 18/10: hun har ikke testet et kamera, men taget fotos af referater, som Ann bad om. De er testmateriale til fotoknappen. S6 regner `notefoto` med til Fase 1.
 - [ ] **6. Et færdigt referat kan ikke åbnes igen:** Acceptabelt i første udgave?
 
 **C. Drift og økonomi (Ann)**
 
 - [ ] **7. Ø2, lofterne i prod:** Gælder de samme tal som på staging (firma-månedsloft og dagsloft)? Ø2 og S6 står stadig som "Åben" med "Før første linje kode", selv om `kvote.js` og den server-side prompt findes og er målt 18/10. Skal de to rækker lukkes eller opdateres?
-- [ ] **8. D86:** Skal en fejlet bogføring larme i AppSignal før prod? Det er én linje kode. Uden den ses et loft, der ikke virker, kun i Railway-loggen.
+- [x] **8. D86:** ✅ Ja (Ann 18/10), bygget og bevist. En fejlet bogføring sender nu Bogfoeringsfejl til AppSignal (3682bc9, proev-kvote.js 50/0, 47/3 mod gammel kode). Bevist i staging-containeren via railway ssh 18/10 kl. 11.27: Bogfoeringsfejl #76 i AppSignal. Lokalt på Windows kan AppSignal ikke starte.
 - [ ] **9. Natjobbet `luk_inaktive()`:** Ikke bygget. Skal det være klar før prod, eller kan det vente?
 - [ ] **10. Sletteregler og stærk RLS:** Skal være på plads før den første betalende kunde. Tæller pilotfirmaet som betalende?
 
@@ -282,7 +282,7 @@ Hver uge i driftsvinduet: mål timer brugt på uplanlagt arbejde. Er det over en
 | Dashboard | `static/dashboard.html` og dashboardets ruter | `tilbud/` og `routes/tilbud/` |
 | Referat (Fase 2) | `tilbud/`, `routes/tilbud/`, `kvote.js`, `kor-proever.js` | `static/dashboard.html` |
 
-- **`static/sw.js` er fælles.** Begge bumper `CACHE_NAME`. Tjek `git show HEAD:static/sw.js | Select-String "CACHE_NAME ="` lige før hvert bump, og vælg et nummer over det højeste, der har været brugt (næste: v50).
+- **`static/sw.js` er fælles.** Begge bumper `CACHE_NAME`. Tjek `git show HEAD:static/sw.js | Select-String "CACHE_NAME ="` lige før hvert bump, og vælg et nummer over det højeste, der har været brugt (næste: v52; dashboard-chatten brugte v50 og v51 18/10).
 - **Registret og runbooken:** én chat ad gangen. Sig det højt, før der skrives.
 - **Push:** aldrig når `git status -sb` siger "ahead" for andet end ens egen commit.
 
