@@ -770,15 +770,20 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       genfind er uændret, og der ligger ikke to slags referater i basen.
 - [ ] **Vision-model vælges på måling, ikke på skøn** (J9 + D14). Kvalitetssættet
       findes: **elleve fotos, taget 27/9, ligger i `proevebaenk\referatfoto\`**.
+      *19/10: 15 fotos af 13 sedler (tre af Anne med blyant, et nyt af referat 4);
+      facit udfyldt af Ann og Anne. Læsningen 27/9 tog fejl i tre af fem sedler —
+      se `FOTOSAETTET.md`.*
       Beskrivelsen og de kendte vanskeligheder står i `FOTOSAETTET.md` — udfyld
       den, før målingen køres, af samme grund som `SAETTET.md` for lyden.
       **Tre ting, målingen SKAL dække, fundet ved at se på fotoerne:**
-      **(a) Alle elleve ligger på siden.** Sedlen er på højkant, fotoet på tværs,
-      og teksten løber nedefra og op. Sådan fotograferer man en notesbog. Kan
-      modellen læse roteret håndskrift — eller skal klienten rette op først?
-      **(b) Overstregninger.** På referat 10 er "450" streget ud og rettet til
-      "380 m³". Modellen skal læse det rettede tal. **Det er præcis den slags,
-      der bliver til en forkert pris.**
+      **(a) Rotation — det er EXIF (rettet 19/10).** I rå pixels ligger alle på
+      siden, men alle 15 har EXIF-orientering 6 og står ret op, når den anvendes.
+      Spørgsmålet er, om klientens canvas-nedskalering anvender EXIF. Målingen
+      kører hvert foto både rå og rettet; telefonen afgør klientdelen (B10).
+      **(b) Overstregninger.** På referat 10 er **klokkeslættet** ~~10.20~~ → 09.30
+      og **enheden** ~~m²~~ → m³. *(Rettet 19/10: "450 rettet til 380" var forkert
+      læst — det er to lokaler.)* Modellen skal læse det rettede. **Det er præcis
+      den slags, der bliver til en forkert pris.**
       **(c) Gennemskrivning fra forrige side.** Spøgelsesskrift bag den rigtige
       tekst. En model kan finde på at læse begge dele som ét.
 - [ ] **KLIENTEN SKAL NEDSKALERE — det er ikke længere et åbent spørgsmål.**
