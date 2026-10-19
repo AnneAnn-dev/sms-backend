@@ -143,6 +143,8 @@ Fire regler, der gælder alt arbejde i dette repo.
 - Antag aldrig at `create table if not exists` har sat alle kolonner — tjek om tabellen findes i forvejen (messages-fælden).
 - Nye tabeller får **RLS slået til fra første migration**. Ingen tabel uden en bevidst policy-beslutning (evt. "RLS til, ingen policies" = kun service role, som `onboarding_sidevisninger`).
 - **Kan migrationen rulles tilbage?** Er svaret nej, skal det stå eksplicit i migrationsfilens kommentar.
+- **To fremmednøgler mellem de samme to tabeller får PostgREST-embedding til at fejle** (`kunder(navn)` gav "Noget gik galt" på kundesiden, 19/10-26). Tjek med `pg_constraint`, at der er præcis én, før en ny sammensat fremmednøgle lægges oven på en enkel.
+- **`leads.name`, `address` og `task` er NOT NULL.** En klient sender en tom værdi som `''`, aldrig `null` — ellers afvises HELE opdateringen (23502), og alt andet i den forsvinder med (adresse-hotfix 19/10-26). Tjek `is_nullable` i `information_schema.columns`, før ny kode skriver `null` i en kolonne.
 
 ## Sikkerhed
 
@@ -175,6 +177,7 @@ Fire regler, der gælder alt arbejde i dette repo.
 - [ ] **Rollback-vejen kendt**, inklusive om migrationen kan rulles tilbage
 - [ ] **Fem linjers begrundelse i repoet**: hvad valgte jeg, hvad var alternativet, hvorfor
 - [ ] **Stopkriteriet var skrevet ned før start** — og det blev overholdt
+- [ ] **En ny `proev-*.js` i repo-roden står i `KOERES` eller `IKKE_I_CI` i `kor-proever.js`** — ellers bliver CI rød (#345, 18/10-26)
 
 ## Seks-linse-tjek — beslutninger og kode
 
@@ -207,6 +210,8 @@ Gælder al kode i modulet. Er én af dem ikke opfyldt, er opgaven ikke færdig.
 
 - Deploy = merge til `staging` (Railway auto-deployer) → røgtest → PR til `main`. Små, reversible deploys; adskil deploy fra release (feature flags frem for big bang).
 - **Bump service worker-cacheversionen i `sw.js` ved ENHVER frontend-ændring.**
+- **Test en frontendændring i en FRISK fane** (eller genstart PWA'en). En gammel fane serverer den cachede side fra den forrige service worker og får en virkende rettelse til at se ud, som om den ikke virker (S33 i prod, 18/10-26).
+- **Input-felter skal have mindst `font-size: 16px`.** Under 16px zoomer iOS siden ind ved fokus og zoomer ikke ud igen — bundbjælken ender midt i billedet (18/10-26).
 - Frontend-JS skrives defensivt: al DOM-udfyldning gennem `setText`-mønsteret (manglende element må aldrig kaste), permission-API'er (Notification, mikrofon m.fl.) altid feature-detected + i try/catch, nye blokke selvstændige så de ikke kan vælte dashboardet (mønster: app-hilsen).
 - QA-regel efter ethvert redesign: fuldt id-tjek (`getElementById` ↔ `id=`). Husk: localhost-demoen skjuler init-fejlklassen — test med rigtigt login på staging.
 - iPhone-PWA'en deler ikke lagring med Safari, og standalone-mode har egne fælder — mobilfeatures røgtestes i den **installerede** app på ægte iPhone, ikke kun i Safari.
