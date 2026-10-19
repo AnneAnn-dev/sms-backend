@@ -758,6 +758,12 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
 
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
 
+> ⛔ **UDSKUDT FRA FØRSTE PROD-UDGIVELSE (Ann 19/10).** B7-målingen fandt ingen
+> vision-model, der opfylder bundgrænsen (`RESULTAT-07-fotovejen.md`). Første
+> udgivelse er diktafonvejen alene. Opgaverne nedenfor står, så de er klar, når vejen
+> genoptages — men **B6 (værnet) skal tages op igen**, og klienten skal sende
+> billedet ret op (EXIF). Se D36.
+
 Håndværkere skriver på papir. Uden denne vej rammer Fase 1 kun den halvdel, der
 taler. **Byggerækkefølge: diktafonvejen først, fotovejen ovenpå — men begge
 frigives som Fase 1.** Arkitekturen står i primerens "Håndskrevne noter".
