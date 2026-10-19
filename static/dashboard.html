@@ -2847,7 +2847,10 @@ function leadKort(lead) {
         || (name && name !== modalOriginal.name)
         || (task && task !== modalOriginal.task.trim());
       if (changed) {
-        const felter = { address: address || null, address_mail, notes, is_urgent };
+        // address er NOT NULL i databasen (leads.address). En tom adresse gemmes
+        // som '' - aldrig null, ellers afvises HELE gemningen (23502), og noter,
+        // navn og haster forsvinder med. Fundet i prod 19/10-26.
+        const felter = { address: address || '', address_mail, notes, is_urgent };
         if (name) felter.name = name;          // et tomt navn skrives aldrig
         if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
         const { error } = await db.from('leads').update(felter).eq('id', lead.id);
