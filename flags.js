@@ -25,4 +25,10 @@ module.exports = {
   // Tilbudsmodulet (referater + tilbud). true i staging, false i prod
   // indtil modulet er QA'et af Anne.
   TILBUD_AKTIV: flag("TILBUD_AKTIV"),
+
+  // Kunder kendes paa telefonnummer (D88 trin 1b, 18/10-26): /formular og
+  // /opret-opgave knytter opgaven til en kunde via kundematch.js. Slukket =
+  // opgaver oprettes praecis som foer, uden kunde. Uafhaengig af TILBUD_AKTIV,
+  // saa matchningen kan koere i prod, foer Kunder-fanen vises (D88 trin 1).
+  KUNDE_MATCH_AKTIV: flag("KUNDE_MATCH_AKTIV"),
 };

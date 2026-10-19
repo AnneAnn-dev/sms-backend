@@ -6,7 +6,8 @@ const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
 const { gyldigtSmsNummer } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV } = require("./flags");
+const { knytKunde } = require("./kundematch");
 const { registrerPushRuter, sendNytLeadPush } = require("./push");
 const { kraevModul, registrerModulRuter } = require("./moduler");
 
@@ -48,6 +49,7 @@ app.get("/health", (req, res) =>
   res.status(200).json({
     ok: true,
     tilbud: TILBUD_AKTIV,
+    kundematch: KUNDE_MATCH_AKTIV,
         kvote: kvoteKonfigureret(),
   })
 );
@@ -422,7 +424,7 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
   // Uden den ville firm_id vaere NULL paa hver eneste kunde-indsendelse (D21).
   const { data: call } = await supabase
     .from("calls")
-    .select("id, firm_id")
+    .select("id, firm_id, from_number")
     .eq("lead_token", req.params.token)
     .single();
 
@@ -474,6 +476,17 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
     .eq("id", call.id);
 
   console.log("✅ Lead gemt:", lead.id);
+
+  // D88 trin 1b: knyt opgaven til en kunde via opkaldets nummer. EFTER at
+  // opgaven er gemt — knytKunde kaster aldrig, og fejler den, har opgaven
+  // blot ingen kunde (fejlen gaar til AppSignal). Slukket flag = intet sker.
+  await knytKunde(supabase, {
+    firmId:  call.firm_id,
+    leadId:  lead.id,
+    telefon: call.from_number,
+    navn:    lead.name,
+    adresse: lead.address,
+  });
 
   // Fire-and-forget: en fejlet push må aldrig forsinke eller vælte kundens
   // kvittering. Manuel oprettelse (/opret-opgave) sender IKKE push — den
@@ -632,7 +645,7 @@ app.post("/opret-opgave", async (req, res) => {
     return res.status(500).json({ error: callError.message });
   }
 
-  const { error: leadError } = await supabase.from("leads").insert({
+  const { data: nyLead, error: leadError } = await supabase.from("leads").insert({
     call_id:      call.id,
     firm_id,                        // D21: kendt fra sessionen, samme som paa calls-raekken
     name,
@@ -644,12 +657,16 @@ app.post("/opret-opgave", async (req, res) => {
     notes:        notes || null,
     address_mail: address_mail || null,
     seen_at:      new Date().toISOString(),
-  });
+  }).select("id").single();
 
   if (leadError) {
     console.error("❌ Lead fejl:", leadError);
     return res.status(500).json({ error: leadError.message });
   }
+
+  // D88 trin 1b: samme regel som /formular. Uden indtastet nummer bliver det
+  // en ny kunde uden nummer (dubletter accepteres indtil "laeg sammen").
+  await knytKunde(supabase, { firmId: firm_id, leadId: nyLead.id, telefon, navn: name, adresse: address });
 
   res.json({ ok: true });
 });

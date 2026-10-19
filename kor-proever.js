@@ -52,6 +52,7 @@ const IKKE_I_CI = {
   "proev-forloeb.js":        "laeser Supabase-noegler fra .env og kalder databasen (roed i CI 18/10)",
   "proev-moduler.js":        "laeser Supabase-noegler og BASE_URL fra .env og kalder databasen (roed i CI 18/10)",
   "proev-kunde-telefoner.js": "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88, 18/10)",
+  "proev-kundematch.js":     "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88 trin 1b, 19/10)",
 };
 
 const TIDSGRAENSE_MS = 120000;
