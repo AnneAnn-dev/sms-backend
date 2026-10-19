@@ -705,8 +705,10 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       5, 7, 13 og 14 bekræftet af Anne 17/10. At mikrofonen kun spørger nogle
       gange, er iOS' egen opførsel med "Spørg", ikke en genindlæsning.
       **Tilbage fra QA:** en opgave fra Nye opretter ikke en kunde
-      (dashboard-chatten) · Anne mener at have testet foto; fanen har ingen
-      kameraknap (kun prøvebænkens måling 27/9, `FOTOSAETTET.md`) — afklares.
+      (dashboard-chatten) · ~~Anne mener at have testet foto~~ **afklaret 18/10:**
+      Anne har ikke testet et kamera — fanen har ingen kameraknap. Det var
+      fotos af referater, som Ann bad om; de er testmateriale til fotoknappen
+      og ligger i `proevebaenk\referatfoto\` sammen med de elleve fra 27/9.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
@@ -816,6 +818,13 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       referatet op mod — sedlen ER kilden. Fotovejen har altså ikke det værn,
       diktafonvejen har. **Det skal stå i D36, og Anne skal vide det**, før vejen
       frigives.
+      ✅ **Afgjort 18/10 (Ann): (c), forskellen accepteres skriftligt** — står i
+      D36 sammen med stopkriteriet for udgivelse. Intet maskinelt værn; den
+      tekniske beskyttelse er modelvalget (kriterium 1–3). (a) fotoet ved siden
+      af og (b) ingen priser fra foto er fravalgt. **Tilbage:** Anne skal kende
+      valget før sin QA af fotovejen.
+- [x] **Afskrift eller referat afgjort 18/10 (Ann):** under 150 ord ER
+      afskriften referatet; ingen referatmodel på fotovejen.
 
 ## Trin 4 — Skive 2: tilbudsflowet
 
