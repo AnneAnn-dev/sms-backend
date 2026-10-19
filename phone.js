@@ -166,9 +166,53 @@ function gyldigtSmsNummer(input) {
   return n && SMS_NUMMER_RE.test(n) ? n : null;
 }
 
+// ─── KUNDENØGLE (18/10-26, D88) ──────────────────────────────────────────────
+// En opgave knyttes til sin kunde via telefonnummeret (`kunde_telefoner`). Det
+// nummer, der bruges som NØGLE, laves her og kun her — af /formular,
+// /opret-opgave, Kunder-fanen og engangsscriptet. To normaliseringer ville give
+// samme person to kunder uden en eneste fejlmelding (kodekvalitetslinsen 18/10).
+//
+// Returnerer E.164 ("+4512345678") eller null. null betyder: dette er ikke et
+// nummer, der kan kende en person — og så oprettes en ny kunde uden nummer.
+//
+// Ikke en nøgle:
+//   * tomt, eller tekst med bogstaver: markøren "Manuel oprettelse" på
+//     syntetiske opkald, og Twilios "anonymous" ved skjult nummer (siden 17/5-23)
+//   * Twilios erstatningsnumre for skjult/ukendt nummerviser (deres support-
+//     artikel "Why am I getting calls from these strange numbers"): de deles af
+//     ALLE, der skjuler nummeret, og ville samle dem på én kunde
+//   * et dansk nummer, der ikke har præcis 8 cifre, eller noget uden for E.164
+//
+// Bredere end gyldigtSmsNummer() med vilje: en udenlandsk kunde, der ringer,
+// er stadig en kunde. Reglen for, hvem vi må SENDE SMS til, er en anden.
+const TWILIO_SKJULT_NUMMER = new Set([
+  "+7378742833",   // RESTRICTED
+  "+2562533",      // BLOCKED
+  "+8656696",      // UNKNOWN
+  "+266696687",    // ANONYMOUS
+  "+86282452253",  // UNAVAILABLE
+  "+464",          // tomt / intet nummer
+]);
+const E164_RE = /^\+[1-9]\d{6,14}$/;
+
+function kundeNoegle(input) {
+  if (input == null) return null;
+  const raw = String(input).trim();
+  if (!raw || /[a-zA-ZæøåÆØÅ]/.test(raw)) return null;
+  const n = normalizePhone(raw);
+  if (!n || !E164_RE.test(n)) return null;
+  if (TWILIO_SKJULT_NUMMER.has(n)) return null;
+  if (n.startsWith("+45") && n.length !== 11) return null;
+  // Uden + eller 00 er der ingen landekode at stole på: kun et dansk nummer
+  // godtages. normalizePhone() ville ellers gøre "1234567" til "+1234567".
+  if (!/^(\+|00)/.test(raw) && !n.startsWith("+45")) return null;
+  return n;
+}
+
 module.exports = {
   normalizePhone,
   gyldigtSmsNummer,
+  kundeNoegle,
   maskerTlf,
   maskerMail,
   hentEjedeNumre,
