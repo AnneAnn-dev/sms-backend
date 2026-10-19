@@ -2,7 +2,7 @@
  * proev-kunde-telefoner.js — beviser D88 trin 1a (migration
  * 20261018120000_kunde_telefoner.sql) mod STAGING.
  *
- * Kun databasen: tabellen `kunde_telefoner`, RLS, de sammensatte
+ * Kun databasen (plus ét PostgREST-embed): tabellen `kunde_telefoner`, RLS, de sammensatte
  * fremmednøgler og funktionen find_eller_opret_kunde(). Intet i serveren
  * kalder funktionen endnu (det er trin 1b), så der er ingen HTTP-del.
  *
@@ -166,6 +166,13 @@ const antal = async (tabel, felter) => {
     tjek(efter && efter.firm_id === a.firmId && efter.kunde_id === null,
       'kunde slettet → opgaven mister kunden, men beholder sit firma', `opgave efter sletning: ${JSON.stringify(efter)}`);
     tjek(await antal('kunde_telefoner', { kunde_id: r3.kunde_id }) === 0, 'kunde slettet → dens numre er væk');
+
+    // --- PostgREST kan stadig embedde kunden fra en opgave -----------------------
+    // 19/10: to fremmednøgler fra leads til kunder gjorde `kunder(navn)` tvetydigt,
+    // og Kunder-fanen fejlede. Rettet i 20261019060000; dette tjek fanger det igen.
+    console.log('\nPostgREST:');
+    const { error: emb } = await admin.from('leads').select('id, kunder(navn)').eq('firm_id', a.firmId).limit(1);
+    tjek(!emb, 'opgaver kan hente kundens navn med kunder(navn)', `kunder(navn) fejler: ${emb ? emb.code + ' ' + emb.message : ''}`);
 
     // --- Adgang (RLS og rettigheder) ------------------------------------------
     console.log('\nAdgang:');
