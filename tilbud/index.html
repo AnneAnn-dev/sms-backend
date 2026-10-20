@@ -471,6 +471,9 @@
       <button class="back-btn" id="backToKunder">‹ Kunder</button>
     </div>
     <div class="section-label" id="kundeDetailName">Kunde</div>
+    <!-- D88 trin 2 (20/10): kundens numre fra kunde_telefoner. Forudsætning
+         for opgave 2 (kundesiden med "Ret kunde"). -->
+    <p class="empty-note" id="kundeDetailNumre" style="margin:-4px 0 10px;display:none"></p>
     <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
     <div class="error-banner" id="errorBannerKundeDetail"></div>
     <div id="kundeOpgaverWrap"></div>
@@ -670,6 +673,11 @@ const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
    HJÆLPERE (fra prototypen)
    ========================================================================= */
 function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : String(str); return d.innerHTML; }
+// "+4512345678" -> "12 34 56 78". Andre numre vises, som de står.
+function visTelefon(t) {
+  const m = /^(?:\+45)?(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(t || ''));
+  return m ? m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : String(t || '');
+}
 function uid() { return 'ny-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
 // Fejl vises i det banner, der hører til skærmen. Teksten sættes som TEKST,
@@ -791,6 +799,10 @@ async function openKundeDetail(kundeId) {
   currentKundeDetailId = kundeId;
   const k = customers.find(c => c.id === kundeId);
   document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
+  const numreEl = document.getElementById('kundeDetailNumre');
+  const numre = (k && k.telefoner) || [];
+  numreEl.textContent = numre.map(visTelefon).join(' · ');
+  numreEl.style.display = numre.length ? '' : 'none';
   const wrap = document.getElementById('kundeOpgaverWrap');
   wrap.innerHTML = '<p class="indlaeser">Henter opgaver …</p>';
   skjulFejl('errorBannerKundeDetail');
@@ -832,7 +844,7 @@ const opretOpgaveSheet = document.getElementById('opretOpgaveSheet');
 // kundens kontaktdata udfyldt og kunden valgt. Reserve: arket herunder.
 document.getElementById('fabAddOpgave').addEventListener('click', () => {
   const k = customers.find(c => c.id === currentKundeDetailId);
-  const kunde = k ? { id: k.id, navn: k.navn || '', telefon: k.telefon || '', email: k.email || '',
+  const kunde = k ? { id: k.id, navn: k.navn || '', telefon: visTelefon(k.telefon), email: k.email || '',
                       adresse: k.adresse || '', postnr: k.postnr || '', by: k.by || '' } : null;
   if (!kunde) { aabnOpgaveArk(); return; }
   bedDashboard({ type: 'ny-opgave', kunde }, aabnOpgaveArk);

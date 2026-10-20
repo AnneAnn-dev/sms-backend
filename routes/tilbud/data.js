@@ -46,6 +46,7 @@
 const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
 const { medFirma, hentEgenRaekke, opdaterEgenRaekke } = require("../../ejerskab");
+const { kundeNoegle } = require("../../phone");
 
 const RUTER = [
   "/api/tilbud/kunder",
@@ -58,8 +59,12 @@ const RUTER = [
 // sender - ogsaa `firm_id`, `id` og `created_at`. `medFirma` afviser et
 // medsendt firm_id, men den kan kun afvise det, den faar at se; en spread
 // ville sende alt det ANDET med uset.
+// `telefon` er IKKE her (D88 trin 2, 20/10-26): kundens numre bor i
+// `kunde_telefoner` og skrives kun gennem kundeNoegle() — se gemNummer()
+// nedenfor. `kunder.telefon` bliver staaende som doed kolonne (expand/contract)
+// og fjernes i en senere release; ingen kode skriver eller laeser den mere.
 const KUNDE_FELTER = [
-  "navn", "telefon", "email", "noter", "adresse",
+  "navn", "email", "noter", "adresse",
   "vejnavn", "husnr", "etage", "doer", "postnr", "by", "dawa_id",
   "cvr", "er_erhverv",
 ];
@@ -134,13 +139,18 @@ function fraOphav(o) {
 // ingen fejlkode. Databasens egne koder oversaettes her, saa en dublet ikke
 // ligner en nedbrudt server.
 function svarPaaFejl(res, e, hvad) {
-  // 23505 = unique_violation. Den eneste, vi venter os, er kunder.telefon pr.
-  // firma (primeren, punkt 6) - den findes netop for at lukke dublet-spoegelset.
+  // 23505 = unique_violation. Skelnes paa indeksnavnet (D88 betingelse): et
+  // nummer, der allerede er en anden kundes (kunde_telefoner), er noget andet
+  // end en ukendt dublet — og en ukendt dublet maa ikke ligne et telefonnummer.
   if (e && e.code === "23505") {
-    return res.status(409).json({
-      error: "findes_allerede",
-      besked: "Der findes allerede en kunde med det telefonnummer.",
-    });
+    const hvor = `${e.message || ""} ${e.details || ""}`;
+    if (/kunde_telefoner_firma_telefon_unik|kunder_firma_telefon_unik/.test(hvor)) {
+      return res.status(409).json({
+        error: "nummer_findes",
+        besked: "Telefonnummeret hører allerede til en anden kunde.",
+      });
+    }
+    return res.status(409).json({ error: "findes_allerede", besked: "Den findes allerede." });
   }
   if (e && e.kode === "ejerskab_ikke_fundet") {
     // Findes ikke, eller er ikke dit. De to maa ikke kunne skelnes udefra -
@@ -165,17 +175,61 @@ module.exports = function (app, supabase) {
 
   /* ─────────────────────────────────  KUNDER  ───────────────────────────── */
 
+  // Kundens numre (D88): kunde_telefoner er eneste kilde. Svaret har stadig
+  // `telefon` (det foerste nummer), saa klienterne ikke skal skifte form, og
+  // `telefoner` (alle, aeldste foerst).
+  const KUNDE_KOLONNER =
+    "id, navn, email, adresse, postnr, by, er_erhverv, cvr, created_at, kunde_telefoner(telefon, created_at)";
+  function medNumre(k) {
+    if (!k) return k;
+    const { kunde_telefoner, ...resten } = k;
+    const telefoner = (kunde_telefoner || [])
+      .slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .map((r) => r.telefon);
+    return { ...resten, telefon: telefoner[0] || null, telefoner };
+  }
+
+  // Laeser `telefon` fra kroppen. undefined = ikke med; null = ugyldigt.
+  function nummerFraKrop(krop) {
+    if (!krop || !("telefon" in krop)) return undefined;
+    const v = krop.telefon;
+    if (v == null || (typeof v === "string" && !v.trim())) return "";
+    return kundeNoegle(v);
+  }
+
+  // Lægger et nummer paa en kunde. Hoerer nummeret til en ANDEN af firmaets
+  // kunder, kastes 23505 med indeksnavnet, saa svarPaaFejl siger det rigtige.
+  // Samme kunde = intet at goere. Kaldes kun med en noegle fra kundeNoegle().
+  async function gemNummer(firmId, kundeId, noegle) {
+    const { data: ejer, error } = await supabase
+      .from("kunde_telefoner").select("kunde_id")
+      .eq("firm_id", firmId).eq("telefon", noegle).maybeSingle();
+    if (error) throw error;
+    if (ejer && ejer.kunde_id === kundeId) return;
+    if (ejer) {
+      const f = new Error("kunde_telefoner_firma_telefon_unik"); f.code = "23505"; throw f;
+    }
+    const { error: iFejl } = await supabase
+      .from("kunde_telefoner").insert({ firm_id: firmId, kunde_id: kundeId, telefon: noegle });
+    if (iFejl) throw iFejl;   // 23505 her = en anden naaede foerst; samme svar
+  }
+
+  const ugyldigtNummer = (res) => res.status(400).json({
+    error: "ugyldigt_nummer",
+    besked: "Telefonnummeret kan ikke bruges. Skriv et dansk nummer med 8 cifre, eller et med landekode.",
+  });
+
   app.get("/api/tilbud/kunder", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
     try {
       const { data, error } = await supabase
         .from("kunder")
-        .select("id, navn, telefon, email, adresse, postnr, by, er_erhverv, cvr, created_at")
+        .select(KUNDE_KOLONNER)
         .eq("firm_id", firmId)
         .is("arkiveret_at", null)
         .order("navn");
       if (error) throw error;
-      res.json({ ok: true, kunder: data || [] });
+      res.json({ ok: true, kunder: (data || []).map(medNumre) });
     } catch (e) { svarPaaFejl(res, e, "kunder kunne ikke hentes"); }
   });
 
@@ -183,22 +237,43 @@ module.exports = function (app, supabase) {
     const firmId = await firma(req, res); if (!firmId) return;
 
     const { felter, ukendte } = pluk(req.body, KUNDE_FELTER);
-    if (afvisUkendte(res, ukendte)) return;
+    if (afvisUkendte(res, ukendte, ["telefon"])) return;
     if (!tekst(felter.navn)) {
       return res.status(400).json({
         error: "navn_mangler",
         besked: "En kunde skal have et navn.",
       });
     }
+    const noegle = nummerFraKrop(req.body);
+    if (noegle === null) return ugyldigtNummer(res);
 
     try {
+      // Nummeret tjekkes FOER kunden oprettes: hoerer det til en anden, maa
+      // der ikke ligge en ny kunde tilbage uden.
+      if (noegle) {
+        const { data: ejer, error: tFejl } = await supabase
+          .from("kunde_telefoner").select("kunde_id")
+          .eq("firm_id", firmId).eq("telefon", noegle).maybeSingle();
+        if (tFejl) throw tFejl;
+        if (ejer) { const f = new Error("kunde_telefoner_firma_telefon_unik"); f.code = "23505"; throw f; }
+      }
       const { data, error } = await supabase
         .from("kunder")
         .insert(medFirma(firmId, felter))     // firm_id kan ikke glemmes her
-        .select("id, navn, telefon")
+        .select("id, navn")
         .single();
       if (error) throw error;
-      res.status(201).json({ ok: true, kunde: data });
+      if (noegle) {
+        try { await gemNummer(firmId, data.id, noegle); }
+        catch (e) {
+          // En anden naaede foerst med samme nummer: fjern den nye kunde igen,
+          // saa der ikke ligger en halv kunde. Fejler det, larmer det.
+          const { error: dFejl } = await supabase.from("kunder").delete().eq("id", data.id).eq("firm_id", firmId);
+          if (dFejl) sendError(new Error(`kunde ${data.id} uden nummer efter 23505: ${dFejl.message}`));
+          throw e;
+        }
+      }
+      res.status(201).json({ ok: true, kunde: { ...data, telefon: noegle || null, telefoner: noegle ? [noegle] : [] } });
     } catch (e) { svarPaaFejl(res, e, "kunde kunne ikke oprettes"); }
   });
 
@@ -206,8 +281,18 @@ module.exports = function (app, supabase) {
     const firmId = await firma(req, res); if (!firmId) return;
 
     const { felter: aendringer, ukendte } = pluk(req.body, KUNDE_FELTER);
-    if (afvisUkendte(res, ukendte)) return;
-    if (!Object.keys(aendringer).length) {
+    if (afvisUkendte(res, ukendte, ["telefon"])) return;
+    const noegle = nummerFraKrop(req.body);
+    if (noegle === null) return ugyldigtNummer(res);
+    // Et nummer FJERNES ikke herfra endnu — det kommer med "Ret kunde"
+    // (opgave 2). Et tomt felt maa ikke se ud, som om nummeret er vaek.
+    if (noegle === "") {
+      return res.status(400).json({
+        error: "nummer_kan_ikke_fjernes",
+        besked: "Et telefonnummer kan ikke fjernes herfra endnu.",
+      });
+    }
+    if (!Object.keys(aendringer).length && !noegle) {
       return res.status(400).json({ error: "intet_at_rette", besked: "Der var ikke noget at rette." });
     }
     if ("navn" in aendringer && !tekst(aendringer.navn)) {
@@ -215,7 +300,13 @@ module.exports = function (app, supabase) {
     }
 
     try {
-      const kunde = await opdaterEgenRaekke(supabase, "kunder", req.params.id, firmId, aendringer);
+      // Ejerskabet foerst — ogsaa naar kun nummeret aendres.
+      await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, "id");
+      if (noegle) await gemNummer(firmId, req.params.id, noegle);   // et NYT nummer laegges til; de gamle bliver
+      if (Object.keys(aendringer).length) {
+        await opdaterEgenRaekke(supabase, "kunder", req.params.id, firmId, aendringer);
+      }
+      const kunde = medNumre(await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, KUNDE_KOLONNER));
       res.json({ ok: true, kunde });
     } catch (e) { svarPaaFejl(res, e, "kunde kunne ikke rettes"); }
   });
@@ -284,8 +375,13 @@ module.exports = function (app, supabase) {
     try {
       const opgave = await hentEgenRaekke(
         supabase, "leads", req.params.id, firmId,
-        "id, name, address, task, status, is_urgent, titel, notes, desired_time, created_at, kunde_id, kunder(navn, telefon)"
+        "id, name, address, task, status, is_urgent, titel, notes, desired_time, created_at, kunde_id, kunder(navn, kunde_telefoner(telefon, created_at))"
       );
+      // Samme form som foer: kunder.telefon er kundens foerste nummer (D88).
+      if (opgave.kunder) {
+        const { navn, telefon, telefoner } = medNumre(opgave.kunder);
+        opgave.kunder = { navn, telefon, telefoner };
+      }
 
       // Referaterne i oversigtsform. INDHOLDET kommer ikke med i en liste -
       // det hentes pr. referat, saa en opgaveside ikke traekker al tekst med.
