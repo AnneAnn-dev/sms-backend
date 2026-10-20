@@ -383,6 +383,8 @@
        paa. Foer var det skjult uden kundebilleder (kodeopgave 14). */
     .billed-status { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
     .billed-status.fejl { color: #dc2626; }
+    /* D88 trin 2, opgave 10: vej fra opgavevinduet til opgavens referater i Kunder. */
+    .referater-raekke { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); font-size: 16px; font-family: inherit; cursor: pointer; }
     .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
 
     .empty { text-align: center; color: var(--ink-muted); padding: 48px 0; font-size: 14px; }
@@ -940,6 +942,15 @@
         <div class="billed-status" id="modal-billed-status" style="display:none"></div>
       </div>
 
+      <!-- D88 trin 2, opgave 10 (Ann 19/10): ét opgavevindue, ogsaa fra Kunder.
+           Referaterne bor i Kunder-fanen; raekken foerer derhen. Vises kun med
+           faner (TILBUD_AKTIV) og naar opgaven har en kunde. -->
+      <div class="mfield" id="modal-referater-felt" style="display:none">
+        <button type="button" class="referater-raekke" onclick="visReferaterIKunder()">
+          <span>Referater (<span id="modal-referater-antal">0</span>)</span><span aria-hidden="true">›</span>
+        </button>
+      </div>
+
       <div class="mdivider"></div>
 
       <div>
@@ -997,7 +1008,7 @@
         <div class="avatar" style="background:#E8F5EE;color:#1B5E3A"><svg class="ti" aria-hidden="true"><use href="#i-plus"/></svg></div>
         <div>
           <div class="mhead-name">Ny opgave</div>
-          <div class="mhead-phone">Opret manuelt</div>
+          <div class="mhead-phone" id="new-lead-undertitel">Opret manuelt</div>
         </div>
       </div>
       <button class="close-btn" onclick="lukNyOpgave()" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
@@ -1726,6 +1737,10 @@ function leadKort(lead) {
     // Noterne stod tilbage fra forrige opgave (fundet 17/10-26 under Indtal).
     document.getElementById('new-notes').value = '';
     document.getElementById('new-titel').value = '';
+    // D88 trin 2: en kunde fra Kunder-fanen saettes EFTER aabningen
+    // (aabnNyOpgaveTilKunde). Hvert andet aabningssted er uden kunde.
+    nyOpgaveKundeId = null;
+    document.getElementById('new-lead-undertitel').textContent = 'Opret manuelt';
     document.getElementById('new-file-in').value = '';
     visBilledStatus('new-billed-status', '');
     document.getElementById('new-urgent-cb').checked = false;
@@ -1809,6 +1824,7 @@ function leadKort(lead) {
           task,
           desired_time: null,
           titel: document.getElementById('new-titel').value.trim() || null,
+          kunde_id: nyOpgaveKundeId || undefined,   // fra en kundes side; serveren tjekker ejerskabet
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
@@ -1841,6 +1857,7 @@ function leadKort(lead) {
       stopIndtaling();
       document.getElementById('new-lead-modal-bg').classList.remove('open');
       loadData();
+      sendTilKunder({ type: 'opgaver-aendret' });   // Kunder-fanen viser den nye opgave
     } finally {
       savingLead = false;                        // nulstil, så man kan rette og gemme igen
       if (btn) btn.disabled = false;
@@ -2732,6 +2749,7 @@ function leadKort(lead) {
     visBilledStatus('modal-billed-status', '');
     document.getElementById('modal-file-in').value = '';
     await visModalBilleder(lead);
+    visReferaterRaekke(lead);   // ikke await: raekken maa ikke forsinke vinduet
 
     document.getElementById('modal-bg').classList.add('open');
 
@@ -2832,6 +2850,8 @@ function leadKort(lead) {
     nulstilIndtaling();
     lukker = true;
     try { await lukModal(); } finally { lukker = false; }
+    // Navn, overskrift eller opgave kan vaere rettet: Kunder-fanen henter igen.
+    sendTilKunder({ type: 'opgaver-aendret' });
   }
 
   async function lukModal() {
@@ -2978,6 +2998,133 @@ function leadKort(lead) {
     const fejl = tjekBilleder(filer);
     if (fejl) { input.value = ''; visBilledStatus('new-billed-status', fejl, true); return; }
     visBilledStatus('new-billed-status', filer.length ? (filer.length === 1 ? '1 billede valgt.' : filer.length + ' billeder valgt.') : '');
+  }
+
+  // ══ KUNDER-BROEN (D88 trin 2, opgave 6 og 10, 20/10-26) ═════════════════
+  // Kunder-fanen er tilbud-appen i en ramme (iframe, samme origin). Den har
+  // ingen egen Ny opgave-formular og intet eget opgavevindue mere: den BEDER
+  // dashboardet aabne sine. Der er kun ét af hver at vedligeholde.
+  //
+  // KONTRAKTEN — samme tekst staar i tilbud/index.html. Rettes den ene, rettes begge.
+  //   ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
+  //                       { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
+  //                       { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+  //   dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
+  //                       { kilde:'ddk-dashboard', type:'opgaver-aendret' }
+  //                       { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+  // Kommer der ingen kvittering inden for 1,5 s (fx en gammel dashboard-fane
+  // fra cachen), bruger rammen sin egen visning som reserve.
+  //
+  // Vaern (sikkerhedslinsen 19/10): kun beskeder fra vores egen origin OG fra
+  // netop rammens vindue; kun typerne ovenfor; felterne saettes med .value og
+  // textContent; kunde_id tjekkes igen af serveren (/opret-opgave); svar
+  // sendes med targetOrigin location.origin, aldrig '*'.
+  let nyOpgaveKundeId = null;
+  let kunderKlar = false;
+  const tilKunderKoe = [];
+  const BRO_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  function kunderRamme() { return document.getElementById('kunder-ramme'); }
+
+  function sendTilKunder(besked) {
+    const r = kunderRamme();
+    if (!r || !r.getAttribute('src') || !r.contentWindow) return;   // Kunder er aldrig aabnet
+    if (!kunderKlar) { tilKunderKoe.push(besked); return; }
+    try { r.contentWindow.postMessage(Object.assign({}, besked, { kilde: 'ddk-dashboard' }), location.origin); }
+    catch (err) { console.warn('Kunder-broen: besked kunne ikke sendes:', err); }
+  }
+
+  const tekstFelt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  function aabnNyOpgaveTilKunde(kunde) {
+    openNewLeadModal();
+    if (!kunde || !BRO_ID_RE.test(String(kunde.id || ''))) return;   // grønt + paa listen: tom formular
+    nyOpgaveKundeId = kunde.id;
+    const navn = tekstFelt(kunde.navn, 200);
+    document.getElementById('new-lead-undertitel').textContent = navn ? 'Til ' + navn : 'Til kunden';
+    document.getElementById('new-name').value = navn;
+    document.getElementById('new-phone').value = tekstFelt(kunde.telefon, 30);
+    document.getElementById('new-mail').value = tekstFelt(kunde.email, 200);
+    // Adressen: postnr og by fra kunden, ellers skilt ud af adressen. Kun med
+    // et postnummer regnes den som valgt — ellers maa han vaelge fra listen.
+    const p = parseAddress(tekstFelt(kunde.adresse, 300));
+    const postnr = /^\d{4}$/.test(tekstFelt(kunde.postnr, 4)) ? tekstFelt(kunde.postnr, 4) : p.zip;
+    const by = tekstFelt(kunde.by, 100) || p.city;
+    if (!p.street) return;
+    document.getElementById('new-street').value = formatAddress([p.street, postnr ? postnr + ' ' + by : ''].filter(Boolean).join(', '));
+    if (postnr && by) {
+      document.getElementById('new-postnr').value = postnr;
+      document.getElementById('new-city').value = by;
+      document.getElementById('new-manuel-postnr').value = postnr;
+      document.getElementById('new-manuel-by').value = by;
+      newDawaValgt = true;
+    }
+  }
+
+  async function findLead(id) {
+    const kendt = allLeads.find(l => l.id === id);
+    if (kendt) return kendt;
+    // Samme definition som loadData() — under RLS, saa kun firmaets egne.
+    const { data, error } = await db.from('leads')
+      .select('*, lead_images(image_url), calls(id, status, from_number, firm_id)')
+      .eq('id', id).maybeSingle();
+    if (error) console.warn('Kunder-broen: opgaven kunne ikke hentes:', error.message);
+    return data || null;
+  }
+
+  window.addEventListener('message', async (e) => {
+    const r = kunderRamme();
+    if (e.origin !== location.origin || !r || e.source !== r.contentWindow) return;
+    const d = e.data;
+    if (!d || d.kilde !== 'ddk-kunder' || typeof d.type !== 'string') return;
+    const kvitter = (ok) => { try { e.source.postMessage({ kilde: 'ddk-dashboard', type: 'kvittering', ref: d.ref, ok }, location.origin); } catch (_) {} };
+
+    if (d.type === 'klar') {
+      kunderKlar = true;
+      tilKunderKoe.splice(0).forEach(sendTilKunder);
+      return;
+    }
+    if (d.type === 'ny-opgave') {
+      kvitter(true);
+      aabnNyOpgaveTilKunde(d.kunde || null);
+      return;
+    }
+    if (d.type === 'aabn-opgave') {
+      if (!BRO_ID_RE.test(String(d.opgaveId || ''))) { kvitter(false); return; }
+      // Kvitter med det samme, saa rammen ikke ogsaa aabner sin reserve, mens
+      // opgaven hentes. Findes den ikke, siges det her.
+      kvitter(true);
+      const lead = await findLead(d.opgaveId);
+      if (lead) openModal(lead);
+      else alert('Opgaven kunne ikke findes. Prøv at genindlæse siden.');
+    }
+  });
+
+  async function visReferaterRaekke(lead) {
+    const felt = document.getElementById('modal-referater-felt');
+    if (!felt) return;
+    felt.style.display = 'none';
+    if (!document.body.classList.contains('faner') || !lead.kunde_id) return;
+    try {
+      const r = await fetch('/api/tilbud/opgaver/' + encodeURIComponent(lead.id), { headers: await authHeader() });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (currentLead !== lead) return;          // vinduet viser nu en anden opgave
+      document.getElementById('modal-referater-antal').textContent = String((j.referater || []).length);
+      felt.style.display = '';
+    } catch (err) {
+      console.warn('Referater kunne ikke taelles:', err);
+    }
+  }
+
+  async function visReferaterIKunder() {
+    const lead = currentLead;
+    if (!lead || !lead.kunde_id) return;
+    await closeModal();
+    // Blev vinduet staaende (fx en fejl ved gemning), bliver han her.
+    if (document.getElementById('modal-bg').classList.contains('open')) return;
+    setFane('kunder');
+    sendTilKunder({ type: 'vis-referater', kundeId: lead.kunde_id, opgaveId: lead.id });
   }
 
   let sendterBilleder = false;                  // vagt mod dobbelt-upload
