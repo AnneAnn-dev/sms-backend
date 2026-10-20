@@ -715,13 +715,19 @@ let currentOpgaveDetailId = null;
 let currentOpgaveTitel = '';
 
 const opretKundeSheet = document.getElementById('opretKundeSheet');
+// D88 trin 2, opgave 6 (Ann 17/10): det grønne + på kundelisten åbner
+// dashboardets Ny opgave TOM — kunden opstår af opgaven (D88). Uden dashboard
+// (siden åbnet alene, eller en gammel dashboard-fane) åbnes "Opret kunde" som før.
 document.getElementById('fabAddKunde').addEventListener('click', () => {
+  bedDashboard({ type: 'ny-opgave', kunde: null }, aabnOpretKunde);
+});
+function aabnOpretKunde() {
   document.getElementById('okKundeNavn').value = '';
   document.getElementById('okKundeTelefon').value = '';
   document.getElementById('okKundeAdresse').value = '';
   skjulFejl('errorBannerOpretKunde');
   opretKundeSheet.classList.add('open');
-});
+}
 opretKundeSheet.addEventListener('click', (e) => { if (e.target === opretKundeSheet) opretKundeSheet.classList.remove('open'); });
 
 document.getElementById('okKundeGemBtn').addEventListener('click', async () => {
@@ -805,8 +811,11 @@ async function openKundeDetail(kundeId) {
           <div class="rm">Oprettet ${escapeHtml((o.oprettet || '').slice(0, 10))}</div>
         </div>`).join('')
     : `<p class="empty-note">Ingen opgaver endnu for denne kunde. Tryk på + for at oprette en.</p>`;
+  // D88 trin 2, opgave 10 (Ann 19/10): tryk på en opgave åbner dashboardets
+  // opgavevindue — det samme som under Nye og I gang. Reserve: opgavesiden her.
   wrap.querySelectorAll('.referat-list-row').forEach(row => {
-    row.addEventListener('click', () => openOpgaveDetail(kundeId, row.dataset.id));
+    row.addEventListener('click', () =>
+      bedDashboard({ type: 'aabn-opgave', opgaveId: row.dataset.id }, () => openOpgaveDetail(kundeId, row.dataset.id)));
   });
 }
 document.getElementById('backToKunder').addEventListener('click', () => {
@@ -819,14 +828,23 @@ document.getElementById('backToKunder').addEventListener('click', () => {
    arves den, og feltet vises ikke. Har kunden ingen, spørger arket.
    ------------------------------------------------------------------------- */
 const opretOpgaveSheet = document.getElementById('opretOpgaveSheet');
+// D88 trin 2, opgave 6: + på en kundes side åbner dashboardets Ny opgave med
+// kundens kontaktdata udfyldt og kunden valgt. Reserve: arket herunder.
 document.getElementById('fabAddOpgave').addEventListener('click', () => {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  const kunde = k ? { id: k.id, navn: k.navn || '', telefon: k.telefon || '', email: k.email || '',
+                      adresse: k.adresse || '', postnr: k.postnr || '', by: k.by || '' } : null;
+  if (!kunde) { aabnOpgaveArk(); return; }
+  bedDashboard({ type: 'ny-opgave', kunde }, aabnOpgaveArk);
+});
+function aabnOpgaveArk() {
   const k = customers.find(c => c.id === currentKundeDetailId);
   document.getElementById('ooOpgaveTitel').value = '';
   document.getElementById('ooOpgaveAdresse').value = '';
   document.getElementById('ooAdresseRaekke').style.display = (k && k.adresse) ? 'none' : 'block';
   skjulFejl('errorBannerOpretOpgave');
   opretOpgaveSheet.classList.add('open');
-});
+}
 opretOpgaveSheet.addEventListener('click', (e) => { if (e.target === opretOpgaveSheet) opretOpgaveSheet.classList.remove('open'); });
 
 document.getElementById('ooOpgaveGemBtn').addEventListener('click', async () => {
@@ -1620,6 +1638,72 @@ if (typeof initDawa === 'function') {
   renderKundeList();
 })();
 
+
+/* =========================================================================
+   KUNDER-BROEN (D88 trin 2, opgave 6 og 10, 20/10-26)
+   Indlejret i dashboardet beder siden dashboardet åbne SIN Ny opgave-formular
+   og SIT opgavevindue, så der kun findes ét af hver.
+
+   KONTRAKTEN — samme tekst står i static/dashboard.html. Rettes den ene, rettes begge.
+     ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
+                         { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
+                         { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+     dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
+                         { kilde:'ddk-dashboard', type:'opgaver-aendret' }
+                         { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+   Ingen kvittering inden for 1,5 s (gammel dashboard-fane, eller siden åbnet
+   alene): reserven — sidens egen visning, som før.
+   Værn: kun beskeder fra egen origin OG fra forældrevinduet; kun typerne
+   ovenfor; svar med targetOrigin location.origin, aldrig '*'.
+   ========================================================================= */
+const INDLEJRET_I_DASHBOARD =
+  document.documentElement.classList.contains('indlejret') && window.parent && window.parent !== window;
+const BRO_VENTETID_MS = 1500;
+let broNr = 0;
+const broVenter = new Map();               // ref -> function(ok)
+
+function bedDashboard(besked, reserve) {
+  if (!INDLEJRET_I_DASHBOARD) { reserve(); return; }
+  const ref = 'k' + (++broNr) + '-' + Date.now();
+  const timer = setTimeout(() => { broVenter.delete(ref); reserve(); }, BRO_VENTETID_MS);
+  broVenter.set(ref, (ok) => { clearTimeout(timer); if (!ok) reserve(); });
+  try {
+    window.parent.postMessage(Object.assign({}, besked, { kilde: 'ddk-kunder', ref }), location.origin);
+  } catch (err) {
+    clearTimeout(timer); broVenter.delete(ref); reserve();
+  }
+}
+
+function aktivSkaerm() {
+  const s = document.querySelector('.screen.active');
+  return s ? s.id.replace(/^screen-/, '') : '';
+}
+
+window.addEventListener('message', async (e) => {
+  if (!INDLEJRET_I_DASHBOARD || e.origin !== location.origin || e.source !== window.parent) return;
+  const d = e.data;
+  if (!d || d.kilde !== 'ddk-dashboard' || typeof d.type !== 'string') return;
+
+  if (d.type === 'kvittering') {
+    const f = broVenter.get(d.ref);
+    if (f) { broVenter.delete(d.ref); f(d.ok === true); }
+    return;
+  }
+  if (d.type === 'opgaver-aendret') {
+    const s = aktivSkaerm();
+    if (s === 'kunde-detail' && currentKundeDetailId) openKundeDetail(currentKundeDetailId);
+    else if (s === 'customers') renderKundeList();
+    return;
+  }
+  if (d.type === 'vis-referater' && typeof d.kundeId === 'string' && typeof d.opgaveId === 'string') {
+    if (!customers.length) { try { customers = await loadCustomers(); } catch (_) { /* navnet viser "Kunde" */ } }
+    openOpgaveDetail(d.kundeId, d.opgaveId);
+  }
+});
+
+if (INDLEJRET_I_DASHBOARD) {
+  try { window.parent.postMessage({ kilde: 'ddk-kunder', type: 'klar' }, location.origin); } catch (_) {}
+}
 </script>
 </body>
 </html>
