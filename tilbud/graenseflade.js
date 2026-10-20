@@ -141,6 +141,10 @@
     const list = (kunder || []).map((k) => ({
       id: k.id, navn: k.navn || '', telefon: k.telefon || '', adresse: k.adresse || '',
       oprettet: k.created_at || '',
+      // D88 trin 2 (20/10): alle numre fra kunde_telefoner, og det, Ny opgave
+      // udfylder med. Ikke i KUNDE_PROTO — de rettes ikke herfra.
+      telefoner: Array.isArray(k.telefoner) ? k.telefoner.slice() : (k.telefon ? [k.telefon] : []),
+      email: k.email || '', postnr: k.postnr || '', by: k.by || '',
     }));
     kundeIder = list.map((k) => k.id);
     kundeCache.clear();
