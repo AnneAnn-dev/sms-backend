@@ -901,6 +901,13 @@
       </div>
 
       <div class="mfield">
+        <!-- D88 trin 2, opgave 5 (Ann 20/10): overskriften kan ses og rettes i
+             opgavevinduet, ikke kun i Ny opgave. Tom = ingen overskrift. -->
+        <label for="modal-titel">Overskrift (valgfrit)</label>
+        <input type="text" id="modal-titel" maxlength="120" placeholder="Fx: Utæt bruser">
+      </div>
+
+      <div class="mfield">
         <!-- Indtal i en eksisterende opgave (Ann 17/10: han vaelger feltet).
              Panelet flyttes ind under det felt, han trykkede ved. -->
         <div class="indtal-label-row">
@@ -2731,9 +2738,11 @@ function leadKort(lead) {
       is_urgent: !!lead.is_urgent,
       name: (lead.name || '').trim(),
       task: lead.task || '',
+      titel: (lead.titel || '').trim(),
       telefon: document.getElementById('modal-phone-input').value.trim(),
     };
     document.getElementById('modal-task').value = lead.task;
+    document.getElementById('modal-titel').value = lead.titel || '';
     document.getElementById('modal-notes').value = lead.notes || '';
 
     const urgentCb = document.getElementById('modal-urgent-cb');
@@ -2873,6 +2882,7 @@ function leadKort(lead) {
       const address_mail = document.getElementById('modal-address-mail').value.trim() || null;
       const notes = document.getElementById('modal-notes').value || null;
       const is_urgent = document.getElementById('modal-urgent-cb').checked;
+      const titel = document.getElementById('modal-titel').value.trim().slice(0, 120);
       // Skriv KUN når noget er ændret ift. snapshot fra åbningen — før
       // genskrev vi adressen ved hver lukning (også klik på baggrunden),
       // hvilket permanent slettede postnr/by på flerkomma-adresser.
@@ -2882,18 +2892,19 @@ function leadKort(lead) {
         || notes !== modalOriginal.notes
         || is_urgent !== modalOriginal.is_urgent
         || (name && name !== modalOriginal.name)
-        || (task && task !== modalOriginal.task.trim());
+        || (task && task !== modalOriginal.task.trim())
+        || titel !== (modalOriginal.titel || '');
       if (changed) {
         // address er NOT NULL i databasen (leads.address). En tom adresse gemmes
         // som '' - aldrig null, ellers afvises HELE gemningen (23502), og noter,
         // navn og haster forsvinder med. Fundet i prod 19/10-26.
-        const felter = { address: address || '', address_mail, notes, is_urgent };
+        const felter = { address: address || '', address_mail, notes, is_urgent, titel: titel || null };
         if (name) felter.name = name;          // et tomt navn skrives aldrig
         if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
         const { error } = await db.from('leads').update(felter).eq('id', lead.id);
         if (error) {
           console.error('❌ Gem fejl:', error);
-          fejl.push('Navn, opgave, adresse og noter: kunne ikke gemmes');
+          fejl.push('Navn, overskrift, opgave, adresse og noter: kunne ikke gemmes');
         } else if (!fejl.length) {
           console.log('✅ Gemt OK');
         }
@@ -3026,6 +3037,21 @@ function leadKort(lead) {
 
   function kunderRamme() { return document.getElementById('kunder-ramme'); }
 
+  // Rammen er klar, naar den har sagt "klar" — ELLER naar dens load-haendelse
+  // kommer, ELLER ved dens foerste gyldige besked. Maalt 20/10: "klar" kom
+  // ikke frem ved foerste indlaesning (kunderKlar = false), og saa laa
+  // 'opgaver-aendret' i koeen, og kundesiden opdaterede ikke. load fyrer
+  // efter rammens scripts, saa dens lytter er paa plads.
+  function rammeErKlar() {
+    if (kunderKlar) return;
+    kunderKlar = true;
+    tilKunderKoe.splice(0).forEach(sendTilKunder);
+  }
+  (function () {
+    const r = kunderRamme();
+    if (r) r.addEventListener('load', () => { if (r.getAttribute('src')) rammeErKlar(); });
+  })();
+
   function sendTilKunder(besked) {
     const r = kunderRamme();
     if (!r || !r.getAttribute('src') || !r.contentWindow) return;   // Kunder er aldrig aabnet
@@ -3079,11 +3105,8 @@ function leadKort(lead) {
     if (!d || d.kilde !== 'ddk-kunder' || typeof d.type !== 'string') return;
     const kvitter = (ok) => { try { e.source.postMessage({ kilde: 'ddk-dashboard', type: 'kvittering', ref: d.ref, ok }, location.origin); } catch (_) {} };
 
-    if (d.type === 'klar') {
-      kunderKlar = true;
-      tilKunderKoe.splice(0).forEach(sendTilKunder);
-      return;
-    }
+    rammeErKlar();                            // enhver gyldig besked beviser, at rammen lever
+    if (d.type === 'klar') return;
     if (d.type === 'ny-opgave') {
       kvitter(true);
       aabnNyOpgaveTilKunde(d.kunde || null);
