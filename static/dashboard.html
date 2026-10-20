@@ -175,6 +175,7 @@
     .lead-name { font-weight: 700; font-size: 16px; font-family: 'Nunito', sans-serif; color: var(--navy); }
     .lead-time { font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
     .lead-address { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
+    .lead-titel { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 4px; }
     .lead-task { font-size: 14px; color: var(--ink); margin-top: 8px; line-height: 1.5; }
     .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
     .badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; font-family: 'Source Sans 3', sans-serif; }
@@ -378,8 +379,10 @@
     .btn-confirm-afslut:hover { background: #b91c1c; }
 
     .modal-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
-    /* Upload skjult (kodeopgave 14): uden kundebilleder skjules hele feltet */
-    .mfield:has(> #modal-images:empty) { display: none; }
+    /* D88 trin 2 (19/10-26): feltet vises altid — han kan selv laegge billeder
+       paa. Foer var det skjult uden kundebilleder (kodeopgave 14). */
+    .billed-status { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
+    .billed-status.fejl { color: #dc2626; }
     .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
 
     .empty { text-align: center; color: var(--ink-muted); padding: 48px 0; font-size: 14px; }
@@ -923,17 +926,18 @@
       <div class="mfield">
         <label>Billeder</label>
         <div class="modal-images" id="modal-images"></div>
-        <!-- SKJULT 20/7 (kodeopgave 14): upload fra dashboardet blev aldrig
-             wiret til storage — UI'et lovede noget, produktet ikke kan.
-             Elementerne SKAL blive i DOM'en (openModal rydder #modal-previews
-             betingelsesloest — sletning = TypeError for alle, 17/7-fejlklassen).
-             Fjern display:none igen, naar upload-endpointet er bygget. -->
-        <div class="upload-area" onclick="document.getElementById('modal-file-in').click()" style="margin-top:8px;display:none">
+        <!-- D88 trin 2 (opgave 9, 19/10-26): upload-feltet er taendt igen. Det var
+             skjult siden 20/7 (kodeopgave 14), fordi det aldrig var koblet til
+             lagringen. Nu sendes billederne straks til POST /opgave/:id/billeder
+             (samme graenser og lagring som kundens formular, billeder.js).
+             #modal-previews SKAL blive i DOM'en (openModal rydder den). -->
+        <div class="upload-area" onclick="document.getElementById('modal-file-in').click()" style="margin-top:8px">
           <svg class="ti" aria-hidden="true"><use href="#i-photo-plus"/></svg>
-          <p>Tryk for at tilføje billeder</p>
-          <input type="file" id="modal-file-in" accept="image/*" multiple style="display:none" onchange="addPreviews(this)">
+          <p>Tryk for at tilføje billeder (højst 5 ad gangen)</p>
+          <input type="file" id="modal-file-in" accept="image/*" multiple style="display:none" onchange="uploadModalBilleder(this)">
         </div>
         <div class="img-previews" id="modal-previews"></div>
+        <div class="billed-status" id="modal-billed-status" style="display:none"></div>
       </div>
 
       <div class="mdivider"></div>
@@ -1026,6 +1030,12 @@
         <input type="email" id="new-mail" placeholder="anders@eksempel.dk">
       </div>
       <div class="mfield">
+        <!-- D88 trin 2, opgave 5: valgfri overskrift, vist paa kortet mellem
+             adresse og "Oprettet". Samme felt som i kundens formular. -->
+        <label for="new-titel">Overskrift (valgfrit)</label>
+        <input type="text" id="new-titel" maxlength="120" placeholder="Fx: Utæt bruser">
+      </div>
+      <div class="mfield">
         <!-- Indtal ny opgave (16/10-26): teksten bliver opgavebeskrivelsen, og
              han kan rette den i feltet. Knappen vises kun, naar indtaling er
              mulig (se aktiverIndtaling). -->
@@ -1050,14 +1060,16 @@
           <button type="button" class="btn-afslut indtal-tekst-knap" id="indtal-tekst-knap" style="display:none" onclick="indtalLavTekst()">Lav tekst af optagelsen</button>
         </div>
       </div>
-      <!-- SKJULT 20/7 (kodeopgave 14): se kommentaren i opgave-modalen. -->
-      <div class="mfield" style="display:none">
-        <label>Billeder</label>
+      <!-- D88 trin 2 (opgave 9): taendt igen. Billederne sendes, EFTER at opgaven
+           er oprettet (POST /opret-opgave svarer med id'et). -->
+      <div class="mfield">
+        <label>Billeder (valgfrit)</label>
         <div class="upload-area" onclick="document.getElementById('new-file-in').click()">
           <svg class="ti" style="font-size:20px;color:#8FA3B5" aria-hidden="true"><use href="#i-photo-plus"/></svg>
-          <p>Tryk for at tilføje billeder</p>
-          <input type="file" id="new-file-in" accept="image/*" multiple style="display:none">
+          <p>Tryk for at tilføje billeder (højst 5)</p>
+          <input type="file" id="new-file-in" accept="image/*" multiple style="display:none" onchange="nyeBillederValgt(this)">
         </div>
+        <div class="billed-status" id="new-billed-status" style="display:none"></div>
       </div>
       <div class="urgent-row" id="new-urgent-row" onclick="toggleNewUrgent()">
         <input type="checkbox" id="new-urgent-cb" style="pointer-events:none" tabindex="-1">
@@ -1682,6 +1694,7 @@ function leadKort(lead) {
         ${faner && !lead.seen_at && lead.status === 'open' ? '<span class="prik-ulaest" aria-hidden="true"></span><span class="sr-only">Ulæst</span>' : ''}
       </div>
       <div class="lead-address">${esc(formatAddress(lead.address))}</div>
+      ${lead.titel ? `<div class="lead-titel">${esc(lead.titel)}</div>` : ''}
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
         <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
           ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
@@ -1712,6 +1725,9 @@ function leadKort(lead) {
     document.getElementById('new-mail').value = '';
     // Noterne stod tilbage fra forrige opgave (fundet 17/10-26 under Indtal).
     document.getElementById('new-notes').value = '';
+    document.getElementById('new-titel').value = '';
+    document.getElementById('new-file-in').value = '';
+    visBilledStatus('new-billed-status', '');
     document.getElementById('new-urgent-cb').checked = false;
     document.getElementById('new-urgent-row').classList.remove('checked');
     nulstilIndtaling();
@@ -1755,6 +1771,12 @@ function leadKort(lead) {
 
       if (!name || !task) { alert('Udfyld navn og opgavebeskrivelse'); return; }
 
+      // Billederne tjekkes FOER opgaven oprettes: afvises de bagefter, ligger
+      // der en opgave uden de billeder, han troede var med.
+      const nyeFiler = Array.from(document.getElementById('new-file-in').files || []);
+      const billedFejl = tjekBilleder(nyeFiler);
+      if (billedFejl) { visBilledStatus('new-billed-status', billedFejl, true); return; }
+
       // Reservevejen (4/10-26): tjenesten svarer ikke, og intet er valgt fra
       // en liste — saa gaelder de synlige felter, med et rigtigt postnummer.
       if (street && newAdresseNede && !newDawaValgt) {
@@ -1786,6 +1808,7 @@ function leadKort(lead) {
           address,
           task,
           desired_time: null,
+          titel: document.getElementById('new-titel').value.trim() || null,
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
@@ -1796,6 +1819,23 @@ function leadKort(lead) {
         const err = await res.json();
         alert('Kunne ikke gemme opgave: ' + err.error);
         return;
+      }
+      const svar = await res.json().catch(() => ({}));
+
+      // Opgaven ER oprettet. Fejler billederne, siges det — men vinduet lukker,
+      // ellers opretter et nyt tryk paa "Opret" en opgave til.
+      if (nyeFiler.length) {
+        if (!svar.id) {
+          alert('Opgaven er oprettet, men billederne kom ikke med. Åbn opgaven og læg dem på igen.');
+        } else {
+          try {
+            const r = await sendBilleder(svar.id, nyeFiler);
+            const ikke = (r.ikke_billeder || 0) + (r.over_loftet || 0) + (r.fejlede || 0);
+            if (ikke) alert('Opgaven er oprettet. ' + billedResultatTekst(r));
+          } catch (e) {
+            alert('Opgaven er oprettet, men billederne kom ikke med: ' + e.message + ' Åbn opgaven og læg dem på igen.');
+          }
+        }
       }
 
       stopIndtaling();
@@ -2689,32 +2729,9 @@ function leadKort(lead) {
     document.getElementById('modal-call-btn').onclick = () =>
       ringTilbage(document.getElementById('modal-phone-input').value.trim());
 
-    const imagesEl = document.getElementById('modal-images');
-    if (lead.lead_images?.length) {
-      // Bucket'en er privat — lav korttidssignerede URL'er (1 time) pr. billede.
-      const signed = await Promise.all(lead.lead_images.map(async (img) => {
-        const raw = img.image_url.split('/lead-images/')[1];   // sti efter bucket-navnet
-        if (!raw) return null;
-        const path = decodeURIComponent(raw);                  // afkod %20 / æøå mv.
-        const { data, error } = await db.storage
-          .from('lead-images').createSignedUrl(path, 3600);
-        if (error) { console.warn('Signering fejlede for', path, '→', error.message); return null; }
-        return data?.signedUrl || null;
-      }));
-      // Bygget med DOM, ikke skabelonstreng (S33): URL'en indeholder kundens
-      // filnavn, og i onclick="window.open('…')" ville et ' i navnet bryde ud
-      // af JS-strengen — det fanger esc() ikke.
-      imagesEl.textContent = '';
-      signed.filter(Boolean).forEach(url => {
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cursor = 'pointer';
-        img.addEventListener('click', () => window.open(url));
-        imagesEl.appendChild(img);
-      });
-    } else {
-      imagesEl.innerHTML = '';
-    }
+    visBilledStatus('modal-billed-status', '');
+    document.getElementById('modal-file-in').value = '';
+    await visModalBilleder(lead);
 
     document.getElementById('modal-bg').classList.add('open');
 
@@ -2885,15 +2902,112 @@ function leadKort(lead) {
     row.classList.toggle('checked', cb.checked);
   }
 
-  function addPreviews(input) {
-    const wrap = document.getElementById('modal-previews');
-    Array.from(input.files).forEach(file => {
-      const url = URL.createObjectURL(file);
-      const div = document.createElement('div');
-      div.className = 'img-thumb';
-      div.innerHTML = `<img src="${url}"><button class="rm" onclick="this.parentNode.remove()" aria-label="Fjern">×</button>`;
-      wrap.appendChild(div);
+  // ══ BILLEDER PÅ OPGAVER (D88 trin 2, opgave 9, 19/10-26) ══════════════════
+  // Samme graenser som serveren (billeder.js, Ann 19/10): hoejst 5 ad gangen,
+  // 10 MB stykket, kun billeder, hoejst 20 pr. opgave. Tjekket her er en
+  // hjaelp — serveren afviser alligevel. Erstatter addPreviews(), der kun
+  // viste lokale forhaandsvisninger og aldrig gemte noget (kodeopgave 14).
+  const BILLED_MAX_ANTAL = 5;
+  const BILLED_MAX_BYTES = 10 * 1024 * 1024;
+  const BILLED_MAX_PR_OPGAVE = 20;
+
+  function tjekBilleder(filer) {
+    if (filer.length > BILLED_MAX_ANTAL) return 'Du kan lægge højst ' + BILLED_MAX_ANTAL + ' billeder på ad gangen.';
+    if (filer.some(f => f.size > BILLED_MAX_BYTES)) return 'Et billede er for stort. Hvert billede må højst fylde 10 MB.';
+    return '';
+  }
+
+  function visBilledStatus(id, tekst, fejl) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = tekst || '';
+    el.classList.toggle('fejl', !!fejl);
+    el.style.display = tekst ? 'block' : 'none';
+  }
+
+  function billedResultatTekst(r) {
+    const dele = [];
+    if (r.gemt) dele.push(r.gemt === 1 ? '1 billede er gemt.' : r.gemt + ' billeder er gemt.');
+    if (r.ikke_billeder) dele.push((r.ikke_billeder === 1 ? '1 fil' : r.ikke_billeder + ' filer') + ' var ikke billeder.');
+    if (r.over_loftet) dele.push((r.over_loftet === 1 ? '1 billede' : r.over_loftet + ' billeder') + ' kom ikke med — en opgave kan højst have ' + (r.max_pr_opgave || BILLED_MAX_PR_OPGAVE) + '.');
+    if (r.fejlede) dele.push((r.fejlede === 1 ? '1 billede' : r.fejlede + ' billeder') + ' kunne ikke gemmes. Prøv igen.');
+    return dele.join(' ');
+  }
+
+  // Sender billeder til en opgave. Kaster med en dansk besked, hvis serveren
+  // afviser (for mange, for stort, ikke logget ind, ikke din opgave).
+  async function sendBilleder(leadId, filer) {
+    const fd = new FormData();
+    filer.forEach(f => fd.append('billeder', f, f.name));
+    const res = await fetch('/opgave/' + encodeURIComponent(leadId) + '/billeder', {
+      method: 'POST', headers: await authHeader(), body: fd,   // ingen Content-Type: browseren saetter boundary
     });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.besked || j.error || ('Fejl ' + res.status));
+    return j;
+  }
+
+  // Billederne i opgavevinduet. Bucket'en er privat — korttidssignerede URL'er
+  // (1 time) pr. billede. Bygget med DOM, ikke skabelonstreng (S33).
+  async function visModalBilleder(lead) {
+    const imagesEl = document.getElementById('modal-images');
+    if (!imagesEl) return;
+    imagesEl.textContent = '';
+    if (!lead.lead_images?.length) return;
+    const signed = await Promise.all(lead.lead_images.map(async (img) => {
+      const raw = String(img.image_url || '').split('/lead-images/')[1];   // sti efter bucket-navnet
+      if (!raw) return null;
+      const path = decodeURIComponent(raw);                                // afkod %20 / æøå mv.
+      const { data, error } = await db.storage.from('lead-images').createSignedUrl(path, 3600);
+      if (error) { console.warn('Signering af et billede fejlede:', error.message); return null; }
+      return data?.signedUrl || null;
+    }));
+    // Er vinduet skiftet til en anden opgave imens, maa billederne ikke vises her.
+    if (currentLead !== lead) return;
+    signed.filter(Boolean).forEach(url => {
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cursor = 'pointer';
+      img.addEventListener('click', () => window.open(url));
+      imagesEl.appendChild(img);
+    });
+  }
+
+  function nyeBillederValgt(input) {
+    const filer = Array.from(input.files || []);
+    const fejl = tjekBilleder(filer);
+    if (fejl) { input.value = ''; visBilledStatus('new-billed-status', fejl, true); return; }
+    visBilledStatus('new-billed-status', filer.length ? (filer.length === 1 ? '1 billede valgt.' : filer.length + ' billeder valgt.') : '');
+  }
+
+  let sendterBilleder = false;                  // vagt mod dobbelt-upload
+  async function uploadModalBilleder(input) {
+    const lead = currentLead;
+    const filer = Array.from(input.files || []);
+    input.value = '';                            // samme fil skal kunne vaelges igen
+    if (!lead || !filer.length || sendterBilleder) return;
+    const fejl = tjekBilleder(filer);
+    if (fejl) { visBilledStatus('modal-billed-status', fejl, true); return; }
+    sendterBilleder = true;
+    visBilledStatus('modal-billed-status', 'Gemmer billeder …');
+    try {
+      const r = await sendBilleder(lead.id, filer);
+      const ikke = (r.ikke_billeder || 0) + (r.over_loftet || 0) + (r.fejlede || 0);
+      visBilledStatus('modal-billed-status', billedResultatTekst(r), ikke > 0);
+      // Hent listen igen (under RLS), saa vinduet og kortets "n billeder" passer.
+      const { data: nye, error } = await db.from('lead_images').select('image_url').eq('lead_id', lead.id);
+      if (!error && nye) {
+        lead.lead_images = nye;
+        const idx = allLeads.findIndex(l => l.id === lead.id);
+        if (idx !== -1) allLeads[idx].lead_images = nye;
+        if (currentLead === lead) await visModalBilleder(lead);
+        renderLeads();
+      }
+    } catch (e) {
+      visBilledStatus('modal-billed-status', 'Billederne kunne ikke gemmes: ' + e.message, true);
+    } finally {
+      sendterBilleder = false;
+    }
   }
 
   function setTpl(btn, idx) {
