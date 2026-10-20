@@ -27,6 +27,7 @@ const { spawnSync } = require("child_process");
 const KOERES = [
   "proev-asr-adapter.js",
   "proev-ejerskab.js",
+  "proev-formular-graenser.js",
   "proev-indtal-mere.js",
   "proev-kundenoegle.js",
   "proev-kvote.js",
@@ -53,6 +54,7 @@ const IKKE_I_CI = {
   "proev-moduler.js":        "laeser Supabase-noegler og BASE_URL fra .env og kalder databasen (roed i CI 18/10)",
   "proev-kunde-telefoner.js": "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88, 18/10)",
   "proev-kundematch.js":     "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88 trin 1b, 19/10)",
+  "proev-formular-engangs.js": "laeser Supabase-noegler fra .env, kalder staging-databasen; kraever --bekraeft (S34, 19/10)",
 };
 
 const TIDSGRAENSE_MS = 120000;
