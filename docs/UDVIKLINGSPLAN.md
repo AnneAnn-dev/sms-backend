@@ -1,16 +1,18 @@
 # Udviklingsplan: fra telefonpasser til modulær app
 
 > **Kopi til repoet.** Masteren er Claude Doc-udgaven: https://claude.ai/code/artifact/2ff8f1a7-b1d0-42ce-bfeb-8da2b8bbdaea
-> Denne fil er eksporteret derfra 19/10-26 (rev 62) og opdateres kun ved en ny eksport. Ret i Claude Doc-udgaven, ikke her.
+> Denne fil er eksporteret derfra 21/10-26 (rev 73) og opdateres kun ved en ny eksport. Ret i Claude Doc-udgaven, ikke her.
 > Fotovejen (Trin 3b) fortsætter i projektets `claude/overdragelse-fotovejen.md`.
 
-19/10-26 · Ann
+21/10-26 · Ann
 
 ## Kort fortalt
 
 Planen har otte faser, og hver fase slutter med en **port**: en måling, der skal være grøn, før du går videre. Der er ingen datoer; rækkefølgen er det, der betyder noget, og størrelserne (S, M, L) er skøn, ikke løfter.
 
 > **Status 18/10:** Fase 0 og Fase 1 er færdige, og Port 0 og Port 1 er grønne. I Fase 2 er Referat-fanen bygget og målt på iPhone i staging: optag → tekst, han kan rette eller indtale mere i → referat med teknik B-markeringer → gem, ret og markér som færdigt. Annes QA er godkendt (16 af 16 test OK 17/10), prod-domænet er målt, og 15 prøver kører i CI ved hvert push. Tilbage før Port 2 er beslutningerne under Port 2 nedenfor.
+>
+> **Status 21/10:** D88 trin 1 er i prod 19/10: en kunde kendes nu på sit telefonnummer, og alle opgaver er knyttet til en kunde. Det er usynligt for piloterne. Trin 2 (én Ny opgave-formular og ét opgavevindue på alle faner, engangslink til kundeformularen, foto og overskrift) er bygget og bevist i staging 21/10 og venter kun på Annes tekster til prod. S35 (en indlogget bruger kunne flytte en opgave til et andet firma) blev fundet undervejs og er rettet i staging og prod 21/10. Se 1f.
 
 Planen bygger på [beslutningsgrundlaget](https://claude.ai/code/artifact/373567cf-fbe6-4202-890f-801a90e93d04) fra 13. oktober og på runbookens Trin 3.
 
@@ -37,7 +39,7 @@ Appen består af ét fundament og syv moduler. Her står, hvad hver del giver h�
 Det, alle moduler står på. Et modul må bruge et andet, men aldrig kræve det.
 
 - **Firma og login:** findes.
-- **Kunder:** kundekartotek med navn, adresse og telefon (telefon er unik pr. firma). Kunder-fanen ligger inde i dashboardet i staging, med adresseforslag (1d).
+- **Kunder:** kundekartotek med navn, adresse og telefon (en kunde kendes på sit telefonnummer og kan have flere numre, D88; se 1f). Kunder-fanen ligger inde i dashboardet i staging, med adresseforslag (1d).
 - **Opgaver:** `leads` med forløbet ny → i gang → lukket, *Sig nej* og *Genåbn*, og automatisk lukning efter 3 måneder (funktionen findes, natjobbet mangler). Ejerskab via `leads.firm_id`, fail-closed, også i prod (1a, 1e).
 - **Moduler pr. firma:** tabellen `firma_moduler`, én fælles spærre i serveren og `GET /api/moduler`, i staging (1b).
 - **Kvote og loft:** dags- og månedsloft for Referathjælperen findes. Andre moduler får deres, når de bygges.
@@ -135,7 +137,7 @@ Fundamentet er det, alle moduler står på, og det dyreste at lave om senere. By
 **1c. De fire faner i dashboardet.** Størrelse L. Rører den prod-vendte fil. ✅ **I staging 13/10** (`86a37c6`).
 
 - [x] **Profil i topbaren, Tips i Profil.**
-- [x] **Nye og I gang erstatter listen.** Nye er sorteret med de nyeste først. I gang er sorteret efter sidst rørt, med *Lukkede (n)* sammenklappet øverst. Ulæst vises som en prik.
+- [x] **Nye og I gang erstatter listen.** Nye er sorteret med de nyeste først. I gang er sorteret efter sidst rørt, med *Lukkede (n)* sammenklappet nederst (flyttet 18/10, i staging og prod). Ulæst vises som en prik.
 - [x] **Kunder og Skrivehjælp vises efter `/api/moduler`.** Fanerne vises kun med `tilbudAktiv:true`, ellers ser alt ud som i dag. Skrivehjælp er skjult uden `svar` eller `facebook`.
 - [x] **Hver fane er en ø.** Kunder åbner endnu `/tilbud/` som en side for sig; at bygge den ind er 1d.
 - [x] *Flyt til i gang* i opgavevinduet, og *Afsluttede* viser også `inactive` (natjob-fælden fra 1a er lukket).
@@ -144,6 +146,20 @@ Fundamentet er det, alle moduler står på, og det dyreste at lave om senere. By
 **1d. Kunder-fanen.** Størrelse M. ✅ **I staging 13/10** (`fefed66`). Kunder-siden vises nu inde i dashboardet, i en ramme mellem topbaren og bundbaren, uden tilbudssidens egen topbar og referat-faner. Adressevælgeren ligger i sin egen fil (`adressevaelger.js`), som Ny opgave og Kunder deler. Kan filen ikke hentes, falder Ny opgave tilbage til postnr- og by-felterne. **Bevis:** browsertest 16/0, og på iPhone: Kunder bliver i appen, adresseforslag virker begge steder, og en opgave oprettet fra Kunder ligger i Nye.
 
 **1e. Prod-forudsætningerne fra runbooken.** Punkt 2 (dashboardets læsesteder og `/send-sms`, `/lead-telefon` på `firm_id`) til prod. ✅ **I prod 13/10** via hotfix-PR #83 (`7ac95a8`, cherry-pick af `d88c773`, uden migration). Inden merge blev der målt `uden_firma = 0` af 5 i prod. Efter merge viste prod `dashboard-v32`, røgtesten gav 13/13, og appen var uforandret på telefonen. `main` er flettet ind i `staging` igen uden at ændre en byte (`8ac9cce`).
+
+**1f. Kunder kendes på telefonnummer (D88).** Størrelse L. Besluttet af Ann 18/10, seks-linse-gennemgang kørt. Trin 1 ✅ i prod 19/10; trin 2 ✅ i staging 21/10 (prod venter på Annes tekster); trin 3 mangler. Fase 1 er grøn, men 1f er fundament og står derfor her.
+
+Reglen: en kunde kendes på sit telefonnummer og kan have flere numre (tabellen kunde\_telefoner). Skjult nummer og opgaver uden nummer giver altid en ny kunde. En ny henvendelse overskriver aldrig kundens stamdata. En ny kunde uden opgave slettes efter 30 dage; natjobbet mangler. Konfigurerbare sletteregler er D89 og venter på advokaten.
+
+Trin 1, matchningen: ✅ I prod 19/10. Migrationerne 20261018120000 og 20261019060000, kundematch.js bag KUNDE\_MATCH\_AKTIV (tændt i begge miljøer) og knyt-kunder.js, som knyttede de eksisterende opgaver: i prod 12 opgaver, 0 fejl, og bagefter 0 af 13 uden kunde. Usynligt for piloterne. Bevis: proev-kundenoegle.js 31/0, proev-kunde-telefoner.js 21/0, proev-kundematch.js 9/0, smoke:prod 13/13.
+
+Trin 2, én formular og ét opgavevindue (staging): samme Ny opgave fra alle faner, og fra en kundeside med kundens data udfyldt. Overskrift-felt i begge formularer; ordlyden i kundeformularen venter på Anne. Foto på håndværkerens egne opgaver. En opgave under en kunde åbner samme opgavevindue som under Nye og I gang. S34: formular-tokenet bliver engangs. Kundens numre læses og skrives i kunde\_telefoner. ✅ Bygget og bevist i staging 21/10 i fire leveringer (L1–L4b); kundesiden viser også numre og adresse. Til prod mangler Annes tekster, og samme dag køres udfyldningen af formular\_brugt\_at igen (D88).
+
+Opgave 2, "Ret kunde" (besluttet 21/10, seks-linse-gennemgang kørt): kundens stamdata (navn, numre, kundens adresse) rettes kun på kundesiden (Anne). Opgavens adresse er arbejdsstedet og rettes i opgavevinduet. En opgave skriver SMS til det nummer, den kom fra; en rulleliste med kundens øvrige numre bygges først, når en kunde har to eller flere (målt 21/10: ingen i prod). Navn og telefon bliver læse-kun i opgavevinduet i samme udgivelse som Kunder-fanen i prod. Nej til SMS til udenlandske numre. Detaljer og de otte betingelser i D88.
+
+Trin 3, Kunder-fanen i prod: kræver TILBUD\_AKTIV, J13 (Annes ordlyd) og J8. Anne fortæller piloterne det.
+
+Senere: "Læg sammen" (to kunder er samme person), natjobbet for de 30 dage sammen med luk\_inaktive(), og kunder med i RUNBOOK-kundeafvikling.
 
 **Port 1:** alle prøver grønne i staging, faneskiftet set i den installerede app, og prod uden synlig ændring. ✅ **Grøn 13/10.** Prøverne: RLS 46/0, forløb 13/0, moduler 15/0 og browsertest 26/0 og 16/0. Fanerne er set på iPhone med flaget både til og fra, og prod er uforandret efter 1e.
 
@@ -177,9 +193,9 @@ Seksten punkter skal afgøres, før `TILBUD_AKTIV` tændes i prod (opgjort 18/10
 
 **B. Hvornår er det godt nok (Ann)**
 
-- [x] **3. D36, stopkriteriet:** ✅ Skrevet og godkendt af Ann 18/10: diktafonvejen (bygget), fotovejen (beslutninger → måling af vision-model → samme JSON → penge først → bevis → Annes QA), fælles krav før TILBUD\_AKTIV, og hvad der bevidst ikke er krav. Under 150 ord er afskriften selv referatet. Åbent: værnet på fotovejen og roterede fotos. Fuld tekst i projektets claude/overdragelse-fotovejen.md; skal i D36 ved næste docs-levering.
+- [x] **3. D36, stopkriteriet:** ✅ Skrevet og godkendt af Ann 18/10: diktafonvejen (bygget), fotovejen (beslutninger → måling af vision-model → samme JSON → penge først → bevis → Annes QA), fælles krav før TILBUD\_AKTIV, og hvad der bevidst ikke er krav. Under 150 ord er afskriften selv referatet. Stopkriteriet står i D36 (19/10). Samme dag blev fotovejen udskudt fra første udgivelse (se punkt 5), så dens del af stopkriteriet udgår. Værnet blev valgt som (c), men skal tages op igen, før fotovejen genoptages. Rotationen er afgjort ved måling: klienten skal sende billedet ret op.
 - [ ] **4. D36, hullet i teknik B:** Teknik B ser ikke et almindeligt ord, som modellen har byttet ud ("tåret" → "torvet"). Boksens tekst blev ændret 16/10, men værnet er ikke rettet. Accepteres hullet i prod?
-- [x] **5. Kamera og notefoto:** ✅ Ja, kamera og notefoto er med i første prod-udgave (Ann 18/10, fastholder D36 og S6). Fotoknappen skal derfor bygges og måles før Port 2. Anne har afklaret 18/10: hun har ikke testet et kamera, men taget fotos af referater, som Ann bad om. De er testmateriale til fotoknappen. S6 regner `notefoto` med til Fase 1.
+- [x] **5. Kamera og notefoto:** ✅ Ændret 19/10 (Ann): fotovejen er udskudt fra første prod-udgave. Første udgivelse er diktafonvejen alene. B7-målingen fandt ingen vision-model hos Scaleway, der opfylder bundgrænsen; den bedste fik 72 % af de kritiske værdier rigtige på kursiv, og fejlene ligner rigtig tekst (docs/RESULTAT-07-fotovejen.md). Fotoknappen bygges først, når en model opfylder kriterium 1–3, og værnet (B6) er taget op igen. Næste kandidat at måle: Mistral OCR. (18/10 stod her: kamera og notefoto med i første prod). Anne har afklaret 18/10: hun har ikke testet et kamera, men taget fotos af referater, som Ann bad om. De er testmateriale til fotoknappen. S6 regner `notefoto` med til Fase 1.
 - [ ] **6. Et færdigt referat kan ikke åbnes igen:** Acceptabelt i første udgave?
 
 **C. Drift og økonomi (Ann)**
@@ -282,7 +298,7 @@ Hver uge i driftsvinduet: mål timer brugt på uplanlagt arbejde. Er det over en
 | Dashboard | `static/dashboard.html` og dashboardets ruter | `tilbud/` og `routes/tilbud/` |
 | Referat (Fase 2) | `tilbud/`, `routes/tilbud/`, `kvote.js`, `kor-proever.js` | `static/dashboard.html` |
 
-- **`static/sw.js` er fælles.** Begge bumper `CACHE_NAME`. Tjek `git show HEAD:static/sw.js | Select-String "CACHE_NAME ="` lige før hvert bump, og vælg et nummer over det højeste, der har været brugt (næste: v52; dashboard-chatten brugte v50 og v51 18/10).
+- **`static/sw.js` er fælles.** Begge bumper `CACHE_NAME`. Tjek `git show HEAD:static/sw.js | Select-String "CACHE_NAME ="` lige før hvert bump, og vælg et nummer over det højeste, der har været brugt (næste: v53; dashboard-chatten brugte v50 og v51 18/10 og v52 19/10. Prod står på v35).
 - **Registret og runbooken:** én chat ad gangen. Sig det højt, før der skrives.
 - **Push:** aldrig når `git status -sb` siger "ahead" for andet end ens egen commit.
 
