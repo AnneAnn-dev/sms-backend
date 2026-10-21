@@ -473,7 +473,11 @@
     <div class="section-label" id="kundeDetailName">Kunde</div>
     <!-- D88 trin 2 (20/10): kundens numre fra kunde_telefoner. Forudsætning
          for opgave 2 (kundesiden med "Ret kunde"). -->
-    <p class="empty-note" id="kundeDetailNumre" style="margin:-4px 0 10px;display:none"></p>
+    <p class="empty-note" id="kundeDetailNumre" style="margin:-4px 0 4px;display:none"></p>
+    <!-- Ann 21/10: kundens adresse under numrene. Fra kunder.adresse (+ postnr
+         og by, hvis de staar for sig). Adresser samlet fra opgaverne kommer
+         med opgave 2 ("Ret kunde"). -->
+    <p class="empty-note" id="kundeDetailAdresse" style="margin:0 0 10px;display:none"></p>
     <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
     <div class="error-banner" id="errorBannerKundeDetail"></div>
     <div id="kundeOpgaverWrap"></div>
@@ -678,6 +682,16 @@ function visTelefon(t) {
   const m = /^(?:\+45)?(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(t || ''));
   return m ? m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : String(t || '');
 }
+// Kundens adresse som én linje. Staar postnr og by for sig og ikke allerede i
+// adressen, saettes de bagpaa: "Vej 1, 2830 Virum".
+function kundeAdresse(k) {
+  if (!k) return '';
+  const adr = String(k.adresse || '').trim();
+  const postBy = [k.postnr, k.by].map(v => String(v || '').trim()).filter(Boolean).join(' ');
+  if (!adr) return postBy;
+  if (!postBy || adr.indexOf(String(k.postnr || '').trim() || postBy) !== -1) return adr;
+  return adr + ', ' + postBy;
+}
 function uid() { return 'ny-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
 // Fejl vises i det banner, der hører til skærmen. Teksten sættes som TEKST,
@@ -803,6 +817,10 @@ async function openKundeDetail(kundeId) {
   const numre = (k && k.telefoner) || [];
   numreEl.textContent = numre.map(visTelefon).join(' · ');
   numreEl.style.display = numre.length ? '' : 'none';
+  const adresseEl = document.getElementById('kundeDetailAdresse');
+  const adr = kundeAdresse(k);
+  adresseEl.textContent = adr;
+  adresseEl.style.display = adr ? '' : 'none';
   const wrap = document.getElementById('kundeOpgaverWrap');
   wrap.innerHTML = '<p class="indlaeser">Henter opgaver …</p>';
   skjulFejl('errorBannerKundeDetail');
