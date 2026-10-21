@@ -46,7 +46,7 @@
 const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
 const { medFirma, hentEgenRaekke, opdaterEgenRaekke } = require("../../ejerskab");
-const { kundeNoegle } = require("../../phone");
+const { kundeNoegle, gyldigtSmsNummer, normalizePhone, opgavensNummer } = require("../../phone");
 
 const RUTER = [
   "/api/tilbud/kunder",
@@ -277,22 +277,94 @@ module.exports = function (app, supabase) {
     } catch (e) { svarPaaFejl(res, e, "kunde kunne ikke oprettes"); }
   });
 
+  // ─── Ret kunde (D88 opgave 2, 21/10-26) ──────────────────────────────────
+  // Kundens stamdata — navn, numre, kundens adresse — rettes KUN her (Anne 21/10).
+  //
+  // Kroppen kan ud over KUNDE_FELTER have:
+  //   telefon         nyt nummer, der laegges til (de gamle bliver)
+  //   fjern_telefon   nummer, der fjernes fra kunden. Kun koblingen i
+  //                   kunde_telefoner fjernes; opgavernes og opkaldenes
+  //                   historik er uroert (Ann 21/10, sletteregel i gdpr.xlsx)
+  //   opgaver_fra     nummer, hvis aabne opgaver skal skifte modtager. Udelades
+  //                   det, bruges fjern_telefon
+  //   opgaver_til     det nummer, de aabne opgaver skal sende til i stedet.
+  //                   Skal vaere kundens (eller lagt til i samme kald) og
+  //                   SMS-gyldigt (dansk)
+  //   behold_opgaver  true = de aabne opgaver beholder det fjernede nummer
+  //
+  // VALG (i), Ann 21/10: retter man et nummer her, tager kundens AABNE opgaver
+  // det med — synligt (svaret siger hvor mange), aldrig i stilhed (betingelse
+  // 4). Fjernes et nummer, som aabne opgaver sender til, uden at kalderen har
+  // sagt, hvad der skal ske med dem, svares 409 `nummer_bruges` med antallet,
+  // og INTET skrives. Afsluttede opgaver beholder altid deres nummer.
+  //
+  // "Sender til" afgoeres af opgavensNummer() i phone.js — samme regel som
+  // /send-sms. Et nummer flyttes aldrig fra en anden kunde (betingelse 5):
+  // gemNummer() svarer 409 `nummer_findes`.
+  //
+  // Raekkefoelgen af skrivningerne er valgt, saa et afbrudt kald kan gentages:
+  // (1) nyt nummer laegges til, (2) opgaverne skifter modtager, (3) det gamle
+  // nummer fjernes, (4) stamdata. Afbrydes det efter (2), har opgaverne allerede
+  // det nye nummer, og et nyt kald finder 0 at flytte og fjerner blot nummeret.
+  const RET_EKSTRA = ["telefon", "fjern_telefon", "opgaver_fra", "opgaver_til", "behold_opgaver"];
+
   app.patch("/api/tilbud/kunder/:id", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
+    const krop = req.body || {};
 
-    const { felter: aendringer, ukendte } = pluk(req.body, KUNDE_FELTER);
-    if (afvisUkendte(res, ukendte, ["telefon"])) return;
-    const noegle = nummerFraKrop(req.body);
+    const { felter: aendringer, ukendte } = pluk(krop, KUNDE_FELTER);
+    if (afvisUkendte(res, ukendte, RET_EKSTRA)) return;
+
+    const noegle = nummerFraKrop(krop);
     if (noegle === null) return ugyldigtNummer(res);
-    // Et nummer FJERNES ikke herfra endnu — det kommer med "Ret kunde"
-    // (opgave 2). Et tomt felt maa ikke se ud, som om nummeret er vaek.
+    // Et tomt `telefon` fjerner IKKE et nummer — dertil er `fjern_telefon`.
+    // Et tomt felt maa ikke kunne ligne, at nummeret er vaek.
     if (noegle === "") {
       return res.status(400).json({
         error: "nummer_kan_ikke_fjernes",
-        besked: "Et telefonnummer kan ikke fjernes herfra endnu.",
+        besked: "Et telefonnummer fjernes med fjern_telefon, ikke med et tomt felt.",
       });
     }
-    if (!Object.keys(aendringer).length && !noegle) {
+    const valgfrit = (navn) => {
+      if (!(navn in krop)) return undefined;
+      const v = kundeNoegle(krop[navn]);
+      return v || null;
+    };
+    const fjern = valgfrit("fjern_telefon");
+    const fra   = valgfrit("opgaver_fra");
+    if (fjern === null || fra === null) return ugyldigtNummer(res);
+    let til;
+    if ("opgaver_til" in krop) {
+      til = gyldigtSmsNummer(krop.opgaver_til);
+      if (!til) {
+        return res.status(400).json({
+          error: "ikke_sms_nummer",
+          besked: "Opgaverne kan kun sende SMS til et dansk nummer med 8 cifre.",
+        });
+      }
+    }
+    const behold = krop.behold_opgaver === true;
+    if ("behold_opgaver" in krop && typeof krop.behold_opgaver !== "boolean") {
+      return res.status(400).json({ error: "ugyldigt_felt", felt: "behold_opgaver", besked: "behold_opgaver skal være true eller false." });
+    }
+
+    const opgaverFra = fra || fjern;
+    if (fjern && fra && fra !== fjern) {
+      return res.status(400).json({ error: "modstridende_numre", besked: "opgaver_fra skal være det nummer, der fjernes." });
+    }
+    if (til && !opgaverFra) {
+      return res.status(400).json({ error: "mangler_opgaver_fra", besked: "Sig hvilket nummer opgaverne skal skifte fra." });
+    }
+    if (fra && !til) {
+      return res.status(400).json({ error: "mangler_opgaver_til", besked: "Sig hvilket nummer opgaverne skal skifte til." });
+    }
+    if (til && behold) {
+      return res.status(400).json({ error: "modstridende_valg", besked: "Vælg enten at flytte opgaverne eller at lade dem beholde nummeret." });
+    }
+    if (fjern && (fjern === noegle || fjern === til)) {
+      return res.status(400).json({ error: "modstridende_numre", besked: "Samme nummer kan ikke både fjernes og bruges." });
+    }
+    if (!Object.keys(aendringer).length && !noegle && !fjern && !til) {
       return res.status(400).json({ error: "intet_at_rette", besked: "Der var ikke noget at rette." });
     }
     if ("navn" in aendringer && !tekst(aendringer.navn)) {
@@ -300,14 +372,75 @@ module.exports = function (app, supabase) {
     }
 
     try {
-      // Ejerskabet foerst — ogsaa naar kun nummeret aendres.
-      await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, "id");
-      if (noegle) await gemNummer(firmId, req.params.id, noegle);   // et NYT nummer laegges til; de gamle bliver
+      // Ejerskabet foerst — ogsaa naar kun et nummer aendres. 404 for fremmed.
+      const foer = medNumre(await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, KUNDE_KOLONNER));
+
+      if (fjern && !foer.telefoner.includes(fjern)) {
+        return res.status(404).json({ error: "nummer_ikke_fundet", besked: "Nummeret står ikke på denne kunde." });
+      }
+      if (til && til !== noegle && !foer.telefoner.includes(til)) {
+        return res.status(400).json({ error: "ikke_kundens_nummer", besked: "Opgaverne kan kun skifte til et af kundens egne numre." });
+      }
+
+      // Kundens AABNE opgaver, der sender til `opgaverFra` lige nu.
+      let ramte = [];
+      if (opgaverFra) {
+        const { data: aabne, error: oFejl } = await supabase
+          .from("leads")
+          .select("id, telefon, calls(from_number)")
+          .eq("firm_id", firmId)
+          .eq("kunde_id", req.params.id)
+          .eq("status", "open");
+        if (oFejl) throw oFejl;
+        ramte = (aabne || []).filter((o) => opgavensNummer(o.telefon, o.calls && o.calls.from_number) === opgaverFra);
+      }
+      if (fjern && ramte.length && !til && !behold) {
+        return res.status(409).json({
+          error: "nummer_bruges",
+          opgaver: ramte.length,
+          besked: ramte.length === 1
+            ? "1 åben opgave sender SMS til dette nummer. Vælg hvilket nummer den skal bruge, eller lad den beholde det."
+            : `${ramte.length} åbne opgaver sender SMS til dette nummer. Vælg hvilket nummer de skal bruge, eller lad dem beholde det.`,
+        });
+      }
+
+      // (1) Nyt nummer. 409 nummer_findes, hvis det er en anden kundes.
+      if (noegle) await gemNummer(firmId, req.params.id, noegle);
+
+      // (2) Opgaverne skifter modtager. Er det nye nummer opgavens eget
+      // opkaldsnummer, gemmes null — samme konvention som /lead-telefon.
+      let flyttet = 0;
+      if (til && ramte.length) {
+        const somOpkald = [], somIndtastet = [];
+        for (const o of ramte) {
+          const opkald = o.calls && o.calls.from_number;
+          (opkald && normalizePhone(opkald) === til ? somOpkald : somIndtastet).push(o.id);
+        }
+        for (const [ids, vaerdi] of [[somOpkald, null], [somIndtastet, til]]) {
+          if (!ids.length) continue;
+          const { data: opd, error: uFejl } = await supabase
+            .from("leads").update({ telefon: vaerdi })
+            .in("id", ids).eq("firm_id", firmId).eq("kunde_id", req.params.id).eq("status", "open")
+            .select("id");
+          if (uFejl) throw uFejl;
+          flyttet += (opd || []).length;
+        }
+      }
+
+      // (3) Det gamle nummer fjernes — kun koblingen.
+      if (fjern) {
+        const { error: dFejl } = await supabase
+          .from("kunde_telefoner").delete()
+          .eq("firm_id", firmId).eq("kunde_id", req.params.id).eq("telefon", fjern);
+        if (dFejl) throw dFejl;
+      }
+
+      // (4) Stamdata.
       if (Object.keys(aendringer).length) {
         await opdaterEgenRaekke(supabase, "kunder", req.params.id, firmId, aendringer);
       }
       const kunde = medNumre(await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, KUNDE_KOLONNER));
-      res.json({ ok: true, kunde });
+      res.json({ ok: true, kunde, opgaver_flyttet: flyttet, opgaver_beholdt: til ? 0 : ramte.length });
     } catch (e) { svarPaaFejl(res, e, "kunde kunne ikke rettes"); }
   });
 
