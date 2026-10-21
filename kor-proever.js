@@ -55,6 +55,7 @@ const IKKE_I_CI = {
   "proev-kunde-telefoner.js": "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88, 18/10)",
   "proev-kundematch.js":     "laeser Supabase-noegler fra .env og kalder databasen; kraever --bekraeft (D88 trin 1b, 19/10)",
   "proev-formular-engangs.js": "laeser Supabase-noegler fra .env, kalder staging-databasen; kraever --bekraeft (S34, 19/10)",
+  "proev-leads-skriveret.js": "kalder staging som indlogget bruger med TILBUD_TEST_TOKEN; kraever --bekraeft (S35, 21/10)",
 };
 
 const TIDSGRAENSE_MS = 120000;
