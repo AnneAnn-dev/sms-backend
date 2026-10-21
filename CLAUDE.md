@@ -145,11 +145,14 @@ Fire regler, der gælder alt arbejde i dette repo.
 - **Kan migrationen rulles tilbage?** Er svaret nej, skal det stå eksplicit i migrationsfilens kommentar.
 - **To fremmednøgler mellem de samme to tabeller får PostgREST-embedding til at fejle** (`kunder(navn)` gav "Noget gik galt" på kundesiden, 19/10-26). Tjek med `pg_constraint`, at der er præcis én, før en ny sammensat fremmednøgle lægges oven på en enkel.
 - **`leads.name`, `address` og `task` er NOT NULL.** En klient sender en tom værdi som `''`, aldrig `null` — ellers afvises HELE opdateringen (23502), og alt andet i den forsvinder med (adresse-hotfix 19/10-26). Tjek `is_nullable` i `information_schema.columns`, før ny kode skriver `null` i en kolonne.
+- **Browseren kan kun skrive de kolonner på `leads`, der står i en grant** (S35, 21/10-26): `address, address_mail, is_urgent, name, notes, seen_at, sidst_roert, startet_at, status, task, titel`. `firm_id`, `id`, `call_id`, `kunde_id`, `telefon` og `created_at` skrives kun af serveren. **En ny kolonne, som dashboardet skal skrive, kræver `grant update (<kolonne>) on public.leads to authenticated`** i samme migration — ellers svarer databasen 42501 ("permission denied for table leads"), og hele gemningen afvises. Det er meningen: nye kolonner er lukkede, indtil nogen har besluttet andet.
+- **Før en migration, der ændrer rettigheder eller politikker, køres i prod: tjek hvad PROD-dashboardet skriver** (`git grep -n "\.update(" origin/main -- static`). Prod kører en ældre udgave end staging, og en kolonne, staging ikke længere bruger, kan stadig blive skrevet i prod (S35, 21/10-26).
 
 ## Sikkerhed
 
 - RLS er hele tenant-isolationen. Backend-kald med service role omgår RLS → **hvert endpoint, der modtager et id fra klienten, skal selv verificere ejerskab** via tokenets firm-kobling (IDOR). `firm_id` udledes af Bearer-token, aldrig af request-body.
 - Nye tabeller med brugerdata: SELECT-policy via `firm_users`-opslag; skrivning helst kun server-side (mønster: `messages`).
+- **Permissive RLS-politikker gælder, hvis BARE ÉN godkender — og ved UPDATE tjekkes den nye række også mod SELECT-politikkerne.** En gammel politik, der kun ser på `call_id`, åbnede for at flytte en opgave til et andet firma, selvom den nye politik på `firm_id` var korrekt (S35, 21/10-26). Når ejerskabet flytter til en ny kolonne, fjernes de gamle politikker i samme omgang. Test med de politikker, der faktisk er målt (`pg_policies`) i begge miljøer — staging og prod havde ikke de samme.
 - Modtager-numre, beløb o.l. udledes server-side, ikke fra klienten (mønster: `/send-sms`).
 - **Ingen persondata i logs.** Telefonnumre, adresser, navne, e-mails, lead-indhold og transskriptioner maskeres før udskrivning — også i fejlbeskeder til AppSignal. Hjælperne bor i `phone.js` (`maskerTlf`, `maskerMail`) og skal deles, ikke kopieres.
 - **Ingen ny dublet.** Skal en værdi bruges et nyt sted, hentes den fra sin kilde. Kan den ikke hentes, skal der findes et afstemningsscript, der opdager drift. Kopier uden afstemning er forbudt.
@@ -249,6 +252,22 @@ efter en logikfejl i kode, der slet ikke var deployet.
    Ét `Select-String` på en streng, der kun findes i den nye udgave, tager fem
    sekunder. Det er samme disciplin som "min ændring er med i deployet",
    anvendt ét led tidligere — på selve filen.
+
+### Base og resultat som git-hashes for kode (19/10-26)
+
+For kodefiler oplyses base og resultat som git-hashes, ikke kun bytes. Bytes afhænger
+af CRLF/LF; en hash gør ikke (git normaliserer, før den regner):
+
+- **Basen** — før kopiering: `(git rev-parse origin/staging:<sti>) -eq '<hash>'`. `False` = stop; sessionen har bygget på en anden udgave.
+- **Resultatet** — efter kopiering: `(git hash-object <sti>) -eq '<hash>'`.
+
+Dokumenter (registret, runbooken) beholder byte-tallene ovenfor: de kopieres som de er
+og afstemmes mod master.
+
+**Commit kun opgavens egne filer.** En ucommittet ændring i arbejdskopien følger med ved
+branch-skift (`gdpr.xlsx` stod pludselig i en hotfix til `main`, 21/10-26). Brug
+`git add <fil>` — aldrig `git add .` eller `-a` — og tjek `git status --short` før og
+`git show --stat HEAD` efter commit.
 
 ### Kæden, i én linje: **hent → skriv → commit → push → bekræft**
 
