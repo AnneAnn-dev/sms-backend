@@ -149,30 +149,29 @@ ${krop}
 
 // Siden, kunden ser, naar linket er brugt. Kun firmanavn og haandvaerkerens
 // eget nummer (firms.owner_phone) — ingen kundedata, intet id.
-// ANNE-ORDLYD: teksterne herunder er pladsholdere ud fra Anns ord 19/10
-// ("linket er brugt, ring til din haandvaerker"). Anne formulerer dem foer prod.
+// Ordlyd (tekst 3, Ann 23/10-26): overskriften "Linket er brugt", derunder
+// knappen "Ring til [firma]" og under den nummeret. Mangler firmaets eget
+// nummer, kan knappen ikke ringe: saa staar kun "Ring til [firma]." som tekst.
 function linkBrugtSide({ firmanavn, telefon }) {
   const navn = escapeHtml(firmanavn || "os");
   const href = telHref(telefon);
   const ring = href
-    ? `    <p>Ring til ${navn} på <strong>${escapeHtml(visNummer(telefon))}</strong>.</p>
-    <a class="ring" href="tel:${escapeHtml(href)}">Ring til ${navn}</a>`
+    ? `    <a class="ring" href="tel:${escapeHtml(href)}">Ring til ${navn}</a>
+    <p><strong>${escapeHtml(visNummer(telefon))}</strong></p>`
     : `    <p>Ring til ${navn}.</p>`;
-  return side("Linket er brugt", `    <h1>Linket er allerede brugt</h1>
-    <p>Din henvendelse er modtaget. Har du mere at fortælle?</p>
+  return side("Linket er brugt", `    <h1>Linket er brugt</h1>
 ${ring}`);
 }
 
 // Siden ved for store eller for mange billeder. Linket er IKKE taget i brug
 // (multer afviser foer brugFormular), saa kunden kan gaa tilbage og sende igen.
-// ANNE-ORDLYD: pladsholder.
+// Annes ordlyd (tekst 4, 23/10-26). En ukendt fejl ved modtagelsen siger ikke
+// noget om graenserne — den ville vildlede.
 function forMangeBillederSide(kode, { maxAntal, maxMb }) {
-  const hvad = kode === "for_mange"
-    ? `Du kan vedhæfte højst ${maxAntal} billeder.`
-    : kode === "for_stor"
-      ? `Et af billederne er for stort. Hvert billede må højst fylde ${maxMb} MB.`
-      : "Billederne kunne ikke modtages.";
-  return side("Prøv igen", `    <h1>Din besked er ikke sendt endnu</h1>
+  const hvad = kode === "for_mange" || kode === "for_stor"
+    ? `Du kan højst sende ${maxAntal} billeder og hvert billede må højst fylde ${maxMb} MB.`
+    : "Billederne kunne ikke modtages.";
+  return side("Prøv igen", `    <h1>Din besked er endnu ikke sendt</h1>
     <p>${escapeHtml(hvad)}</p>
     <p>Gå tilbage, og send igen med færre eller mindre billeder.</p>
     <a class="ring" href="javascript:history.back()">Gå tilbage</a>`);

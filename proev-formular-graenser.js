@@ -148,7 +148,7 @@ async function main() {
   tjek("tel-link: kun + og cifre", telHref("+45 12-34 56 78") === "+4512345678" && telHref("javascript:alert(1)") === "");
   tjek("visNummer: dansk nummer grupperes", visNummer("+4587654321") === "87 65 43 21" && visNummer("004587654321") === "87 65 43 21");
   tjek("for-mange-side: siger graensen",
-    forMangeBillederSide("for_mange", { maxAntal: 5, maxMb: 10 }).includes("højst 5 billeder") &&
+    forMangeBillederSide("for_mange", { maxAntal: 5, maxMb: 10 }).includes("højst sende 5 billeder") &&
     forMangeBillederSide("for_stor", { maxAntal: 5, maxMb: 10 }).includes("10 MB"));
 
   console.log(`\n${ok}/${alle}`);

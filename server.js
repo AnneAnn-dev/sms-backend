@@ -269,15 +269,15 @@ app.get("/formular/:token", async (req, res) => {
       <label for="email">Email (valgfrit)</label>
       <input id="email" name="email" type="email" placeholder="anders@eksempel.dk">
 
-      <!-- ANNE-ORDLYD: overskriftsfeltets tekst og eksempel er pladsholdere
-           (D88 trin 2, opgave 5). Anne formulerer dem foer prod. -->
+      <!-- Annes ordlyd (D88 trin 2, tekst 1, godkendt af Ann 23/10-26). -->
       <label for="titel">Overskrift (valgfrit)</label>
-      <input id="titel" name="titel" type="text" maxlength="${MAX_TITEL}" placeholder="Fx: Utæt bruser">
+      <input id="titel" name="titel" type="text" maxlength="${MAX_TITEL}" placeholder="Fx: Utæt tag">
 
       <label for="opgave">Beskriv opgaven</label>
       <textarea id="opgave" name="opgave" placeholder="Bruseren drypper og vandhanen i køkkenet løber..." required></textarea>
 
-      <label for="billeder">Vedhæft billeder (valgfrit, højst ${billeder.MAX_BILLEDER_PR_INDSENDELSE})</label>
+      <!-- Annes ordlyd (tekst 5, 23/10-26). Tallene kommer fra billeder.js. -->
+      <label for="billeder">Du kan højst sende ${billeder.MAX_BILLEDER_PR_INDSENDELSE} billeder og hvert billede må højst fylde ${Math.round(billeder.MAX_BYTES_PR_BILLEDE / 1048576)} MB.</label>
       <input id="billeder" name="billeder" type="file" accept="image/*" multiple>
       <div id="billed-fejl" style="color:#dc2626;font-size:13px;margin-top:4px;display:none"></div>
 
@@ -443,8 +443,10 @@ app.get("/formular/:token", async (req, res) => {
     felt.addEventListener('change', () => {
       const filer = Array.from(felt.files || []);
       let tekst = '';
-      if (filer.length > MAX_ANTAL) tekst = 'Du kan vedhæfte højst ' + MAX_ANTAL + ' billeder.';
-      else if (filer.some(f => f.size > MAX_BYTES)) tekst = 'Et billede er for stort. Hvert billede må højst fylde ' + Math.round(MAX_BYTES / 1048576) + ' MB.';
+      // Annes ordlyd (tekst 6, 23/10-26): én tekst for begge tilfaelde.
+      if (filer.length > MAX_ANTAL || filer.some(f => f.size > MAX_BYTES)) {
+        tekst = 'Du kan vedhæfte højst ' + MAX_ANTAL + ' billeder og et billede må højst fylde ' + Math.round(MAX_BYTES / 1048576) + ' MB.';
+      }
       besked.textContent = tekst;
       besked.style.display = tekst ? 'block' : 'none';
       if (tekst) felt.value = '';
@@ -582,7 +584,7 @@ app.post("/formular/:token", formularUpload, async (req, res) => {
     <div class="check">✓</div>
     <h1>Tak for din besked!</h1>
     <p>Vi vender tilbage hurtigst muligt.</p>${ikkeGemt ? `
-    <!-- ANNE-ORDLYD: pladsholder -->
+    <!-- Tekst 2 (Ann og Anne 23/10-26): "kun billeder" bliver staaende. -->
     <p style="margin-top:12px">${ikkeGemt === 1 ? "Én fil" : ikkeGemt + " filer"} kom ikke med. Kun billeder kan vedhæftes, højst ${billeder.MAX_BILLEDER_PR_OPGAVE} pr. opgave.</p>` : ""}
   </div>
 </body>
