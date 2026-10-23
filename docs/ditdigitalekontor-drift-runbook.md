@@ -26,7 +26,7 @@ De tre steder hvor noget kan gå i stykker — og som derfor skal være adskilt 
 7. Drifts-/funnel-overvågning *(din trin 2)*
 
 **Lige før go-live:**
-8. **Opgradér Supabase til Pro + slå PITR til** *(Del 0.E — gendannelses-øvelsen er ✅ bestået 3/7-26; tilbage står selve plan-opgraderingen, som trygt kan vente hertil, fordi den kun beskytter ægte kundedata. Indtil da: manuel pg_dump-rutine er eneste backup — Free-planen tager ingen automatiske!)*
+8. ✅ **Opgradér Supabase til Pro + slå PITR til** — *PITR målt slået til i prod 23/10-26, se Del 0.E og D17.* *(Del 0.E — gendannelses-øvelsen er ✅ bestået 3/7-26; tilbage står selve plan-opgraderingen, som trygt kan vente hertil, fordi den kun beskytter ægte kundedata. Indtil da: manuel pg_dump-rutine er eneste backup — Free-planen tager ingen automatiske!)*
 
 **Efter launch:**
 9. Brugs-/engagement-analytics *(din trin 3)*
@@ -468,19 +468,19 @@ Mekanismen er env-vars pr. miljø. Staging må aldrig kunne ramme en kunde:
 
 ### E. Backup på prod
 
-**VIRKELIGHEDEN LIGE NU (Pro-plan — bekræftet i dashboardet 2/8-26):** prod-organisationen er på Pro. Supabase tager daglige fysiske snapshots, og de seneste 7 dage kan gendannes fra dashboardet (Database → Backups → Scheduled backups). Kadence for det manuelle dump: frisk dump før hver større skemaændring.
+**VIRKELIGHEDEN LIGE NU (målt i dashboardet 23/10-26):** prod-organisationen er på Pro, og **PITR er slået til på prod** (`glymuxqtrbpeyzmflilf`): log hvert 2. minut, gendannelse til et vilkårligt tidspunkt inden for de seneste **7 dage** (Database → Backups → Point in time). Compute er **Small**. Staging har PITR slået fra. Kadence for det manuelle dump: frisk dump før hver større skemaændring.
 
-**PITR er IKKE slået til — bevidst valg 2/8-26.**
-- **Valgt:** 7 dages daglige backups. **Alternativ:** PITR som tilkøb.
-- **Hvorfor:** prod indeholder testdata, og der er ingen betalende kunder. De op til 24 timers RPO beskytter ikke noget uerstatteligt endnu.
-- **Omstødelig:** PITR faktureres pr. time og kan slås til når som helst. Derfor fem minutters beslutning, ikke en dags.
-- **Re-trigger: første betalende kunde.** Fra det øjeblik findes der ægte kundedata, og beskyttelsen skal være automatisk frem for afhængig af en manuel rutine.
-- ⚠️ **PITR er ikke omfattet af Spend Cap** (Spend Cap er aktiv på organisationen pr. 2/8-26). Den dag PITR slås til, løber udgiften uden om spærringen. PITR kræver desuden mindst et **Small compute-add-on**.
+**PITR er slået til i prod — og beholdes (fælles beslutning, Ann og Anne, bekræftet 23/10-26).**
+- ⚠️ **Dokumenterne var forkerte:** fra 2/8-26 stod her "PITR er IKKE slået til — bevidst valg", med re-trigger "første betalende kunde". PITR blev slået til senere uden at dokumenterne fulgte med; tidspunktet er ikke aflæst. Fundet 23/10-26, da årshjulet bad om beslutningen.
+- **Hvorfor det beholdes:** en ny sælger er fundet, og der ventes betalende kunder. Der er desuden allerede ægte kundedata i prod (pilotkunde).
+- **Pris:** ca. $100/md. for PITR (7 dage, $0,137/t) + Small compute ca. $15/md. ($0,0206/t), hvoraf Pros $10 compute-kredit dækker en del.
+- ⚠️ **PITR er ikke omfattet af Spend Cap** (Spend Cap er aktiv på organisationen pr. 2/8-26). Udgiften løber uden om spærringen. PITR kræver mindst **Small compute** — skrues compute ned, skal PITR slås fra først.
+- **Omstødelig:** PITR kan slås fra i Project Settings → Add-ons. Tag et manuelt `pg_dump` lige før, så der ikke er et hul, mens de daglige backups starter op igen.
 - Se **D17** i `RISIKOREGISTER.md`.
 
 - Pro-plan giver de seneste 7 dages daglige (fysiske) snapshots — de kan **ikke** downloades/inspiceres.
 - ⚠️ **Backups dækker IKKE Storage.** Supabase skriver det selv på backup-siden: en databasebackup indeholder kun *metadata* om objekter uploadet via Storage-API'et, ikke objekterne selv — og gendannelse af en gammel backup bringer ikke filer tilbage, der er slettet siden. Greeting-lyd og lead-billeder skal sikres for sig, se "Gendannelses-øvelse (step-by-step)".
-- Slås PITR til en dag: bemærk at der så ikke længere tages daglige backups (PITR er finere granularitet, så begge dele er unødvendigt).
+- Ifølge Supabases dokumentation tages der ikke længere daglige backups, når PITR er slået til. ⚠️ **Målt 23/10-26:** fanen "Scheduled backups" viser stadig ét fysisk snapshot pr. dag. Hvad de er (formentlig PITR's egne udgangspunkter), er ikke afklaret — regn ikke med dem som en selvstændig backup.
 - **Manuelt, portabelt snapshot du selv ejer** (beholder sin rolle som off-site-kopi, også efter Pro/PITR). Docker-fri vej med `pg_dump` (PostgreSQL-klientværktøjer installeret 3/7-26; `supabase db dump` kræver Docker):
   ```powershell
   $env:PGPASSWORD = 'databasepassword-fra-password-manager'   # enkelte anførselstegn!
@@ -1438,7 +1438,7 @@ Verificeret 5/8-26 mod ni testtilfælde, herunder at `MAIL_OVERRIDE_TO` **ikke**
 3. Frisbii-branding (logo/farver/mails, dansk) i begge konti + øvelser: dunning-testkort, kuponer, planskift
 
 ### 🚦 Go-live-gates (master-punkt 8 — før første betalende kunde)
-1. Supabase Pro + PITR på prod
+1. ✅ Supabase Pro + PITR på prod *(målt 23/10-26, se D17)*
 2. Frisbii live-nøgler i PROD (kræver indløsningsaftale + MobilePay MSN → kræver bankkonto; staging beholder testkonto)
 3. ✅/⛔ **Checkout virker i STAGING hele vejen (16/8); PROD opretter sessioner.** Staging: `session.url` → betaling → `subscription_created` → provisionering → `✅ Firma oprettet`. Prod: `session.url` returneret, og `company`-valideringen bevist i begge retninger. **At prod fik en session betyder, at prod-kontoen HAR en betalingsmetode** — ellers var svaret `601`. **Tilbage:** ét fuldt gennemløb i prod (venter på flere numre i puljen) · aflæsning af prod-kontoens plan-handle og prøveperiode · flowet kørt fra partnersitet.
 4. Dublet-email-håndtering løst (kodeopgave 1)
