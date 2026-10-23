@@ -31,4 +31,9 @@ module.exports = {
   // opgaver oprettes praecis som foer, uden kunde. Uafhaengig af TILBUD_AKTIV,
   // saa matchningen kan koere i prod, foer Kunder-fanen vises (D88 trin 1).
   KUNDE_MATCH_AKTIV: flag("KUNDE_MATCH_AKTIV"),
+
+  // S34 (D88 trin 2, 19/10-26): kundeformularens link virker én gang.
+  // Slukket = linket kan bruges igen som foer, men calls.formular_brugt_at
+  // skrives stadig. Se formular-engangs.js.
+  FORMULAR_ENGANGS_AKTIV: flag("FORMULAR_ENGANGS_AKTIV"),
 };

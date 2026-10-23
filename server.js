@@ -2,12 +2,14 @@ require("dotenv").config({ quiet: true });
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const webpush = require("web-push");
-const multer = require("multer");
 const { firmIdFromToken } = require("./auth");
-const { gyldigtSmsNummer } = require("./phone");
+const { gyldigtSmsNummer, kundeNoegle } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV } = require("./flags");
 const { knytKunde } = require("./kundematch");
+const { hentEgenRaekke } = require("./ejerskab");
+const billeder = require("./billeder");
+const { brugFormular, frigivFormular, linkBrugtSide, forMangeBillederSide } = require("./formular-engangs");
 const { registrerPushRuter, sendNytLeadPush } = require("./push");
 
 webpush.setVapidDetails(
@@ -49,7 +51,8 @@ app.get("/health", (req, res) =>
     ok: true,
     tilbud: TILBUD_AKTIV,
     kundematch: KUNDE_MATCH_AKTIV,
-        kvote: kvoteKonfigureret(),
+    formularEngangs: FORMULAR_ENGANGS_AKTIV,
+    kvote: kvoteKonfigureret(),
   })
 );
 
@@ -150,15 +153,50 @@ function bygAdresse(vej, postnr, by) {
   return [...rest, postnrBy].join(", ");
 }
 
+// Overskriften paa en opgave (D88 trin 2, opgave 5). Valgfri: tom = null, saa
+// gamle og nye opgaver uden overskrift ser ens ud. leads.titel findes siden
+// 27/7 (kunder_og_opgavelag) — der er ingen ny kolonne.
+const MAX_TITEL = 120;
+function renTitel(v) {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  return s ? s.slice(0, MAX_TITEL) : null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Firmaets navn og haandvaerkerens eget nummer til "linket er brugt"-siden.
+// Fejler opslaget, vises siden uden nummer — den maa aldrig blive tom.
+async function firmaTilBrugtSide(firmId) {
+  try {
+    const { data } = await supabase.from("firms").select("name, owner_phone").eq("id", firmId).maybeSingle();
+    return { firmanavn: data?.name, telefon: data?.owner_phone };
+  } catch (_) { return {}; }
+}
+
 // ─── 2. VIS FORMULAR ────────────────────────────────────────────────────────
 app.get("/formular/:token", async (req, res) => {
-  const { data: call } = await supabase
+  const { data: call, error: callFejl } = await supabase
     .from("calls")
-    .select("id, firms(name)")
+    .select("id, formular_brugt_at, firms(name, owner_phone)")
     .eq("lead_token", req.params.token)
-    .single();
+    .maybeSingle();
 
+  // En databasefejl er IKKE et ugyldigt link. Foer 19/10 blev begge til 404,
+  // saa en manglende kolonne (koden deployet foer migrationen) ville have
+  // ligget som "Link ikke gyldigt" hos hver eneste kunde uden en lyd.
+  if (callFejl) {
+    console.error("❌ formular: opkaldet kunne ikke laeses:", callFejl.code, callFejl.message);
+    sendError(new Error(`formular GET: ${callFejl.code} ${callFejl.message}`));
+    return res.status(500).send("Fejl");
+  }
   if (!call) return res.status(404).send("Link ikke gyldigt");
+
+  // S34: linket virker én gang. 410 = "var her, er der ikke mere".
+  if (FORMULAR_ENGANGS_AKTIV && call.formular_brugt_at) {
+    return res.status(410).send(linkBrugtSide({
+      firmanavn: call.firms?.name, telefon: call.firms?.owner_phone,
+    }));
+  }
 
   const firmName = escapeHtml(call.firms?.name || "os");
 
@@ -218,11 +256,17 @@ app.get("/formular/:token", async (req, res) => {
       <label for="email">Email (valgfrit)</label>
       <input id="email" name="email" type="email" placeholder="anders@eksempel.dk">
 
+      <!-- Annes ordlyd (D88 trin 2, tekst 1, godkendt af Ann 23/10-26). -->
+      <label for="titel">Overskrift (valgfrit)</label>
+      <input id="titel" name="titel" type="text" maxlength="${MAX_TITEL}" placeholder="Fx: Utæt tag">
+
       <label for="opgave">Beskriv opgaven</label>
       <textarea id="opgave" name="opgave" placeholder="Bruseren drypper og vandhanen i køkkenet løber..." required></textarea>
 
-      <label for="billeder">Vedhæft billeder (valgfrit)</label>
+      <!-- Annes ordlyd (tekst 5, 23/10-26). Tallene kommer fra billeder.js. -->
+      <label for="billeder">Du kan højst sende ${billeder.MAX_BILLEDER_PR_INDSENDELSE} billeder og hvert billede må højst fylde ${Math.round(billeder.MAX_BYTES_PR_BILLEDE / 1048576)} MB.</label>
       <input id="billeder" name="billeder" type="file" accept="image/*" multiple>
+      <div id="billed-fejl" style="color:#dc2626;font-size:13px;margin-top:4px;display:none"></div>
 
       <div class="urgent-row">
         <input id="urgent" name="urgent" type="checkbox">
@@ -373,6 +417,29 @@ app.get("/formular/:token", async (req, res) => {
 
   function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
 
+  // ── Billeder (D88 trin 2, 19/10-26) ──────────────────────────────────
+  // Samme graenser som serveren (billeder.js). Tjekket her er kun en hjaelp:
+  // serveren afviser alligevel. Men afviser SERVEREN, maa kunden gaa tilbage —
+  // fanges det her, mister han intet.
+  (function () {
+    const MAX_ANTAL = ${billeder.MAX_BILLEDER_PR_INDSENDELSE};
+    const MAX_BYTES = ${billeder.MAX_BYTES_PR_BILLEDE};
+    const felt = document.getElementById('billeder');
+    const besked = document.getElementById('billed-fejl');
+    if (!felt || !besked) return;
+    felt.addEventListener('change', () => {
+      const filer = Array.from(felt.files || []);
+      let tekst = '';
+      // Annes ordlyd (tekst 6, 23/10-26): én tekst for begge tilfaelde.
+      if (filer.length > MAX_ANTAL || filer.some(f => f.size > MAX_BYTES)) {
+        tekst = 'Du kan vedhæfte højst ' + MAX_ANTAL + ' billeder og et billede må højst fylde ' + Math.round(MAX_BYTES / 1048576) + ' MB.';
+      }
+      besked.textContent = tekst;
+      besked.style.display = tekst ? 'block' : 'none';
+      if (tekst) felt.value = '';
+    });
+  })();
+
   document.querySelector('form').addEventListener('submit', e => {
     // Reservevejen: tjenesten svarer ikke, og intet er valgt fra en liste.
     // Kraev et rigtigt postnummer og en by, og send dem i de samme skjulte
@@ -404,18 +471,27 @@ app.get("/formular/:token", async (req, res) => {
 });
 
 // ─── 3. MODTAG UDFYLDT FORMULAR ─────────────────────────────────────────────
-const upload = multer({ storage: multer.memoryStorage() });
+// Graenser og lagring bor i billeder.js (D88 trin 2, 19/10-26). For store
+// eller for mange billeder afvises FOER linket tages i brug, saa kunden kan
+// gaa tilbage og sende igen. Filer, der ikke er billeder, springes over.
+const formularUpload = billeder.medUpload("billeder", (req, res, kode) =>
+  res.status(413).send(forMangeBillederSide(kode, {
+    maxAntal: billeder.MAX_BILLEDER_PR_INDSENDELSE,
+    maxMb: Math.round(billeder.MAX_BYTES_PR_BILLEDE / 1048576),
+  }))
+);
 
-app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
-  // firm_id hentes MED her, saa leadet kan baere sin egen ejerskabsnoegle.
-  // Uden den ville firm_id vaere NULL paa hver eneste kunde-indsendelse (D21).
-  const { data: call } = await supabase
-    .from("calls")
-    .select("id, firm_id, from_number")
-    .eq("lead_token", req.params.token)
-    .single();
-
-  if (!call) return res.status(404).send("Link ikke gyldigt");
+app.post("/formular/:token", formularUpload, async (req, res) => {
+  // S34 (19/10-26): tag linket i brug med én betinget opdatering, FOER noget
+  // gemmes. firm_id kommer med herfra, saa leadet kan baere sin egen
+  // ejerskabsnoegle (D21). Se formular-engangs.js.
+  const brug = await brugFormular(supabase, req.params.token, { aktiv: FORMULAR_ENGANGS_AKTIV });
+  if (brug.status === "ukendt") return res.status(404).send("Link ikke gyldigt");
+  if (brug.status === "fejl") return res.status(500).send("Fejl");
+  if (brug.status === "brugt") {
+    return res.status(410).send(linkBrugtSide(await firmaTilBrugtSide(brug.call.firm_id)));
+  }
+  const call = brug.call;
 
   const { data: lead, error } = await supabase
     .from("leads")
@@ -423,39 +499,27 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
       call_id:      call.id,
       firm_id:      call.firm_id,   // D21: multi-tenant-noeglen, udledt af opkaldet
       name:         req.body.navn,
-      address:      bygAdresse(req.body.vej, req.body.postnr, req.body.by),
+      // '' og aldrig null: leads.address er NOT NULL (23502, 19/10-26).
+      address:      bygAdresse(req.body.vej, req.body.postnr, req.body.by) || "",
       address_mail: req.body.email || null,
       task:         req.body.opgave,
+      titel:        renTitel(req.body.titel),
       is_urgent:    req.body.urgent === "on",
     })
     .select()
     .single();
 
   if (error) {
-    console.error("❌ Supabase fejl:", error);
+    // Kun koden: Postgres' `details` kan indeholde hele raekken med navn og
+    // adresse ("Failing row contains ..."), og den maa ikke i loggen.
+    console.error("❌ Supabase fejl (lead fra formular):", error.code, error.message);
+    // Giv linket tilbage, saa kunden kan proeve igen.
+    await frigivFormular(supabase, call.id, brug.stempel);
     return res.status(500).send("Fejl");
   }
 
-  for (const file of req.files || []) {
-    const filePath = `${lead.id}/${Date.now()}-${file.originalname}`;
-    const { error: uploadError } = await supabase.storage
-      .from("lead-images")
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
-
-    if (uploadError) { console.error("❌ Billedfejl:", uploadError); continue; }
-
-    const { data: publicUrl } = supabase.storage
-      .from("lead-images")
-      .getPublicUrl(filePath);
-
-    await supabase.from("lead_images").insert({
-      lead_id:   lead.id,
-      image_url: publicUrl.publicUrl,
-    });
-  }
+  const billedResultat = await billeder.gemBilleder(supabase, lead.id, req.files);
+  const ikkeGemt = (req.afvisteFiler || 0) + billedResultat.oversteg + billedResultat.fejlede;
 
   await supabase
     .from("calls")
@@ -506,7 +570,9 @@ app.post("/formular/:token", upload.array("billeder"), async (req, res) => {
   <div class="card">
     <div class="check">✓</div>
     <h1>Tak for din besked!</h1>
-    <p>Vi vender tilbage hurtigst muligt.</p>
+    <p>Vi vender tilbage hurtigst muligt.</p>${ikkeGemt ? `
+    <!-- Tekst 2 (Ann og Anne 23/10-26): "kun billeder" bliver staaende. -->
+    <p style="margin-top:12px">${ikkeGemt === 1 ? "Én fil" : ikkeGemt + " filer"} kom ikke med. Kun billeder kan vedhæftes, højst ${billeder.MAX_BILLEDER_PR_OPGAVE} pr. opgave.</p>` : ""}
   </div>
 </body>
 </html>`);
@@ -598,10 +664,27 @@ app.post("/opret-opgave", async (req, res) => {
   const firm_id = await firmIdFromToken(supabase, req);
   if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
 
-  const { name, phone, address, address_mail, task, desired_time, is_urgent, notes } = req.body;
+  const { name, phone, address, address_mail, task, desired_time, is_urgent, notes, kunde_id, titel } = req.body;
 
   if (!name || !task)
     return res.status(400).json({ error: "Mangler navn eller opgave" });
+
+  // D88 trin 2: kunde_id kommer, naar Ny opgave aabnes fra en kundes side.
+  // Ejerskabet tjekkes FOER noget skrives — ogsaa foer den syntetiske
+  // calls-raekke — saa et fremmed id aldrig efterlader noget. Findes ikke og
+  // ikke dit svarer det samme (404), saa man ikke kan taelle sig frem.
+  let kundeId = null;
+  if (kunde_id != null && String(kunde_id).trim()) {
+    if (!UUID_RE.test(String(kunde_id))) return res.status(404).json({ error: "Kunden findes ikke" });
+    try {
+      await hentEgenRaekke(supabase, "kunder", String(kunde_id), firm_id, "id");
+      kundeId = String(kunde_id);
+    } catch (e) {
+      if (e && e.kode === "ejerskab_ikke_fundet") return res.status(404).json({ error: "Kunden findes ikke" });
+      console.error("❌ opret-opgave: kunde kunne ikke laeses:", e && e.kode, e && e.message);
+      return res.status(500).json({ error: "Kunden kunne ikke slås op" });
+    }
+  }
 
   // Indtastet telefonnummer (10/10-26, telefonfeltet). Valideres FOER noget
   // skrives, saa en afvisning ikke efterlader en calls-raekke uden opgave.
@@ -614,6 +697,25 @@ app.post("/opret-opgave", async (req, res) => {
     telefon = gyldigtSmsNummer(phone);
     if (!telefon)
       return res.status(400).json({ error: "Telefonnummeret skal være et dansk nummer med 8 cifre" });
+  }
+
+  // Med en kunde: et indtastet nummer skal ind i kundens numre (kunde_telefoner
+  // er eneste kilde, D88 betingelse 2). Hoerer nummeret til en ANDEN kunde,
+  // afvises opgaven, foer noget skrives — ellers ville samme nummer pege paa
+  // to kunder. Samme kunde = intet at goere.
+  const noegle = kundeId && telefon ? kundeNoegle(telefon) : null;
+  let nytNummer = false;
+  if (noegle) {
+    const { data: ejer, error: tFejl } = await supabase
+      .from("kunde_telefoner").select("kunde_id")
+      .eq("firm_id", firm_id).eq("telefon", noegle).maybeSingle();
+    if (tFejl) {
+      console.error("❌ opret-opgave: kunde_telefoner:", tFejl.code, tFejl.message);
+      return res.status(500).json({ error: "Telefonnummeret kunne ikke tjekkes" });
+    }
+    if (ejer && ejer.kunde_id !== kundeId)
+      return res.status(409).json({ error: "Telefonnummeret hører til en anden kunde" });
+    nytNummer = !ejer;
   }
 
   const { data: call, error: callError } = await supabase
@@ -637,8 +739,10 @@ app.post("/opret-opgave", async (req, res) => {
     firm_id,                        // D21: kendt fra sessionen, samme som paa calls-raekken
     name,
     telefon,                        // indtastet, normaliseret — eller null
-    address,
+    address:      address || "",    // NOT NULL i databasen (23502, 19/10-26)
     task,
+    titel:        renTitel(titel),
+    kunde_id:     kundeId,          // null = matchningen herunder knytter
     desired_time: desired_time || null,
     is_urgent:    !!is_urgent,
     notes:        notes || null,
@@ -647,15 +751,69 @@ app.post("/opret-opgave", async (req, res) => {
   }).select("id").single();
 
   if (leadError) {
-    console.error("❌ Lead fejl:", leadError);
+    console.error("❌ Lead fejl:", leadError.code, leadError.message);   // aldrig details (persondata)
     return res.status(500).json({ error: leadError.message });
   }
 
-  // D88 trin 1b: samme regel som /formular. Uden indtastet nummer bliver det
-  // en ny kunde uden nummer (dubletter accepteres indtil "laeg sammen").
-  await knytKunde(supabase, { firmId: firm_id, leadId: nyLead.id, telefon, navn: name, adresse: address });
+  if (kundeId) {
+    // Valgt kunde: ingen matchning. Et nyt nummer laegges paa kunden. Fejler
+    // det (fx 23505, fordi en anden naaede foerst), har opgaven stadig sin
+    // kunde — fejlen logges uden nummeret.
+    if (nytNummer) {
+      const { error: nFejl } = await supabase.from("kunde_telefoner")
+        .insert({ firm_id, kunde_id: kundeId, telefon: noegle });
+      if (nFejl) console.error("❌ opret-opgave: nummer ikke lagt paa kunden:", nFejl.code, nFejl.message);
+    }
+  } else {
+    // D88 trin 1b: samme regel som /formular. Uden indtastet nummer bliver det
+    // en ny kunde uden nummer (dubletter accepteres indtil "laeg sammen").
+    await knytKunde(supabase, { firmId: firm_id, leadId: nyLead.id, telefon, navn: name, adresse: address });
+  }
 
-  res.json({ ok: true });
+  // id'et skal med tilbage: dashboardet laegger billederne paa bagefter.
+  res.json({ ok: true, id: nyLead.id });
+});
+
+// ─── BILLEDER PAA EN OPGAVE FRA DASHBOARDET (D88 trin 2, opgave 9) ─────────
+// Haandvaerkerens egne billeder: samme graenser, sti og tabel som kundens
+// formular (billeder.js). Firmaet udledes af tokenet, og opgaven skal vaere
+// firmaets — FOER filerne overhovedet modtages, saa en fremmed ikke kan fylde
+// serverens hukommelse. Fremmed og ukendt id svarer begge 404.
+async function kraevEgenOpgave(req, res, next) {
+  const firmId = await firmIdFromToken(supabase, req);
+  if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
+  if (!UUID_RE.test(String(req.params.id || ""))) return res.status(404).json({ error: "Opgaven findes ikke" });
+  try {
+    await hentEgenRaekke(supabase, "leads", req.params.id, firmId, "id");
+  } catch (e) {
+    if (e && e.kode === "ejerskab_ikke_fundet") return res.status(404).json({ error: "Opgaven findes ikke" });
+    console.error("❌ opgave-billeder: opgaven kunne ikke laeses:", e && e.kode, e && e.message);
+    return res.status(500).json({ error: "Opgaven kunne ikke slås op" });
+  }
+  next();
+}
+
+const opgaveUpload = billeder.medUpload("billeder", (req, res, kode) =>
+  res.status(413).json({
+    error: kode,
+    besked: kode === "for_mange"
+      ? `Du kan lægge højst ${billeder.MAX_BILLEDER_PR_INDSENDELSE} billeder på ad gangen.`
+      : kode === "for_stor"
+        ? `Et billede er for stort. Hvert billede må højst fylde ${Math.round(billeder.MAX_BYTES_PR_BILLEDE / 1048576)} MB.`
+        : "Billederne kunne ikke modtages.",
+  })
+);
+
+app.post("/opgave/:id/billeder", kraevEgenOpgave, opgaveUpload, async (req, res) => {
+  const r = await billeder.gemBilleder(supabase, req.params.id, req.files);
+  res.json({
+    ok: true,
+    gemt: r.gemt,
+    ikke_billeder: req.afvisteFiler || 0,
+    over_loftet: r.oversteg,
+    fejlede: r.fejlede,
+    max_pr_opgave: billeder.MAX_BILLEDER_PR_OPGAVE,
+  });
 });
 
 // ─── MASKERET FORMULAR-LINK: opgave.ditdigitalekontor.dk/{slug}/{token} ───────────
