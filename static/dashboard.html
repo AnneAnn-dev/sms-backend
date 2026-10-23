@@ -384,6 +384,8 @@
     .billed-status { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
     .billed-status.fejl { color: #dc2626; }
     /* D88 trin 2, opgave 10: vej fra opgavevinduet til opgavens referater i Kunder. */
+    /* D88 opgave 2, betingelse 1 (L6c): navn og telefon er kundens og rettes paa kundesiden. */
+    #modal input[readonly] { background: var(--steel-light); color: var(--ink-muted); }
     .referater-raekke { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); font-size: 16px; font-family: inherit; cursor: pointer; }
     .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
 
@@ -884,6 +886,12 @@
           <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="12 34 56 78">
           <div id="modal-phone-note" style="display:none;font-size:13px;margin-top:6px;color:var(--danger)"></div>
         </div>
+      </div>
+      <!-- D88 opgave 2, betingelse 1 og 7 (L6c): kun med faner og en kunde. -->
+      <div class="mfield" id="modal-ret-kunde-felt" style="display:none">
+        <button type="button" class="referater-raekke" id="modal-ret-kunde" onclick="retPaaKundesiden()">
+          <span>Navn og telefon rettes på kundesiden</span><span aria-hidden="true">›</span>
+        </button>
       </div>
 
       <div class="mfield" style="position:relative">
@@ -1631,11 +1639,13 @@
   //   - joinet er et ALMINDELIGT (venstre) join: lead.calls er null, når der
   //     intet opkald er. Telefonnummeret i opgavevinduet kommer fra serveren
   //     (/lead-modtager, D88 opgave 2), ikke fra lead.calls.
+  // kunder(navn) (L6c, valg (a) 23/10): kortene og vinduet viser KUNDENS navn,
+  // naar der er faner og en kunde — se visNavn(). RLS: kunder_select (maalt 23/10).
   // Polleren nedenfor bruger SAMME definition — rettes den ene, rettes begge,
   // ellers er sættene uenige, og dashboardet genindlæser hvert 30. sekund.
   const { data: leads } = await db
     .from("leads")
-    .select("*, lead_images(image_url), calls(id, status, from_number, firm_id)")
+    .select("*, lead_images(image_url), calls(id, status, from_number, firm_id), kunder(navn)")
     .eq("firm_id", firm?.id)
     .order("created_at", { ascending: false });
 
@@ -1704,13 +1714,26 @@ function renderLeads() {
   updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
 }
 
+// ─── Navnet (D88 opgave 2, valg (a), Ann 23/10) ──────────────────────────
+// Med faner og en kunde vises KUNDENS navn (kunder.navn) paa kortet og i
+// vinduet. Intet kopieres: leads.name bliver liggende som historik (det,
+// kunden skrev, eller den der ringede) og vises kun uden kunde eller uden
+// faner. Retter man navnet paa kundesiden, skifter alle kundens opgaver.
+function kundeLaast(lead) {
+  return document.body.classList.contains('faner') && !!(lead && lead.kunde_id);
+}
+function visNavn(lead) {
+  if (kundeLaast(lead) && lead.kunder && lead.kunder.navn) return lead.kunder.navn;
+  return (lead && lead.name) || '';
+}
+
 // Ét kort, brugt af listen OG af Lukkede. Uden faner er det praecis som foer.
 function leadKort(lead) {
   const faner = document.body.classList.contains('faner');
   return `
     <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${esc(JSON.stringify(lead))})">
       <div class="lead-top">
-        <div class="lead-name">${esc(lead.name)}</div>
+        <div class="lead-name">${esc(visNavn(lead))}</div>
         ${faner && !lead.seen_at && lead.status === 'open' ? '<span class="prik-ulaest" aria-hidden="true"></span><span class="sr-only">Ulæst</span>' : ''}
       </div>
       <div class="lead-address">${esc(formatAddress(lead.address))}</div>
@@ -2720,9 +2743,17 @@ function leadKort(lead) {
       updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
     }
 
-    const initials = lead.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    // Betingelse 1 (L6c): med faner og en kunde er navn og telefon kundens og
+    // rettes paa kundesiden ("Navn og telefon rettes paa kundesiden ›",
+    // betingelse 7). Uden faner — prod i dag — som foer.
+    const laast = kundeLaast(lead);
+    const navn = visNavn(lead);
+    const initials = navn.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
     document.getElementById('modal-avatar').textContent = initials;
-    document.getElementById('modal-name').textContent = lead.name;
+    document.getElementById('modal-name').textContent = navn;
+    document.getElementById('modal-name-input').readOnly = laast;
+    document.getElementById('modal-phone-input').readOnly = laast;
+    document.getElementById('modal-ret-kunde-felt').style.display = laast ? '' : 'none';
     // Nummeret kommer fra serveren (betingelse 2). Det SKAL vaere her, foer
     // snapshot'et nedenfor: ellers ligner serverens svar en rettelse ved luk.
     lead._modtager = null; lead._nummer = null;
@@ -2730,7 +2761,7 @@ function leadKort(lead) {
     await hentModtager(lead);
     if (currentLead !== lead) return;            // en anden opgave blev aabnet imens
     visTelefon(lead);
-    document.getElementById('modal-name-input').value = lead.name;
+    document.getElementById('modal-name-input').value = navn;
     // Robust adresse-parsning (bagfra): tåler dubletter, tomme segmenter og
     // supplerende bynavne — den gamle ét-komma-split SLETTEDE postnr/by ved luk.
     const parsed = parseAddress(lead.address);
@@ -2744,7 +2775,8 @@ function leadKort(lead) {
       address_mail: document.getElementById('modal-address-mail').value.trim() || null,
       notes: lead.notes || null,
       is_urgent: !!lead.is_urgent,
-      name: (lead.name || '').trim(),
+      name: navn.trim(),
+      navnLaast: laast,
       task: lead.task || '',
       titel: (lead.titel || '').trim(),
       telefon: document.getElementById('modal-phone-input').value.trim(),
@@ -2865,6 +2897,7 @@ function leadKort(lead) {
     const lead = currentLead, orig = modalOriginal;
     if (!lead || !orig) return null;
     const felt = document.getElementById('modal-phone-input');
+    if (felt.readOnly) return null;               // kundens nummer — rettes paa kundesiden (L6c)
     const nyt = felt.value.trim();
     if (nyt === orig.telefon) return null;
     let res, svar = {};
@@ -2941,7 +2974,9 @@ function leadKort(lead) {
         // som '' - aldrig null, ellers afvises HELE gemningen (23502), og noter,
         // navn og haster forsvinder med. Fundet i prod 19/10-26.
         const felter = { address: address || '', address_mail, notes, is_urgent, titel: titel || null };
-        if (name) felter.name = name;          // et tomt navn skrives aldrig
+        // Et tomt navn skrives aldrig. Er navnet kundens (L6c), skrives det
+        // heller ikke: det ville kopiere kundens navn ind paa opgaven (valg (a)).
+        if (name && !(modalOriginal && modalOriginal.navnLaast)) felter.name = name;
         if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
         const { error } = await db.from('leads').update(felter).eq('id', lead.id);
         if (error) {
@@ -3065,6 +3100,7 @@ function leadKort(lead) {
   //   dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
   //                       { kilde:'ddk-dashboard', type:'opgaver-aendret' }
   //                       { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+  //                       { kilde:'ddk-dashboard', type:'ret-kunde',     kundeId, opgaveId }   (L6c)
   // Kommer der ingen kvittering inden for 1,5 s (fx en gammel dashboard-fane
   // fra cachen), bruger rammen sin egen visning som reserve.
   //
@@ -3129,15 +3165,21 @@ function leadKort(lead) {
     }
   }
 
+  // Altid frisk fra databasen (L6c): efter "Ret kunde" har den kendte kopi det
+  // gamle kundenavn. Den kendte bruges kun, hvis hentningen fejler.
   async function findLead(id) {
     const kendt = allLeads.find(l => l.id === id);
-    if (kendt) return kendt;
     // Samme definition som loadData() — under RLS, saa kun firmaets egne.
     const { data, error } = await db.from('leads')
-      .select('*, lead_images(image_url), calls(id, status, from_number, firm_id)')
+      .select('*, lead_images(image_url), calls(id, status, from_number, firm_id), kunder(navn)')
       .eq('id', id).maybeSingle();
     if (error) console.warn('Kunder-broen: opgaven kunne ikke hentes:', error.message);
-    return data || null;
+    if (data) {
+      const i = allLeads.findIndex(l => l.id === id);
+      if (i !== -1) { allLeads[i] = data; renderLeads(); }
+      return data;
+    }
+    return kendt || null;
   }
 
   window.addEventListener('message', async (e) => {
@@ -3190,6 +3232,19 @@ function leadKort(lead) {
     if (document.getElementById('modal-bg').classList.contains('open')) return;
     setFane('kunder');
     sendTilKunder({ type: 'vis-referater', kundeId: lead.kunde_id, opgaveId: lead.id });
+  }
+
+  // Betingelse 7 (L6c): "Navn og telefon rettes paa kundesiden ›" lukker vinduet
+  // (og gemmer det, der er rettet), viser kundesiden med arket "Ret kunde", og
+  // naar arket lukkes, beder Kunder-fanen om at aabne SAMME opgave igen
+  // ('aabn-opgave'), hentet frisk, saa det nye navn og nummer staar der.
+  async function retPaaKundesiden() {
+    const lead = currentLead;
+    if (!lead || !lead.kunde_id) return;
+    await closeModal();
+    if (document.getElementById('modal-bg').classList.contains('open')) return;
+    setFane('kunder');
+    sendTilKunder({ type: 'ret-kunde', kundeId: lead.kunde_id, opgaveId: lead.id });
   }
 
   let sendterBilleder = false;                  // vagt mod dobbelt-upload

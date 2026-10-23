@@ -1706,7 +1706,15 @@ lavReferatBtn.addEventListener('click', async () => {
    ========================================================================= */
 const retKundeSheet = document.getElementById('retKundeSheet');
 const RK_DANSK = /^\+45\d{8}$/;
-let rk = null;   // { id, foer, numre, fjern:Set, valg, nytValg:{nyt, kilder}|null, brug:[{nummer,antal,sms}]|null, kvit:[], skrevet }
+let rk = null;   // { id, foer, numre, fjern:Set, valg, nytValg:{nyt, kilder}|null, brug:[{nummer,antal,sms}]|null, kvit:[], skrevet, tilbage }
+
+// Betingelse 7 (L6c): kom han fra opgavevinduet ("Navn og telefon rettes på
+// kundesiden"), åbnes SAMME opgave igen, når arket lukkes — gemt eller ej.
+// Uden dashboard (siden alene) bliver han på kundesiden.
+function rkTilbage(opgaveId) {
+  if (!opgaveId) return;
+  bedDashboard({ type: 'aabn-opgave', opgaveId }, () => {});
+}
 
 function rkAdresseTekst(k) { return kundeAdresse(k); }
 
@@ -1752,12 +1760,13 @@ document.getElementById('retKundeBtn').addEventListener('click', aabnRetKunde);
 retKundeSheet.addEventListener('click', async (e) => {
   if (e.target !== retKundeSheet) return;
   retKundeSheet.classList.remove('open');
-  const skrevet = rk && rk.skrevet, id = rk && rk.id;
+  const skrevet = rk && rk.skrevet, id = rk && rk.id, tilbage = rk && rk.tilbage;
   rk = null;
   if (skrevet) {
     try { customers = await loadCustomers(); } catch (_) { /* siden viser det, den har */ }
-    openKundeDetail(id);
+    await openKundeDetail(id);
   }
+  rkTilbage(tilbage);
 });
 
 // Numrene tegnes med textContent — de kommer fra serveren, aldrig som HTML.
@@ -1983,8 +1992,22 @@ document.getElementById('rkGemBtn').addEventListener('click', async () => {
   const k = document.getElementById('kundeDetailKvittering');
   k.textContent = kvit.join(' ');
   k.style.display = kvit.length ? '' : 'none';
+  const tilbage = rk && rk.tilbage;
   rk = null;
+  rkTilbage(tilbage);
 });
+
+// Fra opgavevinduet ('ret-kunde', L6c): kunden hentes frisk, kundesiden vises,
+// og arket åbnes med vejen tilbage til opgaven.
+const RK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function retKundeFraOpgave(kundeId, opgaveId) {
+  if (!RK_ID_RE.test(String(kundeId || '')) || !RK_ID_RE.test(String(opgaveId || ''))) return;
+  try { customers = await loadCustomers(); } catch (_) { /* navnet viser "Kunde" */ }
+  await openKundeDetail(kundeId);
+  if (!customers.find(c => c.id === kundeId)) return;   // ukendt kunde: bliv på siden
+  aabnRetKunde();
+  if (rk) rk.tilbage = opgaveId;
+}
 if (typeof initDawa === 'function') {
   initDawa({ inputId: 'rkAdresse', suggestionsId: 'rkAdresseForslag', fuldTekstIFelt: true });
 }
@@ -2022,6 +2045,7 @@ if (typeof initDawa === 'function') {
      dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
                          { kilde:'ddk-dashboard', type:'opgaver-aendret' }
                          { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+                         { kilde:'ddk-dashboard', type:'ret-kunde',     kundeId, opgaveId }   (L6c)
    Ingen kvittering inden for 1,5 s (gammel dashboard-fane, eller siden åbnet
    alene): reserven — sidens egen visning, som før.
    Værn: kun beskeder fra egen origin OG fra forældrevinduet; kun typerne
@@ -2064,6 +2088,10 @@ window.addEventListener('message', async (e) => {
     const s = aktivSkaerm();
     if (s === 'kunde-detail' && currentKundeDetailId) openKundeDetail(currentKundeDetailId);
     else if (s === 'customers') renderKundeList();
+    return;
+  }
+  if (d.type === 'ret-kunde') {
+    retKundeFraOpgave(d.kundeId, d.opgaveId);
     return;
   }
   if (d.type === 'vis-referater' && typeof d.kundeId === 'string' && typeof d.opgaveId === 'string') {
