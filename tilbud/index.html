@@ -277,6 +277,7 @@
   .rk-fjernes { text-decoration: line-through; color: var(--ink-soft); }
   .rk-spm { font-size: 14px; margin: 6px 0 4px; font-weight: 600; }
   .rk-radio { display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 15px; }
+  .rk-brug { color: var(--ink-soft); font-size: 13px; }
   .new-kunde-row { display: flex; gap: 8px; margin-top: 12px; }
   .new-kunde-row input { flex: 1; }
   .new-kunde-row button { flex-shrink: 0; }
@@ -574,6 +575,7 @@
         <div class="section-label" style="margin-top:6px">Telefonnumre</div>
         <div id="rkNumre"></div>
         <input type="text" inputmode="tel" id="rkNytNummer" placeholder="Tilføj nummer" autocomplete="off">
+        <div id="rkNytValg" style="display:none"></div>
         <div id="rkValg" style="display:none"></div>
         <div class="error-banner" id="errorBannerRetKunde"></div>
         <button class="btn btn-primary" id="rkGemBtn" type="button">Gem</button>
@@ -700,7 +702,7 @@ function udenFaser() { faseKnap = null; }
 Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
-const { loadCustomers, saveCustomers, retKunde, loadOpgaver, saveOpgaver,
+const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
         retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
@@ -1691,13 +1693,20 @@ lavReferatBtn.addEventListener('click', async () => {
    spørger håndværkeren: skal opgaverne bruge et andet af kundens danske
    numre, eller beholde det gamle? Intet skifter i stilhed (betingelse 4).
 
-   Rækkefølge: (1) stamdata og et nyt nummer i ét kald, (2) hver fjernelse
-   for sig. Afbrydes det undervejs, står kunden i en gyldig tilstand, og et
+   Tilføjes et dansk nummer på en kunde med åbne opgaver (Ann 23/10),
+   spørger arket for hvert nummer, opgaverne bruger nu: skal de bruge det nye
+   i stedet? Ja eller nej skal vælges. Ja flytter både det, der vises på
+   opgaven, og det, SMS'en går til — en opgave har ét nummer (let b).
+   Ved hvert nummer står, hvor mange åbne opgaver der sender dertil
+   (GET /api/tilbud/kunder/:id/opgave-numre), også numre, der ikke er kundens.
+
+   Rækkefølge: (1) stamdata og et nyt nummer i ét kald, (1b) svaret på
+   "skal opgaverne bruge det nye?", (2) hver fjernelse for sig. Afbrydes det undervejs, står kunden i en gyldig tilstand, og et
    nyt tryk på Gem gør resten (serveren tåler gentagelse).
    ========================================================================= */
 const retKundeSheet = document.getElementById('retKundeSheet');
 const RK_DANSK = /^\+45\d{8}$/;
-let rk = null;   // { id, foer: {navn, adresse}, numre, fjern:Set, valg:{nummer, antal, forslag}|null, kvit:[], skrevet }
+let rk = null;   // { id, foer, numre, fjern:Set, valg, nytValg:{nyt, kilder}|null, brug:[{nummer,antal,sms}]|null, kvit:[], skrevet }
 
 function rkAdresseTekst(k) { return kundeAdresse(k); }
 
@@ -1705,16 +1714,38 @@ function aabnRetKunde() {
   const k = customers.find(c => c.id === currentKundeDetailId);
   if (!k) return;
   rk = { id: k.id, foer: { navn: k.navn || '', adresse: rkAdresseTekst(k) },
-         numre: (k.telefoner || []).slice(), fjern: new Set(), valg: null, kvit: [] };
+         numre: (k.telefoner || []).slice(), fjern: new Set(), valg: null, nytValg: null, brug: null, kvit: [] };
   document.getElementById('rkNavn').value = rk.foer.navn;
   document.getElementById('rkAdresse').value = rk.foer.adresse;
   document.getElementById('rkNytNummer').value = '';
   skjulFejl('errorBannerRetKunde');
   rkTegnNumre();
   rkTegnValg();
+  rkTegnNytValg();
   document.getElementById('rkGemBtn').disabled = false;
   retKundeSheet.classList.add('open');
+  rkHentBrug();
 }
+
+// Hvilke numre de åbne opgaver bruger. Fejler det, vises arket uden tallene —
+// og Gem med et nyt nummer spørger igen, før noget flyttes.
+async function rkHentBrug() {
+  if (!rk) return;
+  const id = rk.id;
+  try {
+    const brug = await hentOpgaveNumre(id);
+    if (!rk || rk.id !== id) return;
+    rk.brug = brug;
+  } catch (_) {
+    if (rk && rk.id === id) rk.brug = null;
+  }
+  if (rk && rk.id === id) rkTegnNumre();
+}
+function rkAntal(n) {
+  const b = rk && rk.brug && rk.brug.find(x => x.nummer === n);
+  return b ? b.antal : 0;
+}
+const rkOpgTekst = (a) => a === 1 ? '1 åben opgave' : a + ' åbne opgaver';
 document.getElementById('retKundeBtn').addEventListener('click', aabnRetKunde);
 // Lukkes arket midt i et valg, kan noget allerede være gemt (navn, nyt nummer):
 // så vises kundesiden igen fra serveren, så den ikke viser det gamle.
@@ -1742,6 +1773,12 @@ function rkTegnNumre() {
     const tal = document.createElement('span'); tal.textContent = visTelefon(n);
     const fjernes = rk.fjern.has(n);
     if (fjernes) tal.className = 'rk-fjernes';
+    const a = rkAntal(n);
+    if (a) {
+      const brug = document.createElement('span'); brug.className = 'rk-brug';
+      brug.textContent = ' · ' + rkOpgTekst(a);
+      tal.appendChild(brug);
+    }
     const knap = document.createElement('button');
     knap.type = 'button'; knap.className = 'btn-ghost rk-knap';
     knap.textContent = fjernes ? 'Fortryd' : 'Fjern';
@@ -1753,6 +1790,36 @@ function rkTegnNumre() {
     raekke.appendChild(tal); raekke.appendChild(knap);
     wrap.appendChild(raekke);
   });
+  // Opgaver, der sender til et nummer, der IKKE står på kunden (fx rettet på
+  // opgaven). Vises, så det ikke er en overraskelse — de kan ikke fjernes herfra.
+  (rk.brug || []).filter(b => b.nummer && !rk.numre.includes(b.nummer)).forEach(b => {
+    const p = document.createElement('p'); p.className = 'felt-hjaelp';
+    p.textContent = rkOpgTekst(b.antal) + ' sender til ' + visTelefon(b.nummer) + ', som ikke står på kunden.';
+    wrap.appendChild(p);
+  });
+}
+
+// "Skal de åbne opgaver bruge det nye nummer?" — ét spørgsmål pr. nummer, de
+// bruger nu. Ingen forvalgt svar: han skal vælge.
+function rkTegnNytValg() {
+  const wrap = document.getElementById('rkNytValg');
+  wrap.textContent = '';
+  if (!rk.nytValg) { wrap.style.display = 'none'; return; }
+  const { nyt, kilder } = rk.nytValg;
+  kilder.forEach((k, i) => {
+    const spm = document.createElement('p'); spm.className = 'rk-spm';
+    spm.textContent = rkOpgTekst(k.antal) + ' bruger ' + visTelefon(k.nummer) +
+      '. Skal ' + (k.antal === 1 ? 'den' : 'de') + ' bruge ' + visTelefon(nyt) + ' i stedet?';
+    wrap.appendChild(spm);
+    [['ja', 'Ja, brug ' + visTelefon(nyt)], ['nej', 'Nej, behold ' + visTelefon(k.nummer)]].forEach(([v, t]) => {
+      const l = document.createElement('label'); l.className = 'rk-radio';
+      const r = document.createElement('input'); r.type = 'radio'; r.name = 'rkNytValg' + i; r.value = v;
+      r.dataset.kilde = k.nummer;
+      const s = document.createElement('span'); s.textContent = t;
+      l.appendChild(r); l.appendChild(s); wrap.appendChild(l);
+    });
+  });
+  wrap.style.display = '';
 }
 
 // Spørgsmålet, når serveren har svaret nummer_bruges for rk.valg.nummer.
@@ -1806,7 +1873,16 @@ document.getElementById('rkGemBtn').addEventListener('click', async () => {
   const adresse = document.getElementById('rkAdresse').value.trim();
   const nyt = document.getElementById('rkNytNummer').value.trim();
 
-  // Svaret på et åbent spørgsmål læses, FØR noget sendes.
+  // Svarene på åbne spørgsmål læses, FØR noget sendes.
+  let svarPaaNyt = null;
+  if (rk.nytValg) {
+    svarPaaNyt = [];
+    for (let i = 0; i < rk.nytValg.kilder.length; i++) {
+      const v = document.querySelector('input[name=rkNytValg' + i + ']:checked');
+      if (!v) { visFejl('errorBannerRetKunde', 'Vælg ja eller nej for de åbne opgaver.'); return; }
+      if (v.value === 'ja') svarPaaNyt.push(v.dataset.kilde);
+    }
+  }
   let svarPaaValg = null;
   if (rk.valg) {
     const v = document.querySelector('input[name=rkValgRadio]:checked');
@@ -1838,7 +1914,32 @@ document.getElementById('rkGemBtn').addEventListener('click', async () => {
         // Det nye nummer, som serveren skrev det (E.164) — forslag ved et valg.
         rk.nytNummer = rk.numre.find(n => !foer.has(n)) || rk.nytNummer || null;
         document.getElementById('rkNytNummer').value = '';
+        // (1b) Skal de åbne opgaver bruge det nye nummer? Kun et dansk nummer
+        // kan modtage SMS; numre, der fjernes, spørges der om nedenfor.
+        if (rk.nytNummer && RK_DANSK.test(rk.nytNummer)) {
+          if (!rk.brug) await rkHentBrug();
+          if (!rk.brug) throw new Error('Nummeret er tilføjet, men vi kunne ikke se kundens åbne opgaver. Tryk Gem igen.');
+          const kilder = rk.brug.filter(b => b.nummer && b.nummer !== rk.nytNummer && !rk.fjern.has(b.nummer));
+          if (kilder.length) {
+            rk.nytValg = { nyt: rk.nytNummer, kilder };
+            rkTegnNumre(); rkTegnNytValg();
+            btn.disabled = false;
+            return;                       // nummeret er gemt; han svarer, og trykker Gem igen
+          }
+        }
       }
+    }
+
+    // (1b) Svaret: flyt de opgaver, han sagde ja til.
+    if (rk.nytValg && svarPaaNyt) {
+      for (const kilde of svarPaaNyt) {
+        const svar = await retKunde(rk.id, { opgaver_fra: kilde, opgaver_til: rk.nytValg.nyt });
+        rk.skrevet = true;
+        rkKvitter(svar, rk.nytValg.nyt, kilde);
+      }
+      rk.nytValg = null;
+      rkTegnNytValg();
+      if (svarPaaNyt.length) await rkHentBrug();   // tallene ved numrene passer igen
     }
 
     // (2) Fjernelserne, én ad gangen.

@@ -308,6 +308,44 @@ module.exports = function (app, supabase) {
   // det nye nummer, og et nyt kald finder 0 at flytte og fjerner blot nummeret.
   const RET_EKSTRA = ["telefon", "fjern_telefon", "opgaver_fra", "opgaver_til", "behold_opgaver"];
 
+  // Kundens AABNE opgaver med det, der skal til for at afgoere, hvilket nummer
+  // de sender til (opgavensNummer() i phone.js). Bruges af "Ret kunde" og af
+  // GET .../opgave-numre, saa de to aldrig er uenige om, hvad "sender til" er.
+  async function aabneOpgaver(firmId, kundeId) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, telefon, calls(from_number)")
+      .eq("firm_id", firmId)
+      .eq("kunde_id", kundeId)
+      .eq("status", "open");
+    if (error) throw error;
+    return (data || []).map((o) => ({
+      id: o.id, telefon: o.telefon, opkald: o.calls && o.calls.from_number,
+      nummer: opgavensNummer(o.telefon, o.calls && o.calls.from_number),
+    }));
+  }
+
+  // ─── Hvilke numre bruger kundens aabne opgaver? (D88 opgave 2, 23/10-26) ──
+  // Kun laesning. Til arket "Ret kunde": det viser ved hvert nummer, hvor
+  // mange aabne opgaver der sender dertil, og spoerger, naar et nyt nummer
+  // laegges til, om de skal bruge det (Ann 23/10). Et nummer, der ikke staar
+  // paa kunden (fx rettet paa opgaven), kommer ogsaa med.
+  //   200 { ok, numre: [{ nummer, antal, sms }] }   nummer null = intet nummer
+  //   404 fremmed eller ukendt kunde
+  app.get("/api/tilbud/kunder/:id/opgave-numre", async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    try {
+      await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, "id");
+      const taelling = new Map();
+      for (const o of await aabneOpgaver(firmId, req.params.id)) {
+        taelling.set(o.nummer, (taelling.get(o.nummer) || 0) + 1);
+      }
+      const numre = Array.from(taelling, ([nummer, antal]) => ({ nummer, antal, sms: !!gyldigtSmsNummer(nummer) }))
+        .sort((a, b) => b.antal - a.antal || String(a.nummer).localeCompare(String(b.nummer)));
+      res.json({ ok: true, numre });
+    } catch (e) { svarPaaFejl(res, e, "opgavernes numre kunne ikke hentes"); }
+  });
+
   app.patch("/api/tilbud/kunder/:id", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
     const krop = req.body || {};
@@ -385,14 +423,7 @@ module.exports = function (app, supabase) {
       // Kundens AABNE opgaver, der sender til `opgaverFra` lige nu.
       let ramte = [];
       if (opgaverFra) {
-        const { data: aabne, error: oFejl } = await supabase
-          .from("leads")
-          .select("id, telefon, calls(from_number)")
-          .eq("firm_id", firmId)
-          .eq("kunde_id", req.params.id)
-          .eq("status", "open");
-        if (oFejl) throw oFejl;
-        ramte = (aabne || []).filter((o) => opgavensNummer(o.telefon, o.calls && o.calls.from_number) === opgaverFra);
+        ramte = (await aabneOpgaver(firmId, req.params.id)).filter((o) => o.nummer === opgaverFra);
       }
       if (fjern && ramte.length && !til && !behold) {
         return res.status(409).json({
@@ -413,8 +444,7 @@ module.exports = function (app, supabase) {
       if (til && ramte.length) {
         const somOpkald = [], somIndtastet = [];
         for (const o of ramte) {
-          const opkald = o.calls && o.calls.from_number;
-          (opkald && normalizePhone(opkald) === til ? somOpkald : somIndtastet).push(o.id);
+          (o.opkald && normalizePhone(o.opkald) === til ? somOpkald : somIndtastet).push(o.id);
         }
         for (const [ids, vaerdi] of [[somOpkald, null], [somIndtastet, til]]) {
           if (!ids.length) continue;

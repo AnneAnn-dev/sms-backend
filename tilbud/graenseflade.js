@@ -204,6 +204,13 @@
     return svar;
   }
 
+  // Hvilke numre kundens AABNE opgaver sender SMS til (23/10-26).
+  // [{ nummer, antal, sms }] — nummer null = opgaver uden nummer.
+  async function hentOpgaveNumre(id) {
+    const { numre } = await api('GET', '/api/tilbud/kunder/' + encodeURIComponent(id) + '/opgave-numre');
+    return Array.isArray(numre) ? numre : [];
+  }
+
   /* ───────────────────────────────  OPGAVER  ────────────────────────────── */
   // Prototypen: { id, titel, beskrivelse, oprettet }  — gemt pr. kunde.
   // Serveren:   leads { id, name, address, task, titel, kunde_id, created_at }
@@ -462,7 +469,7 @@
     saetAuth(fn) { hentAuthHeader = fn; },
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
-    loadCustomers, saveCustomers, retKunde,
+    loadCustomers, saveCustomers, retKunde, hentOpgaveNumre,
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,

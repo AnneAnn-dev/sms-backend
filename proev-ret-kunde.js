@@ -6,6 +6,8 @@
 //   A. Modtagerreglen i phone.js (smsModtager / opgavensNummer) som tabeltest.
 //   B. PATCH /api/tilbud/kunder/:id fra routes/tilbud/data.js mod en falsk
 //      database i hukommelsen: fjern nummer, flyt aabne opgaver, 409/404.
+//   C. GET /api/tilbud/kunder/:id/opgave-numre (23/10): hvilke numre kundens
+//      aabne opgaver sender til.
 //
 // Den falske database efterligner kun det, ruten bruger. Den kan ikke bevise
 // noget om RLS eller PostgREST — det goer proev-kunde-telefoner.js og
@@ -138,13 +140,15 @@ function lavApp(db) {
   const app = {};
   for (const m of ["get", "post", "patch", "put", "delete"]) app[m] = (sti, ...h) => { ruter[`${m.toUpperCase()} ${sti}`] = h[h.length - 1]; };
   require("./routes/tilbud/data.js")(app, db);
-  return async function kald(firma, kundeId, krop) {
+  async function kald(firma, kundeId, krop, rute = "PATCH /api/tilbud/kunder/:id") {
     const req = { headers: { "x-firma": firma }, params: { id: kundeId }, body: krop, query: {} };
     let status = 200, svar;
     const res = { status(s) { status = s; return res; }, json(j) { svar = j; return res; } };
-    await ruter["PATCH /api/tilbud/kunder/:id"](req, res);
+    await ruter[rute](req, res);
     return { status, svar };
-  };
+  }
+  kald.numre = (firma, kundeId) => kald(firma, kundeId, undefined, "GET /api/tilbud/kunder/:id/opgave-numre");
+  return kald;
 }
 
 // Kunde med to numre og fem opgaver:
@@ -277,6 +281,26 @@ const numre = (db, K) => db.t.kunde_telefoner.filter((k) => k.kunde_id === K).ma
     const r = await kald(FIRMA_A, K, { navn: "Hr. P. Jensen" });
     tjek("ret navn alene -> 200, numre og opgaver uroerte",
       r.status === 200 && db.t.kunder[0].navn === "Hr. P. Jensen" && numre(db, K).length === 3 && lead(db, "o1").telefon === null); }
+
+  console.log("\nC. GET /api/tilbud/kunder/:id/opgave-numre");
+  { const { db, K, kald } = opsaet();
+    const r = await kald.numre(FIRMA_A, K);
+    tjek("numrene for de aabne opgaver, flest foerst; afsluttet o4 taeller ikke",
+      r.status === 200 && lig(r.svar.numre, [
+        { nummer: "+4511111111", antal: 2, sms: true },
+        { nummer: "+4522222222", antal: 1, sms: true },
+        { nummer: "+46701234567", antal: 1, sms: false },
+      ]), JSON.stringify(r.svar));
+    tjek("  ... og intet er skrevet", db.skrivninger.length === 0);
+    const f = await kald.numre(FIRMA_B, K);
+    tjek("fremmed firma -> 404", f.status === 404 && f.svar.error === "ikke_fundet", JSON.stringify(f));
+    await kald(FIRMA_A, K, { telefon: "44444444", opgaver_fra: "+4511111111", opgaver_til: "+4544444444" });
+    const e = await kald.numre(FIRMA_A, K);
+    tjek("efter tilfoej + flyt: 44 har 2, 11 er vaek fra opgaverne",
+      e.svar.numre[0].nummer === "+4544444444" && e.svar.numre[0].antal === 2 && !e.svar.numre.some((n) => n.nummer === "+4511111111"), JSON.stringify(e.svar));
+    db.t.leads.push({ id: "o6", firm_id: FIRMA_A, kunde_id: K, call_id: null, telefon: null, status: "open" });
+    const u = await kald.numre(FIRMA_A, K);
+    tjek("en aaben opgave uden nummer taelles som nummer null", u.svar.numre.some((n) => n.nummer === null && n.antal === 1 && n.sms === false), JSON.stringify(u.svar)); }
 
   tjek("ingen fejl sendt til AppSignal undervejs", rapporteret.length === 0, rapporteret.map((e) => e.message).join("; "));
 
