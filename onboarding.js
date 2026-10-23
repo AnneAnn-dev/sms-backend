@@ -13,7 +13,7 @@ const twilio     = require("twilio");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
-const { normalizePhone, gyldigtSmsNummer, smsModtager, maskerTlf, maskerMail } = require("./phone");
+const { normalizePhone, gyldigtSmsNummer, smsModtager, opgavensNummer, maskerTlf, maskerMail } = require("./phone");
 const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
@@ -1348,13 +1348,15 @@ module.exports = function registerOnboarding(app, supabase) {
 
     // Modtageren efter rettelsen, efter samme regel som /send-sms. L6: dashboardet
     // viser dette svar i stedet for at regne selv (betingelse 2).
-    res.json({ ok: true, telefon: nyt, modtager: smsModtager(nyt, fraOpkald) });
+    res.json({ ok: true, telefon: nyt, modtager: smsModtager(nyt, fraOpkald), opgavensNummer: opgavensNummer(nyt, fraOpkald) });
   });
 
   // ─── Hvem gaar en SMS fra opgaven til? (D88 opgave 2, 21/10-26) ─────────────
   // Kun laesning. Svarer med det, /send-sms ville goere lige nu, saa dashboardet
   // ikke har sin egen kopi af reglen (betingelse 2). Ejerskab som i /send-sms.
-  //   200 { ok, modtager: { nummer, kilde, grund } }   grund: null|intet|udenlandsk
+  //   200 { ok, modtager: { nummer, kilde, grund }, opgavensNummer }
+  //   grund: null|intet|udenlandsk. opgavensNummer er det nummer, opgaven kom
+  //   fra (ogsaa et udenlandsk) — til visning og "Ring tilbage", ikke til SMS.
   app.get("/lead-modtager", async (req, res) => {
     const firm_id = await firmIdFromToken(supabase, req);
     if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
@@ -1364,7 +1366,11 @@ module.exports = function registerOnboarding(app, supabase) {
 
     const ejet = await egenOpgave(res, firm_id, lead_id);
     if (!ejet) return;
-    res.json({ ok: true, modtager: smsModtager(ejet.lead.telefon, ejet.fraOpkald) });
+    res.json({
+      ok: true,
+      modtager: smsModtager(ejet.lead.telefon, ejet.fraOpkald),
+      opgavensNummer: opgavensNummer(ejet.lead.telefon, ejet.fraOpkald),
+    });
   });
 
 
