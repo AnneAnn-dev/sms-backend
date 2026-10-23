@@ -269,6 +269,14 @@
   .sheet h2 { font-family: 'Nunito', sans-serif; font-size: 16px; margin: 0 0 12px; }
   .sheet-kunde-row { padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; cursor: pointer; }
   .sheet-kunde-row:last-of-type { border-bottom: none; }
+  /* Ret kunde (D88 opgave 2, 23/10). 16px i felterne: under det zoomer iOS ind. */
+  #retKundeSheet input[type=text] { font-size: 16px; }
+  .rk-nummer { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .rk-nummer:last-child { border-bottom: none; }
+  .rk-knap { width: auto; padding: 6px 10px; font-size: 13.5px; border: none; }
+  .rk-fjernes { text-decoration: line-through; color: var(--ink-soft); }
+  .rk-spm { font-size: 14px; margin: 6px 0 4px; font-weight: 600; }
+  .rk-radio { display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 15px; }
   .new-kunde-row { display: flex; gap: 8px; margin-top: 12px; }
   .new-kunde-row input { flex: 1; }
   .new-kunde-row button { flex-shrink: 0; }
@@ -478,6 +486,9 @@
          og by, hvis de staar for sig). Adresser samlet fra opgaverne kommer
          med opgave 2 ("Ret kunde"). -->
     <p class="empty-note" id="kundeDetailAdresse" style="margin:0 0 10px;display:none"></p>
+    <!-- D88 opgave 2 (23/10): kundens stamdata rettes her og kun her. -->
+    <button class="btn btn-secondary" id="retKundeBtn" type="button" style="margin:0 0 10px">Ret kunde</button>
+    <p class="felt-hjaelp" id="kundeDetailKvittering" style="display:none;margin:0 2px 10px"></p>
     <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
     <div class="error-banner" id="errorBannerKundeDetail"></div>
     <div id="kundeOpgaverWrap"></div>
@@ -545,6 +556,27 @@
         </div>
         <div class="error-banner" id="errorBannerOpretKunde"></div>
         <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: ret kunde (D88 opgave 2, 23/10) ================= -->
+  <div class="sheet-overlay" id="retKundeSheet">
+    <div class="sheet">
+      <h2>Ret kunde</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="rkNavn" placeholder="Navn" autocomplete="off">
+        <div class="adresse-felt">
+          <input type="text" id="rkAdresse" placeholder="Kundens adresse (valgfri)" autocomplete="off">
+          <div class="adresse-forslag" id="rkAdresseForslag"></div>
+        </div>
+        <p class="felt-hjaelp">Kundens egen adresse. Hvor en opgave skal udføres, rettes på opgaven.</p>
+        <div class="section-label" style="margin-top:6px">Telefonnumre</div>
+        <div id="rkNumre"></div>
+        <input type="text" inputmode="tel" id="rkNytNummer" placeholder="Tilføj nummer" autocomplete="off">
+        <div id="rkValg" style="display:none"></div>
+        <div class="error-banner" id="errorBannerRetKunde"></div>
+        <button class="btn btn-primary" id="rkGemBtn" type="button">Gem</button>
       </div>
     </div>
   </div>
@@ -668,7 +700,7 @@ function udenFaser() { faseKnap = null; }
 Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
-const { loadCustomers, saveCustomers, loadOpgaver, saveOpgaver,
+const { loadCustomers, saveCustomers, retKunde, loadOpgaver, saveOpgaver,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
         retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
@@ -811,6 +843,7 @@ async function renderKundeList() {
 
 async function openKundeDetail(kundeId) {
   currentKundeDetailId = kundeId;
+  document.getElementById('kundeDetailKvittering').style.display = 'none';
   const k = customers.find(c => c.id === kundeId);
   document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
   const numreEl = document.getElementById('kundeDetailNumre');
@@ -1648,6 +1681,213 @@ lavReferatBtn.addEventListener('click', async () => {
    Felterne er frie tekstfelter som før: et forslag udfylder hele adressen,
    men man kan stadig skrive selv, også når tjenesten er nede.
    ========================================================================= */
+/* =========================================================================
+   RET KUNDE (D88 opgave 2, 23/10-26)
+   Kundens stamdata — navn, kundens adresse og numre — rettes KUN her (Anne
+   21/10). Opgavens adresse (arbejdsstedet) rettes på opgaven.
+
+   Numre (valg (i), Ann 21/10): fjernes et nummer, som åbne opgaver sender
+   SMS til, spørger serveren (409 nummer_bruges, intet skrevet), og arket
+   spørger håndværkeren: skal opgaverne bruge et andet af kundens danske
+   numre, eller beholde det gamle? Intet skifter i stilhed (betingelse 4).
+
+   Rækkefølge: (1) stamdata og et nyt nummer i ét kald, (2) hver fjernelse
+   for sig. Afbrydes det undervejs, står kunden i en gyldig tilstand, og et
+   nyt tryk på Gem gør resten (serveren tåler gentagelse).
+   ========================================================================= */
+const retKundeSheet = document.getElementById('retKundeSheet');
+const RK_DANSK = /^\+45\d{8}$/;
+let rk = null;   // { id, foer: {navn, adresse}, numre, fjern:Set, valg:{nummer, antal, forslag}|null, kvit:[], skrevet }
+
+function rkAdresseTekst(k) { return kundeAdresse(k); }
+
+function aabnRetKunde() {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  if (!k) return;
+  rk = { id: k.id, foer: { navn: k.navn || '', adresse: rkAdresseTekst(k) },
+         numre: (k.telefoner || []).slice(), fjern: new Set(), valg: null, kvit: [] };
+  document.getElementById('rkNavn').value = rk.foer.navn;
+  document.getElementById('rkAdresse').value = rk.foer.adresse;
+  document.getElementById('rkNytNummer').value = '';
+  skjulFejl('errorBannerRetKunde');
+  rkTegnNumre();
+  rkTegnValg();
+  document.getElementById('rkGemBtn').disabled = false;
+  retKundeSheet.classList.add('open');
+}
+document.getElementById('retKundeBtn').addEventListener('click', aabnRetKunde);
+// Lukkes arket midt i et valg, kan noget allerede være gemt (navn, nyt nummer):
+// så vises kundesiden igen fra serveren, så den ikke viser det gamle.
+retKundeSheet.addEventListener('click', async (e) => {
+  if (e.target !== retKundeSheet) return;
+  retKundeSheet.classList.remove('open');
+  const skrevet = rk && rk.skrevet, id = rk && rk.id;
+  rk = null;
+  if (skrevet) {
+    try { customers = await loadCustomers(); } catch (_) { /* siden viser det, den har */ }
+    openKundeDetail(id);
+  }
+});
+
+// Numrene tegnes med textContent — de kommer fra serveren, aldrig som HTML.
+function rkTegnNumre() {
+  const wrap = document.getElementById('rkNumre');
+  wrap.textContent = '';
+  if (!rk.numre.length) {
+    const p = document.createElement('p'); p.className = 'empty-note'; p.textContent = 'Kunden har intet nummer.';
+    wrap.appendChild(p); return;
+  }
+  rk.numre.forEach(n => {
+    const raekke = document.createElement('div'); raekke.className = 'rk-nummer';
+    const tal = document.createElement('span'); tal.textContent = visTelefon(n);
+    const fjernes = rk.fjern.has(n);
+    if (fjernes) tal.className = 'rk-fjernes';
+    const knap = document.createElement('button');
+    knap.type = 'button'; knap.className = 'btn-ghost rk-knap';
+    knap.textContent = fjernes ? 'Fortryd' : 'Fjern';
+    knap.addEventListener('click', () => {
+      if (rk.fjern.has(n)) rk.fjern.delete(n); else rk.fjern.add(n);
+      if (rk.valg && rk.valg.nummer === n) rk.valg = null;
+      rkTegnNumre(); rkTegnValg();
+    });
+    raekke.appendChild(tal); raekke.appendChild(knap);
+    wrap.appendChild(raekke);
+  });
+}
+
+// Spørgsmålet, når serveren har svaret nummer_bruges for rk.valg.nummer.
+// Valgmuligheder: kundens øvrige DANSKE numre, der ikke fjernes, samt det
+// nye nummer, der lige er lagt til — og "behold".
+function rkTegnValg() {
+  const wrap = document.getElementById('rkValg');
+  wrap.textContent = '';
+  if (!rk.valg) { wrap.style.display = 'none'; return; }
+  const { nummer, antal, forslag } = rk.valg;
+  const spm = document.createElement('p'); spm.className = 'rk-spm';
+  spm.textContent = (antal === 1 ? '1 åben opgave sender' : antal + ' åbne opgaver sender') +
+    ' SMS til ' + visTelefon(nummer) + '. Hvilket nummer skal ' + (antal === 1 ? 'den' : 'de') + ' bruge?';
+  wrap.appendChild(spm);
+  const muligheder = rk.numre.filter(n => n !== nummer && !rk.fjern.has(n) && RK_DANSK.test(n));
+  const valgt = muligheder.includes(forslag) ? forslag : (muligheder[0] || 'behold');
+  const radio = (vaerdi, tekst) => {
+    const l = document.createElement('label'); l.className = 'rk-radio';
+    const r = document.createElement('input'); r.type = 'radio'; r.name = 'rkValgRadio'; r.value = vaerdi;
+    r.checked = vaerdi === valgt;
+    const t = document.createElement('span'); t.textContent = tekst;
+    l.appendChild(r); l.appendChild(t); wrap.appendChild(l);
+  };
+  muligheder.forEach(n => radio(n, visTelefon(n)));
+  radio('behold', 'Behold ' + visTelefon(nummer) + ' på ' + (antal === 1 ? 'opgaven' : 'opgaverne'));
+  if (!muligheder.length) {
+    const h = document.createElement('p'); h.className = 'felt-hjaelp';
+    h.textContent = 'Vil du flytte opgaverne, så tilføj et dansk nummer først.';
+    wrap.appendChild(h);
+  }
+  wrap.style.display = '';
+}
+
+function rkKvitter(svar, til, fra) {
+  if (svar.opgaver_flyttet) {
+    rk.kvit.push((svar.opgaver_flyttet === 1 ? '1 åben opgave sender' : svar.opgaver_flyttet + ' åbne opgaver sender') +
+      ' nu SMS til ' + visTelefon(til) + '.');
+  }
+  if (svar.opgaver_beholdt) {
+    rk.kvit.push((svar.opgaver_beholdt === 1 ? '1 åben opgave beholder' : svar.opgaver_beholdt + ' åbne opgaver beholder') +
+      ' ' + visTelefon(fra) + ' som SMS-nummer.');
+  }
+}
+
+document.getElementById('rkGemBtn').addEventListener('click', async () => {
+  if (!rk) return;
+  const btn = document.getElementById('rkGemBtn');
+  skjulFejl('errorBannerRetKunde');
+  const navn = document.getElementById('rkNavn').value.trim();
+  if (!navn) { visFejl('errorBannerRetKunde', 'Skriv kundens navn.'); return; }
+  const adresse = document.getElementById('rkAdresse').value.trim();
+  const nyt = document.getElementById('rkNytNummer').value.trim();
+
+  // Svaret på et åbent spørgsmål læses, FØR noget sendes.
+  let svarPaaValg = null;
+  if (rk.valg) {
+    const v = document.querySelector('input[name=rkValgRadio]:checked');
+    if (!v) { visFejl('errorBannerRetKunde', 'Vælg hvilket nummer opgaverne skal bruge.'); return; }
+    svarPaaValg = v.value;
+  }
+
+  btn.disabled = true;
+  try {
+    // (1) Stamdata og et nyt nummer — kun det, der er ændret.
+    const krop = {};
+    if (navn !== rk.foer.navn) krop.navn = navn;
+    if (adresse !== rk.foer.adresse) {
+      // Én adresselinje er sandheden efter en rettelse. De opdelte felter
+      // nulstilles, så en gammel postnr/by ikke hænges bag på den nye.
+      Object.assign(krop, { adresse: adresse || null, postnr: null, by: null, vejnavn: null,
+                            husnr: null, etage: null, doer: null, dawa_id: null });
+    }
+    if (nyt) krop.telefon = nyt;
+    if (Object.keys(krop).length) {
+      // Numrene FØR kaldet: retKunde() opdaterer kundeobjektet med det samme,
+      // så sammenligningen skal ske mod arkets egen liste (fundet i prøven 23/10).
+      const foer = new Set(rk.numre);
+      const svar = await retKunde(rk.id, krop);
+      rk.skrevet = true;
+      rk.foer.navn = navn; rk.foer.adresse = adresse;
+      rk.numre = (svar.kunde && svar.kunde.telefoner) || rk.numre;
+      if (nyt) {
+        // Det nye nummer, som serveren skrev det (E.164) — forslag ved et valg.
+        rk.nytNummer = rk.numre.find(n => !foer.has(n)) || rk.nytNummer || null;
+        document.getElementById('rkNytNummer').value = '';
+      }
+    }
+
+    // (2) Fjernelserne, én ad gangen.
+    for (const n of Array.from(rk.fjern)) {
+      const fk = { fjern_telefon: n };
+      if (rk.valg && rk.valg.nummer === n) {
+        if (svarPaaValg === 'behold') fk.behold_opgaver = true; else fk.opgaver_til = svarPaaValg;
+      }
+      let svar;
+      try {
+        svar = await retKunde(rk.id, fk);
+      } catch (e) {
+        if (e instanceof ApiFejl && e.kode === 'nummer_bruges') {
+          rk.valg = { nummer: n, antal: (e.krop && e.krop.opgaver) || 0, forslag: rk.nytNummer || null };
+          rkTegnNumre(); rkTegnValg();
+          btn.disabled = false;
+          return;                       // intet er skrevet for dette nummer — han vælger, og trykker Gem igen
+        }
+        throw e;
+      }
+      rk.skrevet = true;
+      rkKvitter(svar, fk.opgaver_til, n);
+      rk.fjern.delete(n);
+      if (rk.valg && rk.valg.nummer === n) rk.valg = null;
+      rk.numre = (svar.kunde && svar.kunde.telefoner) || rk.numre.filter(x => x !== n);
+    }
+  } catch (e) {
+    if (erLoggetUd(e)) { retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    visFejl('errorBannerRetKunde', e);
+    rkTegnNumre(); rkTegnValg();
+    btn.disabled = false;
+    return;
+  }
+
+  // Færdig: kunden hentes igen, og kvitteringen står på kundesiden.
+  const kvit = rk.kvit.slice();
+  retKundeSheet.classList.remove('open');
+  btn.disabled = false;
+  try { customers = await loadCustomers(); } catch (_) { /* siden viser det, den har */ }
+  await openKundeDetail(rk.id);
+  const k = document.getElementById('kundeDetailKvittering');
+  k.textContent = kvit.join(' ');
+  k.style.display = kvit.length ? '' : 'none';
+  rk = null;
+});
+if (typeof initDawa === 'function') {
+  initDawa({ inputId: 'rkAdresse', suggestionsId: 'rkAdresseForslag', fuldTekstIFelt: true });
+}
+
 if (typeof initDawa === 'function') {
   initDawa({ inputId: 'okKundeAdresse', suggestionsId: 'okKundeAdresseForslag', fuldTekstIFelt: true });
   initDawa({ inputId: 'ooOpgaveAdresse', suggestionsId: 'ooOpgaveAdresseForslag', fuldTekstIFelt: true });

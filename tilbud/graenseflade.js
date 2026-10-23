@@ -180,6 +180,30 @@
     }
   }
 
+  // ─── Ret kunde (D88 opgave 2, 23/10-26) ─────────────────────────────────
+  // Ét kald til PATCH /api/tilbud/kunder/:id med netop de felter, arket
+  // sender: stamdata (navn, adresse …), `telefon` (nyt nummer), `fjern_telefon`
+  // og valget for de aabne opgaver (`opgaver_til` / `behold_opgaver`).
+  // Bevidst IKKE gennem saveCustomers(): den sammenligner med sidste hentning
+  // og kender ikke numrene. Serveren svarer { kunde, opgaver_flyttet,
+  // opgaver_beholdt }; en 409 `nummer_bruges` kastes som ApiFejl med
+  // `krop.opgaver` (antallet), og saa er INTET skrevet.
+  async function retKunde(id, krop) {
+    const svar = await api('PATCH', '/api/tilbud/kunder/' + encodeURIComponent(id), krop);
+    if (svar.kunde) {
+      const k = kundeCache.get(id);
+      if (k) {
+        k.navn = svar.kunde.navn || '';
+        k.adresse = svar.kunde.adresse || '';
+        k.postnr = svar.kunde.postnr || ''; k.by = svar.kunde.by || '';
+        k.telefoner = Array.isArray(svar.kunde.telefoner) ? svar.kunde.telefoner.slice() : [];
+        k.telefon = k.telefoner[0] || '';
+        husk('kunde', k, KUNDE_PROTO);
+      }
+    }
+    return svar;
+  }
+
   /* ───────────────────────────────  OPGAVER  ────────────────────────────── */
   // Prototypen: { id, titel, beskrivelse, oprettet }  — gemt pr. kunde.
   // Serveren:   leads { id, name, address, task, titel, kunde_id, created_at }
@@ -438,7 +462,7 @@
     saetAuth(fn) { hentAuthHeader = fn; },
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
-    loadCustomers, saveCustomers,
+    loadCustomers, saveCustomers, retKunde,
     loadOpgaver, saveOpgaver,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
