@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tilbud – Dit Digitale Kontor</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dit Kontor">
+<!--
+  tilbud/index.html — tilbudsmodulets side (Fase 1, trin 1: Kunder-fanen).
+  ⚠️ OFFENTLIG MAPPE (README.md, S17): kun HTML, CSS og klient-JS her.
+
+  Bygget på Annes prototype (docs/referater-app.html): samme skærme, samme
+  id'er, samme CSS og samme kaldesteder. Det, der er ændret, og hvorfor:
+    - dataadgangen går gennem graenseflade.js (ét kald pr. række, fejl vises)
+    - ingen egen login: siden bruger dashboardets session (samme origin)
+    - Tilbud- og Firma-fanerne er lukket. Referat-knappen i bundbaren er
+      også lukket: et referat startes FRA OPGAVEN ("+ Nyt referat"), fordi
+      det altid hører til en opgave (Fase 2 punkt F, skive 1, 15/10-26)
+    - en ny opgave beder om adresse, når kunden ingen har (NOT NULL i leads)
+
+  SKIVE 1 AF REFERAT-FANEN (15/10-26): optag → del(e) → én samlet
+  transskription, han kan rette → gem som kladde.
+  SKIVE 2 (samme dag): "Lav referat" → udkast med teknik B's tjek-steder →
+  han retter → gem. Både før første gem og på en gemt kladde uden udkast
+  (besluttet af Ann). "Indtal ny opgave" og mikrofon-pop-uppen er IKKE med.
+  SKIVE 3 (samme dag, Ann): "Kladde" = kan stadig rettes, "Færdig" = låst.
+  Et referat i kladde kan rettes (titel, tekst) og markeres som færdigt.
+  Listen viser klokkeslæt og Indtalt tekst / Referat / Færdig.
+  Optagelsen sker i optager.js (de tre værn fra D66 + grænsen på 20 min).
+  Siden er en Ø: den deler intet script med dashboardet og kan ikke vælte det.
+  Undtagelse (Fase 1d, 13/10-26): /adressevaelger.js, et selvstændigt bibliotek,
+  som begge sider indlæser hver for sig.
+
+  INDLEJRET (?indlejret=1): siden vises som dashboardets Kunder-fane, i en
+  ramme. Så skjules egen topbar og bundbar — dashboardet har sine.
+-->
+<script>
+  if (/[?&]indlejret=1\b/.test(location.search)) document.documentElement.classList.add('indlejret');
+</script>
+<script>
+  // Fejl-overlay som i dashboardet: uventede fejl vises på skærmen, så de
+  // kan ses på en iPhone uden remote inspection.
+  function visFejlOverlay(besked) {
+    var el = document.getElementById('js-fejl-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'js-fejl-overlay';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;' +
+        'background:#991b1b;color:#fff;font:13px/1.4 system-ui,sans-serif;' +
+        'padding:10px 14px;word-break:break-word';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent = '⚠ Teknisk fejl: ' + besked;
+  }
+  window.addEventListener('error', function (e) { visFejlOverlay(e.message || 'Ukendt fejl'); });
+  window.addEventListener('unhandledrejection', function (e) {
+    visFejlOverlay((e.reason && e.reason.message) || 'Ukendt fejl (promise)');
+  });
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Fra Annes prototype (docs/referater-app.html), uændret ---------- */
+  :root {
+    --navy: #1A3A5C;
+    --steel: #2C6B9E;
+    --forest: #2E7D52;
+    --smoke: #F4F7FA;
+    --white: #FFFFFF;
+    --ink-soft: #64798E;
+    --line: #E2E8EF;
+    --rec: #C4453D;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--smoke);
+    font-family: 'Source Sans 3', sans-serif;
+    color: var(--navy);
+    height: 100%;
+  }
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--smoke);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px 12px;
+    background: var(--navy);
+    color: white;
+    position: sticky; top: 0; z-index: 20;
+  }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--forest);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; margin: 0; }
+  .topbar span { font-size: 11px; color: #BFD3E6; display: block; }
+
+  /* ---------- Screens ---------- */
+  .screen { display: none; flex: 1; padding: 16px 16px 96px; }
+  .screen.active { display: block; }
+
+  .section-label {
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 0 0 8px;
+  }
+
+  /* ---------- Customer picker pill ---------- */
+  .kunde-pill {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 14px; cursor: pointer;
+  }
+  .kunde-pill .name { font-weight: 700; font-size: 15px; }
+  .kunde-pill .placeholder { color: var(--ink-soft); font-weight: 600; font-size: 14px; }
+  .kunde-pill .chev { color: var(--ink-soft); font-size: 13px; }
+
+  /* ---------- Chips (møde type) ---------- */
+  .chip-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    flex: 1; text-align: center; padding: 10px 8px; border-radius: 10px;
+    background: var(--white); border: 1px solid var(--line);
+    font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  }
+  .chip.active { background: var(--steel); border-color: var(--steel); color: white; }
+
+  input[type=text] {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; font-family: inherit; font-size: 14px; background: var(--white); color: var(--navy);
+  }
+  input:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,0.15); }
+
+  /* ---------- Recorder ---------- */
+  .recorder-card {
+    background: var(--white); border-radius: 18px; padding: 28px 16px 22px;
+    text-align: center; margin: 18px 0 16px; border: 1px solid var(--line);
+  }
+  .mic-btn {
+    width: 84px; height: 84px; border-radius: 50%; border: none;
+    background: var(--steel); color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; position: relative; z-index: 2;
+  }
+  .mic-btn.recording { background: var(--rec); }
+  .mic-btn svg { width: 32px; height: 32px; }
+
+  .wave-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; height: 28px; margin-bottom: 10px; }
+  .wave-bar {
+    width: 4px; border-radius: 2px; background: var(--rec);
+    height: 6px; transition: height 0.08s ease;
+  }
+  .wave-wrap.idle .wave-bar { background: var(--line); height: 4px !important; }
+
+  .rec-status { font-weight: 700; font-size: 14px; color: var(--ink-soft); }
+  .rec-status.live { color: var(--rec); }
+  .rec-time { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  details.transcript-details { margin-top: 6px; text-align: left; }
+  details.transcript-details summary {
+    font-size: 13px; font-weight: 700; color: var(--steel); cursor: pointer; padding: 4px 0;
+  }
+  textarea#editTranscript {
+    width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-family: inherit; font-size: 13px; line-height: 1.5; margin-top: 8px; resize: vertical;
+  }
+
+  .btn {
+    border: none; border-radius: 12px; padding: 14px 18px;
+    font-family: inherit; font-weight: 700; font-size: 15px; cursor: pointer; width: 100%;
+  }
+  .btn-primary { background: var(--forest); color: white; }
+  .btn-primary:disabled { background: #AFC9BC; }
+  .btn-secondary { background: var(--white); color: var(--navy); border: 1px solid var(--line); margin-top: 8px; }
+  .btn-ghost { background: transparent; color: var(--steel); font-weight: 700; }
+
+  .banner { background: #FFF6E9; border: 1px solid #F0D9A8; color: #7A5A16; font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .error-banner { background: #FDECEC; border: 1px solid #F3B9B4; color: #93261F; font-size: 13px; border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Referat output ---------- */
+  #outputCard { display: none; background: var(--white); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-top: 4px; }
+  .referat-section { margin-bottom: 16px; }
+  .referat-section:last-child { margin-bottom: 0; }
+  .referat-section h3 { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800; color: var(--steel); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  .referat-section p { margin: 0; font-size: 14px; line-height: 1.55; }
+  ul.referat-list { margin: 0; padding-left: 18px; }
+  ul.referat-list li { font-size: 14px; line-height: 1.55; margin-bottom: 4px; }
+  .task-item { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13.5px; }
+  .task-item:first-child { border-top: none; padding-top: 0; }
+  .task-item .who { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
+  .empty-note { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+  /* ---------- Customers screen ---------- */
+  .kunde-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .kunde-row .kn { font-weight: 700; font-size: 15px; }
+  .kunde-row .kc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .fab {
+    position: fixed; right: 50%; transform: translateX(214px); bottom: 88px;
+    width: 52px; height: 52px; border-radius: 50%; background: var(--forest); color: white;
+    border: none; font-size: 26px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18); z-index: 15; cursor: pointer;
+  }
+  @media (max-width: 480px) { .fab { right: 20px; transform: none; } }
+
+  .referat-list-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .referat-list-row .rt { font-weight: 700; font-size: 14px; }
+  .referat-list-row .rm { font-size: 12px; color: var(--ink-soft); margin-top: 3px; display: flex; gap: 8px; align-items: center; }
+  .type-badge { font-size: 10.5px; font-weight: 800; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: var(--smoke); color: var(--steel); }
+
+  .back-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .back-btn { background: none; border: none; color: var(--steel); font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; background: var(--white);
+    border-top: 1px solid var(--line); display: flex; z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .nav-btn { flex: 1; border: none; background: none; padding: 10px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; color: var(--ink-soft); }
+  .nav-btn.active { color: var(--forest); }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn span { font-size: 11px; font-weight: 700; }
+
+  /* ---------- Indlejret i dashboardet (Fase 1d) ---------- */
+  html.indlejret .topbar, html.indlejret .bottom-nav { display: none !important; }
+  html.indlejret .app { min-height: 100%; }
+
+  /* ---------- Adresseforslag (adressevaelger.js) ---------- */
+  .adresse-felt { position: relative; }
+  .adresse-felt > input { width: 100%; box-sizing: border-box; }
+  .adresse-forslag { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 40; background: #fff; border: 1px solid #DDE4EC; border-radius: 8px; margin-top: 2px; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.1); color: var(--navy); }
+
+  /* ---------- Modal / sheet ---------- */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(15,30,45,0.45); z-index: 30;
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .sheet-overlay.open { display: flex; }
+  .sheet {
+    background: white; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0));
+    max-height: 75vh; overflow-y: auto;
+  }
+  .sheet h2 { font-family: 'Nunito', sans-serif; font-size: 16px; margin: 0 0 12px; }
+  .sheet-kunde-row { padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .sheet-kunde-row:last-of-type { border-bottom: none; }
+  /* Ret kunde (D88 opgave 2, 23/10). 16px i felterne: under det zoomer iOS ind. */
+  #retKundeSheet input[type=text] { font-size: 16px; }
+  .rk-nummer { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .rk-nummer:last-child { border-bottom: none; }
+  .rk-knap { width: auto; padding: 6px 10px; font-size: 13.5px; border: none; }
+  .rk-fjernes { text-decoration: line-through; color: var(--ink-soft); }
+  .rk-spm { font-size: 14px; margin: 6px 0 4px; font-weight: 600; }
+  .rk-radio { display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 15px; }
+  .rk-brug { color: var(--ink-soft); font-size: 13px; }
+  .new-kunde-row { display: flex; gap: 8px; margin-top: 12px; }
+  .new-kunde-row input { flex: 1; }
+  .new-kunde-row button { flex-shrink: 0; }
+
+  /* ---------- Onboarding: mikrofon-adgang ---------- */
+  .onboarding {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--navy);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 26px; text-align: center;
+  }
+  .onboarding.hidden { display: none; }
+  .onboarding .logo-mark { width: 44px; height: 44px; border-radius: 12px; font-size: 16px; margin-bottom: 18px; }
+  .onboarding h2 { font-family: 'Nunito', sans-serif; color: white; font-size: 19px; margin: 0 0 10px; }
+  .onboarding p { color: #BFD3E6; font-size: 14px; line-height: 1.55; margin: 0 0 26px; max-width: 320px; }
+  .onboarding .btn-primary { max-width: 320px; }
+  .onboarding .status { color: #BFD3E6; font-size: 13px; margin-top: 14px; min-height: 18px; }
+  .onboarding .status.err { color: #F3B9B4; }
+  .onboarding .status.ok { color: #9FD9B7; }
+  .onboarding .skip-btn { background: none; border: none; color: #8FAAC4; font-size: 13px; font-weight: 700; margin-top: 18px; cursor: pointer; }
+  .mic-warning-link { display: block; text-align: center; font-size: 12.5px; color: var(--steel); font-weight: 700; margin-top: 8px; cursor: pointer; }
+
+  /* ---------- Tilbud-modul ---------- */
+  .tilbud-step { display: none; }
+  .tilbud-step.active { display: block; }
+  .match-card {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 10px; cursor: pointer;
+  }
+  .match-card .mn { font-weight: 700; font-size: 15px; }
+  .match-card .ma { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .match-card.new { border-style: dashed; }
+  .kontekst-note {
+    background: #EAF2E9; border: 1px solid #C9E0C6; color: #2E5A3B;
+    font-size: 12.5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+  }
+
+  /* ---------- Billed-upload (håndskrevne noter) ---------- */
+  .img-preview-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .img-thumb { position: relative; width: 68px; height: 68px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); flex-shrink: 0; }
+  .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-thumb .remove {
+    position: absolute; top: 3px; right: 3px; background: rgba(20,30,45,0.65); color: white;
+    border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 13px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---------- Firmaprofil ---------- */
+  .timepris-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .timepris-row .tp-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .timepris-row input { width: 100px; flex-shrink: 0; }
+  .standardvalg-row { margin-bottom: 14px; }
+  .standardvalg-row .sv-label { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .standardvalg-row .sv-new-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; background: #FFF6E9; color: #7A5A16; border-radius: 6px; padding: 2px 6px; margin-left: 6px; }
+
+  /* ---------- Strukturerede tilbudslinjer ---------- */
+  .linje-row {
+    background: var(--white); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+  }
+  .linje-row .linje-top { display: flex; gap: 8px; margin-bottom: 6px; }
+  .linje-row .linje-beskrivelse { flex: 1; }
+  .linje-row .linje-bottom { display: flex; gap: 8px; align-items: center; }
+  .linje-row .linje-bottom input { width: 72px; flex-shrink: 0; }
+  .linje-row .linje-enhed { width: 60px !important; }
+  .linje-row .linje-samlet { flex: 1; font-size: 13px; font-weight: 700; color: var(--navy); text-align: right; }
+  .linje-row .linje-remove {
+    background: none; border: none; color: var(--rec); font-size: 18px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-row .linje-lookup {
+    background: none; border: none; color: var(--steel); font-size: 15px; cursor: pointer; flex-shrink: 0; padding: 0 4px;
+  }
+  .linje-type-badge {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 6px;
+    background: var(--smoke); color: var(--steel); flex-shrink: 0; align-self: center;
+  }
+  .linje-row input:disabled { background: var(--smoke); color: var(--ink-soft); cursor: not-allowed; }
+
+  /* ---------- Tilføjet til produktion (ikke i prototypen) ---------- */
+  .nav-btn.lukket { opacity: 0.35; cursor: default; }
+  .lukket-kort {
+    background: var(--white); border: 1px dashed var(--line); border-radius: 14px;
+    padding: 22px 18px; text-align: center; color: var(--ink-soft); font-size: 14px; line-height: 1.55;
+  }
+  .lukket-kort strong { display: block; color: var(--navy); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 6px; }
+  .indlaeser { font-size: 13px; color: var(--ink-soft); padding: 8px 2px; }
+  .felt-hjaelp { font-size: 12.5px; color: var(--ink-soft); margin: -2px 2px 4px; }
+  .referat-tekst { white-space: pre-wrap; font-size: 14px; line-height: 1.55; margin: 0; }
+  .status-badge-kladde { background: #FFF6E9; color: #7A5A16; }
+  .topbar a.til-dashboard { margin-left: auto; color: #BFD3E6; font-size: 13px; font-weight: 700; text-decoration: none; }
+
+  /* ---------- Optageskærmen (Fase 2 punkt F, skive 1) ---------- */
+  .j8-tekst { font-size: 12.5px; color: var(--ink-soft); margin: 12px 4px 0; line-height: 1.45; }
+  .mic-btn:disabled { opacity: 0.4; cursor: default; }
+  .del-row { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; }
+  .del-row .dt { font-weight: 700; }
+  .del-row .dm { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; line-height: 1.4; }
+  .del-row.kasseret { opacity: 0.6; }
+  .del-row.kasseret .dt { text-decoration: line-through; }
+  .del-row .del-valg { display: flex; gap: 8px; margin-top: 8px; }
+  .del-row .del-valg .btn { padding: 9px 12px; font-size: 13.5px; margin-top: 0; }
+
+  /* ---------- Referatudkastet (skive 2) ---------- */
+  textarea.referat-edit {
+    width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-family: inherit; font-size: 14px; line-height: 1.5; margin-top: 8px; resize: vertical;
+  }
+  textarea#editTranscript[readonly] { background: var(--smoke); color: var(--ink-soft); }
+  .tjek-boks { background: #FFF6E9; border: 1px solid #F0D9A8; color: #7A5A16; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.45; margin-top: 8px; }
+  .tjek-boks.rolig { background: var(--white); border-color: var(--line); color: var(--ink-soft); }
+  .tjek-boks ul { margin: 6px 0 0; padding-left: 18px; }
+  .tjek-boks li { margin-bottom: 3px; }
+  .tjek-boks .felt { font-weight: 700; }
+
+  /* ---------- Referatets tilstand (skive 3) ---------- */
+  .badge-indtalt { background: #FFF6E9; color: #7A5A16; }
+  .badge-referat { background: #EAF2FB; color: #1A3A5C; }
+  .badge-faerdig { background: #E8F5EE; color: #2E7D52; }
+  input.ret-titel { margin-bottom: 4px; }
+</style>
+
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo-mark">DDK</div>
+    <div>
+      <h1>Tilbud</h1>
+      <span>Dit Digitale Kontor</span>
+    </div>
+    <a class="til-dashboard" href="/dashboard">‹ Dashboard</a>
+  </div>
+
+  <!-- ================= SCREEN: IKKE LOGGET IND ================= -->
+  <div class="screen" id="screen-login">
+    <div class="lukket-kort">
+      <strong>Du er ikke logget ind</strong>
+      Log ind i appen først, og åbn så Tilbud igen.
+      <div style="margin-top:16px;"><a class="btn btn-primary" style="display:block;text-decoration:none;" href="/dashboard" target="_top">Gå til login</a></div>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN: OPTAG (Fase 2 punkt F, skive 1) ================= -->
+  <!-- Åbnes fra en opgave ("+ Nyt referat"). Id'erne mTitel, micBtn, recStatus,
+       recTime og editTranscript er prototypens. -->
+  <div class="screen" id="screen-record">
+    <div class="back-row">
+      <button class="back-btn" id="backFraOptag">‹ Tilbage</button>
+    </div>
+    <div class="section-label" id="optagOpgaveNavn">Nyt referat</div>
+    <div class="error-banner" id="errorBannerOptag"></div>
+
+    <div class="section-label">Titel (valgfri)</div>
+    <input type="text" id="mTitel" placeholder="fx Noter uge 27">
+
+    <div class="recorder-card">
+      <button class="mic-btn" id="micBtn" type="button" title="Start optagelse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+      </button>
+      <div class="rec-status" id="recStatus">Tryk for at optage</div>
+      <div class="rec-time" id="recTime"></div>
+      <!-- J8 tekst 1: ordlyden godkendt af Anne 26/8 (docs/tilbud-primer.md).
+           Release-blokerende. Rettes kun efter Annes ordlyd. -->
+      <p class="j8-tekst" id="j8Tekst1">Kun dine egne noter. Nævnes andre, er det dit ansvar, at de ved det.</p>
+    </div>
+
+    <div id="deleWrap"></div>
+    <button class="btn btn-primary" id="transskriberBtn" type="button" style="display:none;">Lav tekst af optagelsen</button>
+
+    <div id="transskriptWrap" style="display:none;">
+      <div class="section-label" style="margin-top:18px;">Teksten — ret den, hvis noget er hørt forkert</div>
+      <textarea id="editTranscript" placeholder="Transskriptionen vises her …"></textarea>
+      <button class="btn btn-primary" id="lavReferatBtn" type="button" style="margin-top:12px;">Lav referat</button>
+      <p class="empty-note" id="forKortNote" style="display:none; margin:6px 0 0;"></p>
+      <button class="btn btn-secondary" id="gemKladdeBtn" type="button">Gem som kladde (uden referat)</button>
+    </div>
+
+    <!-- Skive 2: udkastet. Fyldes af tegnUdkast(). -->
+    <div id="udkastWrap" style="display:none;"></div>
+  </div>
+
+  <!-- ================= SCREEN: KUNDER (liste) ================= -->
+  <div class="screen" id="screen-customers">
+    <div class="section-label">Kunder</div>
+    <div class="error-banner" id="errorBannerKunder"></div>
+    <div id="kundeListWrap"><p class="indlaeser">Henter kunder …</p></div>
+    <button class="fab" id="fabAddKunde">+</button>
+  </div>
+
+  <!-- ================= SCREEN: KUNDE DETALJE (opgaver) ================= -->
+  <div class="screen" id="screen-kunde-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKunder">‹ Kunder</button>
+    </div>
+    <div class="section-label" id="kundeDetailName">Kunde</div>
+    <!-- D88 trin 2 (20/10): kundens numre fra kunde_telefoner. Forudsætning
+         for opgave 2 (kundesiden med "Ret kunde"). -->
+    <p class="empty-note" id="kundeDetailNumre" style="margin:-4px 0 4px;display:none"></p>
+    <!-- Ann 21/10: kundens adresse under numrene. Fra kunder.adresse (+ postnr
+         og by, hvis de staar for sig). Adresser samlet fra opgaverne kommer
+         med opgave 2 ("Ret kunde"). -->
+    <p class="empty-note" id="kundeDetailAdresse" style="margin:0 0 10px;display:none"></p>
+    <!-- D88 opgave 2 (23/10): kundens stamdata rettes her og kun her. -->
+    <button class="btn btn-secondary" id="retKundeBtn" type="button" style="margin:0 0 10px">Ret kunde</button>
+    <p class="felt-hjaelp" id="kundeDetailKvittering" style="display:none;margin:0 2px 10px"></p>
+    <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
+    <div class="error-banner" id="errorBannerKundeDetail"></div>
+    <div id="kundeOpgaverWrap"></div>
+    <button class="fab" id="fabAddOpgave">+</button>
+  </div>
+
+  <!-- ================= SCREEN: OPGAVE DETALJE ================= -->
+  <div class="screen" id="screen-opgave-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToKundeDetailFromOpgave">‹ Tilbage</button>
+    </div>
+    <div class="section-label" id="opgaveDetailName">Opgave</div>
+    <div class="error-banner" id="errorBannerOpgaveDetail"></div>
+    <div class="section-label" style="margin-top:18px;">Referater</div>
+    <div id="opgaveReferaterWrap"></div>
+    <button class="btn btn-primary" id="nytReferatBtn" type="button" style="margin-top:14px;">+ Nyt referat</button>
+  </div>
+
+  <!-- ================= SCREEN: REFERAT DETALJE ================= -->
+  <div class="screen" id="screen-referat-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToOpgaveDetailFromReferat">‹ Tilbage</button>
+    </div>
+    <div class="error-banner" id="errorBannerReferatDetail"></div>
+    <div id="referatDetailWrap"></div>
+  </div>
+
+  <!-- ================= SCREEN: TILBUD / FIRMA (lukket i Fase 1) ================= -->
+  <div class="screen" id="screen-tilbud">
+    <div class="lukket-kort"><strong>Tilbud kommer senere</strong>Først referater — så tilbud.</div>
+  </div>
+  <div class="screen" id="screen-firma">
+    <div class="lukket-kort"><strong>Firmaoplysninger kommer senere</strong>Timepriser og faste svar bruges først, når tilbuddene kommer.</div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn lukket" data-screen="record" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      <span>Referat</span>
+    </button>
+    <button class="nav-btn lukket" data-screen="tilbud" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      <span>Tilbud</span>
+    </button>
+    <button class="nav-btn active" data-screen="customers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Kunder</span>
+    </button>
+    <button class="nav-btn lukket" data-screen="firma" data-lukket="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+      <span>Firma</span>
+    </button>
+  </div>
+
+  <!-- ================= SHEET: opret kunde (fra Kunder-fanen) ================= -->
+  <div class="sheet-overlay" id="opretKundeSheet">
+    <div class="sheet">
+      <h2>Ny kunde</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="okKundeNavn" placeholder="Navn" autocomplete="off">
+        <input type="text" inputmode="tel" id="okKundeTelefon" placeholder="Telefon (valgfri)" autocomplete="off">
+        <div class="adresse-felt">
+          <input type="text" id="okKundeAdresse" placeholder="Adresse (valgfri)" autocomplete="off">
+          <div class="adresse-forslag" id="okKundeAdresseForslag"></div>
+        </div>
+        <div class="error-banner" id="errorBannerOpretKunde"></div>
+        <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: ret kunde (D88 opgave 2, 23/10) ================= -->
+  <div class="sheet-overlay" id="retKundeSheet">
+    <div class="sheet">
+      <h2>Ret kunde</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="rkNavn" placeholder="Navn" autocomplete="off">
+        <div class="adresse-felt">
+          <input type="text" id="rkAdresse" placeholder="Kundens adresse (valgfri)" autocomplete="off">
+          <div class="adresse-forslag" id="rkAdresseForslag"></div>
+        </div>
+        <p class="felt-hjaelp">Kundens egen adresse. Hvor en opgave skal udføres, rettes på opgaven.</p>
+        <div class="section-label" style="margin-top:6px">Telefonnumre</div>
+        <div id="rkNumre"></div>
+        <input type="text" inputmode="tel" id="rkNytNummer" placeholder="Tilføj nummer" autocomplete="off">
+        <div id="rkNytValg" style="display:none"></div>
+        <div id="rkValg" style="display:none"></div>
+        <div class="error-banner" id="errorBannerRetKunde"></div>
+        <button class="btn btn-primary" id="rkGemBtn" type="button">Gem</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: mikrofon-tip (Ann 14/10, tekst 2) =================
+       Vises ÉN gang pr. telefon: første optagelse i en ny sideindlæsning, når
+       han har optaget før — altså lige før iOS spørger igen. -->
+  <div class="sheet-overlay" id="mikTipSheet">
+    <div class="sheet">
+      <p id="mikTipTekst" style="font-size:15px; line-height:1.5; margin:0 0 14px;"></p>
+      <button class="btn btn-primary" id="mikTipOkBtn" type="button">OK</button>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: opret opgave (erstatter prototypens indtastningsboks) ================= -->
+  <div class="sheet-overlay" id="opretOpgaveSheet">
+    <div class="sheet">
+      <h2>Ny opgave</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <input type="text" id="ooOpgaveTitel" placeholder='Titel, fx "Badeværelse" eller "Carport"' autocomplete="off">
+        <div id="ooAdresseRaekke" style="display:none;">
+          <div class="adresse-felt">
+            <input type="text" id="ooOpgaveAdresse" placeholder="Adresse" autocomplete="off">
+            <div class="adresse-forslag" id="ooOpgaveAdresseForslag"></div>
+          </div>
+          <p class="felt-hjaelp" style="margin-top:6px;">Kunden har ingen adresse. En opgave skal have én.</p>
+        </div>
+        <div class="error-banner" id="errorBannerOpretOpgave"></div>
+        <button class="btn btn-primary" id="ooOpgaveGemBtn">Opret opgave</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/config.js"></script>
+<script src="/adressevaelger.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script src="graenseflade.js"></script>
+<script src="optager.js"></script>
+<script>
+'use strict';
+
+/* =========================================================================
+   OPSÆTNING — config, supabase og session (samme mønster som dashboardet)
+   ========================================================================= */
+const SUPABASE_URL = (window.APP_CONFIG || {}).SUPABASE_URL;
+const SUPABASE_ANON_KEY = (window.APP_CONFIG || {}).SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  visFejlOverlay('Kunne ikke hente appens konfiguration (/config.js). Prøv at genindlæse siden.');
+  throw new Error('APP_CONFIG mangler — /config.js ikke indlæst?');
+}
+if (!window.supabase) {
+  visFejlOverlay('Kunne ikke hente Supabase-biblioteket. Tjek forbindelsen og genindlæs siden.');
+  throw new Error('supabase-js mangler — cdn.jsdelivr.net ikke indlæst?');
+}
+if (!window.Graenseflade) {
+  visFejlOverlay('Kunne ikke hente graenseflade.js. Genindlæs siden.');
+  throw new Error('graenseflade.js mangler');
+}
+// Samme origin og samme standard-lagernøgle som dashboardet, så sessionen
+// derfra genbruges. Siden har ingen egen login — én login-vej, ikke to.
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ─── LOGIN MED TIDSGRÆNSE (16/10-26) ────────────────────────────────────────
+// Målt 16/10: to "Lav referat" nåede først serveren 3 og 10 minutter efter
+// trykket, og serveren brugte derefter 3 og 7 sekunder. Intet deploy imens.
+// Mistanken er getSession(): siden ligger i en ramme i dashboardet, og de to
+// Supabase-klienter deler login og en lås, som getSession venter på — uden
+// tidsgrænse. Derfor: svarer getSession ikke inden for 10 sekunder, læses
+// tokenet direkte fra lageret (samme sted, token.ps1 henter det). Knappen
+// siger det højt ("Login svarede ikke …"), så vi kan SE, om det var dét.
+const LOGIN_MS = 10000;
+function tokenFraLager() {
+  try {
+    const n = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    if (!n) return null;
+    const s = JSON.parse(localStorage.getItem(n));
+    const t = s && s.access_token;
+    const udloeb = s && s.expires_at ? s.expires_at * 1000 : 0;
+    if (!t || (udloeb && udloeb < Date.now() + 30000)) return null;
+    return t;
+  } catch (_) { return null; }
+}
+// MÅLINGEN (16/10, Ann bad om den): hvert kald fortæller serveren, hvor
+// længe login tog (X-Login-Ms), og om det gemte login blev brugt
+// (X-Login-Omvej: 1). Serveren skriver en linje i loggen, når det tog over
+// 2 s, eller omvejen blev brugt — så vi kan se, HVOR TIT det sker, uden at
+// nogen skal stå og kigge på knappen. Kun et tal; intet om personen.
+Graenseflade.saetAuth(async () => {
+  let ur;
+  const t0 = Date.now();
+  const tidsgraense = new Promise(ok => { ur = setTimeout(() => ok('tidsgraense'), LOGIN_MS); });
+  const svar = await Promise.race([db.auth.getSession().catch(() => 'fejl'), tidsgraense]);
+  clearTimeout(ur);
+  const maaling = { 'X-Login-Ms': String(Date.now() - t0) };
+  if (svar !== 'tidsgraense' && svar !== 'fejl') {
+    const session = svar && svar.data && svar.data.session;
+    return session && session.access_token
+      ? Object.assign({ Authorization: 'Bearer ' + session.access_token }, maaling) : maaling;
+  }
+  visFase('omvej');
+  const t = tokenFraLager();
+  maaling['X-Login-Omvej'] = svar === 'fejl' ? 'fejl' : 'tidsgraense';
+  if (t) return Object.assign({ Authorization: 'Bearer ' + t }, maaling);
+  throw new ApiFejl(0, { error: 'login_svarer_ikke',
+    besked: 'Dit login svarer ikke lige nu. Luk appen helt, og åbn den igen.' });
+});
+
+// Knappen, der venter lige nu, viser fasen: login → (omvej) → server.
+let faseKnap = null, faseArbejde = '';
+function visFase(f) {
+  if (!faseKnap) return;
+  const tekst = f === 'login' ? 'Venter på login …'
+    : f === 'omvej' ? 'Login svarede ikke — bruger det gemte …'
+    : f === 'server' ? faseArbejde
+    : null;
+  if (tekst) faseKnap.innerHTML = '<span class="spinner"></span>' + escapeHtml(tekst);
+}
+function medFaser(knap, arbejde) { faseKnap = knap; faseArbejde = arbejde; visFase('login'); }
+function udenFaser() { faseKnap = null; }
+Graenseflade.saetFase(visFase);
+
+// Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
+const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver,
+        loadReferater, saveReferater, hentReferat,
+        transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
+        retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
+
+/* =========================================================================
+   HJÆLPERE (fra prototypen)
+   ========================================================================= */
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : String(str); return d.innerHTML; }
+// "+4512345678" -> "12 34 56 78". Andre numre vises, som de står.
+function visTelefon(t) {
+  const m = /^(?:\+45)?(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(t || ''));
+  return m ? m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] : String(t || '');
+}
+// Kundens adresse som én linje. Staar postnr og by for sig og ikke allerede i
+// adressen, saettes de bagpaa: "Vej 1, 2830 Virum".
+function kundeAdresse(k) {
+  if (!k) return '';
+  const adr = String(k.adresse || '').trim();
+  const postBy = [k.postnr, k.by].map(v => String(v || '').trim()).filter(Boolean).join(' ');
+  if (!adr) return postBy;
+  if (!postBy || adr.indexOf(String(k.postnr || '').trim() || postBy) !== -1) return adr;
+  return adr + ', ' + postBy;
+}
+function uid() { return 'ny-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Fejl vises i det banner, der hører til skærmen. Teksten sættes som TEKST,
+// aldrig som HTML — beskeden kommer fra serveren.
+function visFejl(bannerId, e) {
+  const el = document.getElementById(bannerId);
+  if (!el) return;
+  el.textContent = (e && e.message) || String(e || 'Noget gik galt.');
+  el.style.display = 'block';
+}
+function skjulFejl(bannerId) {
+  const el = document.getElementById(bannerId);
+  if (el) el.style.display = 'none';
+}
+// 401 betyder, at sessionen er udløbet eller mangler: vis login-kortet.
+function erLoggetUd(e) { return e instanceof ApiFejl && e.status === 401; }
+
+/* =========================================================================
+   NAVIGATION (fra prototypen; lukkede faner kan ikke vælges)
+   ========================================================================= */
+function showScreen(id) {
+  // Forlades optageskærmen, mens der optages, stoppes optagelsen — den må
+  // ikke løbe videre i baggrunden på en skærm, han ikke kan se.
+  if (id !== 'record') { try { stopHvisOptager(); } catch (_) { /* aldrig vælte navigationen */ } }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.lukket) return;
+    showScreen(btn.dataset.screen);
+    if (btn.dataset.screen === 'customers') renderKundeList();
+  });
+});
+
+/* =========================================================================
+   OPRET KUNDE (fra Kunder-fanen)
+   ========================================================================= */
+let customers = [];
+let currentKundeDetailId = null;
+let currentOpgaveDetailId = null;
+let currentOpgaveTitel = '';
+
+const opretKundeSheet = document.getElementById('opretKundeSheet');
+// D88 trin 2, opgave 6 (Ann 17/10): det grønne + på kundelisten åbner
+// dashboardets Ny opgave TOM — kunden opstår af opgaven (D88). Uden dashboard
+// (siden åbnet alene, eller en gammel dashboard-fane) åbnes "Opret kunde" som før.
+document.getElementById('fabAddKunde').addEventListener('click', () => {
+  bedDashboard({ type: 'ny-opgave', kunde: null }, aabnOpretKunde);
+});
+function aabnOpretKunde() {
+  document.getElementById('okKundeNavn').value = '';
+  document.getElementById('okKundeTelefon').value = '';
+  document.getElementById('okKundeAdresse').value = '';
+  skjulFejl('errorBannerOpretKunde');
+  opretKundeSheet.classList.add('open');
+}
+opretKundeSheet.addEventListener('click', (e) => { if (e.target === opretKundeSheet) opretKundeSheet.classList.remove('open'); });
+
+document.getElementById('okKundeGemBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('okKundeGemBtn');
+  const navn = document.getElementById('okKundeNavn').value.trim();
+  if (!navn) { visFejl('errorBannerOpretKunde', 'Skriv kundens navn.'); return; }
+  const nyKunde = {
+    id: uid(), navn: navn,
+    telefon: document.getElementById('okKundeTelefon').value.trim(),
+    adresse: document.getElementById('okKundeAdresse').value.trim(),
+    oprettet: new Date().toISOString()
+  };
+  btn.disabled = true;
+  skjulFejl('errorBannerOpretKunde');
+  try {
+    customers = await loadCustomers();
+    customers.push(nyKunde);
+    await saveCustomers(customers);       // sætter nyKunde.id til serverens id
+  } catch (e) {
+    // Mislykkedes det, må kunden ikke ligge i listen, som om den var gemt.
+    customers = customers.filter(k => k !== nyKunde);
+    visFejl('errorBannerOpretKunde', e);
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  opretKundeSheet.classList.remove('open');
+  await renderKundeList();
+  openKundeDetail(nyKunde.id);
+});
+
+/* =========================================================================
+   KUNDER → OPGAVER → REFERATER (browse-hierarki, fra prototypen)
+   ========================================================================= */
+async function renderKundeList() {
+  const wrap = document.getElementById('kundeListWrap');
+  skjulFejl('errorBannerKunder');
+  try {
+    customers = await loadCustomers();
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerKunder', e);
+    return;
+  }
+  if (!customers.length) {
+    wrap.innerHTML = `<p class="empty-note">Ingen kunder endnu. Tryk på + for at tilføje en.</p>`;
+    return;
+  }
+  wrap.innerHTML = customers.map(k => `
+    <div class="kunde-row" data-id="${escapeHtml(k.id)}">
+      <div><div class="kn">${escapeHtml(k.navn)}</div><div class="kc">${escapeHtml(k.adresse || 'Tryk for at se opgaver')}</div></div>
+      <span class="chev">›</span>
+    </div>`).join('');
+  wrap.querySelectorAll('.kunde-row').forEach(row => {
+    row.addEventListener('click', () => openKundeDetail(row.dataset.id));
+  });
+}
+
+async function openKundeDetail(kundeId) {
+  currentKundeDetailId = kundeId;
+  document.getElementById('kundeDetailKvittering').style.display = 'none';
+  const k = customers.find(c => c.id === kundeId);
+  document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
+  const numreEl = document.getElementById('kundeDetailNumre');
+  const numre = (k && k.telefoner) || [];
+  numreEl.textContent = numre.map(visTelefon).join(' · ');
+  numreEl.style.display = numre.length ? '' : 'none';
+  const adresseEl = document.getElementById('kundeDetailAdresse');
+  const adr = kundeAdresse(k);
+  adresseEl.textContent = adr;
+  adresseEl.style.display = adr ? '' : 'none';
+  const wrap = document.getElementById('kundeOpgaverWrap');
+  wrap.innerHTML = '<p class="indlaeser">Henter opgaver …</p>';
+  skjulFejl('errorBannerKundeDetail');
+  showScreen('kunde-detail');
+  let opgaver;
+  try {
+    opgaver = await loadOpgaver(kundeId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerKundeDetail', e);
+    return;
+  }
+  wrap.innerHTML = opgaver.length
+    ? opgaver.map(o => `
+        <div class="referat-list-row" data-id="${escapeHtml(o.id)}">
+          <div class="rt">${escapeHtml(o.titel)}</div>
+          <div class="rm">Oprettet ${escapeHtml((o.oprettet || '').slice(0, 10))}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde. Tryk på + for at oprette en.</p>`;
+  // D88 trin 2, opgave 10 (Ann 19/10): tryk på en opgave åbner dashboardets
+  // opgavevindue — det samme som under Nye og I gang. Reserve: opgavesiden her.
+  wrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', () =>
+      bedDashboard({ type: 'aabn-opgave', opgaveId: row.dataset.id }, () => openOpgaveDetail(kundeId, row.dataset.id)));
+  });
+}
+document.getElementById('backToKunder').addEventListener('click', () => {
+  showScreen('customers');
+  renderKundeList();
+});
+
+/* ---------- Ny opgave: prototypens indtastningsboks er erstattet af et ark, ------
+   fordi en opgave skal have en adresse (NOT NULL i leads). Har kunden en,
+   arves den, og feltet vises ikke. Har kunden ingen, spørger arket.
+   ------------------------------------------------------------------------- */
+const opretOpgaveSheet = document.getElementById('opretOpgaveSheet');
+// D88 trin 2, opgave 6: + på en kundes side åbner dashboardets Ny opgave med
+// kundens kontaktdata udfyldt og kunden valgt. Reserve: arket herunder.
+document.getElementById('fabAddOpgave').addEventListener('click', () => {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  const kunde = k ? { id: k.id, navn: k.navn || '', telefon: visTelefon(k.telefon), email: k.email || '',
+                      adresse: k.adresse || '', postnr: k.postnr || '', by: k.by || '' } : null;
+  if (!kunde) { aabnOpgaveArk(); return; }
+  bedDashboard({ type: 'ny-opgave', kunde }, aabnOpgaveArk);
+});
+function aabnOpgaveArk() {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  document.getElementById('ooOpgaveTitel').value = '';
+  document.getElementById('ooOpgaveAdresse').value = '';
+  document.getElementById('ooAdresseRaekke').style.display = (k && k.adresse) ? 'none' : 'block';
+  skjulFejl('errorBannerOpretOpgave');
+  opretOpgaveSheet.classList.add('open');
+}
+opretOpgaveSheet.addEventListener('click', (e) => { if (e.target === opretOpgaveSheet) opretOpgaveSheet.classList.remove('open'); });
+
+document.getElementById('ooOpgaveGemBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('ooOpgaveGemBtn');
+  const titel = document.getElementById('ooOpgaveTitel').value.trim();
+  if (!titel) { visFejl('errorBannerOpretOpgave', 'Skriv en titel på opgaven.'); return; }
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  const adresse = document.getElementById('ooOpgaveAdresse').value.trim();
+  if (!(k && k.adresse) && !adresse) { visFejl('errorBannerOpretOpgave', 'Skriv opgavens adresse.'); return; }
+
+  const nyOpgave = { id: uid(), titel: titel, beskrivelse: '', oprettet: new Date().toISOString() };
+  if (adresse) nyOpgave.adresse = adresse;
+  btn.disabled = true;
+  skjulFejl('errorBannerOpretOpgave');
+  try {
+    const opgaver = await loadOpgaver(currentKundeDetailId);
+    opgaver.push(nyOpgave);
+    await saveOpgaver(currentKundeDetailId, opgaver);
+  } catch (e) {
+    visFejl('errorBannerOpretOpgave', e);
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  opretOpgaveSheet.classList.remove('open');
+  openKundeDetail(currentKundeDetailId);
+});
+
+async function openOpgaveDetail(kundeId, opgaveId) {
+  currentKundeDetailId = kundeId;
+  currentOpgaveDetailId = opgaveId;
+  const referaterWrap = document.getElementById('opgaveReferaterWrap');
+  referaterWrap.innerHTML = '<p class="indlaeser">Henter referater …</p>';
+  skjulFejl('errorBannerOpgaveDetail');
+  showScreen('opgave-detail');
+  let opgaver, referater;
+  try {
+    opgaver = await loadOpgaver(kundeId);
+    referater = await loadReferater(opgaveId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    referaterWrap.innerHTML = '';
+    visFejl('errorBannerOpgaveDetail', e);
+    return;
+  }
+  const opgave = opgaver.find(o => o.id === opgaveId);
+  currentOpgaveTitel = opgave ? opgave.titel : '';
+  document.getElementById('opgaveDetailName').textContent = opgave ? opgave.titel : 'Opgave';
+
+  referaterWrap.innerHTML = referater.length
+    ? referater.map(r => `
+        <div class="referat-list-row" data-id="${escapeHtml(r.id)}">
+          <div class="rt">${escapeHtml(r.titel)}</div>
+          <div class="rm">${tilstandBadge(r)} ${escapeHtml(r.dato)}${r.tid ? ' · ' + escapeHtml(r.tid) : ''}</div>
+        </div>`).join('')
+    : `<p class="empty-note">Ingen referater gemt på denne opgave endnu.</p>`;
+  referaterWrap.querySelectorAll('.referat-list-row').forEach(row => {
+    row.addEventListener('click', () => openReferatDetail(row.dataset.id));
+  });
+}
+document.getElementById('backToKundeDetailFromOpgave').addEventListener('click', () => openKundeDetail(currentKundeDetailId));
+
+/* ---------- Referat-visning: indholdet hentes pr. referat --------------
+   Prototypens renderReferatHtml(data) viste en form, serveren ikke leverer.
+   Referatets visning med overskrift, punkter og teknik B-markeringer kommer
+   med Referat-fanen (trin 3). Indtil da vises det gemte indhold som tekst.
+   En kladde kan have transskriptionen alene (besluttet af Ann 15/10). Så
+   vises den — under sit eget navn, så den ikke ligner et referat.
+   ------------------------------------------------------------------------- */
+async function openReferatDetail(referatId) {
+  const wrap = document.getElementById('referatDetailWrap');
+  wrap.innerHTML = '<p class="indlaeser">Henter referat …</p>';
+  skjulFejl('errorBannerReferatDetail');
+  showScreen('referat-detail');
+  let r;
+  try {
+    r = await hentReferat(referatId);
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    wrap.innerHTML = '';
+    visFejl('errorBannerReferatDetail', e);
+    return;
+  }
+  const dato = (r.moede_dato || r.created_at || '').slice(0, 10);
+  const tekst = r.indhold || r.ai_udkast || '';
+  const kunTransskript = !tekst && r.transskript ? r.transskript : '';
+  // Minimumslængden (Ann 16/10): en for kort kladde får ingen knap, men en linje om hvorfor.
+  const forKort = !!kunTransskript && antalOrd(kunTransskript) < MIN_ORD_REFERAT;
+  const faerdig = r.status === 'faerdig';
+  const kanRettes = !faerdig && !!tekst;
+  wrap.innerHTML =
+    `<div class="section-label">${faerdig ? 'Færdig — låst' : kanRettes ? 'Kladde — kan stadig rettes' : 'Indtalt tekst'} · ${escapeHtml(dato)}</div>
+     <div style="background:var(--white); border:1px solid var(--line); border-radius:16px; padding:18px;">
+       <h2 style="font-family:'Nunito',sans-serif; font-size:16px; margin:0 0 12px;">${escapeHtml(r.titel || 'Referat')}</h2>
+       ${tekst ? `<p class="referat-tekst">${escapeHtml(tekst)}</p>`
+         : kunTransskript ? `<div class="section-label">Din indtalte tekst</div><p class="referat-tekst">${escapeHtml(kunTransskript)}</p>`
+         : '<p class="empty-note">Referatet er tomt.</p>'}
+     </div>
+     ${forKort ? '<p class="empty-note" id="forKortDetalje" style="margin-top:14px;">Teksten er for kort til et referat.</p>' : ''}
+     ${kunTransskript && !forKort ? `<button class="btn btn-primary" id="lavReferatDetaljeBtn" type="button" style="margin-top:14px;">Lav referat af teksten</button>
+       <div id="detaljeUdkastWrap"></div>` : ''}
+     ${kanRettes ? `<button class="btn btn-secondary" id="retReferatBtn" type="button" style="margin-top:14px;">Ret</button>` : ''}
+     ${kunTransskript && !faerdig ? `<button class="btn btn-secondary" id="indtalMereBtn" type="button" style="margin-top:14px;">Indtal mere eller ret teksten</button>` : ''}`;
+
+  // Indtal mere (Ann 17/10): kun en kladde med indtalt tekst og intet referat.
+  const indtalMere = document.getElementById('indtalMereBtn');
+  if (indtalMere) indtalMere.addEventListener('click', () =>
+    openOptag({ id: r.id, titel: r.titel || '', transskript: kunTransskript }));
+
+  // Skive 3: et referat i kladde kan rettes og markeres som færdigt.
+  const retKnap = document.getElementById('retReferatBtn');
+  if (retKnap) retKnap.addEventListener('click', () => tegnRet(wrap, r, tekst));
+
+  // Skive 2: en gemt kladde uden udkast kan få et — ÉN gang (Ann 15/10).
+  // Teksten, der sendes, er den gemte transskription, ikke noget nyt.
+  const knap = document.getElementById('lavReferatDetaljeBtn');
+  if (knap) knap.addEventListener('click', async () => {
+    skjulFejl('errorBannerReferatDetail');
+    knap.disabled = true;
+    medFaser(knap, 'Skriver referat …');
+    let svar;
+    try {
+      svar = await lavUdkast(r.transskript);
+    } catch (e) {
+      udenFaser();
+      knap.disabled = false;
+      knap.textContent = 'Lav referat af teksten';
+      if (erLoggetUd(e)) return showScreen('login');
+      return visFejl('errorBannerReferatDetail', e);
+    }
+    udenFaser();
+    knap.style.display = 'none';
+    tegnUdkast(document.getElementById('detaljeUdkastWrap'), svar, async (aiUdkast, indhold) => {
+      try {
+        await saetUdkast(r.id, { aiUdkast, indhold, ophav: svar.ophav });
+      } catch (e) {
+        if (erLoggetUd(e)) { showScreen('login'); return false; }
+        visFejl('errorBannerReferatDetail', e);
+        return false;
+      }
+      openReferatDetail(r.id);
+      return true;
+    });
+  });
+}
+document.getElementById('backToOpgaveDetailFromReferat').addEventListener('click', () =>
+  openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId));
+
+/* =========================================================================
+   REFERAT: OPTAG → TEKST → GEM KLADDE (Fase 2 punkt F, skive 1, 15/10-26)
+
+   Flowet:
+     1. "+ Nyt referat" på opgaven åbner skærmen. Kvoten spørges MED DET
+        SAMME, før han taler (besluttet 29/9). Kan den ikke læses, eller er
+        den brugt, kan der ikke optages — fail-closed, som serveren.
+     2. Mikrofonknappen starter. Afbrydes optagelsen (app-skift, opkald) eller
+        nås grænsen på 20 minutter, afslutter optager.js delen selv; et nyt tryk
+        fortsætter med en ny del.
+     3. Delene vises. En del med tab inde i lyden er kasseret og kommer ikke
+        med. En del, der stoppede ved en afbrydelse med lyden hel, SKAL han
+        tage stilling til (optager.js: "Fanen SKAL spørge") — indtil han har
+        svaret, kan der ikke laves tekst.
+     4. "Lav tekst" sender de dele, der er med, i rækkefølge, i ÉT kald.
+        Serveren tæller kvoten på det samlede og sætter teksterne sammen.
+     5. Han retter teksten og gemmer. Det, der gemmes som `transskript`, er
+        hans rettede tekst (besluttet af Ann 15/10).
+
+     6. (Skive 2) "Lav referat" sender den rettede tekst til referatmodellen.
+        Udkastet vises med teknik B's tjek-steder, han retter, og "Gem
+        referat" gemmer transskript + udkast + hans version i ét kald. Teksten
+        låses, når udkastet er lavet — udkastet er lavet af netop den tekst.
+
+   Ikke med endnu: at rette en gemt kladde, "Indtal ny opgave",
+   mikrofon-pop-uppen (én gang pr. telefon) og at optage mere, efter teksten
+   er lavet.
+   ========================================================================= */
+const optag = {
+  optager: null,          // Optager fra optager.js — én pr. nyt referat
+  valg: {},               // del-nr → true/false: hans svar på "skal den med?"
+  stopper: false,         // en stop() er i gang
+  ur: null,               // visning af tiden, mens der optages
+  startMs: 0,
+  transskriberet: false,
+  varighedSek: null,      // samlet lydtid fra serveren — gemmes på referatet
+  gemt: false,
+  forladAdvaret: false,
+  udkast: null,           // { tekst, ophav } fra "Lav referat" (skive 2)
+};
+const micBtn = document.getElementById('micBtn');
+const recStatus = document.getElementById('recStatus');
+const recTime = document.getElementById('recTime');
+const deleWrap = document.getElementById('deleWrap');
+const transskriberBtn = document.getElementById('transskriberBtn');
+const transskriptWrap = document.getElementById('transskriptWrap');
+const editTranscript = document.getElementById('editTranscript');
+const gemKladdeBtn = document.getElementById('gemKladdeBtn');
+const lavReferatBtn = document.getElementById('lavReferatBtn');
+const forKortNote = document.getElementById('forKortNote');
+// Minimumslængden (Ann 16/10): under 10 ord er knappen spærret, og der står
+// hvorfor. Han kan stadig gemme teksten som kladde. Serveren afviser også.
+function opdaterMinimum() {
+  const forKort = antalOrd(editTranscript.value) < MIN_ORD_REFERAT;
+  const synlig = lavReferatBtn.style.display !== 'none';
+  lavReferatBtn.disabled = forKort;
+  forKortNote.textContent = FOR_KORT_BESKED;
+  forKortNote.style.display = forKort && synlig ? 'block' : 'none';
+}
+editTranscript.addEventListener('input', opdaterMinimum);
+const udkastWrap = document.getElementById('udkastWrap');
+const GEM_KLADDE_TEKST = 'Gem som kladde (uden referat)';
+function gemTekst() { return optag.tilfoej ? 'Gem teksten' : GEM_KLADDE_TEKST; }
+
+function fmtTid(sek) {
+  sek = Math.max(0, Math.round(Number(sek) || 0));
+  return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0');
+}
+function iDag() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// J8: et referat hedder "Noter" — aldrig "Kundemøde".
+function standardTitel() {
+  const d = new Date();
+  return 'Noter ' + d.getDate() + '/' + (d.getMonth() + 1);
+}
+// Banneret står øverst på skærmen. Står han nede ved teksten, ville han ikke
+// se det — så det rulles frem.
+function visOptagFejl(e) {
+  visFejl('errorBannerOptag', e);
+  const el = document.getElementById('errorBannerOptag');
+  if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {} }
+}
+function saetStatus(tekst, live) {
+  recStatus.textContent = tekst;
+  recStatus.classList.toggle('live', !!live);
+}
+
+// Mikrofonteksterne er Anns (besluttet 14/10). Domænet tages fra sidens egen
+// adresse, så det passer i både staging og prod.
+function mikrofonSaetning() {
+  return 'Tryk Tillad, når ' + location.hostname + ' beder om tilladelse til at bruge din mikrofon';
+}
+function mikrofonFejl(e) {
+  if (e && e.name === 'NotAllowedError') {
+    return mikrofonSaetning() + ', ellers kan du ikke bruge Referathjælperen.';
+  }
+  // optager.js' egne afvisninger (mikrofon_optaget, graense_naaet m.fl.)
+  // har en færdig besked til ham.
+  if (e && e.kode) return e.message;
+  return 'Optagelsen kunne ikke startes (' + ((e && (e.name || e.message)) || 'ukendt fejl') + ').';
+}
+
+// `tilfoej` = { id, titel, transskript } på en gemt kladde (Indtal mere, Ann 17/10),
+// ellers et nyt referat.
+async function openOptag(tilfoej) {
+  skjulFejl('errorBannerOptag');
+  optag.tilfoej = (tilfoej && tilfoej.id) ? tilfoej : null;
+  optag.valg = {};
+  optag.stopper = false;
+  optag.transskriberet = false;
+  optag.varighedSek = null;
+  optag.gemt = false;
+  optag.forladAdvaret = false;
+  stopUr();
+  document.getElementById('mTitel').value = '';
+  editTranscript.value = '';
+  editTranscript.readOnly = false;
+  deleWrap.innerHTML = '';
+  transskriberBtn.style.display = 'none';
+  transskriptWrap.style.display = 'none';
+  optag.udkast = null;
+  udkastWrap.innerHTML = '';
+  udkastWrap.style.display = 'none';
+  lavReferatBtn.style.display = 'block';
+  lavReferatBtn.disabled = false;
+  // Knappen genbruges: efter et lavet referat står "Skriver referat …" og
+  // hjulet stadig på den. Uden denne linje ser den ud til at arbejde (16/10).
+  lavReferatBtn.textContent = 'Lav referat';
+  opdaterMinimum();
+  gemKladdeBtn.style.display = 'block';
+  if (optag.tilfoej) {
+    // Teksten står i feltet fra start, så han kan rette den uden at optage.
+    // Referatet laves bagefter fra kladden, derfor ingen Lav referat-knap her.
+    document.getElementById('mTitel').value = optag.tilfoej.titel;
+    editTranscript.value = optag.tilfoej.transskript;
+    transskriptWrap.style.display = 'block';
+    lavReferatBtn.style.display = 'none';
+    opdaterMinimum();
+  }
+  // Samme fejl som Lav referat-knappen (16/10): efter et lavet referat stod
+  // den låst, men den hvide knap ser ens ud låst og ulåst.
+  gemKladdeBtn.disabled = false;
+  gemKladdeBtn.textContent = gemTekst();
+  micBtn.classList.remove('recording');
+  micBtn.disabled = true;               // først når kvoten har svaret
+  recTime.textContent = '';
+  saetStatus('Tjekker din kvote …');
+  document.getElementById('optagOpgaveNavn').textContent =
+    (optag.tilfoej ? 'Indtal mere' : 'Nyt referat') + (currentOpgaveTitel ? ' · ' + currentOpgaveTitel : '');
+  showScreen('record');
+
+  if (!window.Optager) {
+    optag.optager = null;
+    saetStatus('Optageren kunne ikke hentes');
+    return visOptagFejl('Optageren kunne ikke hentes. Genindlæs siden.');
+  }
+  optag.optager = new Optager({
+    // Begge kaldes af optager.js, FØR den selv stopper. afslutDel() kalder
+    // stop() med det samme; optager.js' eget stop() får derefter samme løfte.
+    paaAfbrydelse: function (aarsag) { saetStatus('Optagelsen stoppede: ' + aarsag); afslutDel(); },
+    paaGraense: function () { saetStatus('Grænsen på 20 minutter er nået'); afslutDel(); },
+  });
+
+  let kvote;
+  try {
+    kvote = await hentKvote();
+  } catch (e) {
+    if (erLoggetUd(e)) return showScreen('login');
+    saetStatus('Der kan ikke optages lige nu');
+    return visOptagFejl(e);
+  }
+  if (kvote && kvote.spaerret === true) {
+    saetStatus('Der kan ikke optages lige nu');
+    return visOptagFejl(kvote.besked ||
+      'Du har brugt din kvote til referater. Kontakt os, hvis du har brug for mere.');
+  }
+  micBtn.disabled = false;
+  saetStatus('Tryk for at optage');
+}
+document.getElementById('nytReferatBtn').addEventListener('click', () => openOptag());
+
+function startUr() {
+  stopUr();
+  optag.startMs = Date.now();
+  const vis = () => {
+    const o = optag.optager;
+    if (!o || o.tilstand !== 'optager') return;
+    recTime.textContent = fmtTid((Date.now() - optag.startMs) / 1000) + ' · ' + fmtTid(o.restSek()) + ' tilbage';
+  };
+  vis();
+  optag.ur = setInterval(vis, 500);
+}
+function stopUr() {
+  if (optag.ur) { clearInterval(optag.ur); optag.ur = null; }
+}
+
+// ─── Mikrofon-tippet (Ann 14/10, tekst 2; "én gang pr. telefon" bekræftet 16/10)
+// iOS spørger om mikrofonen én gang pr. sideindlæsning (målt 14/10). Har han
+// optaget før, og er det første optagelse siden siden blev åbnet, kommer
+// spørgsmålet igen — og lige dér vises tippet om Safari-indstillingen. Kun én
+// gang nogensinde på telefonen. Kan lageret ikke læses, vises intet.
+const MIK_HAR_OPTAGET = 'ddk-mik-har-optaget';
+const MIK_TIP_VIST = 'ddk-mik-tip-vist';
+let mikStartetPaaSiden = false;
+function lagerLaes(k) { try { return localStorage.getItem(k); } catch (_) { return '?'; } }
+function lagerSaet(k) { try { localStorage.setItem(k, '1'); } catch (_) { /* intet tip er bedre end en fejl */ } }
+function skalViseMikTip() {
+  return !mikStartetPaaSiden && lagerLaes(MIK_HAR_OPTAGET) === '1' && lagerLaes(MIK_TIP_VIST) === null;
+}
+const mikTipSheet = document.getElementById('mikTipSheet');
+document.getElementById('mikTipOkBtn').addEventListener('click', () => {
+  mikTipSheet.classList.remove('open');
+  startOptagelse();
+});
+mikTipSheet.addEventListener('click', (e) => { if (e.target === mikTipSheet) mikTipSheet.classList.remove('open'); });
+
+micBtn.addEventListener('click', () => {
+  const o = optag.optager;
+  if (!o || optag.stopper) return;
+  if (o.tilstand === 'optager') return afslutDel();
+  if (skalViseMikTip()) {
+    lagerSaet(MIK_TIP_VIST);            // sat ved visning: lukkes det uden OK, kommer det ikke igen
+    document.getElementById('mikTipTekst').textContent = mikrofonSaetning() +
+      '. Er du træt af at give tilladelse hver gang, så gå i Indstillinger → Apps → Safari → Mikrofon og vælg Tillad.';
+    mikTipSheet.classList.add('open');
+    return;
+  }
+  startOptagelse();
+});
+
+async function startOptagelse() {
+  const o = optag.optager;
+  if (!o || optag.stopper || o.tilstand === 'optager') return;
+  skjulFejl('errorBannerOptag');
+  micBtn.disabled = true;               // iOS' dialog kan stå åben i minutter
+  saetStatus('Venter på mikrofonen …');
+  try {
+    if (o.dele.length) await o.fortsaet(); else await o.start();
+  } catch (e) {
+    micBtn.disabled = false;
+    visDele();
+    return visOptagFejl(mikrofonFejl(e));
+  }
+  mikStartetPaaSiden = true;
+  lagerSaet(MIK_HAR_OPTAGET);
+  micBtn.disabled = false;
+  micBtn.classList.add('recording');
+  saetStatus('Optager — tryk for at stoppe', true);
+  startUr();
+}
+
+async function afslutDel() {
+  const o = optag.optager;
+  if (!o || optag.stopper) return;
+  optag.stopper = true;
+  stopUr();
+  micBtn.classList.remove('recording');
+  micBtn.disabled = true;
+  try {
+    await o.stop();
+  } catch (e) {
+    visOptagFejl('Optagelsen kunne ikke afsluttes (' + (e && e.message) + ').');
+  } finally {
+    optag.stopper = false;
+  }
+  visDele();
+}
+
+// Kaldes af showScreen, når optageskærmen forlades.
+function stopHvisOptager() {
+  const o = optag.optager;
+  if (o && o.tilstand === 'optager') afslutDel();
+}
+
+// En del er med, hvis optager.js har godkendt den, eller hvis den stoppede
+// med lyden hel OG han har sagt ja til den.
+function erMed(d) { return d.ok || (d.kanBruges && optag.valg[d.del] === true); }
+function venterPaaSvar(d) { return !d.ok && d.kanBruges && optag.valg[d.del] === undefined; }
+
+function visDele() {
+  const o = optag.optager;
+  if (!o) return;
+  deleWrap.innerHTML = o.dele.map(d => {
+    const laengde = fmtTid(d.varighedSek != null ? d.varighedSek : d.vaegurSek);
+    let klasse = 'del-row', tekst, valg = '';
+    if (d.ok) {
+      tekst = 'Med' + (d.forklaring ? ' — ' + d.forklaring : '');
+    } else if (d.kanBruges && optag.valg[d.del] === undefined) {
+      tekst = d.forklaring + ' Skal den med?';
+      valg = `<div class="del-valg">
+          <button class="btn btn-primary" type="button" data-del="${d.del}" data-svar="ja">Ja, brug den</button>
+          <button class="btn btn-secondary" type="button" data-del="${d.del}" data-svar="nej">Nej, kassér den</button>
+        </div>`;
+    } else if (d.kanBruges && optag.valg[d.del] === true) {
+      tekst = 'Med — ' + d.forklaring;
+    } else if (d.kanBruges) {
+      klasse += ' kasseret';
+      tekst = 'Kasseret af dig. Den kommer ikke med i teksten.';
+    } else {
+      klasse += ' kasseret';
+      tekst = 'Kasseret: ' + (d.forklaring || 'optagelsen kunne ikke bruges.') + ' Den kommer ikke med i teksten.';
+    }
+    return `<div class="${klasse}">
+        <div class="dt">Del ${d.del} · ${escapeHtml(laengde)}</div>
+        <div class="dm">${escapeHtml(tekst)}</div>${valg}
+      </div>`;
+  }).join('');
+  deleWrap.querySelectorAll('button[data-svar]').forEach(b => {
+    b.addEventListener('click', () => {
+      const nr = Number(b.dataset.del);
+      optag.valg[nr] = b.dataset.svar === 'ja';
+      // Et nej betyder, at delen ikke tæller mod de 20 minutter (16/10).
+      if (!optag.valg[nr] && optag.optager) optag.optager.fravaelg(nr);
+      visDele();
+    });
+  });
+
+  const med = o.dele.filter(erMed);
+  const venter = o.dele.some(venterPaaSvar);
+  transskriberBtn.style.display = (!optag.transskriberet && med.length) ? 'block' : 'none';
+  transskriberBtn.disabled = venter;
+
+  if (o.tilstand === 'optager') return;
+  const rest = o.restSek();
+  if (optag.transskriberet) {
+    micBtn.disabled = true;
+    saetStatus('Optagelsen er lavet til tekst');
+    recTime.textContent = '';
+  } else if (rest < 1) {
+    micBtn.disabled = true;
+    saetStatus('Grænsen på 20 minutter er nået');
+    recTime.textContent = '';
+  } else {
+    micBtn.disabled = false;
+    saetStatus(o.dele.length ? 'Tryk for at fortsætte optagelsen' : 'Tryk for at optage');
+    recTime.textContent = o.dele.length ? fmtTid(rest) + ' tilbage' : '';
+  }
+}
+
+transskriberBtn.addEventListener('click', async () => {
+  const o = optag.optager;
+  if (!o) return;
+  const med = o.dele.filter(erMed);
+  if (!med.length || o.dele.some(venterPaaSvar)) return;
+  skjulFejl('errorBannerOptag');
+  transskriberBtn.disabled = true;
+  micBtn.disabled = true;
+  medFaser(transskriberBtn, 'Laver tekst …');
+  let svar;
+  try {
+    // Rækkefølgen er delenes egen. Serveren ændrer den ikke.
+    svar = await transskriber(med.map(d => ({ blob: d.blob, filnavn: d.filnavn })));
+  } catch (e) {
+    udenFaser();
+    transskriberBtn.textContent = 'Lav tekst af optagelsen';
+    if (erLoggetUd(e)) return showScreen('login');
+    visDele();
+    return visOptagFejl(e);
+  }
+  udenFaser();
+  transskriberBtn.textContent = 'Lav tekst af optagelsen';
+  optag.transskriberet = true;
+  optag.varighedSek = typeof svar.lydsekunderIAlt === 'number' ? svar.lydsekunderIAlt : null;
+  if (optag.tilfoej) {
+    // Den nye tekst sættes efter det, der står i feltet nu (også hans rettelser).
+    const foer = editTranscript.value.trim();
+    const ny = (svar.tekst || '').trim();
+    editTranscript.value = foer && ny ? foer + '\n\n' + ny : (foer || ny);
+  } else {
+    editTranscript.value = svar.tekst || '';
+  }
+  transskriptWrap.style.display = 'block';
+  opdaterMinimum();
+  visDele();
+  if (!(svar.tekst || '').trim()) {
+    visOptagFejl('Der blev ikke hørt nogen ord i optagelsen. Du kan skrive teksten selv i feltet.');
+  }
+});
+
+gemKladdeBtn.addEventListener('click', async () => {
+  const tekst = editTranscript.value.trim();
+  if (!tekst) return visOptagFejl('Der er ingen tekst at gemme.');
+  const opgaveId = currentOpgaveDetailId;
+  skjulFejl('errorBannerOptag');
+  gemKladdeBtn.disabled = true;
+  gemKladdeBtn.innerHTML = '<span class="spinner"></span>Gemmer …';
+  if (optag.tilfoej) {
+    const id = optag.tilfoej.id;
+    try {
+      await saetTransskript(id, { transskript: tekst, titel: document.getElementById('mTitel').value });
+    } catch (e) {
+      gemKladdeBtn.disabled = false;
+      gemKladdeBtn.textContent = gemTekst();
+      if (erLoggetUd(e)) return showScreen('login');
+      return visOptagFejl(e);
+    }
+    optag.gemt = true;
+    gemKladdeBtn.disabled = false;
+    gemKladdeBtn.textContent = gemTekst();
+    return openReferatDetail(id);
+  }
+  const nyt = {
+    id: uid(), titel: document.getElementById('mTitel').value.trim() || standardTitel(),
+    type: 'Noter', dato: iDag(), status: 'kladde',
+    transskript: tekst, varighedSek: optag.varighedSek,
+  };
+  try {
+    // Hentes frisk: en anden skærm kan have gemt på opgaven imens.
+    const liste = await loadReferater(opgaveId);
+    liste.push(nyt);
+    await saveReferater(opgaveId, liste);
+  } catch (e) {
+    gemKladdeBtn.disabled = false;
+    gemKladdeBtn.textContent = gemTekst();
+    if (erLoggetUd(e)) return showScreen('login');
+    return visOptagFejl(e);
+  }
+  optag.gemt = true;
+  gemKladdeBtn.disabled = false;
+  gemKladdeBtn.textContent = gemTekst();
+  openOpgaveDetail(currentKundeDetailId, opgaveId);
+});
+
+document.getElementById('backFraOptag').addEventListener('click', () => {
+  const o = optag.optager;
+  if (o && o.tilstand === 'optager') {
+    return visOptagFejl('Stop optagelsen, før du går tilbage.');
+  }
+  // Lyden ligger kun her på telefonen. Går han tilbage, er den væk — derfor
+  // ét ekstra tryk, før en optagelse, der ikke er gemt, kasseres.
+  if (o && o.dele.length && !optag.gemt && !optag.forladAdvaret) {
+    optag.forladAdvaret = true;
+    return visOptagFejl('Optagelsen er ikke gemt. Tryk Tilbage igen for at kassere den.');
+  }
+  if (optag.tilfoej) return openReferatDetail(optag.tilfoej.id);
+  openOpgaveDetail(currentKundeDetailId, currentOpgaveDetailId);
+});
+
+/* =========================================================================
+   RET OG FÆRDIG (Fase 2 punkt F, skive 3, 15/10-26 — besluttet af Ann)
+
+   "Kladde" = kan stadig rettes. "Færdig" = låst. Låsen håndhæves af
+   serveren (409 `referat_faerdigt`); fanen viser bare ingen knapper.
+
+   "Markér som færdigt" kræver to tryk, fordi det ikke kan fortrydes fra
+   fanen. Rettelser i felterne gemmes med i samme kald.
+   ========================================================================= */
+function tilstandBadge(r) {
+  if (r.status === 'faerdig') return '<span class="type-badge badge-faerdig">Færdig</span>';
+  if (r.harReferat) return '<span class="type-badge badge-referat">Referat</span>';
+  return '<span class="type-badge badge-indtalt">Indtalt tekst</span>';
+}
+
+function tegnRet(wrap, r, tekst) {
+  wrap.innerHTML =
+    `<div class="section-label">Ret referatet</div>
+     <div style="background:var(--white); border:1px solid var(--line); border-radius:16px; padding:18px;">
+       <div class="section-label">Titel</div>
+       <input type="text" class="ret-titel">
+       <div class="section-label" style="margin-top:12px;">Tekst</div>
+       <textarea class="referat-edit"></textarea>
+     </div>
+     <button class="btn btn-primary" type="button" data-handling="gem" style="margin-top:14px;">Gem ændringer</button>
+     <button class="btn btn-secondary" type="button" data-handling="faerdig">Markér som færdigt</button>
+     <button class="btn btn-ghost" type="button" data-handling="fortryd" style="margin-top:4px;">Fortryd</button>`;
+  const titelFelt = wrap.querySelector('input.ret-titel');
+  const tekstFelt = wrap.querySelector('textarea');
+  titelFelt.value = r.titel || '';
+  tekstFelt.value = tekst;
+  const gemKnap = wrap.querySelector('[data-handling="gem"]');
+  const faerdigKnap = wrap.querySelector('[data-handling="faerdig"]');
+  let faerdigBekraeftet = false;
+
+  async function gem(faerdig) {
+    if (!tekstFelt.value.trim()) {
+      return visFejl('errorBannerReferatDetail', 'Teksten må ikke være tom.');
+    }
+    skjulFejl('errorBannerReferatDetail');
+    gemKnap.disabled = faerdigKnap.disabled = true;
+    const knap = faerdig ? faerdigKnap : gemKnap;
+    const foer = knap.textContent;
+    knap.innerHTML = '<span class="spinner"></span>Gemmer …';
+    try {
+      await retReferat(r.id, { titel: titelFelt.value, indhold: tekstFelt.value, faerdig });
+    } catch (e) {
+      gemKnap.disabled = faerdigKnap.disabled = false;
+      knap.textContent = foer;
+      if (erLoggetUd(e)) return showScreen('login');
+      return visFejl('errorBannerReferatDetail', e);
+    }
+    openReferatDetail(r.id);
+  }
+
+  gemKnap.addEventListener('click', () => gem(false));
+  faerdigKnap.addEventListener('click', () => {
+    if (!faerdigBekraeftet) {
+      faerdigBekraeftet = true;
+      faerdigKnap.textContent = 'Tryk igen for at låse referatet';
+      return;
+    }
+    gem(true);
+  });
+  wrap.querySelector('[data-handling="fortryd"]').addEventListener('click', () => openReferatDetail(r.id));
+}
+
+/* =========================================================================
+   REFERATUDKASTET (Fase 2 punkt F, skive 2, 15/10-26)
+
+   tegnUdkast() bruges to steder: på optageskærmen (før første gem) og på en
+   gemt kladde uden udkast. Den viser teknik B's tjek-steder og et felt, han
+   kan rette i, og kalder `gem(aiUdkast, indhold)`, når han trykker gem.
+
+   `aiUdkast` er modellens tekst UÆNDRET (kildemateriale — teknik B måles på
+   den). `indhold` er hans version; retter han intet, er det den samme tekst.
+
+   Tjek-stederne kan ikke farves inde i et tekstfelt, så de står i en liste
+   over feltet. Er der over 10 % markeringer, viser serveren ingen enkeltsteder
+   (ventilen), og så siger boksen det i stedet — "tjek det hele" og "intet at
+   tjekke" må ikke ligne hinanden.
+
+   ORDLYDEN ER ANNS (16/10, D36; rettet samme dag: "Læs og ret …", og
+   overskriften over udkastet hedder bare "Referat" — før sagde overskrift
+   og boks det samme to gange). Teknik B tjekker KUN tal, navne og
+   forkortelser. 15/10 byttede modellen "tåret" til "torvet", og boksen sagde
+   at intet var fundet — det kunne læses som "alt er
+   tjekket". Derfor beder boksen ham nu altid læse referatet igennem, og
+   nævner ikke længere, hvad der er tjekket.
+   ========================================================================= */
+const FELTNAVN = (felt) => felt === 'overskrift' ? 'Overskriften'
+  : felt === 'fritekst' ? 'Teksten'
+  : /^punkt-\d+$/.test(felt || '') ? 'Punkt ' + felt.slice(6)
+  : 'Referatet';
+
+function tjekHtml(svar) {
+  if (svar.ventil) {
+    return `<div class="tjek-boks"><strong>Læs hele referatet igennem.</strong> ${escapeHtml(svar.besked || 'Transskriptionen var usikker.')}</div>`;
+  }
+  const m = Array.isArray(svar.markeringer) ? svar.markeringer : [];
+  if (!m.length) {
+    return '<div class="tjek-boks rolig">Læs og ret referatet før du gemmer.</div>';
+  }
+  return `<div class="tjek-boks">Læs og ret referatet før du gemmer, og vær særlig opmærksom på de fremhævede ord.
+      <ul>${m.map(x => `<li>${escapeHtml(FELTNAVN(x.felt))}: <strong>${escapeHtml(x.tekst)}</strong></li>`).join('')}</ul>
+    </div>`;
+}
+
+function tegnUdkast(wrap, svar, gem) {
+  const aiUdkast = udkastSomTekst(svar);
+  wrap.innerHTML =
+    `<div class="section-label" style="margin-top:18px;">Referat</div>
+     ${tjekHtml(svar)}
+     <textarea class="referat-edit"></textarea>
+     <button class="btn btn-primary" type="button" style="margin-top:12px;">Gem referat</button>`;
+  wrap.style.display = 'block';
+  const felt = wrap.querySelector('textarea');
+  const knap = wrap.querySelector('button');
+  felt.value = aiUdkast;
+  knap.addEventListener('click', async () => {
+    const indhold = felt.value.trim();
+    if (!indhold) return;
+    knap.disabled = true;
+    knap.innerHTML = '<span class="spinner"></span>Gemmer …';
+    const ok = await gem(aiUdkast, indhold);
+    if (!ok) { knap.disabled = false; knap.textContent = 'Gem referat'; }
+  });
+}
+
+lavReferatBtn.addEventListener('click', async () => {
+  const tekst = editTranscript.value.trim();
+  if (!tekst) return visOptagFejl('Der er ingen tekst at lave et referat af.');
+  skjulFejl('errorBannerOptag');
+  lavReferatBtn.disabled = true;
+  gemKladdeBtn.disabled = true;
+  medFaser(lavReferatBtn, 'Skriver referat …');
+  let svar;
+  try {
+    svar = await lavUdkast(tekst);
+  } catch (e) {
+    udenFaser();
+    gemKladdeBtn.disabled = false;
+    lavReferatBtn.textContent = 'Lav referat';
+    opdaterMinimum();
+    if (erLoggetUd(e)) return showScreen('login');
+    return visOptagFejl(e);
+  }
+  udenFaser();
+  lavReferatBtn.textContent = 'Lav referat';
+  // Udkastet er lavet af NETOP denne tekst. Rettes teksten bagefter, passer
+  // udkast og transskription ikke længere sammen, og teknik B ville måle mod
+  // noget, modellen aldrig så. Derfor låses den.
+  editTranscript.readOnly = true;
+  lavReferatBtn.style.display = 'none';
+  opdaterMinimum();
+  gemKladdeBtn.style.display = 'none';
+  optag.udkast = { ophav: svar.ophav };
+  tegnUdkast(udkastWrap, svar, async (aiUdkast, indhold) => {
+    const opgaveId = currentOpgaveDetailId;
+    const nyt = {
+      id: uid(), titel: document.getElementById('mTitel').value.trim() || standardTitel(),
+      type: 'Noter', dato: iDag(), status: 'kladde',
+      transskript: tekst, ai_udkast: aiUdkast, indhold, ophav: svar.ophav,
+      varighedSek: optag.varighedSek,
+    };
+    try {
+      const liste = await loadReferater(opgaveId);
+      liste.push(nyt);
+      await saveReferater(opgaveId, liste);
+    } catch (e) {
+      if (erLoggetUd(e)) { showScreen('login'); return false; }
+      visOptagFejl(e);
+      return false;
+    }
+    optag.gemt = true;
+    openOpgaveDetail(currentKundeDetailId, opgaveId);
+    return true;
+  });
+});
+
+/* =========================================================================
+   ADRESSEFORSLAG — samme kode som dashboardets Ny opgave (adressevaelger.js).
+   Felterne er frie tekstfelter som før: et forslag udfylder hele adressen,
+   men man kan stadig skrive selv, også når tjenesten er nede.
+   ========================================================================= */
+/* =========================================================================
+   RET KUNDE (D88 opgave 2, 23/10-26)
+   Kundens stamdata — navn, kundens adresse og numre — rettes KUN her (Anne
+   21/10). Opgavens adresse (arbejdsstedet) rettes på opgaven.
+
+   Numre (valg (i), Ann 21/10): fjernes et nummer, som åbne opgaver sender
+   SMS til, spørger serveren (409 nummer_bruges, intet skrevet), og arket
+   spørger håndværkeren: skal opgaverne bruge et andet af kundens danske
+   numre, eller beholde det gamle? Intet skifter i stilhed (betingelse 4).
+
+   Tilføjes et dansk nummer på en kunde med åbne opgaver (Ann 23/10),
+   spørger arket for hvert nummer, opgaverne bruger nu: skal de bruge det nye
+   i stedet? Ja eller nej skal vælges. Ja flytter både det, der vises på
+   opgaven, og det, SMS'en går til — en opgave har ét nummer (let b).
+   Ved hvert nummer står, hvor mange åbne opgaver der sender dertil
+   (GET /api/tilbud/kunder/:id/opgave-numre), også numre, der ikke er kundens.
+
+   Rækkefølge: (1) stamdata og et nyt nummer i ét kald, (1b) svaret på
+   "skal opgaverne bruge det nye?", (2) hver fjernelse for sig. Afbrydes det undervejs, står kunden i en gyldig tilstand, og et
+   nyt tryk på Gem gør resten (serveren tåler gentagelse).
+   ========================================================================= */
+const retKundeSheet = document.getElementById('retKundeSheet');
+const RK_DANSK = /^\+45\d{8}$/;
+let rk = null;   // { id, foer, numre, fjern:Set, valg, nytValg:{nyt, kilder}|null, brug:[{nummer,antal,sms}]|null, kvit:[], skrevet, tilbage }
+
+// Betingelse 7 (L6c): kom han fra opgavevinduet ("Navn og telefon rettes på
+// kundesiden"), åbnes SAMME opgave igen, når arket lukkes — gemt eller ej.
+// Uden dashboard (siden alene) bliver han på kundesiden.
+function rkTilbage(opgaveId) {
+  if (!opgaveId) return;
+  bedDashboard({ type: 'aabn-opgave', opgaveId }, () => {});
+}
+
+function rkAdresseTekst(k) { return kundeAdresse(k); }
+
+function aabnRetKunde() {
+  const k = customers.find(c => c.id === currentKundeDetailId);
+  if (!k) return;
+  rk = { id: k.id, foer: { navn: k.navn || '', adresse: rkAdresseTekst(k) },
+         numre: (k.telefoner || []).slice(), fjern: new Set(), valg: null, nytValg: null, brug: null, kvit: [] };
+  document.getElementById('rkNavn').value = rk.foer.navn;
+  document.getElementById('rkAdresse').value = rk.foer.adresse;
+  document.getElementById('rkNytNummer').value = '';
+  skjulFejl('errorBannerRetKunde');
+  rkTegnNumre();
+  rkTegnValg();
+  rkTegnNytValg();
+  document.getElementById('rkGemBtn').disabled = false;
+  retKundeSheet.classList.add('open');
+  rkHentBrug();
+}
+
+// Hvilke numre de åbne opgaver bruger. Fejler det, vises arket uden tallene —
+// og Gem med et nyt nummer spørger igen, før noget flyttes.
+async function rkHentBrug() {
+  if (!rk) return;
+  const id = rk.id;
+  try {
+    const brug = await hentOpgaveNumre(id);
+    if (!rk || rk.id !== id) return;
+    rk.brug = brug;
+  } catch (_) {
+    if (rk && rk.id === id) rk.brug = null;
+  }
+  if (rk && rk.id === id) rkTegnNumre();
+}
+function rkAntal(n) {
+  const b = rk && rk.brug && rk.brug.find(x => x.nummer === n);
+  return b ? b.antal : 0;
+}
+const rkOpgTekst = (a) => a === 1 ? '1 åben opgave' : a + ' åbne opgaver';
+document.getElementById('retKundeBtn').addEventListener('click', aabnRetKunde);
+// Lukkes arket midt i et valg, kan noget allerede være gemt (navn, nyt nummer):
+// så vises kundesiden igen fra serveren, så den ikke viser det gamle.
+retKundeSheet.addEventListener('click', async (e) => {
+  if (e.target !== retKundeSheet) return;
+  retKundeSheet.classList.remove('open');
+  const skrevet = rk && rk.skrevet, id = rk && rk.id, tilbage = rk && rk.tilbage;
+  rk = null;
+  if (skrevet) {
+    try { customers = await loadCustomers(); } catch (_) { /* siden viser det, den har */ }
+    await openKundeDetail(id);
+  }
+  rkTilbage(tilbage);
+});
+
+// Numrene tegnes med textContent — de kommer fra serveren, aldrig som HTML.
+function rkTegnNumre() {
+  const wrap = document.getElementById('rkNumre');
+  wrap.textContent = '';
+  if (!rk.numre.length) {
+    const p = document.createElement('p'); p.className = 'empty-note'; p.textContent = 'Kunden har intet nummer.';
+    wrap.appendChild(p); return;
+  }
+  rk.numre.forEach(n => {
+    const raekke = document.createElement('div'); raekke.className = 'rk-nummer';
+    const tal = document.createElement('span'); tal.textContent = visTelefon(n);
+    const fjernes = rk.fjern.has(n);
+    if (fjernes) tal.className = 'rk-fjernes';
+    const a = rkAntal(n);
+    if (a) {
+      const brug = document.createElement('span'); brug.className = 'rk-brug';
+      brug.textContent = ' · ' + rkOpgTekst(a);
+      tal.appendChild(brug);
+    }
+    const knap = document.createElement('button');
+    knap.type = 'button'; knap.className = 'btn-ghost rk-knap';
+    knap.textContent = fjernes ? 'Fortryd' : 'Fjern';
+    knap.addEventListener('click', () => {
+      if (rk.fjern.has(n)) rk.fjern.delete(n); else rk.fjern.add(n);
+      if (rk.valg && rk.valg.nummer === n) rk.valg = null;
+      rkTegnNumre(); rkTegnValg();
+    });
+    raekke.appendChild(tal); raekke.appendChild(knap);
+    wrap.appendChild(raekke);
+  });
+  // Opgaver, der sender til et nummer, der IKKE står på kunden (fx rettet på
+  // opgaven). Vises, så det ikke er en overraskelse — de kan ikke fjernes herfra.
+  (rk.brug || []).filter(b => b.nummer && !rk.numre.includes(b.nummer)).forEach(b => {
+    const p = document.createElement('p'); p.className = 'felt-hjaelp';
+    p.textContent = rkOpgTekst(b.antal) + ' sender til ' + visTelefon(b.nummer) + ', som ikke står på kunden.';
+    wrap.appendChild(p);
+  });
+}
+
+// "Skal de åbne opgaver bruge det nye nummer?" — ét spørgsmål pr. nummer, de
+// bruger nu. Ingen forvalgt svar: han skal vælge.
+function rkTegnNytValg() {
+  const wrap = document.getElementById('rkNytValg');
+  wrap.textContent = '';
+  if (!rk.nytValg) { wrap.style.display = 'none'; return; }
+  const { nyt, kilder } = rk.nytValg;
+  kilder.forEach((k, i) => {
+    const spm = document.createElement('p'); spm.className = 'rk-spm';
+    spm.textContent = rkOpgTekst(k.antal) + ' bruger ' + visTelefon(k.nummer) +
+      '. Skal ' + (k.antal === 1 ? 'den' : 'de') + ' bruge ' + visTelefon(nyt) + ' i stedet?';
+    wrap.appendChild(spm);
+    [['ja', 'Ja, brug ' + visTelefon(nyt)], ['nej', 'Nej, behold ' + visTelefon(k.nummer)]].forEach(([v, t]) => {
+      const l = document.createElement('label'); l.className = 'rk-radio';
+      const r = document.createElement('input'); r.type = 'radio'; r.name = 'rkNytValg' + i; r.value = v;
+      r.dataset.kilde = k.nummer;
+      const s = document.createElement('span'); s.textContent = t;
+      l.appendChild(r); l.appendChild(s); wrap.appendChild(l);
+    });
+  });
+  wrap.style.display = '';
+}
+
+// Spørgsmålet, når serveren har svaret nummer_bruges for rk.valg.nummer.
+// Valgmuligheder: kundens øvrige DANSKE numre, der ikke fjernes, samt det
+// nye nummer, der lige er lagt til — og "behold".
+function rkTegnValg() {
+  const wrap = document.getElementById('rkValg');
+  wrap.textContent = '';
+  if (!rk.valg) { wrap.style.display = 'none'; return; }
+  const { nummer, antal, forslag } = rk.valg;
+  const spm = document.createElement('p'); spm.className = 'rk-spm';
+  spm.textContent = (antal === 1 ? '1 åben opgave sender' : antal + ' åbne opgaver sender') +
+    ' SMS til ' + visTelefon(nummer) + '. Hvilket nummer skal ' + (antal === 1 ? 'den' : 'de') + ' bruge?';
+  wrap.appendChild(spm);
+  const muligheder = rk.numre.filter(n => n !== nummer && !rk.fjern.has(n) && RK_DANSK.test(n));
+  const valgt = muligheder.includes(forslag) ? forslag : (muligheder[0] || 'behold');
+  const radio = (vaerdi, tekst) => {
+    const l = document.createElement('label'); l.className = 'rk-radio';
+    const r = document.createElement('input'); r.type = 'radio'; r.name = 'rkValgRadio'; r.value = vaerdi;
+    r.checked = vaerdi === valgt;
+    const t = document.createElement('span'); t.textContent = tekst;
+    l.appendChild(r); l.appendChild(t); wrap.appendChild(l);
+  };
+  muligheder.forEach(n => radio(n, visTelefon(n)));
+  radio('behold', 'Behold ' + visTelefon(nummer) + ' på ' + (antal === 1 ? 'opgaven' : 'opgaverne'));
+  if (!muligheder.length) {
+    const h = document.createElement('p'); h.className = 'felt-hjaelp';
+    h.textContent = 'Vil du flytte opgaverne, så tilføj et dansk nummer først.';
+    wrap.appendChild(h);
+  }
+  wrap.style.display = '';
+}
+
+function rkKvitter(svar, til, fra) {
+  if (svar.opgaver_flyttet) {
+    rk.kvit.push((svar.opgaver_flyttet === 1 ? '1 åben opgave sender' : svar.opgaver_flyttet + ' åbne opgaver sender') +
+      ' nu SMS til ' + visTelefon(til) + '.');
+  }
+  if (svar.opgaver_beholdt) {
+    rk.kvit.push((svar.opgaver_beholdt === 1 ? '1 åben opgave beholder' : svar.opgaver_beholdt + ' åbne opgaver beholder') +
+      ' ' + visTelefon(fra) + ' som SMS-nummer.');
+  }
+}
+
+document.getElementById('rkGemBtn').addEventListener('click', async () => {
+  if (!rk) return;
+  const btn = document.getElementById('rkGemBtn');
+  skjulFejl('errorBannerRetKunde');
+  const navn = document.getElementById('rkNavn').value.trim();
+  if (!navn) { visFejl('errorBannerRetKunde', 'Skriv kundens navn.'); return; }
+  const adresse = document.getElementById('rkAdresse').value.trim();
+  const nyt = document.getElementById('rkNytNummer').value.trim();
+
+  // Svarene på åbne spørgsmål læses, FØR noget sendes.
+  let svarPaaNyt = null;
+  if (rk.nytValg) {
+    svarPaaNyt = [];
+    for (let i = 0; i < rk.nytValg.kilder.length; i++) {
+      const v = document.querySelector('input[name=rkNytValg' + i + ']:checked');
+      if (!v) { visFejl('errorBannerRetKunde', 'Vælg ja eller nej for de åbne opgaver.'); return; }
+      if (v.value === 'ja') svarPaaNyt.push(v.dataset.kilde);
+    }
+  }
+  let svarPaaValg = null;
+  if (rk.valg) {
+    const v = document.querySelector('input[name=rkValgRadio]:checked');
+    if (!v) { visFejl('errorBannerRetKunde', 'Vælg hvilket nummer opgaverne skal bruge.'); return; }
+    svarPaaValg = v.value;
+  }
+
+  btn.disabled = true;
+  try {
+    // (1) Stamdata og et nyt nummer — kun det, der er ændret.
+    const krop = {};
+    if (navn !== rk.foer.navn) krop.navn = navn;
+    if (adresse !== rk.foer.adresse) {
+      // Én adresselinje er sandheden efter en rettelse. De opdelte felter
+      // nulstilles, så en gammel postnr/by ikke hænges bag på den nye.
+      Object.assign(krop, { adresse: adresse || null, postnr: null, by: null, vejnavn: null,
+                            husnr: null, etage: null, doer: null, dawa_id: null });
+    }
+    if (nyt) krop.telefon = nyt;
+    if (Object.keys(krop).length) {
+      // Numrene FØR kaldet: retKunde() opdaterer kundeobjektet med det samme,
+      // så sammenligningen skal ske mod arkets egen liste (fundet i prøven 23/10).
+      const foer = new Set(rk.numre);
+      const svar = await retKunde(rk.id, krop);
+      rk.skrevet = true;
+      rk.foer.navn = navn; rk.foer.adresse = adresse;
+      rk.numre = (svar.kunde && svar.kunde.telefoner) || rk.numre;
+      if (nyt) {
+        // Det nye nummer, som serveren skrev det (E.164) — forslag ved et valg.
+        rk.nytNummer = rk.numre.find(n => !foer.has(n)) || rk.nytNummer || null;
+        document.getElementById('rkNytNummer').value = '';
+        // (1b) Skal de åbne opgaver bruge det nye nummer? Kun et dansk nummer
+        // kan modtage SMS; numre, der fjernes, spørges der om nedenfor.
+        if (rk.nytNummer && RK_DANSK.test(rk.nytNummer)) {
+          if (!rk.brug) await rkHentBrug();
+          if (!rk.brug) throw new Error('Nummeret er tilføjet, men vi kunne ikke se kundens åbne opgaver. Tryk Gem igen.');
+          const kilder = rk.brug.filter(b => b.nummer && b.nummer !== rk.nytNummer && !rk.fjern.has(b.nummer));
+          if (kilder.length) {
+            rk.nytValg = { nyt: rk.nytNummer, kilder };
+            rkTegnNumre(); rkTegnNytValg();
+            btn.disabled = false;
+            return;                       // nummeret er gemt; han svarer, og trykker Gem igen
+          }
+        }
+      }
+    }
+
+    // (1b) Svaret: flyt de opgaver, han sagde ja til.
+    if (rk.nytValg && svarPaaNyt) {
+      for (const kilde of svarPaaNyt) {
+        const svar = await retKunde(rk.id, { opgaver_fra: kilde, opgaver_til: rk.nytValg.nyt });
+        rk.skrevet = true;
+        rkKvitter(svar, rk.nytValg.nyt, kilde);
+      }
+      rk.nytValg = null;
+      rkTegnNytValg();
+      if (svarPaaNyt.length) await rkHentBrug();   // tallene ved numrene passer igen
+    }
+
+    // (2) Fjernelserne, én ad gangen.
+    for (const n of Array.from(rk.fjern)) {
+      const fk = { fjern_telefon: n };
+      if (rk.valg && rk.valg.nummer === n) {
+        if (svarPaaValg === 'behold') fk.behold_opgaver = true; else fk.opgaver_til = svarPaaValg;
+      }
+      let svar;
+      try {
+        svar = await retKunde(rk.id, fk);
+      } catch (e) {
+        if (e instanceof ApiFejl && e.kode === 'nummer_bruges') {
+          rk.valg = { nummer: n, antal: (e.krop && e.krop.opgaver) || 0, forslag: rk.nytNummer || null };
+          rkTegnNumre(); rkTegnValg();
+          btn.disabled = false;
+          return;                       // intet er skrevet for dette nummer — han vælger, og trykker Gem igen
+        }
+        throw e;
+      }
+      rk.skrevet = true;
+      rkKvitter(svar, fk.opgaver_til, n);
+      rk.fjern.delete(n);
+      if (rk.valg && rk.valg.nummer === n) rk.valg = null;
+      rk.numre = (svar.kunde && svar.kunde.telefoner) || rk.numre.filter(x => x !== n);
+    }
+  } catch (e) {
+    if (erLoggetUd(e)) { retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    visFejl('errorBannerRetKunde', e);
+    rkTegnNumre(); rkTegnValg();
+    btn.disabled = false;
+    return;
+  }
+
+  // Færdig: kunden hentes igen, og kvitteringen står på kundesiden.
+  const kvit = rk.kvit.slice();
+  retKundeSheet.classList.remove('open');
+  btn.disabled = false;
+  try { customers = await loadCustomers(); } catch (_) { /* siden viser det, den har */ }
+  await openKundeDetail(rk.id);
+  const k = document.getElementById('kundeDetailKvittering');
+  k.textContent = kvit.join(' ');
+  k.style.display = kvit.length ? '' : 'none';
+  const tilbage = rk && rk.tilbage;
+  rk = null;
+  rkTilbage(tilbage);
+});
+
+// Fra opgavevinduet ('ret-kunde', L6c): kunden hentes frisk, kundesiden vises,
+// og arket åbnes med vejen tilbage til opgaven.
+const RK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function retKundeFraOpgave(kundeId, opgaveId) {
+  if (!RK_ID_RE.test(String(kundeId || '')) || !RK_ID_RE.test(String(opgaveId || ''))) return;
+  try { customers = await loadCustomers(); } catch (_) { /* navnet viser "Kunde" */ }
+  await openKundeDetail(kundeId);
+  if (!customers.find(c => c.id === kundeId)) return;   // ukendt kunde: bliv på siden
+  aabnRetKunde();
+  if (rk) rk.tilbage = opgaveId;
+}
+if (typeof initDawa === 'function') {
+  initDawa({ inputId: 'rkAdresse', suggestionsId: 'rkAdresseForslag', fuldTekstIFelt: true });
+}
+
+if (typeof initDawa === 'function') {
+  initDawa({ inputId: 'okKundeAdresse', suggestionsId: 'okKundeAdresseForslag', fuldTekstIFelt: true });
+  initDawa({ inputId: 'ooOpgaveAdresse', suggestionsId: 'ooOpgaveAdresseForslag', fuldTekstIFelt: true });
+}
+
+/* =========================================================================
+   START — er der en session? Ellers login-kortet.
+   ========================================================================= */
+(async function start() {
+  let session = null;
+  try {
+    ({ data: { session } } = await db.auth.getSession());
+  } catch (e) {
+    visFejl('errorBannerKunder', 'Vi kunne ikke læse din login. Genindlæs siden.');
+  }
+  if (!session) return showScreen('login');
+  showScreen('customers');
+  renderKundeList();
+})();
+
+
+/* =========================================================================
+   KUNDER-BROEN (D88 trin 2, opgave 6 og 10, 20/10-26)
+   Indlejret i dashboardet beder siden dashboardet åbne SIN Ny opgave-formular
+   og SIT opgavevindue, så der kun findes ét af hver.
+
+   KONTRAKTEN — samme tekst står i static/dashboard.html. Rettes den ene, rettes begge.
+     ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
+                         { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
+                         { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+     dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
+                         { kilde:'ddk-dashboard', type:'opgaver-aendret' }
+                         { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+                         { kilde:'ddk-dashboard', type:'ret-kunde',     kundeId, opgaveId }   (L6c)
+   Ingen kvittering inden for 1,5 s (gammel dashboard-fane, eller siden åbnet
+   alene): reserven — sidens egen visning, som før.
+   Værn: kun beskeder fra egen origin OG fra forældrevinduet; kun typerne
+   ovenfor; svar med targetOrigin location.origin, aldrig '*'.
+   ========================================================================= */
+const INDLEJRET_I_DASHBOARD =
+  document.documentElement.classList.contains('indlejret') && window.parent && window.parent !== window;
+const BRO_VENTETID_MS = 1500;
+let broNr = 0;
+const broVenter = new Map();               // ref -> function(ok)
+
+function bedDashboard(besked, reserve) {
+  if (!INDLEJRET_I_DASHBOARD) { reserve(); return; }
+  const ref = 'k' + (++broNr) + '-' + Date.now();
+  const timer = setTimeout(() => { broVenter.delete(ref); reserve(); }, BRO_VENTETID_MS);
+  broVenter.set(ref, (ok) => { clearTimeout(timer); if (!ok) reserve(); });
+  try {
+    window.parent.postMessage(Object.assign({}, besked, { kilde: 'ddk-kunder', ref }), location.origin);
+  } catch (err) {
+    clearTimeout(timer); broVenter.delete(ref); reserve();
+  }
+}
+
+function aktivSkaerm() {
+  const s = document.querySelector('.screen.active');
+  return s ? s.id.replace(/^screen-/, '') : '';
+}
+
+window.addEventListener('message', async (e) => {
+  if (!INDLEJRET_I_DASHBOARD || e.origin !== location.origin || e.source !== window.parent) return;
+  const d = e.data;
+  if (!d || d.kilde !== 'ddk-dashboard' || typeof d.type !== 'string') return;
+
+  if (d.type === 'kvittering') {
+    const f = broVenter.get(d.ref);
+    if (f) { broVenter.delete(d.ref); f(d.ok === true); }
+    return;
+  }
+  if (d.type === 'opgaver-aendret') {
+    const s = aktivSkaerm();
+    if (s === 'kunde-detail' && currentKundeDetailId) openKundeDetail(currentKundeDetailId);
+    else if (s === 'customers') renderKundeList();
+    return;
+  }
+  if (d.type === 'ret-kunde') {
+    retKundeFraOpgave(d.kundeId, d.opgaveId);
+    return;
+  }
+  if (d.type === 'vis-referater' && typeof d.kundeId === 'string' && typeof d.opgaveId === 'string') {
+    if (!customers.length) { try { customers = await loadCustomers(); } catch (_) { /* navnet viser "Kunde" */ } }
+    openOpgaveDetail(d.kundeId, d.opgaveId);
+  }
+});
+
+if (INDLEJRET_I_DASHBOARD) {
+  try { window.parent.postMessage({ kilde: 'ddk-kunder', type: 'klar' }, location.origin); } catch (_) {}
+}
+</script>
+</body>
+</html>

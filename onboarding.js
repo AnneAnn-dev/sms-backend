@@ -13,7 +13,7 @@ const twilio     = require("twilio");
 const { renderGreeting }  = require("./tts");
 const { firmIdFromToken } = require("./auth");
 const { generateToken }   = require("./token");
-const { normalizePhone, gyldigtSmsNummer, maskerTlf, maskerMail } = require("./phone");
+const { normalizePhone, gyldigtSmsNummer, smsModtager, opgavensNummer, maskerTlf, maskerMail } = require("./phone");
 const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
@@ -1236,6 +1236,18 @@ module.exports = function registerOnboarding(app, supabase) {
     return { lead, fraOpkald };
   }
 
+  // Svar, naar en opgave ikke har en SMS-modtager. `kode` er til klienten;
+  // `error` er teksten, dashboardet viser. Intet nummer i svaret eller loggen.
+  function afvisModtager(res, modtager) {
+    if (modtager.grund === "udenlandsk") {
+      return res.status(400).json({
+        error: "Nummeret er udenlandsk. Der kan kun sendes SMS til danske numre.",
+        kode: "udenlandsk_nummer",
+      });
+    }
+    return res.status(400).json({ error: "Dette lead har intet gyldigt telefonnummer", kode: "intet_nummer" });
+  }
+
   // Sikkerhed: udled firma fra token; bekraeft at lead'et tilhoerer firmaet; og
   // send KUN til nummeret paa det lead (aldrig et frit "to" fra body'en). Sender
   // fra firmaets eget Twilio-nummer.
@@ -1254,15 +1266,14 @@ module.exports = function registerOnboarding(app, supabase) {
     const { lead, fraOpkald } = ejet;
 
     // Modtager = kundens nummer paa lead'et (ikke et frit nummer fra body'en).
-    // Et indtastet/rettet nummer (leads.telefon, 10/10-26) gaar forud for
-    // opkaldets. leads.telefon er altid valideret: af gyldigtSmsNummer() ved
-    // skrivning og af CHECK-reglen leads_telefon_format i databasen.
-    // SAMME regel staar i dashboardets leadTelefon() — ret begge, hvis den aendres.
-    const to    = lead.telefon || fraOpkald;
-    const kilde = lead.telefon ? "indtastet" : "opkald";
-    if (!to) {
-      return res.status(400).json({ error: "Dette lead har intet gyldigt telefonnummer" });
-    }
+    // Reglen staar ét sted: smsModtager() i phone.js (D88 opgave 2, 21/10-26).
+    // Et indtastet/rettet nummer (leads.telefon) gaar forud for opkaldets, og
+    // BEGGE skal nu bestaa gyldigtSmsNummer() — foer 21/10 gik en SMS til et
+    // udenlandsk opkaldsnummer igennem (Ann 21/10: nej til udenlandske numre).
+    const modtager = smsModtager(lead.telefon, fraOpkald);
+    if (!modtager.nummer) return afvisModtager(res, modtager);
+    const to    = modtager.nummer;
+    const kilde = modtager.kilde;
 
     // Afsender = firmaets eget Twilio-nummer
     const { data: firm } = await supabase
@@ -1277,6 +1288,11 @@ module.exports = function registerOnboarding(app, supabase) {
     try {
       await sendSms({ to, from: firm.phone_number, body: smsText });
       console.log("✉️  SMS sendt til lead", lead_id, "for firma", firm_id, "nummer:", kilde);
+      // En SMS fra opgaven er en handling: opgaven gaar i gang (Fase 1a,
+      // migration 20261013100000). Fejler markeringen, er SMS'en stadig sendt
+      // -- derfor rapporteres det, men svaret til haandvaerkeren er uaendret.
+      const { error: hFejl } = await supabase.rpc("opgave_handling", { p_lead: lead_id });
+      if (hFejl) rapporterFejl("SMS sendt, men opgaven blev ikke markeret som i gang", hFejl, { firma: firm_id, lead: lead_id });
       res.json({ ok: true });
     } catch (err) {
       rapporterFejl("SMS fra dashboardet fejlede", err, { firma: firm_id, lead: lead_id, nummer: kilde });
@@ -1330,7 +1346,31 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.status(500).json({ error: "Kunne ikke gemme telefonnummeret" });
     }
 
-    res.json({ ok: true, telefon: nyt });
+    // Modtageren efter rettelsen, efter samme regel som /send-sms. L6: dashboardet
+    // viser dette svar i stedet for at regne selv (betingelse 2).
+    res.json({ ok: true, telefon: nyt, modtager: smsModtager(nyt, fraOpkald), opgavensNummer: opgavensNummer(nyt, fraOpkald) });
+  });
+
+  // ─── Hvem gaar en SMS fra opgaven til? (D88 opgave 2, 21/10-26) ─────────────
+  // Kun laesning. Svarer med det, /send-sms ville goere lige nu, saa dashboardet
+  // ikke har sin egen kopi af reglen (betingelse 2). Ejerskab som i /send-sms.
+  //   200 { ok, modtager: { nummer, kilde, grund }, opgavensNummer }
+  //   grund: null|intet|udenlandsk. opgavensNummer er det nummer, opgaven kom
+  //   fra (ogsaa et udenlandsk) — til visning og "Ring tilbage", ikke til SMS.
+  app.get("/lead-modtager", async (req, res) => {
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: "Ikke logget ind" });
+
+    const lead_id = req.query && req.query.lead_id;
+    if (!lead_id) return res.status(400).json({ error: "Mangler lead_id" });
+
+    const ejet = await egenOpgave(res, firm_id, lead_id);
+    if (!ejet) return;
+    res.json({
+      ok: true,
+      modtager: smsModtager(ejet.lead.telefon, ejet.fraOpkald),
+      opgavensNummer: opgavensNummer(ejet.lead.telefon, ejet.fraOpkald),
+    });
   });
 
 

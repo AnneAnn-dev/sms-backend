@@ -197,6 +197,22 @@
     .page { display: none; }
     .page.active { display: block; }
 
+    /* Faner (Fase 1c, 13/10-26) — kun naar body har klassen .faner, dvs. naar
+       /api/moduler svarer tilbudAktiv:true. Uden klassen ser alt ud som foer. */
+    body.faner #filter-row, body.faner #sort-row { display: none !important; }
+    .kun-faner { display: none !important; }
+    body.faner .kun-faner { display: flex !important; }
+    body.faner .skjul-ved-faner { display: none !important; }
+    .topbar-profil { background: none; border: none; color: var(--ink-muted); padding: 6px; cursor: pointer; line-height: 0; }
+    .topbar-profil .ti { width: 26px; height: 26px; }
+    .topbar-hoejre { display: flex; align-items: center; gap: 8px; }
+    .prik-ulaest { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--steel); align-self: center; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    details.lukkede { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; background: var(--white); }
+    details.lukkede summary { cursor: pointer; padding: 8px 0; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--ink-muted); }
+    details.lukkede .lead-card { opacity: .85; }
+    .btn-igang { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); cursor: pointer; }
+
     /* Profil */
     /* TRIN 4: profilsiden er sektioner paa hvid flade (som onboardingen),
        adskilt af haarfine linjer — ingen kort-rammer/skygger. */
@@ -367,12 +383,48 @@
        paa. Foer var det skjult uden kundebilleder (kodeopgave 14). */
     .billed-status { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
     .billed-status.fejl { color: #dc2626; }
+    /* D88 trin 2, opgave 10: vej fra opgavevinduet til opgavens referater i Kunder. */
+    /* D88 opgave 2, betingelse 1 (L6c): navn og telefon er kundens og rettes paa kundesiden. */
+    #modal input[readonly] { background: var(--steel-light); color: var(--ink-muted); }
+    .referater-raekke { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); color: var(--ink); font-size: 16px; font-family: inherit; cursor: pointer; }
     .modal-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 1; }
 
     .empty { text-align: center; color: var(--ink-muted); padding: 48px 0; font-size: 14px; }
     .sort-btn { background: var(--white); border: 1.5px solid var(--line); border-radius: 20px; padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--muted); font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
     .sort-btn.active { background: var(--steel); color: white; border-color: var(--steel); }
     .sort-btn:hover:not(.active) { background: var(--smoke); }
+
+    /* ── Indtal ny opgave (16/10-26) ──────────────────────────────────────
+       Mikrofonen i "+ Ny opgave". Vises kun, naar /api/moduler svarer
+       tilbudAktiv:true, og /tilbud/optager.js er hentet. */
+    .indtal-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .indtal-label-row label { margin-bottom: 0; }
+    .indtal-knap { display: inline-flex; align-items: center; gap: 5px; background: var(--white); border: 1.5px solid var(--line); color: var(--accent); border-radius: 10px; padding: 5px 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    .indtal-knap svg { width: 15px; height: 15px; }
+    .indtal-knap:disabled { opacity: .4; cursor: default; }
+    .indtal-panel { margin-top: 10px; border: 2px solid var(--border); border-radius: 10px; background: var(--steel-light); padding: 12px; }
+    .indtal-optag { display: flex; align-items: center; gap: 12px; }
+    .indtal-mic { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%; border: none; background: var(--steel); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .indtal-mic svg { width: 24px; height: 24px; }
+    .indtal-mic.recording { background: var(--danger); }
+    .indtal-mic:disabled { opacity: .4; cursor: default; }
+    .indtal-status { font-weight: 700; font-size: 14px; color: var(--ink-muted); }
+    .indtal-status.live { color: var(--danger); }
+    .indtal-tid { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+    .indtal-j8 { font-size: 12.5px; color: var(--ink-muted); margin: 10px 2px 0; line-height: 1.45; }
+    .indtal-fejl { background: var(--danger-light); color: var(--danger-dark); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.45; margin-bottom: 10px; }
+    #indtal-dele { margin-top: 10px; }
+    #indtal-dele:empty { display: none; }
+    .indtal-del { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13.5px; }
+    .indtal-del .dt { font-weight: 700; }
+    .indtal-del .dm { color: var(--ink-muted); font-size: 12.5px; margin-top: 2px; line-height: 1.4; }
+    .indtal-del.kasseret { opacity: .6; }
+    .indtal-del.kasseret .dt { text-decoration: line-through; }
+    .indtal-del-valg { display: flex; gap: 8px; margin-top: 8px; }
+    .indtal-tekst-knap { width: 100%; margin-top: 6px; }
+    .indtal-tekst-knap:disabled, #new-lead-opret:disabled { opacity: .55; cursor: default; }
+    #indtal-tip-bg { z-index: 200; align-items: flex-end; }
+    #indtal-tip-bg .modal { padding: 20px; margin: auto auto 0; }
   </style>
 </head>
 <body>
@@ -549,7 +601,10 @@
 <div id="app">
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
+  <div class="topbar-hoejre">
   <button class="btn-sm" onclick="openNewLeadModal()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
+  <button class="topbar-profil kun-faner" onclick="setPage('profil')" aria-label="Profil"><svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg></button>
+  </div>
 </div>
 <div class="main">
 
@@ -593,7 +648,7 @@
   <!-- Side: Opgaver -->
   <div class="page active" id="page-opgaver">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div class="section-title" style="margin-bottom:0">Opgaver</div>
+      <div class="section-title" style="margin-bottom:0" id="opgaver-titel">Opgaver</div>
     </div>
     <div class="filters" id="filter-row">
       <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
@@ -733,7 +788,21 @@
 
     <!-- Supportlinje (4/10-26, Anns tekst). Nederst, under Log ud: den skal
          kunne findes, ikke konkurrere med noget. Ren markup, intet script. -->
+    <div class="kun-faner" style="justify-content:center;margin:20px 0 0"><button class="btn-sm" onclick="setPage('tips')">Tips og tricks</button></div>
     <p style="text-align:center;font-size:13px;color:var(--muted);margin:20px 0 8px">Bøvler appen? Skriv til: <a href="mailto:support@ditdigitalekontor.dk" style="color:var(--accent)">support@ditdigitalekontor.dk</a></p>
+  </div>
+
+  <!-- Side: Kunder (Fase 1d) — tilbudssidens Kunder-del i en ramme. Rammen er
+       øen: fejler siden derinde, vælter Nye og I gang ikke. Indlæses først,
+       første gang fanen åbnes. -->
+  <div class="page" id="page-kunder">
+    <iframe id="kunder-ramme" title="Kunder" style="position:fixed;left:0;right:0;width:100%;border:0;background:var(--white)"></iframe>
+  </div>
+
+  <!-- Side: Skrivehjælp (Fase 1c: kun skallen; modulerne svar/facebook kommer i Fase 4) -->
+  <div class="page" id="page-skriv">
+    <div class="section-title" style="margin-bottom:16px">Skrivehjælp</div>
+    <div class="empty">Skrivehjælpen er på vej.</div>
   </div>
 
   <!-- Side: Tips og tricks -->
@@ -761,15 +830,31 @@
 
 <!-- Bundbar -->
 <nav class="bottom-nav">
-  <button class="nav-item active" id="nav-opgaver" onclick="setPage('opgaver')">
+  <button class="nav-item kun-faner" id="nav-nye" onclick="setFane('nye')">
+    <svg class="ti" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
+    Nye
+  </button>
+  <button class="nav-item kun-faner" id="nav-igang" onclick="setFane('igang')">
+    <svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg>
+    I gang
+  </button>
+  <button class="nav-item kun-faner" id="nav-kunder" onclick="setFane('kunder')">
+    <svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg>
+    Kunder
+  </button>
+  <button class="nav-item" id="nav-skriv" onclick="setFane('skriv')" style="display:none">
+    <svg class="ti" aria-hidden="true"><use href="#i-send"/></svg>
+    Skrivehjælp
+  </button>
+  <button class="nav-item active skjul-ved-faner" id="nav-opgaver" onclick="setPage('opgaver')">
     <svg class="ti" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
     Opgaver
   </button>
-  <button class="nav-item" id="nav-profil" onclick="setPage('profil')">
+  <button class="nav-item skjul-ved-faner" id="nav-profil" onclick="setPage('profil')">
     <svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg>
     Profil
   </button>
-  <button class="nav-item" id="nav-tips" onclick="setPage('tips')">
+  <button class="nav-item skjul-ved-faner" id="nav-tips" onclick="setPage('tips')">
     <svg class="ti" aria-hidden="true"><use href="#i-bulb"/></svg>
     Tips
   </button>
@@ -799,7 +884,14 @@
         <div class="mfield">
           <label>Telefon</label>
           <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="12 34 56 78">
+          <div id="modal-phone-note" style="display:none;font-size:13px;margin-top:6px;color:var(--danger)"></div>
         </div>
+      </div>
+      <!-- D88 opgave 2, betingelse 1 og 7 (L6c): kun med faner og en kunde. -->
+      <div class="mfield" id="modal-ret-kunde-felt" style="display:none">
+        <button type="button" class="referater-raekke" id="modal-ret-kunde" onclick="retPaaKundesiden()">
+          <span>Navn og telefon rettes på kundesiden</span><span aria-hidden="true">›</span>
+        </button>
       </div>
 
       <div class="mfield" style="position:relative">
@@ -818,7 +910,19 @@
       </div>
 
       <div class="mfield">
-        <label>Beskriv opgaven</label>
+        <!-- D88 trin 2, opgave 5 (Ann 20/10): overskriften kan ses og rettes i
+             opgavevinduet, ikke kun i Ny opgave. Tom = ingen overskrift. -->
+        <label for="modal-titel">Overskrift (valgfrit)</label>
+        <input type="text" id="modal-titel" maxlength="120" placeholder="Fx: Utæt bruser">
+      </div>
+
+      <div class="mfield">
+        <!-- Indtal i en eksisterende opgave (Ann 17/10: han vaelger feltet).
+             Panelet flyttes ind under det felt, han trykkede ved. -->
+        <div class="indtal-label-row">
+          <label for="modal-task">Beskriv opgaven</label>
+          <button type="button" class="indtal-knap" data-maal="modal-task" id="indtal-aabn-modal-task" style="display:none" onclick="aabnIndtaling('modal-task')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="modal-task"></textarea>
       </div>
 
@@ -830,7 +934,10 @@
       </div>
 
       <div class="mfield">
-        <label>Noter (interne)</label>
+        <div class="indtal-label-row">
+          <label for="modal-notes">Noter (interne)</label>
+          <button type="button" class="indtal-knap" data-maal="modal-notes" id="indtal-aabn-modal-notes" style="display:none" onclick="aabnIndtaling('modal-notes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="modal-notes" placeholder="Ses kun af dig..."></textarea>
       </div>
 
@@ -849,6 +956,15 @@
         </div>
         <div class="img-previews" id="modal-previews"></div>
         <div class="billed-status" id="modal-billed-status" style="display:none"></div>
+      </div>
+
+      <!-- D88 trin 2, opgave 10 (Ann 19/10): ét opgavevindue, ogsaa fra Kunder.
+           Referaterne bor i Kunder-fanen; raekken foerer derhen. Vises kun med
+           faner (TILBUD_AKTIV) og naar opgaven har en kunde. -->
+      <div class="mfield" id="modal-referater-felt" style="display:none">
+        <button type="button" class="referater-raekke" onclick="visReferaterIKunder()">
+          <span>Referater (<span id="modal-referater-antal">0</span>)</span><span aria-hidden="true">›</span>
+        </button>
       </div>
 
       <div class="mdivider"></div>
@@ -892,6 +1008,7 @@
       <button class="btn-sms" onclick="sendSms()"><svg class="ti" aria-hidden="true"><use href="#i-send"/></svg> Send SMS</button>
       <div class="mfoot-spacer"></div>
       <button class="btn-luk" onclick="closeModal()">Luk</button>
+      <button class="btn-igang" id="btn-igang" onclick="flytTilIGang()" style="display:none">Flyt til i gang</button>
       <button class="btn-afslut" id="btn-afslut-toggle" onclick="toggleAfslut()">Afslut opgave</button>
       <button class="btn-genaabn" id="btn-genaabn" onclick="genaabнOpgave()" style="display:none">Genåbn opgave</button>
     </div>
@@ -907,10 +1024,10 @@
         <div class="avatar" style="background:#E8F5EE;color:#1B5E3A"><svg class="ti" aria-hidden="true"><use href="#i-plus"/></svg></div>
         <div>
           <div class="mhead-name">Ny opgave</div>
-          <div class="mhead-phone">Opret manuelt</div>
+          <div class="mhead-phone" id="new-lead-undertitel">Opret manuelt</div>
         </div>
       </div>
-      <button class="close-btn" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
+      <button class="close-btn" onclick="lukNyOpgave()" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
     <div class="mbody">
       <div class="mfield">
@@ -946,8 +1063,29 @@
         <input type="text" id="new-titel" maxlength="120" placeholder="Fx: Utæt bruser">
       </div>
       <div class="mfield">
-        <label>Beskriv opgaven</label>
+        <!-- Indtal ny opgave (16/10-26): teksten bliver opgavebeskrivelsen, og
+             han kan rette den i feltet. Knappen vises kun, naar indtaling er
+             mulig (se aktiverIndtaling). -->
+        <div class="indtal-label-row">
+          <label for="new-task">Beskriv opgaven</label>
+          <button type="button" class="indtal-knap" data-maal="new-task" id="indtal-aabn-new-task" style="display:none" onclick="aabnIndtaling('new-task')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
+        </div>
         <textarea id="new-task" style="height:80px" placeholder="Hvad skal laves?"></textarea>
+        <div class="indtal-panel" id="indtal-panel" style="display:none">
+          <div class="indtal-fejl" id="indtal-fejl" style="display:none"></div>
+          <div class="indtal-optag">
+            <button type="button" class="indtal-mic" id="indtal-mic" disabled onclick="indtalMicTryk()" aria-label="Start optagelse"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
+            <div>
+              <div class="indtal-status" id="indtal-status"></div>
+              <div class="indtal-tid" id="indtal-tid"></div>
+            </div>
+          </div>
+          <!-- J8 tekst 1: ordlyden godkendt af Anne 26/8, ordret som i
+               Referat-fanen (Ann 16/10). Rettes kun efter Annes ordlyd. -->
+          <p class="indtal-j8">Kun dine egne noter. Nævnes andre, er det dit ansvar, at de ved det.</p>
+          <div id="indtal-dele"></div>
+          <button type="button" class="btn-afslut indtal-tekst-knap" id="indtal-tekst-knap" style="display:none" onclick="indtalLavTekst()">Lav tekst af optagelsen</button>
+        </div>
       </div>
       <!-- D88 trin 2 (opgave 9): taendt igen. Billederne sendes, EFTER at opgaven
            er oprettet (POST /opret-opgave svarer med id'et). -->
@@ -971,15 +1109,26 @@
     </div>
     <div class="mfoot">
       <div class="mfoot-spacer"></div>
-      <button class="btn-luk" onclick="document.getElementById('new-lead-modal-bg').classList.remove('open')">Annuller</button>
-      <button class="btn-afslut" onclick="saveNewLead(this)">Opret opgave</button>
+      <button class="btn-luk" onclick="lukNyOpgave()">Annuller</button>
+      <button class="btn-afslut" id="new-lead-opret" onclick="saveNewLead(this)">Opret opgave</button>
     </div>
+  </div>
+</div>
+
+<!-- Mikrofon-tippet (Ann 14/10, tekst 2) — samme ark som i Referat-fanen og
+     samme to noegler i localStorage, saa det vises én gang pr. telefon, uanset
+     hvor han optager. Teksten saettes af indtalMicTryk(). -->
+<div class="modal-bg" id="indtal-tip-bg" onclick="if (event.target === this) this.classList.remove('open')">
+  <div class="modal">
+    <p id="indtal-tip-tekst" style="font-size:15px;line-height:1.5;margin:0 0 14px"></p>
+    <button type="button" class="btn-afslut" style="width:100%" onclick="indtalTipOk()">OK</button>
   </div>
 </div>
 
 <!-- Scripts hentes her — EFTER al HTML — så siden altid kan tegnes, selv hvis
      et script hænger eller fejler. Ingen "lydløs hvid skærm" er mulig igen. -->
 <script src="/config.js"></script>
+<script src="/adressevaelger.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 
 <script>
@@ -1488,17 +1637,21 @@
   // og dem opretter tilbudsmodulet med vilje. Derfor:
   //   - filtret er leads.firm_id, ikke calls.firm_id
   //   - joinet er et ALMINDELIGT (venstre) join: lead.calls er null, når der
-  //     intet opkald er. leadTelefon() tåler det og giver { nummer: null }.
+  //     intet opkald er. Telefonnummeret i opgavevinduet kommer fra serveren
+  //     (/lead-modtager, D88 opgave 2), ikke fra lead.calls.
+  // kunder(navn) (L6c, valg (a) 23/10): kortene og vinduet viser KUNDENS navn,
+  // naar der er faner og en kunde — se visNavn(). RLS: kunder_select (maalt 23/10).
   // Polleren nedenfor bruger SAMME definition — rettes den ene, rettes begge,
   // ellers er sættene uenige, og dashboardet genindlæser hvert 30. sekund.
   const { data: leads } = await db
     .from("leads")
-    .select("*, lead_images(image_url), calls(id, status, from_number, firm_id)")
+    .select("*, lead_images(image_url), calls(id, status, from_number, firm_id), kunder(navn)")
     .eq("firm_id", firm?.id)
     .order("created_at", { ascending: false });
 
   allLeads = leads || [];
   renderLeads();
+  tjekFaner();   // Fase 1c — én gang pr. sideindlaesning, se funktionen
 }
 
   // ── Filter ────────────────────────────────────────────────────────────────
@@ -1511,13 +1664,23 @@
 
 function renderLeads() {
   const filtered = allLeads.filter(lead => {
+    // Faner (Fase 1c): Nye = aaben og ikke startet, I gang = aaben og startet.
+    // startet_at saettes af databasen ved foerste handling (Fase 1a).
+    if (currentFilter === 'nye')   return lead.status === 'open' && !lead.startet_at;
+    if (currentFilter === 'igang') return lead.status === 'open' && !!lead.startet_at;
     if (currentFilter === 'urgent') return lead.is_urgent && lead.status === 'open';
     if (currentFilter === 'new') return !lead.seen_at && lead.status === 'open';
-    if (currentFilter === 'completed') return lead.status === 'completed' || lead.status === 'rejected';
+    // Alt, der ikke er aabent: completed, rejected OG inactive (natjobbet,
+    // Fase 1a). Foer stod kun de to foerste her, og en lukket-for-inaktivitet
+    // opgave ville forsvinde helt.
+    if (currentFilter === 'completed') return lead.status !== 'open';
     return lead.status === 'open';
   });
 
+  const roert = l => new Date(l.sidst_roert || l.created_at);
   filtered.sort((a, b) => {
+    if (currentFilter === 'igang') return roert(b) - roert(a);
+    if (currentFilter === 'nye') return new Date(b.created_at) - new Date(a.created_at);
     if (currentSort === 'created') return new Date(b.created_at) - new Date(a.created_at);
     if (currentSort === 'name') return a.name.localeCompare(b.name, 'da');
     if (currentSort === 'street') return parseAddress(a.address).street.localeCompare(parseAddress(b.address).street, 'da');
@@ -1526,29 +1689,65 @@ function renderLeads() {
   });
 
   const list = document.getElementById('lead-list');
+
+  // I gang: de lukkede ligger sammenklappet NEDERST (Ann 17/10-26; beslutnings-
+  // grundlaget 13/10 sagde oeverst).
+  let lukkedeHtml = '';
+  if (currentFilter === 'igang') {
+    const lukkede = allLeads.filter(l => l.status !== 'open').sort((a, b) => roert(b) - roert(a));
+    if (lukkede.length) {
+      lukkedeHtml = `<details class="lukkede"><summary>Lukkede (${lukkede.length})</summary>${lukkede.map(leadKort).join('')}</details>`;
+    }
+  }
+
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty">Ingen leads i denne kategori</div>';
+    const tom = currentFilter === 'nye' ? 'Ingen nye opgaver'
+              : currentFilter === 'igang' ? 'Ingen opgaver i gang'
+              : 'Ingen leads i denne kategori';
+    list.innerHTML = `<div class="empty">${tom}</div>` + lukkedeHtml;
     updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
     return;
   }
 
-  list.innerHTML = filtered.map(lead => `
+  list.innerHTML = filtered.map(leadKort).join('') + lukkedeHtml;
+
+  updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
+}
+
+// ─── Navnet (D88 opgave 2, valg (a), Ann 23/10) ──────────────────────────
+// Med faner og en kunde vises KUNDENS navn (kunder.navn) paa kortet og i
+// vinduet. Intet kopieres: leads.name bliver liggende som historik (det,
+// kunden skrev, eller den der ringede) og vises kun uden kunde eller uden
+// faner. Retter man navnet paa kundesiden, skifter alle kundens opgaver.
+function kundeLaast(lead) {
+  return document.body.classList.contains('faner') && !!(lead && lead.kunde_id);
+}
+function visNavn(lead) {
+  if (kundeLaast(lead) && lead.kunder && lead.kunder.navn) return lead.kunder.navn;
+  return (lead && lead.name) || '';
+}
+
+// Ét kort, brugt af listen OG af Lukkede. Uden faner er det praecis som foer.
+function leadKort(lead) {
+  const faner = document.body.classList.contains('faner');
+  return `
     <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${esc(JSON.stringify(lead))})">
       <div class="lead-top">
-        <div class="lead-name">${esc(lead.name)}</div>
+        <div class="lead-name">${esc(visNavn(lead))}</div>
+        ${faner && !lead.seen_at && lead.status === 'open' ? '<span class="prik-ulaest" aria-hidden="true"></span><span class="sr-only">Ulæst</span>' : ''}
       </div>
       <div class="lead-address">${esc(formatAddress(lead.address))}</div>
       ${lead.titel ? `<div class="lead-titel">${esc(lead.titel)}</div>` : ''}
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
         <div style="font-size:12px;color:var(--ink-muted)"><span style="font-weight:500;color:var(--ink)">Oprettet:</span> ${formatDate(lead.created_at)}</div>
           ${lead.status === 'rejected' ? '<span class="badge badge-rejected">Afvist</span>' : ''}
+          ${lead.status === 'inactive' ? '<span class="badge badge-rejected">Lukket uden aktivitet</span>' : ''}
+          ${faner && lead.status === 'completed' ? '<span class="badge badge-rejected">Udført</span>' : ''}
         ${lead.lead_images?.length ? `<span class="badge badge-images">${lead.lead_images.length} billede${lead.lead_images.length > 1 ? 'r' : ''}</span>` : ''}
-        ${!lead.seen_at && lead.status === 'open' ? '<span class="badge badge-new">Ny</span>' : ''}
+        ${!faner && !lead.seen_at && lead.status === 'open' ? '<span class="badge badge-new">Ny</span>' : ''}
       </div>
     </div>
-  `).join('');
-
-  updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
+  `;
 }
 
   let currentSort = 'created';
@@ -1567,18 +1766,32 @@ function renderLeads() {
     newDawaValgt = false;
     document.getElementById('new-task').value = '';
     document.getElementById('new-mail').value = '';
+    // Noterne stod tilbage fra forrige opgave (fundet 17/10-26 under Indtal).
+    document.getElementById('new-notes').value = '';
     document.getElementById('new-titel').value = '';
+    // D88 trin 2: en kunde fra Kunder-fanen saettes EFTER aabningen
+    // (aabnNyOpgaveTilKunde). Hvert andet aabningssted er uden kunde.
+    nyOpgaveKundeId = null;
+    document.getElementById('new-lead-undertitel').textContent = 'Opret manuelt';
     document.getElementById('new-file-in').value = '';
     visBilledStatus('new-billed-status', '');
     document.getElementById('new-urgent-cb').checked = false;
     document.getElementById('new-urgent-row').classList.remove('checked');
+    nulstilIndtaling();
     document.getElementById('new-lead-modal-bg').classList.add('open');
   }
 
   function closeNewLeadModal(event) {
-    if (event.target === document.getElementById('new-lead-modal-bg')) {
-      document.getElementById('new-lead-modal-bg').classList.remove('open');
-    }
+    if (event.target === document.getElementById('new-lead-modal-bg')) lukNyOpgave();
+  }
+
+  // Alle tre veje ud af vinduet (krydset, Annuller, baggrunden) gaar herigennem,
+  // saa en optagelse aldrig kan blive staaende og koere, naar vinduet er lukket.
+  function lukNyOpgave() {
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Luk alligevel? Så forsvinder den.')) return;
+    stopIndtaling();
+    document.getElementById('new-lead-modal-bg').classList.remove('open');
   }
 
   function toggleNewUrgent() {
@@ -1591,6 +1804,8 @@ function renderLeads() {
   let savingLead = false;                       // vagt mod dobbelt-submit
   async function saveNewLead(btn) {
     if (savingLead) return;                     // ignorér klik nr. 2
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Opret opgaven uden den?')) return;
     savingLead = true;
     if (btn) btn.disabled = true;
     try {
@@ -1641,6 +1856,7 @@ function renderLeads() {
           task,
           desired_time: null,
           titel: document.getElementById('new-titel').value.trim() || null,
+          kunde_id: nyOpgaveKundeId || undefined,   // fra en kundes side; serveren tjekker ejerskabet
           is_urgent: document.getElementById('new-urgent-cb').checked,
           notes: document.getElementById('new-notes').value.trim() || null,
           address_mail: document.getElementById('new-mail').value.trim() || null,
@@ -1670,19 +1886,510 @@ function renderLeads() {
         }
       }
 
+      stopIndtaling();
       document.getElementById('new-lead-modal-bg').classList.remove('open');
       loadData();
+      sendTilKunder({ type: 'opgaver-aendret' });   // Kunder-fanen viser den nye opgave
     } finally {
       savingLead = false;                        // nulstil, så man kan rette og gemme igen
       if (btn) btn.disabled = false;
     }
   }
 
+  // ══ INDTAL NY OPGAVE (16/10-26) ═══════════════════════════════════════════
+  // Beslutninger (Ann 16/10):
+  //   - Indgangen er "+ Ny opgave". Teksten bliver opgavebeskrivelsen, ikke et
+  //     referat, og han kan rette den i feltet. Kunden udfyldes i haanden.
+  //   - Intet modul. Kun naar TILBUD_AKTIV er taendt (/api/moduler).
+  //   - Samme kvote som Referat-fanen, bogfoert som `opgave_transskription`
+  //     (/api/indtaling/*, routes/tilbud/index.js).
+  //   - J8 tekst 1 staar ordret som i fanen.
+  //   - Han kan indtale MERE, efter teksten er lavet (Ann 17/10, forslag 2):
+  //     hver indtaling er sit eget kald med sine egne 20 minutter, og teksten
+  //     saettes EFTER den, der staar i feltet. Kun i Ny opgave — Referat-fanen
+  //     laaser stadig mikrofonen efter "Lav tekst".
+  //   - Ogsaa i en EKSISTERENDE opgave (Ann 17/10, forslag 3), og han vaelger
+  //     feltet: en Indtal-knap ved "Beskriv opgaven" og en ved "Noter
+  //     (interne)". Der er ét panel; det flyttes ind under det felt, han
+  //     trykkede ved, og teksten saettes i det felt (`indtal.maal`). Teksten
+  //     gemmes af closeModal() som hans egne rettelser — intet nyt gem-kald.
+  //
+  // Optagelsen er Referat-fanens (tilbud/optager.js, D66-vaernene og 20 min).
+  // Flowet her er kopieret fra tilbud/index.html: dele, "skal den med?",
+  // fravaelg(), mikrofon-tippet og teksten efter Annuller.
+  //
+  // ⚠️ FAELDEN FRA FANEN (16/10, to fejl samme dag): knapper, der genbruges,
+  // skal nulstilles HVER gang vinduet aabnes — tekst OG disabled. Det goer
+  // nulstilIndtaling(), og den kaldes fra openNewLeadModal().
+  const indtal = {
+    mulig: false,          // optager.js hentet og flaget taendt
+    gen: 0,                // stiger ved hver nulstilling; svar fra en gammel runde ignoreres
+    optager: null,
+    valg: {},              // del-nr → true/false (afbrudt men hel: med eller ej)
+    stopper: false,
+    antalTekster: 0,       // hvor mange indtalinger der er lavet til tekst i dette vindue
+    maal: null,            // id paa feltet, teksten skal i: new-task, modal-task eller modal-notes
+    arbejder: false,       // transskribering i gang
+    ur: null,
+    startMs: 0,
+  };
+  const INDTAL_TEKST_KNAP = 'Lav tekst af optagelsen';
+  const MIK_HAR_OPTAGET = 'ddk-mik-har-optaget';   // samme noegler som Referat-fanen
+  const MIK_TIP_VIST = 'ddk-mik-tip-vist';
+  let mikStartetPaaSiden = false;
+
+  function aktiverIndtaling() {
+    if (window.Optager) { indtal.mulig = true; visIndtalKnap(); return; }
+    const sc = document.createElement('script');
+    sc.src = '/tilbud/optager.js';
+    sc.onload = () => { if (window.Optager) { indtal.mulig = true; visIndtalKnap(); } };
+    sc.onerror = () => console.warn('Indtal: /tilbud/optager.js kunne ikke hentes — ingen mikrofon i Ny opgave');
+    document.head.appendChild(sc);
+  }
+  // Alle Indtal-knapper: vist, naar indtaling er mulig — undtagen knappen ved
+  // det felt, panelet allerede staar under. Laast, mens der er lyd, han kan
+  // miste, saa panelet ikke kan flyttes midt i en optagelse.
+  function visIndtalKnap() {
+    const panelAabent = indtalEl('indtal-panel').style.display !== 'none';
+    const travl = indtalHarUafsluttet() || indtal.arbejder || indtal.stopper;
+    document.querySelectorAll('.indtal-knap').forEach((b) => {
+      const herUnder = panelAabent && b.dataset.maal === indtal.maal;
+      b.style.display = indtal.mulig && !herUnder ? '' : 'none';
+      b.disabled = travl;
+    });
+  }
+
+  function indtalEl(id) { return document.getElementById(id); }
+  function indtalEsc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function indtalTid(sek) {
+    sek = Math.max(0, Math.round(sek || 0));
+    return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0');
+  }
+  function indtalStatus(tekst, live) {
+    const el = indtalEl('indtal-status');
+    el.textContent = tekst;
+    el.classList.toggle('live', !!live);
+  }
+  function indtalFejl(besked) {
+    const el = indtalEl('indtal-fejl');
+    if (!besked) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = besked;
+    el.style.display = 'block';
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+  }
+  function indtalStopUr() { if (indtal.ur) { clearInterval(indtal.ur); indtal.ur = null; } }
+
+  // Opret-knappen er laast, mens der optages eller laves tekst — ellers
+  // kunne opgaven oprettes, foer teksten var naaet frem.
+  function indtalOpdaterOpret() {
+    const o = indtal.optager;
+    const optager = !!(o && o.tilstand === 'optager');
+    indtalEl('new-lead-opret').disabled = optager || indtal.stopper || indtal.arbejder;
+    visIndtalKnap();
+  }
+
+  // Der er lyd, han kan miste: dele, der ikke er lavet til tekst endnu.
+  function indtalHarUafsluttet() {
+    const o = indtal.optager;
+    return !!(o && (o.tilstand === 'optager' || o.dele.some(d => d.ok || d.kanBruges)));
+  }
+
+  // Stopper en igangvaerende optagelse og glemmer lyden. Lyd persisteres aldrig.
+  function stopIndtaling() {
+    indtal.gen++;
+    indtalStopUr();
+    const o = indtal.optager;
+    indtal.optager = null;
+    if (o && o.tilstand === 'optager') { try { o.stop().catch(() => {}); } catch (_) {} }
+  }
+
+  function nulstilIndtaling() {
+    stopIndtaling();
+    indtal.valg = {};
+    indtal.stopper = false;
+    indtal.antalTekster = 0;
+    indtal.arbejder = false;
+    indtal.maal = null;
+    indtalEl('indtal-panel').style.display = 'none';
+    indtalFejl('');
+    const mic = indtalEl('indtal-mic');
+    mic.classList.remove('recording');
+    mic.disabled = true;
+    indtalStatus('');
+    indtalEl('indtal-tid').textContent = '';
+    indtalEl('indtal-dele').innerHTML = '';
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.style.display = 'none';
+    knap.disabled = false;
+    knap.textContent = INDTAL_TEKST_KNAP;
+    indtalEl('indtal-tip-bg').classList.remove('open');
+    indtalEl('new-lead-opret').disabled = false;
+    visIndtalKnap();
+  }
+
+  // Kald til serveren med to faser (login → server) og en tidsgraense, som
+  // Referat-fanen: en knap, der venter, skal kunne sige HVOR den venter.
+  async function indtalApi(metode, sti, krop, { timeoutMs = 60000, paaFase = () => {} } = {}) {
+    paaFase('login');
+    const headers = await authHeader();
+    const afbryd = new AbortController();
+    const ur = setTimeout(() => afbryd.abort(), timeoutMs);
+    paaFase('server');
+    let svar;
+    try {
+      svar = await fetch(sti, { method: metode, headers, body: krop, signal: afbryd.signal });
+    } catch (e) {
+      throw Object.assign(new Error(e && e.name === 'AbortError'
+        ? 'Det tog for lang tid at få svar. Optagelsen er her stadig — prøv igen.'
+        : 'Vi kunne ikke få forbindelse. Tjek at du er på nettet, og prøv igen.'), { status: 0 });
+    } finally {
+      clearTimeout(ur);
+      paaFase('');
+    }
+    let data = null;
+    try { data = await svar.json(); } catch (_) { /* fx en HTML-fejlside */ }
+    if (!svar.ok) {
+      throw Object.assign(new Error((data && (data.besked || data.error)) || ('Serveren svarede ' + svar.status)),
+        { status: svar.status, kode: data && data.error });
+    }
+    if (!data) throw Object.assign(new Error('Serveren svarede uden indhold.'), { status: svar.status });
+    return data;
+  }
+  function indtalFejltekst(e) {
+    if (e && e.status === 401) return 'Du er blevet logget ud. Genindlæs siden, og log ind igen.';
+    return (e && e.message) || 'Noget gik galt. Prøv igen.';
+  }
+
+  // Mikrofonteksterne er Anns (14/10). Domaenet tages fra sidens adresse.
+  function indtalMikSaetning() {
+    return 'Tryk Tillad, når ' + location.hostname + ' beder om tilladelse til at bruge din mikrofon';
+  }
+  function indtalMikFejl(e) {
+    if (e && e.name === 'NotAllowedError') return indtalMikSaetning() + ', ellers kan du ikke indtale opgaven.';
+    if (e && e.kode) return e.message;  // optager.js' egne afvisninger har en faerdig besked
+    return 'Optagelsen kunne ikke startes (' + ((e && (e.name || e.message)) || 'ukendt fejl') + ').';
+  }
+
+  // En ny optager = en ny indtaling med fulde 20 minutter og ingen dele.
+  function nyIndtalOptager() {
+    return new Optager({
+      paaAfbrydelse: function (aarsag) { indtalStatus('Optagelsen stoppede: ' + aarsag); indtalAfslutDel(); },
+      paaGraense: function () { indtalStatus('Grænsen på 20 minutter er nået'); indtalAfslutDel(); },
+    });
+  }
+
+  async function aabnIndtaling(maal) {
+    if (!indtal.mulig || !window.Optager) return;
+    const felt = indtalEl(maal);
+    if (!felt) return;
+    // Panelet flyttes ikke, mens der er lyd, han kan miste (knappen er ogsaa laast).
+    if (indtal.optager && (indtalHarUafsluttet() || indtal.arbejder || indtal.stopper)) return;
+    const panel = indtalEl('indtal-panel');
+    felt.insertAdjacentElement('afterend', panel);
+    indtal.maal = maal;
+    panel.style.display = 'block';
+    visIndtalKnap();
+    // Var panelet allerede aabent ved det andet felt, er kvoten spurgt:
+    // samme optager, ny modtager.
+    if (indtal.optager) { indtalVisDele(); return; }
+    const gen = indtal.gen;
+    indtalFejl('');
+    indtalEl('indtal-mic').disabled = true;           // foerst naar kvoten har svaret
+    indtalStatus('Tjekker din kvote …');
+    indtal.optager = nyIndtalOptager();
+    let kvote;
+    try {
+      kvote = await indtalApi('GET', '/api/indtaling/kvote');
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      indtalStatus('Der kan ikke optages lige nu');
+      return indtalFejl(indtalFejltekst(e));
+    }
+    if (gen !== indtal.gen) return;                   // vinduet er lukket/genaabnet imens
+    if (kvote && kvote.spaerret === true) {
+      indtalStatus('Der kan ikke optages lige nu');
+      return indtalFejl(kvote.besked || 'Du har brugt din kvote. Kontakt os, hvis du har brug for mere.');
+    }
+    indtalEl('indtal-mic').disabled = false;
+    indtalStatus('Tryk for at optage');
+  }
+
+  function indtalLagerLaes(k) { try { return localStorage.getItem(k); } catch (_) { return '?'; } }
+  function indtalLagerSaet(k) { try { localStorage.setItem(k, '1'); } catch (_) { /* intet tip er bedre end en fejl */ } }
+
+  function indtalMicTryk() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper) return;
+    if (o.tilstand === 'optager') return indtalAfslutDel();
+    // Tippet: har han optaget foer, og er det foerste optagelse paa denne
+    // sideindlaesning, spoerger iOS igen. Kun én gang nogensinde pr. telefon.
+    if (!mikStartetPaaSiden && indtalLagerLaes(MIK_HAR_OPTAGET) === '1' && indtalLagerLaes(MIK_TIP_VIST) === null) {
+      indtalLagerSaet(MIK_TIP_VIST);                  // sat ved visning, som i fanen
+      indtalEl('indtal-tip-tekst').textContent = indtalMikSaetning() +
+        '. Er du træt af at give tilladelse hver gang, så gå i Indstillinger → Apps → Safari → Mikrofon og vælg Tillad.';
+      indtalEl('indtal-tip-bg').classList.add('open');
+      return;
+    }
+    indtalStartOptagelse();
+  }
+  function indtalTipOk() {
+    indtalEl('indtal-tip-bg').classList.remove('open');
+    indtalStartOptagelse();
+  }
+
+  async function indtalStartOptagelse() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper || o.tilstand === 'optager') return;
+    const gen = indtal.gen;
+    indtalFejl('');
+    const mic = indtalEl('indtal-mic');
+    mic.disabled = true;                              // iOS' dialog kan staa aaben i minutter
+    indtalStatus('Venter på mikrofonen …');
+    try {
+      if (o.dele.length) await o.fortsaet(); else await o.start();
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      mic.disabled = false;
+      indtalVisDele();
+      return indtalFejl(indtalMikFejl(e));
+    }
+    if (gen !== indtal.gen) { try { o.stop().catch(() => {}); } catch (_) {} return; }
+    mikStartetPaaSiden = true;
+    indtalLagerSaet(MIK_HAR_OPTAGET);
+    mic.disabled = false;
+    mic.classList.add('recording');
+    indtalStatus('Optager — tryk for at stoppe', true);
+    indtalOpdaterOpret();
+    indtalStopUr();
+    indtal.startMs = Date.now();
+    const vis = () => {
+      if (!indtal.optager || indtal.optager.tilstand !== 'optager') return;
+      indtalEl('indtal-tid').textContent = indtalTid((Date.now() - indtal.startMs) / 1000) + ' · ' + indtalTid(indtal.optager.restSek()) + ' tilbage';
+    };
+    vis();
+    indtal.ur = setInterval(vis, 500);
+  }
+
+  async function indtalAfslutDel() {
+    const o = indtal.optager;
+    if (!o || indtal.stopper) return;
+    const gen = indtal.gen;
+    indtal.stopper = true;
+    indtalStopUr();
+    const mic = indtalEl('indtal-mic');
+    mic.classList.remove('recording');
+    mic.disabled = true;
+    try {
+      await o.stop();
+    } catch (e) {
+      if (gen === indtal.gen) indtalFejl('Optagelsen kunne ikke afsluttes (' + (e && e.message) + ').');
+    } finally {
+      if (gen === indtal.gen) indtal.stopper = false;
+    }
+    if (gen !== indtal.gen) return;
+    indtalVisDele();
+  }
+
+  // En del er med, hvis optager.js har godkendt den, eller hvis den stoppede
+  // med lyden hel OG han har sagt ja til den.
+  function indtalErMed(d) { return d.ok || (d.kanBruges && indtal.valg[d.del] === true); }
+  function indtalVenter(d) { return !d.ok && d.kanBruges && indtal.valg[d.del] === undefined; }
+
+  function indtalVisDele() {
+    const o = indtal.optager;
+    if (!o) return;
+    const wrap = indtalEl('indtal-dele');
+    wrap.innerHTML = o.dele.map(d => {
+      const laengde = indtalTid(d.varighedSek != null ? d.varighedSek : d.vaegurSek);
+      let klasse = 'indtal-del', tekst, valg = '';
+      if (d.ok) {
+        tekst = 'Med' + (d.forklaring ? ' — ' + d.forklaring : '');
+      } else if (d.kanBruges && indtal.valg[d.del] === undefined) {
+        tekst = d.forklaring + ' Skal den med?';
+        valg = `<div class="indtal-del-valg">
+            <button class="btn-afslut" type="button" data-del="${d.del}" data-svar="ja">Ja, brug den</button>
+            <button class="btn-luk" type="button" data-del="${d.del}" data-svar="nej">Nej, kassér den</button>
+          </div>`;
+      } else if (d.kanBruges && indtal.valg[d.del] === true) {
+        tekst = 'Med — ' + d.forklaring;
+      } else if (d.kanBruges) {
+        klasse += ' kasseret';
+        tekst = 'Kasseret af dig. Den kommer ikke med i teksten.';
+      } else {
+        klasse += ' kasseret';
+        tekst = 'Kasseret: ' + (d.forklaring || 'optagelsen kunne ikke bruges.') + ' Den kommer ikke med i teksten.';
+      }
+      return `<div class="${klasse}">
+          <div class="dt">Del ${d.del} · ${indtalEsc(laengde)}</div>
+          <div class="dm">${indtalEsc(tekst)}</div>${valg}
+        </div>`;
+    }).join('');
+    wrap.querySelectorAll('button[data-svar]').forEach(b => {
+      b.addEventListener('click', () => {
+        const nr = Number(b.dataset.del);
+        indtal.valg[nr] = b.dataset.svar === 'ja';
+        // Et nej betyder, at delen ikke taeller mod de 20 minutter (16/10).
+        if (!indtal.valg[nr] && indtal.optager) indtal.optager.fravaelg(nr);
+        indtalVisDele();
+      });
+    });
+
+    const med = o.dele.filter(indtalErMed);
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.style.display = med.length ? 'block' : 'none';
+    knap.disabled = indtal.arbejder || o.dele.some(indtalVenter);
+    indtalOpdaterOpret();
+
+    if (o.tilstand === 'optager') return;
+    const mic = indtalEl('indtal-mic');
+    const rest = o.restSek();
+    if (indtal.arbejder) {
+      mic.disabled = true;
+    } else if (rest < 1) {
+      mic.disabled = true;
+      indtalStatus('Grænsen på 20 minutter er nået');
+      indtalEl('indtal-tid').textContent = '';
+    } else {
+      mic.disabled = false;
+      indtalStatus(o.dele.length ? 'Tryk for at fortsætte optagelsen'
+        : indtal.antalTekster ? 'Teksten står i feltet — ret den, eller tryk for at indtale mere'
+        : 'Tryk for at optage');
+      indtalEl('indtal-tid').textContent = o.dele.length ? indtalTid(rest) + ' tilbage' : '';
+    }
+  }
+
+  async function indtalLavTekst() {
+    const o = indtal.optager;
+    if (!o || indtal.arbejder) return;
+    const med = o.dele.filter(indtalErMed);
+    if (!med.length || o.dele.some(indtalVenter)) return;
+    const gen = indtal.gen;
+    indtalFejl('');
+    indtal.arbejder = true;
+    const knap = indtalEl('indtal-tekst-knap');
+    knap.disabled = true;
+    indtalEl('indtal-mic').disabled = true;
+    indtalOpdaterOpret();
+    const form = new FormData();
+    // Raekkefoelgen er delenes egen. Serveren aendrer den ikke.
+    med.forEach((d, i) => form.append('dele', d.blob, d.filnavn || ('del-' + (i + 1))));
+    let svar;
+    try {
+      svar = await indtalApi('POST', '/api/indtaling/transskriber', form, {
+        timeoutMs: 150000,
+        paaFase: (f) => { if (gen === indtal.gen) knap.textContent = f === 'login' ? 'Logger ind …' : f === 'server' ? 'Laver tekst …' : INDTAL_TEKST_KNAP; },
+      });
+    } catch (e) {
+      if (gen !== indtal.gen) return;
+      indtal.arbejder = false;
+      knap.textContent = INDTAL_TEKST_KNAP;
+      indtalVisDele();
+      return indtalFejl(indtalFejltekst(e));
+    }
+    if (gen !== indtal.gen) return;                   // vinduet er lukket imens: teksten hoerer ikke til en ny opgave
+    indtal.arbejder = false;
+    indtal.antalTekster++;
+    knap.textContent = INDTAL_TEKST_KNAP;
+    const tekst = (svar.tekst || '').trim();
+    if (tekst) {
+      // Har han allerede skrevet noget, kommer teksten EFTER — intet overskrives.
+      const felt = indtalEl(indtal.maal);
+      felt.value = felt.value.trim() ? felt.value.replace(/\s+$/, '') + '\n\n' + tekst : tekst;
+    }
+    // Delene er lavet til tekst og glemt. En ny optager giver en ny indtaling
+    // med fulde 20 minutter; den naeste tekst saettes efter den, der staar.
+    indtal.optager = nyIndtalOptager();
+    indtal.valg = {};
+    indtalVisDele();
+    if (!tekst) indtalFejl('Der blev ikke hørt nogen ord i optagelsen. Du kan skrive teksten selv i feltet.');
+  }
+
   function setPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
-    document.getElementById('nav-' + page).classList.add('active');
+    document.getElementById('nav-' + page)?.classList.add('active');
+  }
+
+  // ── Faner (Fase 1c, 13/10-26) ───────────────────────────────────────────
+  // Fanerne Nye / I gang / Kunder / Skrivehjaelp vises KUN, naar serveren
+  // siger tilbudAktiv:true. Svarer /api/moduler ikke — fordi migrationen
+  // mangler, flaget er slukket, eller netvaerket svigter — bliver alt som
+  // foer. Det fejler mod "som i dag", aldrig mod en tom skaerm.
+  let fanerTjekket = false;
+  async function tjekFaner() {
+    if (fanerTjekket) return;
+    fanerTjekket = true;
+    try {
+      const r = await fetch('/api/moduler', { headers: await authHeader() });
+      if (!r.ok) return;
+      const svar = await r.json();
+      if (svar.tilbudAktiv !== true) return;
+      aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : []);
+      // Indtal ny opgave foelger TILBUD_AKTIV (Ann 16/10) — men intet modul:
+      // alle firmaer faar mikrofonen.
+      aktiverIndtaling();
+    } catch (err) {
+      console.warn('Faner: /api/moduler svarede ikke — bliver ved den gamle liste:', err);
+    }
+  }
+
+  function aktiverFaner(moduler) {
+    document.body.classList.add('faner');
+    // Skrivehjaelp kun med et af dens moduler (Fase 4).
+    const skriv = moduler.includes('svar') || moduler.includes('facebook');
+    document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
+    setFane('nye');
+  }
+
+  let forrigeFane = null;
+  function placerKunderRamme() {
+    const ramme = document.getElementById('kunder-ramme');
+    const top = document.querySelector('.topbar').getBoundingClientRect().bottom;
+    const bund = document.querySelector('.bottom-nav').offsetHeight;
+    ramme.style.top = top + 'px';
+    ramme.style.height = Math.max(0, window.innerHeight - top - bund) + 'px';
+  }
+  window.addEventListener('resize', () => {
+    if (document.getElementById('page-kunder').classList.contains('active')) placerKunderRamme();
+  });
+
+  function setFane(fane) {
+    const fra = forrigeFane;
+    forrigeFane = fane;
+    if (fane === 'kunder') {
+      setPage('kunder');
+      const ramme = document.getElementById('kunder-ramme');
+      if (!ramme.getAttribute('src')) ramme.setAttribute('src', '/tilbud/?indlejret=1');
+      placerKunderRamme();
+    } else if (fane === 'skriv') {
+      setPage('skriv');
+    } else {
+      // Fra Kunder kan der vaere oprettet opgaver: hent listen igen.
+      if (fra === 'kunder') loadData();
+      currentFilter = fane;
+      setPage('opgaver');
+      document.getElementById('opgaver-titel').textContent = fane === 'igang' ? 'I gang' : 'Nye opgaver';
+      renderLeads();
+    }
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-' + fane)?.classList.add('active');
+  }
+
+  // Flyt til i gang = en handling (opgave_handling, Fase 1a). RLS sikrer, at
+  // kun firmaets egne opgaver kan flyttes.
+  async function flytTilIGang() {
+    if (!currentLead) return;
+    const { error } = await db.rpc('opgave_handling', { p_lead: currentLead.id });
+    if (error) {
+      console.error('❌ Flyt til i gang:', error);
+      alert('Opgaven blev IKKE flyttet. Prøv igen.');
+      return;
+    }
+    closeModal();
+    loadData();
   }
 
   function populateProfile(user, firmName) {
@@ -2015,6 +2722,7 @@ function renderLeads() {
   ];
 
   async function openModal(lead) {
+    nulstilIndtaling();
     currentLead = lead;
     afslutOpen = false;
     document.getElementById('afslut-panel').classList.remove('open');
@@ -2035,11 +2743,25 @@ function renderLeads() {
       updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
     }
 
-    const initials = lead.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    // Betingelse 1 (L6c): med faner og en kunde er navn og telefon kundens og
+    // rettes paa kundesiden ("Navn og telefon rettes paa kundesiden ›",
+    // betingelse 7). Uden faner — prod i dag — som foer.
+    const laast = kundeLaast(lead);
+    const navn = visNavn(lead);
+    const initials = navn.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
     document.getElementById('modal-avatar').textContent = initials;
-    document.getElementById('modal-name').textContent = lead.name;
+    document.getElementById('modal-name').textContent = navn;
+    document.getElementById('modal-name-input').readOnly = laast;
+    document.getElementById('modal-phone-input').readOnly = laast;
+    document.getElementById('modal-ret-kunde-felt').style.display = laast ? '' : 'none';
+    // Nummeret kommer fra serveren (betingelse 2). Det SKAL vaere her, foer
+    // snapshot'et nedenfor: ellers ligner serverens svar en rettelse ved luk.
+    lead._modtager = null; lead._nummer = null;
     visTelefon(lead);
-    document.getElementById('modal-name-input').value = lead.name;
+    await hentModtager(lead);
+    if (currentLead !== lead) return;            // en anden opgave blev aabnet imens
+    visTelefon(lead);
+    document.getElementById('modal-name-input').value = navn;
     // Robust adresse-parsning (bagfra): tåler dubletter, tomme segmenter og
     // supplerende bynavne — den gamle ét-komma-split SLETTEDE postnr/by ved luk.
     const parsed = parseAddress(lead.address);
@@ -2053,11 +2775,14 @@ function renderLeads() {
       address_mail: document.getElementById('modal-address-mail').value.trim() || null,
       notes: lead.notes || null,
       is_urgent: !!lead.is_urgent,
-      name: (lead.name || '').trim(),
+      name: navn.trim(),
+      navnLaast: laast,
       task: lead.task || '',
+      titel: (lead.titel || '').trim(),
       telefon: document.getElementById('modal-phone-input').value.trim(),
     };
     document.getElementById('modal-task').value = lead.task;
+    document.getElementById('modal-titel').value = lead.titel || '';
     document.getElementById('modal-notes').value = lead.notes || '';
 
     const urgentCb = document.getElementById('modal-urgent-cb');
@@ -2073,11 +2798,15 @@ function renderLeads() {
     visBilledStatus('modal-billed-status', '');
     document.getElementById('modal-file-in').value = '';
     await visModalBilleder(lead);
+    visReferaterRaekke(lead);   // ikke await: raekken maa ikke forsinke vinduet
 
     document.getElementById('modal-bg').classList.add('open');
 
-    const isClosed = lead.status === 'completed' || lead.status === 'rejected';
+    const isClosed = lead.status !== 'open';   // completed, rejected og inactive
     document.getElementById('btn-afslut-toggle').style.display = isClosed ? 'none' : '';
+    // Flyt til i gang: kun med faner, kun aaben og ikke startet (Fase 1c).
+    document.getElementById('btn-igang').style.display =
+      (document.body.classList.contains('faner') && lead.status === 'open' && !lead.startet_at) ? '' : 'none';
     document.getElementById('afslut-panel').classList.remove('open');
     document.getElementById('btn-genaabn').style.display = isClosed ? '' : 'none';
   }
@@ -2092,27 +2821,52 @@ function renderLeads() {
     return formatAddress([street, (zip ? zip + ' ' : '') + city].filter(Boolean).join(', '));
   }
 
-  // ─── Opgavens telefonnummer (10/10-26) ──────────────────────────────────
-  // Fundet: telefonfeltet var redigerbart, men blev aldrig gemt. En rettelse
-  // forsvandt ved lukning, mens konsollen skrev "✅ Gemt OK" for noten.
+  // ─── Opgavens telefonnummer (10/10-26; fra serveren siden 21/10-26) ──────
+  // Fundet 10/10: telefonfeltet var redigerbart, men blev aldrig gemt.
   //
-  // REGLEN (samme som /send-sms paa serveren — ret begge, hvis den aendres):
-  //   leads.telefon          -> indtastet/rettet af haandvaerkeren, ikke verificeret
-  //   ellers calls.from_number -> fra opkaldet (undtagen markoeren "Manuel oprettelse")
-  // Serveren er facit for, hvem SMS'en gaar til. Denne funktion er kun visning.
+  // D88 opgave 2, betingelse 2 (21/10-26): reglen for, hvem en SMS gaar til,
+  // staar KUN paa serveren (smsModtager() i phone.js). Her stod foer en kopi
+  // med kommentaren "ret begge". Nu spoerger vinduet serveren
+  // (GET /lead-modtager) og viser svaret:
+  //   lead._nummer   — nummeret, opgaven kom fra (ogsaa et udenlandsk): vises
+  //                    og bruges af "Ring tilbage"
+  //   lead._modtager — { nummer, kilde, grund }: nummer er det, en SMS gaar
+  //                    til; grund "udenlandsk" eller "intet", naar der intet er
+  // Er svaret ikke kommet, er lead._modtager null — og saa sendes intet,
+  // foer der er spurgt igen (klarTilSms).
   //
   // Haandvaerkeren ser KUN nummeret — ikke hvor det kommer fra, og ikke +45
   // (Anns beslutning 11/10-26: "for kunden er det det nummer, han har").
-  // Kilden bruges internt: kun et indtastet nummer giver bekraeftelsen foer SMS.
-  const MANUEL_MARKOER = 'Manuel oprettelse';
-  function leadTelefon(lead) {
-    if (lead?.telefon) return { nummer: lead.telefon, kilde: 'indtastet' };
-    const fra = lead?.calls?.from_number;
-    if (fra && fra !== MANUEL_MARKOER) return { nummer: fra, kilde: 'opkald' };
-    return { nummer: null, kilde: null };
+  async function hentModtager(lead) {
+    const styr = new AbortController();
+    const ur = setTimeout(() => styr.abort(), 8000);
+    try {
+      const r = await fetch('/lead-modtager?lead_id=' + encodeURIComponent(lead.id), {
+        headers: await authHeader(), signal: styr.signal
+      });
+      if (!r.ok) return false;
+      const svar = await r.json();
+      if (!svar || !svar.modtager) return false;
+      lead._modtager = svar.modtager;
+      lead._nummer = svar.opgavensNummer || null;
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      clearTimeout(ur);
+    }
   }
 
-  // +4512345678 -> 12 34 56 78. Udenlandske numre (fra et opkald) vises uaendret.
+  // Teksten, haandvaerkeren ser, naar der ikke kan sendes SMS.
+  function modtagerTekst(lead) {
+    const m = lead && lead._modtager;
+    if (!m) return 'Telefonnummeret kunne ikke hentes. Luk opgaven, og åbn den igen.';
+    if (m.grund === 'udenlandsk') return 'Udenlandsk nummer. Der kan kun sendes SMS til danske numre.';
+    if (!m.nummer) return 'Intet telefonnummer på denne opgave';
+    return '';
+  }
+
+  // +4512345678 -> 12 34 56 78. Udenlandske numre vises uaendret.
   // Serveren laegger +45 paa igen, naar et rettet nummer gemmes (normalizePhone).
   function visNummer(n) {
     const m = /^\+45(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(n || '');
@@ -2120,9 +2874,15 @@ function renderLeads() {
   }
 
   function visTelefon(lead) {
-    const t = leadTelefon(lead);
-    document.getElementById('modal-phone').textContent = t.nummer ? visNummer(t.nummer) : '—';
-    document.getElementById('modal-phone-input').value = t.nummer ? visNummer(t.nummer) : '';
+    const n = lead._nummer;
+    document.getElementById('modal-phone').textContent = n ? visNummer(n) : '—';
+    document.getElementById('modal-phone-input').value = n ? visNummer(n) : '';
+    // "Intet nummer" er et tomt felt — det ser han selv. De to andre siges.
+    const m = lead._modtager;
+    const tekst = (!m || m.grund === 'udenlandsk') ? modtagerTekst(lead) : '';
+    const note = document.getElementById('modal-phone-note');
+    note.textContent = tekst;
+    note.style.display = tekst ? '' : 'none';
   }
 
   // Gemmer telefonfeltet via serveren, hvis det er aendret siden aabning.
@@ -2137,6 +2897,7 @@ function renderLeads() {
     const lead = currentLead, orig = modalOriginal;
     if (!lead || !orig) return null;
     const felt = document.getElementById('modal-phone-input');
+    if (felt.readOnly) return null;               // kundens nummer — rettes paa kundesiden (L6c)
     const nyt = felt.value.trim();
     if (nyt === orig.telefon) return null;
     let res, svar = {};
@@ -2152,6 +2913,9 @@ function renderLeads() {
     }
     if (!res.ok) return svar.error || 'Ukendt fejl';
     lead.telefon = svar.telefon || null;          // null = opkaldets nummer gaelder igen
+    // Serverens svar er facit for, hvem SMS'en nu gaar til (betingelse 2).
+    if (svar.modtager) { lead._modtager = svar.modtager; lead._nummer = svar.opgavensNummer || null; }
+    else lead._modtager = null;                   // gammel server: spoerg igen foer SMS
     if (currentLead !== lead) return null;        // modalen er lukket/skiftet imens
     visTelefon(lead);
     orig.telefon = felt.value.trim();
@@ -2163,8 +2927,15 @@ function renderLeads() {
   let lukker = false;
   async function closeModal() {
     if (lukker) return;
+    // Indtal (17/10): en optagelse, der ikke er lavet til tekst, forsvinder,
+    // naar vinduet lukker. Teksten, der allerede staar i feltet, gemmes nedenfor.
+    if (indtalHarUafsluttet() &&
+        !confirm('Optagelsen er ikke lavet til tekst endnu. Luk alligevel? Så forsvinder den.')) return;
+    nulstilIndtaling();
     lukker = true;
     try { await lukModal(); } finally { lukker = false; }
+    // Navn, overskrift eller opgave kan vaere rettet: Kunder-fanen henter igen.
+    sendTilKunder({ type: 'opgaver-aendret' });
   }
 
   async function lukModal() {
@@ -2186,6 +2957,7 @@ function renderLeads() {
       const address_mail = document.getElementById('modal-address-mail').value.trim() || null;
       const notes = document.getElementById('modal-notes').value || null;
       const is_urgent = document.getElementById('modal-urgent-cb').checked;
+      const titel = document.getElementById('modal-titel').value.trim().slice(0, 120);
       // Skriv KUN når noget er ændret ift. snapshot fra åbningen — før
       // genskrev vi adressen ved hver lukning (også klik på baggrunden),
       // hvilket permanent slettede postnr/by på flerkomma-adresser.
@@ -2195,18 +2967,21 @@ function renderLeads() {
         || notes !== modalOriginal.notes
         || is_urgent !== modalOriginal.is_urgent
         || (name && name !== modalOriginal.name)
-        || (task && task !== modalOriginal.task.trim());
+        || (task && task !== modalOriginal.task.trim())
+        || titel !== (modalOriginal.titel || '');
       if (changed) {
         // address er NOT NULL i databasen (leads.address). En tom adresse gemmes
         // som '' - aldrig null, ellers afvises HELE gemningen (23502), og noter,
         // navn og haster forsvinder med. Fundet i prod 19/10-26.
-        const felter = { address: address || '', address_mail, notes, is_urgent };
-        if (name) felter.name = name;          // et tomt navn skrives aldrig
+        const felter = { address: address || '', address_mail, notes, is_urgent, titel: titel || null };
+        // Et tomt navn skrives aldrig. Er navnet kundens (L6c), skrives det
+        // heller ikke: det ville kopiere kundens navn ind paa opgaven (valg (a)).
+        if (name && !(modalOriginal && modalOriginal.navnLaast)) felter.name = name;
         if (task) felter.task = task;          // en tom opgavebeskrivelse heller ikke
         const { error } = await db.from('leads').update(felter).eq('id', lead.id);
         if (error) {
           console.error('❌ Gem fejl:', error);
-          fejl.push('Navn, opgave, adresse og noter: kunne ikke gemmes');
+          fejl.push('Navn, overskrift, opgave, adresse og noter: kunne ikke gemmes');
         } else if (!fejl.length) {
           console.log('✅ Gemt OK');
         }
@@ -2313,6 +3088,165 @@ function renderLeads() {
     visBilledStatus('new-billed-status', filer.length ? (filer.length === 1 ? '1 billede valgt.' : filer.length + ' billeder valgt.') : '');
   }
 
+  // ══ KUNDER-BROEN (D88 trin 2, opgave 6 og 10, 20/10-26) ═════════════════
+  // Kunder-fanen er tilbud-appen i en ramme (iframe, samme origin). Den har
+  // ingen egen Ny opgave-formular og intet eget opgavevindue mere: den BEDER
+  // dashboardet aabne sine. Der er kun ét af hver at vedligeholde.
+  //
+  // KONTRAKTEN — samme tekst staar i tilbud/index.html. Rettes den ene, rettes begge.
+  //   ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
+  //                       { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
+  //                       { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+  //   dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
+  //                       { kilde:'ddk-dashboard', type:'opgaver-aendret' }
+  //                       { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
+  //                       { kilde:'ddk-dashboard', type:'ret-kunde',     kundeId, opgaveId }   (L6c)
+  // Kommer der ingen kvittering inden for 1,5 s (fx en gammel dashboard-fane
+  // fra cachen), bruger rammen sin egen visning som reserve.
+  //
+  // Vaern (sikkerhedslinsen 19/10): kun beskeder fra vores egen origin OG fra
+  // netop rammens vindue; kun typerne ovenfor; felterne saettes med .value og
+  // textContent; kunde_id tjekkes igen af serveren (/opret-opgave); svar
+  // sendes med targetOrigin location.origin, aldrig '*'.
+  let nyOpgaveKundeId = null;
+  let kunderKlar = false;
+  const tilKunderKoe = [];
+  const BRO_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  function kunderRamme() { return document.getElementById('kunder-ramme'); }
+
+  // Rammen er klar, naar den har sagt "klar" — ELLER naar dens load-haendelse
+  // kommer, ELLER ved dens foerste gyldige besked. Maalt 20/10: "klar" kom
+  // ikke frem ved foerste indlaesning (kunderKlar = false), og saa laa
+  // 'opgaver-aendret' i koeen, og kundesiden opdaterede ikke. load fyrer
+  // efter rammens scripts, saa dens lytter er paa plads.
+  function rammeErKlar() {
+    if (kunderKlar) return;
+    kunderKlar = true;
+    tilKunderKoe.splice(0).forEach(sendTilKunder);
+  }
+  (function () {
+    const r = kunderRamme();
+    if (r) r.addEventListener('load', () => { if (r.getAttribute('src')) rammeErKlar(); });
+  })();
+
+  function sendTilKunder(besked) {
+    const r = kunderRamme();
+    if (!r || !r.getAttribute('src') || !r.contentWindow) return;   // Kunder er aldrig aabnet
+    if (!kunderKlar) { tilKunderKoe.push(besked); return; }
+    try { r.contentWindow.postMessage(Object.assign({}, besked, { kilde: 'ddk-dashboard' }), location.origin); }
+    catch (err) { console.warn('Kunder-broen: besked kunne ikke sendes:', err); }
+  }
+
+  const tekstFelt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  function aabnNyOpgaveTilKunde(kunde) {
+    openNewLeadModal();
+    if (!kunde || !BRO_ID_RE.test(String(kunde.id || ''))) return;   // grønt + paa listen: tom formular
+    nyOpgaveKundeId = kunde.id;
+    const navn = tekstFelt(kunde.navn, 200);
+    document.getElementById('new-lead-undertitel').textContent = navn ? 'Til ' + navn : 'Til kunden';
+    document.getElementById('new-name').value = navn;
+    document.getElementById('new-phone').value = tekstFelt(kunde.telefon, 30);
+    document.getElementById('new-mail').value = tekstFelt(kunde.email, 200);
+    // Adressen: postnr og by fra kunden, ellers skilt ud af adressen. Kun med
+    // et postnummer regnes den som valgt — ellers maa han vaelge fra listen.
+    const p = parseAddress(tekstFelt(kunde.adresse, 300));
+    const postnr = /^\d{4}$/.test(tekstFelt(kunde.postnr, 4)) ? tekstFelt(kunde.postnr, 4) : p.zip;
+    const by = tekstFelt(kunde.by, 100) || p.city;
+    if (!p.street) return;
+    document.getElementById('new-street').value = formatAddress([p.street, postnr ? postnr + ' ' + by : ''].filter(Boolean).join(', '));
+    if (postnr && by) {
+      document.getElementById('new-postnr').value = postnr;
+      document.getElementById('new-city').value = by;
+      document.getElementById('new-manuel-postnr').value = postnr;
+      document.getElementById('new-manuel-by').value = by;
+      newDawaValgt = true;
+    }
+  }
+
+  // Altid frisk fra databasen (L6c): efter "Ret kunde" har den kendte kopi det
+  // gamle kundenavn. Den kendte bruges kun, hvis hentningen fejler.
+  async function findLead(id) {
+    const kendt = allLeads.find(l => l.id === id);
+    // Samme definition som loadData() — under RLS, saa kun firmaets egne.
+    const { data, error } = await db.from('leads')
+      .select('*, lead_images(image_url), calls(id, status, from_number, firm_id), kunder(navn)')
+      .eq('id', id).maybeSingle();
+    if (error) console.warn('Kunder-broen: opgaven kunne ikke hentes:', error.message);
+    if (data) {
+      const i = allLeads.findIndex(l => l.id === id);
+      if (i !== -1) { allLeads[i] = data; renderLeads(); }
+      return data;
+    }
+    return kendt || null;
+  }
+
+  window.addEventListener('message', async (e) => {
+    const r = kunderRamme();
+    if (e.origin !== location.origin || !r || e.source !== r.contentWindow) return;
+    const d = e.data;
+    if (!d || d.kilde !== 'ddk-kunder' || typeof d.type !== 'string') return;
+    const kvitter = (ok) => { try { e.source.postMessage({ kilde: 'ddk-dashboard', type: 'kvittering', ref: d.ref, ok }, location.origin); } catch (_) {} };
+
+    rammeErKlar();                            // enhver gyldig besked beviser, at rammen lever
+    if (d.type === 'klar') return;
+    if (d.type === 'ny-opgave') {
+      kvitter(true);
+      aabnNyOpgaveTilKunde(d.kunde || null);
+      return;
+    }
+    if (d.type === 'aabn-opgave') {
+      if (!BRO_ID_RE.test(String(d.opgaveId || ''))) { kvitter(false); return; }
+      // Kvitter med det samme, saa rammen ikke ogsaa aabner sin reserve, mens
+      // opgaven hentes. Findes den ikke, siges det her.
+      kvitter(true);
+      const lead = await findLead(d.opgaveId);
+      if (lead) openModal(lead);
+      else alert('Opgaven kunne ikke findes. Prøv at genindlæse siden.');
+    }
+  });
+
+  async function visReferaterRaekke(lead) {
+    const felt = document.getElementById('modal-referater-felt');
+    if (!felt) return;
+    felt.style.display = 'none';
+    if (!document.body.classList.contains('faner') || !lead.kunde_id) return;
+    try {
+      const r = await fetch('/api/tilbud/opgaver/' + encodeURIComponent(lead.id), { headers: await authHeader() });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (currentLead !== lead) return;          // vinduet viser nu en anden opgave
+      document.getElementById('modal-referater-antal').textContent = String((j.referater || []).length);
+      felt.style.display = '';
+    } catch (err) {
+      console.warn('Referater kunne ikke taelles:', err);
+    }
+  }
+
+  async function visReferaterIKunder() {
+    const lead = currentLead;
+    if (!lead || !lead.kunde_id) return;
+    await closeModal();
+    // Blev vinduet staaende (fx en fejl ved gemning), bliver han her.
+    if (document.getElementById('modal-bg').classList.contains('open')) return;
+    setFane('kunder');
+    sendTilKunder({ type: 'vis-referater', kundeId: lead.kunde_id, opgaveId: lead.id });
+  }
+
+  // Betingelse 7 (L6c): "Navn og telefon rettes paa kundesiden ›" lukker vinduet
+  // (og gemmer det, der er rettet), viser kundesiden med arket "Ret kunde", og
+  // naar arket lukkes, beder Kunder-fanen om at aabne SAMME opgave igen
+  // ('aabn-opgave'), hentet frisk, saa det nye navn og nummer staar der.
+  async function retPaaKundesiden() {
+    const lead = currentLead;
+    if (!lead || !lead.kunde_id) return;
+    await closeModal();
+    if (document.getElementById('modal-bg').classList.contains('open')) return;
+    setFane('kunder');
+    sendTilKunder({ type: 'ret-kunde', kundeId: lead.kunde_id, opgaveId: lead.id });
+  }
+
   let sendterBilleder = false;                  // vagt mod dobbelt-upload
   async function uploadModalBilleder(input) {
     const lead = currentLead;
@@ -2357,7 +3291,7 @@ function renderLeads() {
   }
 
   function ringTilbage(phone) {
-    const num = phone || leadTelefon(currentLead).nummer;
+    const num = phone || (currentLead && currentLead._nummer);
     if (!num) return;
     window.open('tel:' + String(num).replace(/\s/g, ''));
   }
@@ -2370,8 +3304,13 @@ function renderLeads() {
   async function klarTilSms(lead) {
     const fejl = await gemTelefon();
     if (fejl) { alert('Telefonnummeret blev IKKE gemt, og SMS\'en er ikke sendt:\n' + fejl); return false; }
-    const t = leadTelefon(lead);
-    if (!t.nummer) { alert('Intet telefonnummer på denne opgave'); return false; }
+    // Serveren afgoer, om der kan sendes (betingelse 2 og 3). Mangler svaret,
+    // spoerges der igen; /send-sms tjekker under alle omstaendigheder selv.
+    if (!lead._modtager) await hentModtager(lead);
+    if (!lead._modtager || !lead._modtager.nummer) {
+      alert('SMS\'en er ikke sendt.\n' + modtagerTekst(lead));
+      return false;
+    }
     return true;
   }
 
@@ -2386,14 +3325,17 @@ function renderLeads() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
       body: JSON.stringify({ body: txt, lead_id: lead.id })
-    }).then(r => {
+    }).then(async r => {
       if (r.ok) {
         document.getElementById('modal-sms').value = '';
         updateSmsCount();
         document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
         alert('SMS sendt');
       } else {
-        alert('Fejl ved afsendelse af SMS');
+        // Serverens tekst, fx "Nummeret er udenlandsk …" (sat som tekst i alert).
+        let svar = {};
+        try { svar = await r.json(); } catch (_) {}
+        alert('Fejl ved afsendelse af SMS' + (svar && svar.error ? ':\n' + svar.error : ''));
       }
     }).catch(() => alert('Fejl ved afsendelse af SMS'));
   }
@@ -2533,136 +3475,31 @@ function anvendBadge() {
   }
 }
 // ── Adresse-autocomplete (D77) ───────────────────────────────────────────
-// 8/10-26: forslag hentes fra VORES eget endpoint (/api/adresse, adresse.js),
-// som taler med Klimadatastyrelsens Adressevaelger. Adressen paa tjenesten og
-// tokenen staar kun ét sted — paa serveren. Foer stod DAWA-adressen her, i
-// kundeformularen og i vagten.
-// Fail-open (4/10-26): svarer endpointet ikke, kaldes onNede én gang, og
-// modalen viser sin reservevej. Proeven koeres med det samme, saa felterne er
-// der fra start.
-// Et forslag er et husnummer. Ved valg slaas postnr og by op paa id'et, og
-// onSelect faar samme form som foer: { tekst, data: { postnr, postnrnavn } }.
-function initDawa({ inputId, suggestionsId, onSelect, onType, fuldTekstIFelt, onNede }) {
-  const inp = document.getElementById(inputId);
-  const boks = document.getElementById(suggestionsId);
-  let debounce = null, aktive = -1, forslag = [], nede = false;
-  // Valgt vej (D77, 9/10-26): soeg videre inden for vejen (og postnr).
-  let valgtVej = '', valgtPostnr = '';
-  const meldNede = () => { if (nede) return; nede = true; skjul(); if (onNede) onNede(); };
-  if (onNede) {
-    (async () => {
-      try { const r = await fetch('/api/adresse/status'); if (!r.ok) meldNede(); }
-      catch (_) { meldNede(); }
-    })();
-  }
-  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
- 
-  inp.addEventListener('input', () => {
-    if (onType) onType();
-    aktive = -1;
-    if (valgtVej && inp.value.indexOf(valgtVej) !== 0) { valgtVej = ''; valgtPostnr = ''; }
-    const q = inp.value.trim();
-    if (q.length < 2) { skjul(); return; }
-    clearTimeout(debounce);
-    debounce = setTimeout(() => hent(q), 200);
-  });
- 
-  inp.addEventListener('keydown', e => {
-    if (!forslag.length) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); aktive = Math.min(aktive+1, forslag.length-1); vis(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); aktive = Math.max(aktive-1, 0); vis(); }
-    else if (e.key === 'Enter' && aktive >= 0) { e.preventDefault(); vaelg(forslag[aktive]); }
-    else if (e.key === 'Escape') skjul();
-  });
- 
-  document.addEventListener('click', e => { if (e.target !== inp && !boks.contains(e.target)) skjul(); });
- 
-  async function hent(q) {
-    if (nede) return;
-    try {
-      const r = await fetch('/api/adresse/soeg?q=' + encodeURIComponent(q) + (valgtPostnr ? '&postnr=' + valgtPostnr : ''));
-      if (!r.ok) { meldNede(); return; }
-      const data = await r.json();
-      if (!data || !Array.isArray(data.forslag)) { meldNede(); return; }
-      if (inp.value.trim() !== q) return;   // svar paa en aeldre soegning
-      forslag = data.forslag;
-      vis();
-    } catch (_) { meldNede(); }
-  }
- 
-  function fremhæv(tekst, q) {
-    const i = tekst.toLowerCase().indexOf(q.toLowerCase());
-    if (i === -1) return tekst;
-    return tekst.slice(0,i) + '<strong>' + tekst.slice(i, i+q.length) + '</strong>' + tekst.slice(i+q.length);
-  }
- 
-  function vis() {
-    if (!forslag.length) { skjul(); return; }
-    const q = inp.value.trim();
-    boks.innerHTML = forslag.map((s,i) =>
-      `<div data-i="${i}" style="padding:9px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid #DDE4EC;${i===aktive?'background:#EAF2FB':''}">${fremhæv(esc(s.tekst), esc(q))}</div>`
-    ).join('');
-    boks.style.display = 'block';
-    boks.querySelectorAll('div').forEach(el => {
-      el.addEventListener('mousedown', e => { e.preventDefault(); vaelg(forslag[+el.dataset.i]); });
-    });
-  }
- 
-  async function vaelg(s) {
-    skjul();
-    if (s.type === 'vej') {
-      // En vej er ikke en adresse: saet vejnavnet i feltet og vis husnumrene.
-      valgtVej = s.vej; valgtPostnr = s.postnr || '';
-      inp.value = s.vej + ' ';
-      if (onType) onType();   // nulstil et evt. tidligere valg
-      inp.focus();
-      hent(s.vej);
-      return;
-    }
-    inp.value = s.tekst;   // vis valget med det samme; opslaget finpudser bagefter
-    try {
-      const r = await fetch('/api/adresse/' + encodeURIComponent(s.id));
-      // Har brugeren rettet i feltet, mens opslaget kørte, gælder valget ikke.
-      if (inp.value !== s.tekst) return;
-      // 404: tjenesten er oppe, men kunne ikke slå netop dette husnummer op
-      // (set 8/10-26). Forslagets tekst slutter med "postnr by" fra samme
-      // register — brug den frem for reservevejen.
-      const d = r.ok ? await r.json() : (r.status === 404 ? fraTekst(s.tekst) : null);
-      if (!d || !d.postnr) { meldNede(); return; }
-      // Modaler med SYNLIGE postnr/by-felter faar kun gadedelen i gadefeltet
-      // (ellers dubletter); modaler med skjulte felter (Ny opgave) viser hele
-      // adressen — et felt med "Barakstien 4" uden by skaber tvivl.
-      inp.value = fuldTekstIFelt ? d.tekst : (d.vej || parseAddress(d.tekst).street);
-      if (onSelect) onSelect({ tekst: d.tekst, data: { postnr: d.postnr, postnrnavn: d.by } });
-    } catch (_) { meldNede(); }
-  }
- 
-  // "Vej 1, [Suppl. by,] 2630 Taastrup" -> { tekst, vej, postnr, by }, ellers null.
-  function fraTekst(t) {
-    const dele = String(t || '').split(',').map(x => x.trim()).filter(Boolean);
-    const m = /^([0-9]{4})\s+(.+)$/.exec(dele[dele.length - 1] || '');
-    if (!m || dele.length < 2) return null;
-    return { tekst: dele.join(', '), vej: dele.slice(0, -1).join(', '), postnr: m[1], by: m[2] };
-  }
+// Flyttet til /adressevaelger.js (Fase 1d, 13/10-26), saa Kunder-fanen bruger
+// samme kode. Indlaeses foer dette script. Mangler den (offline/netfejl),
+// bruges den manuelle reservevej, som naar adressetjenesten er nede.
 
-  function skjul() { boks.style.display = 'none'; forslag = []; aktive = -1; }
-}
- 
 // DAWA til "Ny opgave"-modal
 let newDawaValgt = false;
 let newAdresseNede = false;
-initDawa({
+function nyOpgaveAdresseNede() {
+  newAdresseNede = true;
+  document.getElementById('new-manuel').style.display = 'grid';
+  document.getElementById('new-street').placeholder = 'Vej og husnummer';
+  const err = document.getElementById('new-dawa-error');
+  err.textContent = 'Skriv postnummer (4 cifre) og by';
+  err.style.display = 'none';
+}
+const harAdressevaelger = typeof initDawa === 'function';
+if (!harAdressevaelger) {
+  console.warn('adressevaelger.js er ikke indlaest — Ny opgave bruger den manuelle vej');
+  nyOpgaveAdresseNede();
+}
+if (harAdressevaelger) initDawa({
   inputId: 'new-street',
   suggestionsId: 'new-dawa-suggestions',
   fuldTekstIFelt: true, // ingen synlige postnr/by-felter her — vis hele adressen
-  onNede: () => {
-    newAdresseNede = true;
-    document.getElementById('new-manuel').style.display = 'grid';
-    document.getElementById('new-street').placeholder = 'Vej og husnummer';
-    const err = document.getElementById('new-dawa-error');
-    err.textContent = 'Skriv postnummer (4 cifre) og by';
-    err.style.display = 'none';
-  },
+  onNede: nyOpgaveAdresseNede,
   onType: () => {
     newDawaValgt = false;
     document.getElementById('new-dawa-error').style.display = 'none';
@@ -2680,7 +3517,7 @@ initDawa({
 });
  
 // DAWA til "Rediger lead"-modal
-initDawa({
+if (harAdressevaelger) initDawa({
   inputId: 'modal-address-street',
   suggestionsId: 'modal-dawa-suggestions',
   // BEVIDST ingen onType: postnr/by har egne synlige felter, og at rette en

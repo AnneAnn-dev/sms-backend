@@ -283,7 +283,10 @@ Begge er expand/contract's anden halvdel. Skemaet er på plads; nogen skal skriv
       punktet frygtede, skal ikke bygges.** Mistral Voxtral forbliver ubrugt fallback.
 - [x] Annes nik: "opkald nr. 2 fra kendt nummer = ny opgave, altid" — **BEKRÆFTET 27/7**
 - [ ] Anne: indhold af STANDARDFELTER pr. branche (felter + brancher)
-- [ ] Anne: samtykke-tekst i optager-UI
+- [x] ~~Anne: samtykke-tekst i optager-UI~~ — **rettet 14/10:** der er ingen
+      samtykkeskærm (J8, `CLAUDE.md`). Værnet er tre tekster, Anne har
+      godkendt (26/8, revideret 9/9); 9/9-ordlyden af tekst 2 mangler i
+      repoet.
 - [ ] DPA-liste + privatlivspolitik: tilføj Anthropic + transskriptionsleverandør
 - [ ] **Annes prototype fastfryses i git** (`docs/referater-app.html` + handoffet).
       Den er UI-kontrakten for de 10 datafunktioner; ligger den kun i en mailtråd,
@@ -321,8 +324,9 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       lyd, **6,09 øre**, svartid 9,3 sek. (forhold 1 : 17), 29 segmenter.
       **Prisenheden er dermed bekræftet mod en faktureret handling**, ikke mod en
       prisside — `kvote.js` kan regne på adapteren. Tal og konsekvenser i
-      `asr-adapter.md`. Nøglen er `SCW_ASR_SECRET_KEY` (egen nøgle, ikke mailens).
-- [ ] **Monter modulet:** `routes/tilbud/index.js` (tom, én statusrute) + tænd
+      `asr-adapter.md`. Nøglen er `SCW_GENAI_SECRET_KEY` (omdøbt 2/10 fra `SCW_ASR_SECRET_KEY`;
+      egen nøgle, ikke mailens — og nu delt med referatmodellen).
+- [x] **Monter modulet — GJORT 28/9.** `routes/tilbud/index.js` (tom, én statusrute) + tænd
       `TILBUD_AKTIV` i staging. Prøveplanen kræver, at rollback-håndtaget prøves
       **i begge retninger**. ✅ **Crash-påstanden i `server.js` er efterprøvet
       28/9:** tændes flaget uden mappen, dør processen på `server.js:111` med
@@ -360,14 +364,109 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       en synlig arbejdstilstand og en knap, der slår sig fra ved første tryk —
       ellers sendes dikteringen to gange (dobbelt betaling, to referater).
       **Åbent:** skal adapterens timeout følge lydens længde? Se `asr-adapter.md`.
-- [ ] Claude-proxy-endpoint (generisk; body-limit, billing-gate, dagsloft,
+- [x] **REFERAT-ENDPOINTET — GRØNT I STAGING 5/10.**
+      `POST /api/tilbud/referat`. Tekstadapter, kvote og teknik B samlet i én rute.
+      **Målt:** 2.263 tegn transskription → 11-12 punkter, **6,00-7,22 øre**,
+      13-17 sek. · én række i `ai_forbrug` pr. kald (`formaal='referat'`,
+      `enhed='token'`) · **bogføringen stemmer på øren** i alle kørsler.
+      Afvisningerne prøvet: 401 · 400 `ingen_tekst` · 413 `for_meget_tekst` ·
+      402 `firma_dagsloft` · 502 `referat_ubrugeligt`. `Kvoteafvisning (referat)`
+      set i AppSignal.
+      **TO RUTER, IKKE ÉN — med vilje.** Lyd → tekst → referat kunne have været ét
+      kald. Men han skal kunne SE transskriptionen og rette i den først: D14's fund
+      fra 13/9 er, at referattrinnet retter nonsens i stilhed og lader rigtige ord
+      på forkert plads stå — og gør dem SVÆRERE at opdage, fordi resultatet læser
+      pænt. Mellemtrinnet er hans eneste chance for at fange USB-plader, der skulle
+      have været OSB.
+      **Variablerne** `TILBUD_REFERAT_LEVERANDOER` / `-URL` / `-MODEL` kom først ind
+      i Railway staging og `.env.staging` her — ikke før ruten brugte dem.
+      **To fund i koden, begge med konsekvenser:**
+      **(a) Den bindende grænse stod et andet sted, end koden troede.**
+      `express.json()` i `server.js` linje 19 er sat uden `limit` og bruger derfor
+      Express' standard på 100 KB — global, og den kører længe før modulet monteres.
+      Rutens egne 200.000 tegn kunne aldrig nås: en krop over 100 KB blev afvist med
+      en **HTML-fejlside, som en klient ikke kan læse**. Grænsen er nu 60.000 tegn,
+      sat med afstand under de 100 KB, så vores egen læselige fejl altid når først.
+      Rutens egen parser er fjernet — den var død kode, der *lignede* en grænse, og
+      det er værre end ingen grænse. Det kendte hul (stærkt komprimeret lyd kan give
+      op mod 145.000 tegn) er bevidst efterladt med en præcis udløser: **først når en
+      rigtig diktering afvises med `for_meget_tekst`, røres linje 19** — den gælder
+      alle ruter, også webhooks ·
+      **(b) Et fejlet kald kunne være betalt uden at nå hovedbogen.** Svarede
+      leverandøren, men bestod svaret ikke formvalideringen, blev tokentallet smidt
+      væk sammen med fejlen. **Loftet holdt altså ikke, når modellen fejlede:** en
+      promptregression ville kunne brænde en kundes kvote usynligt. Fundet med et
+      vrøvlinput, der kostede **33,70 øre, ingen kunne se**. Fejlen bærer nu prisen
+      med sig de to steder, hvor den kastes EFTER et svar, og ruten bogfører den.
+      Fejl kastet FØR et svar (timeout, 401, 403, netværk) bærer ingen pris — og så
+      bogføres der ikke. **Vi gætter aldrig i hovedbogen.**
+      **To fund i selve prøveplanen, og de er lige så dyre:**
+      **(c)** trin 4 forventede vores `for_meget_tekst` ved 200.001 tegn. Den globale
+      grænse bed først, og 413 så rigtigt ud med den forkerte afsender — **statuskoden
+      alene siger ikke, hvem der afviste** ·
+      **(d)** trin 7 forventede 402 på FØRSTE kald efter at loftet var sat ned. Forkert:
+      det kald, der krydser grænsen, skal slippe igennem (Anns beslutning 29/9), og det
+      næste bliver stoppet. **Der er to bremser med to formål:** kaldsloftet måles på
+      værste tilfælde FØR kaldet og forhindrer én stor overraskelse; dags- og
+      månedsloftet måles på det, der ALLEREDE er brugt, så han ikke mister en
+      diktering, han lige har talt ind, fordi han manglede to øre.
+      **En prøve, der forventer det forkerte, er lige så dyr som en fejl i koden** —
+      den får den næste til at tro, at noget virker, der ikke gør, eller omvendt.
+      Begge er rettet i `PROEVEPLAN-referat.md`.
+      ⚠️ **Og modelnavnet `mistral-small-3.2-24b-instruct` fandtes ikke** (rigtig:
+      `-2506`). Det stod i prislisten som et valg, og prisen vi regnede med var
+      prisen på noget, der ikke eksisterede. Alias-vagten fanger navne uden version;
+      tørkørslen har hverken netværk eller nøgle. Hullet lå mellem to værn, der hver
+      især virkede. `node proev-tekst-adapter.js --modeller` slår nu listen op og
+      sammenligner — gratis. Se D14.
+- [x] ~~Claude-proxy-endpoint~~ (generisk; body-limit, billing-gate, dagsloft,
       forbrugslog, fail-pænt) — kun referat-prompten kobles på her.
       **Prompten er den ORDNÆRE** (besluttet 27/9): modellen må forkorte og
       strukturere, men ikke bytte ordene ud, og den retter ikke whispers fejl.
+      **UDVIDET 2/10 — SAMLEDE PUNKTER.** To linjer tilføjet: *saml det, der
+      hører sammen, i ét punkt* og *højst 15 punkter*. Anledningen var, at
+      **3 af 7 referater blev afvist af P5 på "for mange punkter"** (24-25 mod
+      grænsen på 20): modellen delte ét emne — én membran — op i fem linjer, så
+      referatet blev næsten lige så langt som det, han selv sagde. Anne valgte
+      mellem to eksempler side om side (`claude/referat-laengde-forslag.md`).
+      **Målt efter ændringen: 7 af 7 bestod, punkter faldt fra 13-25 til 12-15,
+      og teknik B's tal rørte sig ikke** — modellen købte altså ikke kortheden
+      ved at omskrive. **Grænsen i prompten er 15, i valideringen 20; afstanden
+      er med vilje — prompten sigter, valideringen spærrer.**
+      Prisen faldt kun 4,4 % (7,01 → 6,70 øre): at samle fem punkter til ét
+      fjerner ikke indholdet, det omarrangerer det. **Referatet blev ikke kortere
+      — det blev bedre organiseret**, og det var også det, der blev bedt om.
       Begrundelse og pris i `tilbud-primer.md` og `RESULTAT-06-teknik-b.md`.
       Modelstrengen låses eksplicit i en miljøvariabel (D14), aldrig et alias.
-- [ ] **Den SNÆVRE teknik B i `/api/tilbud/referat`** — D36's bindende
-      forudsætning, altså release-blokerende. Markér kun **tal, navne og
+- [x] **DEN SNÆVRE TEKNIK B — BYGGET OG MÅLT 1-2/10.** `teknik-b.js` +
+      `proev-teknik-b.js` i repoet. **Median 0, max 2, tæthed 0,5 % i værste
+      referat, nul falske alarmer, nul tal markeret** — alle fire kriterier fra
+      målespecen godkendt. Mangler kun at blive koblet på ruten.
+      ⚠️ **Tallene fra 27/9 (median 0, max 3) kunne ikke køres om:** scriptet var
+      lavet ad hoc og findes hverken i prøvebænken eller i arkivet. Kun tallene
+      overlevede. Derfor ligger målingen nu i repoet, og tallet hører til den kode,
+      der faktisk udgives. Samme mønster som facitlisten, der viste sig ældre end
+      dataene — og alvorligere her, fordi værnet er release-blokerende.
+      ⚠️ **VÆRNET ER OGSÅ PRØVEN PÅ PROMPTEN** (fundet 1/10, bekræftet 2/10):
+      begge målinger fangede modellen i at rette whispers `relædet` til `relæet`
+      i stilhed — præcis det, den ordnære prompt blev valgt for at undgå.
+      Konsekvensen står i D36. **Tætheden betyder to ting, ikke én.**
+      **Rettet 2/10:** navnereglen gælder ikke i overskriften (en overskrift er
+      ikke en sætning, så stort bogstav betyder intet dér), men tal og
+      forkortelser tjekkes stadig. Fire selvtjek i prøvescriptet holder den regel
+      fast, så den ikke kan fjernes ved en oprydning uden at noget siger fra.
+- [x] **TEKNIK B KOBLET PÅ RUTEN — 3/10.** D36's bindende forudsætning, altså
+      release-blokerende, og nu opfyldt. **Målt gennem ruten: 0 markeringer, 0 %
+      tæthed** på to rigtige referater — og prøvescriptets fire selvtjek består, så
+      nul betyder nul og ikke "værnet kiggede det forkerte sted". De to ser ens ud
+      udefra, og det er netop derfor selvtjekkene kører før målingen.
+      Prøvebænkens syv referater: median 0, max 2, værste tæthed 0,5 % — uændret.
+      Værnet fandt **`USB-plademateriale`** og **`HPFI-relæ`**: præcis D14's farlige
+      klasse, ord der findes og står forkert.
+      **Værnet må aldrig kunne vælte referatet.** Det kører i try/catch i ruten: et
+      referat, der er skrevet og betalt, skal ud til ham, også hvis markeringen
+      fejler. Så står `taethed` som `null`, og prøvescriptet siger det højt.
+      De tre regler står ved magt: Markér kun **tal, navne og
       forkortelser**, der ikke står i transskriptionen (den brede udgave er målt
       og forkastet: median 51 markeringer, en femtedel af teksten). Tre regler
       følger med:
@@ -379,27 +478,291 @@ AI-referatudkast, rette, gemme og genfinde det — på staging.
       referatet igennem · **(c)** tætheden (markeringer pr. 100 ord) logges pr.
       referat — efter tredive rigtige referater er den et mål for, hvordan
       modellen klarer ægte stemmer, og det er gratis at samle op.
-- [ ] Datafunktioner for kunder/opgaver/referater (per-række CRUD bag Annes navne)
+- [x] **DATAFUNKTIONERNE — GRØNT I STAGING 10/10.** `routes/tilbud/data.js`
+      (egen fil; `index.js` var 26 KB i forvejen). Ni ruter: kunder, opgaver og
+      referater, hver med liste, oprettelse, opslag og rettelse. **23 tjek
+      grønne** mod staging, uden at en model ringes op.
+      **Serversiden er færdig; Annes ti funktionsnavne hører til klientsiden**
+      (navne og kaldesteder bevares dér, se afsnittet i primeren) og kommer med
+      PWA-siden.
+      ⚠️ **EN OPGAVE OPRETTES UDEN OPKALD — beslutning B, 9/10 (Ann).**
+      `/opret-opgave` i `server.js` laver en syntetisk `calls`-række med
+      `from_number: "Manuel oprettelse"` for hver manuelt oprettet opgave. Det
+      var den ENESTE måde at gøre opgaven synlig, dengang alle RLS-politikker på
+      `leads` gik gennem `call_id` — og den sti blev lukket 7/10.
+      **Begrundelsen for ikke at gentage omvejen er ikke, at `calls` holdes ren.
+      Den er, at `leads.call_id` kun kan holde ÉN værdi.** Så længe opgavens
+      identitet hænger på ét opkald, er der ingen plads, når kunden ringer igen
+      om den samme opgave — og *"vi vil gerne kunne samle kundens opgaver"* var
+      netop spørgsmålet, der afgjorde valget. Med `firm_id` som bærende nøgle
+      bliver `call_id` valgfri og historisk, og et opkald kan senere pege på
+      opgaven i stedet for omvendt. **B åbner døren; den går ikke selv igennem
+      den** — selve ændringen hører i Trin 5 sammen med opkaldsmatchningen.
+      **Tre ting er gjort strukturelle frem for huskede:** (a) ingen
+      `{...req.body}` — hver ressource har en eksplicit feltliste · (b) hvert id
+      fra klienten slås op MED firmafilteret først (`ejerskab.js`), så et ægte
+      token ikke kan hænge et referat på et fremmed firmas opgave · (c) "findes
+      ikke" og "er ikke din" svarer ens, så man ikke kan tælle sig frem til
+      andres id'er.
+      **Teknik B måles server-side ved gemning**, på `transskript` mod
+      `ai_udkast` — ikke på tal fra klienten, og ikke på `indhold`, fordi tallet
+      er et mål for MODELLEN. Fire nye kolonner bærer det (`ai_model`,
+      `ai_prompt_version`, `teknik_b_markeringer`, `teknik_b_ord`, migration
+      `20261009070000`): de to første lukker D14's "hvad skrev det her referat?",
+      de to sidste indfrier D36's regel (c), som lovede logning uden at have et
+      sted at logge til.
+      **To ting er bevidst ikke med:** `status` på opgaver kan ikke rettes af
+      modulet (værdierne deles med opkaldsflowet, og sættet er ikke skrevet ned
+      — at sætte dem ville være at gætte på en anden del af produktet), og
+      `transskript`/`ai_udkast` kan ikke rettes (kildemateriale; kunne de rettes,
+      var sammenligningen med `indhold` intet værd).
+- [x] ⚠️ **`dashboard.html` kan IKKE se en opgave uden opkald — to steder, og
+      de er ikke ens:** hovedforespørgslen bruger `calls!inner`, og polleren har
+      slet intet join, men filtrerer med `.in("call_id", ...)`. En søgning efter
+      `calls!inner` finder kun den ene. **De skal rettes sammen** — rettes kun
+      hovedforespørgslen, er sættene uenige, og polleren genindlæser hvert 30.
+      sekund. Linjenumre udeladt med vilje: filen ændres i D79-sporet.
+      Kommentaren dér siger *"leads har ikke firm_id direkte"* — sandt da den
+      blev skrevet, usandt siden 27/7. Skal skifte til `.eq("firm_id", ...)` med
+      et almindeligt join. **Målt sikkert:** 5 af 5 i prod og alle i staging har
+      `firm_id`, og `server.js` sætter den på begge indsættelsesveje (D21), så
+      ingen række forsvinder. **Udløser: FØR `TILBUD_AKTIV` tændes i prod**
+      (målt 10/10: flaget er slukket i prod, så hullet kan ikke rammes i dag).
+      Samme udløser gælder D79 (b): `/lead-telefon` og `/send-sms` tjekker
+      ejerskab via opkaldet og giver 403 på en opgave uden opkald. Ellers får
+      håndværkeren to lister med hver sin definition af sine egne opgaver.
+      Prod-vendt fil i en anden chats område; koordineres, smides ikke ind.
+      ✅ **I STAGING 12/10 (`d88c773`) og I PROD 13/10 (hotfix-PR #83, `7ac95a8`).** Hovedforespørgslen og
+      polleren læser nu begge med `.eq("firm_id", ...)` og et almindeligt join;
+      polleren gør ingenting uden firma og springer over ved læsefejl. `/send-sms`
+      og `/lead-telefon` slår ejerskab op via `leads.firm_id` (`egenOpgave()` i
+      `onboarding.js`, fail-closed: 403 uden `firm_id` eller ved fremmed firma).
+      `sw.js` v32. Enhedsprøve 7/7; en opgave uden opkald set i dashboardets
+      liste i staging. Prod 13/10: `uden_firma = 0` målt før merge, `sw.js` v32 og
+      `smoke:prod` 13/13 efter. Udløseren (før `TILBUD_AKTIV` i prod) er opfyldt.
+- [x] **Krydsfirma-halvdelen af `leads_select_firma` BEVIST 11/10.**
+      `rls-isolation-test.js` sår et lead med `call_id = NULL` pr. firma og slår
+      det op på id. En sådan række kan kun slippe igennem `leads_select_firma`,
+      så det er netop den politik, der er bevist — synlig for sit eget firma,
+      usynlig for et andet, begge retninger. **39/0 mod staging** (`710834c`).
+      Prod har samme politikker og migration (målt 11/10); prøven køres ikke mod
+      prod. Testfirma nr. 2 (Trin 1) er stadig værd at have til QA, men var
+      aldrig en forudsætning for dette.
 - [ ] Ny PWA-side (ø-arkitektur, kun Kunder+Referater-fanerne aktive), SW-bump
-- [ ] **Flyt optager-modulet ind:** `static/spike-optager.js` → `tilbud/optager.js`
-      (bag `TILBUD_AKTIV`, så det ikke findes i prod). Modulet er bygget og målt
-      26/9 — se D66. Fanen kalder `start()`, `fortsaet()`, `stop()` og handler på
-      `ok` / `kanBruges`.
-- [ ] **Sammensæt delene:** hver del transskriberes for sig, og teksterne sættes
-      sammen i rækkefølge FØR referatmodellen ser dem. Kvoten tæller samlet
-      lydtid på tværs af dele. Invarianterne står i `tilbud-primer.md`.
-- [ ] ⚠️ **MÅL PERMISSION-FLOWET IGEN i dashboardets egen app.** iOS husker
-      mikrofon-tilladelsen **pr. installeret app**, og Spike 0 blev målt i to
-      andre installationer (`/spike0.html` og prøvebænken). Det, vi ved derfra,
-      gælder ikke automatisk her. **Målingen:** installer dashboardet på
-      hjemmeskærmen, luk appen helt, åbn den, og start én optagelse. Spørger den
-      om lov? Og spørger den igen ved næste optagelse? Svaret afgør onboarding-
-      teksten — og det er dyrt at opdage dagen før frigivelse.
+      ✅ **Trin 1 i staging 12/10 (`7155f1d`): Kunder-fanen.** `tilbud/index.html`
+      (Annes prototype, CSS uændret) og `tilbud/graenseflade.js` med de ti
+      funktionsnavne: én POST/PATCH pr. række, serverens id skrives tilbage, fejl
+      kastes i stedet for at blive slugt. Bruger dashboardets session.
+      **Mangler:** Referater-fanen (`saveReferater`), `loadTilbud` og firmaprofilen.
+      ✅ **Referat-fanen, skive 1–3 i staging 15/10 (`02c5b85`, `45cf440`,
+      `9122a9f`)** — se punkterne nedenfor. **Mangler stadig:** `loadTilbud`
+      og firmaprofilen.
+- [x] **Flyt optager-modulet ind — I STAGING 14/10 (`67a830c`).**
+      `tilbud/optager.js`, genskabt fra `02a1171` (spiken var fjernet i
+      `a3235fc`), med grænsen på **20 minutter samlet på tværs af dele**:
+      optageren stopper selv, kalder `paaGraense` og leverer en hel optagelse
+      (`stoppetVedGraense: true`); `fortsaet()` afviser med `graense_naaet`;
+      `restSek()` er til fanens varsel. Fanen kalder `start()`, `fortsaet()`,
+      `stop()` og handler på `ok` / `kanBruges`. `/tilbud` monteres kun med
+      `TILBUD_AKTIV` (`server.js`), så filen findes ikke i prod. Bevis:
+      `proev-optager.js` 25/0, mod spike-udgaven 9/16.
+- [x] **Servergrænsen på 20 minutter — I STAGING 16/10
+      (`2026-10-16-servergraense`).** Grænsen i `optager.js` er
+      brugervenlighed, ikke et værn. `/transskriber` lægger leverandørens
+      `lydsekunder` sammen del for del (længden kan ikke læses af filen før
+      betaling); over 20 min + 2 min margin (Ann) svarer den 413
+      `optagelse_for_lang`, sender ingen flere dele, og det allerede
+      transskriberede bogføres. Beskeden (Ann): "Optagelsen er for lang til at
+      blive lavet til tekst. Et referat kan højst være 20 minutter." Bevis:
+      `proev-servergraense.js` 9/0. Ikke bevist over HTTP (kræver over 20
+      minutters lyd).
+- [x] **SW-bump, når fanen indlæser `optager.js`** — `dashboard-v35` i
+      `02c5b85` (15/10), da `tilbud/index.html` begyndte at indlæse filen.
+- [ ] **`proev-optager.js` er ikke i CI.** Den køres lokalt (`node
+      proev-optager.js`), ligesom `proev-forloeb.js`.
+- [x] **Sammensæt delene — sker i `/api/tilbud/transskriber` (siden 1/10).**
+      Alle dele i ét kald, transskriberet hver for sig og sat sammen i
+      rækkefølge med en tom linje imellem, FØR referatmodellen ser dem; kvoten
+      tæller samlet. Fanen (15/10) sender kun de dele, der er med, i deres
+      rækkefølge — en kasseret del sendes ikke. Målt på iPhone 15/10.
+- [x] **Permission-flowet MÅLT 14/10** i den installerede app, i
+      Kunder-rammen, på to iPhones (iOS 26.6.2), med en midlertidig prøveknap
+      (`6f75009`, revertet). **Rettelse:** iOS husker IKKE tilladelsen pr.
+      installeret app. Med standardindstillingen spørger den **én gang pr.
+      sideindlæsning** — ikke igen i samme session, men igen efter log ud
+      eller en frisk indlæsning. Står Safaris mikrofonindstilling for domænet
+      på "Tillad", spørges der aldrig, heller ikke efter geninstallation.
+      Swipe-luk genstarter ikke appen. Dialogen viser **domænet** (i prod:
+      prod-domænet), ikke "Dit Kontor", på telefonens sprog. Dialogen kan stå
+      åben i minutter; optagerens ur starter først, når mikrofonen er givet.
+- [x] **Kunder-rammen får mikrofonen uden `allow="microphone"`** (samme
+      oprindelse, ingen Permissions-Policy-header). Målt 14/10;
+      `dashboard.html` er ikke ændret.
+- [x] **Mikrofonteksterne (besluttet af Ann 14/10, ordlyden er Anns):** (1)
+      onboarding, sammen med J8 tekst 2: "Tryk Tillad, når
+      opgave.ditdigitalekontor.dk beder om tilladelse til at bruge din
+      mikrofon." (2) pop-up én gang pr. telefon (husket på telefonen), når han
+      optager første gang i en ny session og har optaget i en tidligere: samme
+      sætning + "Er du træt af at give tilladelse hver gang, så gå i
+      Indstillinger → Apps → Safari → Mikrofon og vælg Tillad." (3) ved
+      `NotAllowedError` (Annuller): samme sætning + "ellers kan du ikke bruge
+      Referathjælperen." Domænet sættes ind fra `location.hostname`, så
+      staging og prod altid er rigtige. ✅ **(3) bygget 15/10 (`02c5b85`)** og
+      målt på iPhone. **16/10: (1) droppet som onboardingtrin** (Ann, via
+      onboarding-chatten): en advarsel dage før iOS' dialog er glemt, når han
+      trykker optag. Sætningen står allerede forrest i (2); `onboarding.html`
+      er ikke ændret. ✅ **(2) bygget 16/10 (`2026-10-16-mikrofon-tip`):** et ark
+      i Referat-fanen FØR iOS' dialog, én gang nogensinde pr. telefon
+      (`localStorage`: `ddk-mik-har-optaget`, `ddk-mik-tip-vist`). Målt på
+      iPhone 16/10: intet tip ved første optagelse; tip ved næste
+      sideindlæsning, og iOS' dialog kom bagefter; efter log ud og ind kun
+      iOS' dialog.
+- [x] **Mål før teksterne låses — MÅLT.** Prod-domænet (18/10):
+      `opgave.ditdigitalekontor.dk/` svarer 302 til hjemmesiden,
+      `manifest.json` har `start_url /dashboard`, og `/dashboard` svarer 200 —
+      appen og `/tilbud/` ligger på opgave.ditdigitalekontor.dk. Efter
+      Annuller spørger iOS igen i samme session (15/10), så tekst 3 behøver
+      ikke sige "luk og åbn appen".
+- [ ] **J8 tekst 3 = linje i vilkårene** (ikke kode). Anne skriver den. Åbent
+      for Ann/Anne: skal eksisterende kunder se linjen, når de får
+      Referathjælperen?
+- [ ] **Fanen må ikke bruge `navigator.permissions`** til at forudsige
+      dialogen — den svarede `granted`, mens iOS spurgte.
+- [x] **Værn i `optager.js`: muted spor ved start (D66) — BYGGET 14/10
+      (`9646c8c`).** Et spor, der er muted lige efter `getUserMedia`
+      (telefonopkald), afvises før optageren startes, kode `mikrofon_optaget`;
+      gælder `start()` og `fortsaet()`. Bevis: `proev-optager.js` 32/0 (26/6
+      mod `67a830c`). Fanen viser beskeden; mål på telefon i F (start
+      optagelse under et opkald). ✅ **Målt på iPhone 15/10:** beskeden kommer.
+      Et indgående opkald MIDT i en optagelse fanges også (værn 1,
+      `afbrudt_men_hel`), og fanen spørger.
+- [x] **Referat-fanen, skive 1 — I STAGING 15/10 (`02c5b85`).** Optag →
+      del(e) → samlet transskription, han kan rette → gem som kladde. Startes
+      fra opgaven ("+ Nyt referat"); bundbarens Referat-knap er stadig lukket.
+      Kvoten spørges, når skærmen åbnes (fail-closed). En del med tab
+      kasseres; en "afbrudt men hel" del SKAL han tage stilling til, før der
+      kan laves tekst. J8 tekst 1 (26/8) står under knappen. **Besluttet af
+      Ann 15/10:** (A) en kladde må gemmes med KUN `transskript`
+      (`routes/tilbud/data.js`); (B) `transskript` er hans RETTEDE tekst;
+      (C) tekst 1 = 26/8-ordlyden; (D) optagelsen kører videre ved faneskift
+      i dashboardet — målt, ingen kode. **Bevis:**
+      `proev-referat-graenseflade.js` 25/0 (mod `b2073c4` 3/7) · HTTP
+      400 `tomt_referat` før, 201 efter deploy · otte punkter på iPhone.
+- [x] **Skive 2: udkastet — I STAGING 15/10 (`45cf440`).** "Lav referat" →
+      udkast med teknik B's tjek-steder → han retter → gem, både før første
+      gem og på en gemt kladde (besluttet af Ann). `POST
+      /api/tilbud/referater/:id/udkast` sætter `ai_udkast` ÉN gang (`IS NULL`
+      i samme opdatering, 409 `udkast_findes`). Fast tekstformat
+      (`referat-format.js`), så teknik B måles feltopdelt. Ophavet kommer som
+      `ophav` (S17). `/referat` svarer også `ventil`/`besked`. Bevis:
+      `proev-referat-udkast.js` 26/0 (3/11 mod `40070f3`) · HTTP 404 → 200 →
+      409 · målt på iPhone.
+- [x] **Skive 3: ret og færdig — I STAGING 15/10 (`9122a9f`).** "Kladde" =
+      kan stadig rettes, "Færdig" = låst (besluttet af Ann). Listen med
+      klokkeslæt og Indtalt tekst / Referat / Færdig. Ret (titel, tekst),
+      Markér som færdigt (to tryk). Låsen på serveren: PATCH og udkast-ruten
+      giver 409 `referat_faerdigt`. Bevis: `proev-referat-ret.js` 18/0 (4/13
+      mod `45cf440`) · HTTP: markér færdig 200, rettelse 409 · målt på iPhone
+      16/10.
+- [x] **Rettelser 16/10 — I STAGING, målt på iPhone.** Tjek-boks og overskrift
+      (Anns ordlyd: "Læs og ret referatet før du gemmer.") · "Lav
+      referat"-knappen beholdt "Skriver referat …" efter et lavet referat og
+      så ud til at hænge (`2026-10-16-knap-tekst`; login-hypotesen holdt ikke,
+      se D80) · "Gem som kladde" stod låst efter et referat
+      (`2026-10-16-gem-knap`) · minimumslængde 10 ord, afvist FØR kvoten
+      (`2026-10-16-referat-minimum`) · en kasseret del tæller ikke mod de 20
+      minutter (`2026-10-16-fravalgt-del`) · mikrofon-tippet én gang pr.
+      telefon (`2026-10-16-mikrofon-tip`). Bevidst accepteret (Ann): to skærme
+      kan betale for samme kladdes udkast. **Lærdom:** knapper, der genbruges
+      mellem optagelser, nulstilles i `openOptag` — tekst OG låst.
+- [x] **Rettelser 17/10 — I STAGING, målt på iPhone.** D85: optagerens
+      beskeder med komma og uden grænse, afgørelse på uafrundede tal, opkald
+      nævnt (`6289cee`) · Indtal mere eller ret teksten på en kladde uden
+      udkast, titlen kan rettes (`2026-10-17-indtal-mere`, ny rute `POST
+      /referater/:id/transskript`, 409 `tekst_laast`). Opkaldsteksten set på
+      iPhone 18/10. `spaerret` bekræftet mod `GET /api/tilbud/kvote` 18/10.
+      **Næste `sw.js`-bump: v52** (dashboard-chatten brugte v50 og v51 18/10;
+      tjek `CACHE_NAME` i HEAD før hvert bump).
+- [x] **18/10 — prøverne i CI og D86.** Jobbet "Proever" i `ci.yml` kører
+      `kor-proever.js`: 15 prøver ved hvert push til staging og hver PR; 6 er
+      udeladt med begrundelse i filen (`.env`, staging-token, prøvebænk).
+      ⚠️ En prøve, der selv læser `.env`, er grøn lokalt og rød i CI — CI er
+      facit (`004dde9`, `4320cd7`). D86: en fejlet bogføring sender
+      `Bogfoeringsfejl` til AppSignal (`3682bc9`).
+      **Bevis af kode uden egen rute, i staging:** `railway ssh` (SSH-nøgle
+      registreret 18/10) → ved Linux-prompten `root@…:/app#`: `node -r
+      ./appsignal.cjs -e '…'`. Aldrig lokalt — fund (c) ovenfor gælder stadig;
+      det første D86-forsøg 18/10 blev kørt på Windows og gav intet.
+- [ ] **Venter på test udefra (Ann 16/10: opgaverne ligger her, til nogen har
+      testet):** den hvide knap har ingen grå udgave, når den er låst · et
+      færdigt referat kan ikke genåbnes (beslutning) · fjern login-målingen
+      (`150d0c5`), når Railway Logs ikke har vist `login-maaling`, og afgør,
+      om login-omvejen (`d4539d7`) bliver · overvej en præcisere besked end
+      `referat_ubrugeligt` ved indholdsløs tekst ("Der var ikke nok indhold
+      til et referat"; to betalte forsøg 17/10) · ~~prøverne er ikke i CI~~
+      (i CI fra 18/10, se ovenfor).
+- [x] **Annes QA 16–17/10 (`QA af Referat-fanen`, 16 tests): alle OK** — test
+      5, 7, 13 og 14 bekræftet af Anne 17/10. At mikrofonen kun spørger nogle
+      gange, er iOS' egen opførsel med "Spørg", ikke en genindlæsning.
+      **Tilbage fra QA:** en opgave fra Nye opretter ikke en kunde
+      (dashboard-chatten) · ~~Anne mener at have testet foto~~ **afklaret 18/10:**
+      Anne har ikke testet et kamera — fanen har ingen kameraknap. Det var
+      fotos af referater, som Ann bad om; de er testmateriale til fotoknappen
+      og ligger i `proevebaenk\referatfoto\` sammen med de elleve fra 27/9.
 - [ ] Anne QA på staging → derefter prod. ⚠️ **"Derefter prod" betyder: når Fase
       1's fem gates er lukket** (Ø2, S6, J8, J9, D36's teknik B — se
       faseopdelingen øverst). Grøn QA er ikke en frigivelse.
 
+- [ ] **Rækkefølgen herfra følger udviklingsplanen 13/10 (D80).** Fundamentet —
+      moduler pr. firma, opgavens forløb og de fire faner — bygges før
+      Referater-fanen. Punkterne ovenfor er stadig gyldige; de lander i planens
+      Fase 1 og 2.
+- [x] **Fase 1a — opgavens forløb, I STAGING 13/10 (`b0c73e4`).** Migration
+      `20261013100000_leads_forloeb.sql`: `startet_at`, `sidst_roert`, CHECK
+      `leads_status_gyldig`, `opgave_handling()`, `luk_inaktive()`. `/send-sms`
+      kalder `opgave_handling`. Bevis: `proev-forloeb.js` 13/0, udfyldning og
+      SMS-vej målt i staging.
+- [ ] ⚠️ **PROD: migrationen FØR `onboarding.js`.** Kommer koden først, findes
+      `opgave_handling` ikke, og `/send-sms` rapporterer en fejl ved hver SMS
+      (SMS'en sendes stadig). Samme fælde som D79: `push-prod.ps1` fra
+      `staging`-grenen, tørkørsel først, aldrig `migration repair`.
+- [ ] ⚠️ **FØR natjobbet (`luk_inaktive()`) kører i prod:** dashboardets
+      *Afsluttede*-filter og `isClosed` skal vise alt, der ikke er `open` — i dag
+      kun `completed`/`rejected`, så `inactive`-opgaver ville forsvinde. Natjobbet
+      selv er ikke bygget (Railway-cron som `vagt.js`, kald med `p_firm = null`).
+- [x] **Fase 1b — moduler pr. firma, I STAGING 13/10 (`657f882`).** Migration
+      `20261013120000_firma_moduler.sql`, `moduler.js` (`kraevModul`,
+      `GET /api/moduler`), spærren i `server.js` foran kvote, transskriber,
+      referat og skrivning af referater. Bevis: `proev-moduler.js` 15/0 mod den
+      deployede server. Staging-firmaet har fået `referat` med hånden.
+- [ ] ⚠️ **PROD: migrationen FØR koden.** Uden tabellen svarer `/api/moduler`
+      503. Spærren selv sidder inden for `TILBUD_AKTIV`, så den rammer ikke prod,
+      før flaget tændes — men pilotfirmaet skal have sin `referat`-række, FØR det
+      sker (udviklingsplanens Port 2).
+- [ ] ⚠️ **Prøver over HTTP: vent på grønt deploy, og spørg først en rute, kun
+      den nye kode har** (fx `/api/moduler` uden login: 401 = ny, 404 = gammel).
+      13/10 gav første kørsel 8/7, fordi Railway endnu kørte den gamle kode.
+- [x] **Fase 1c — de fire faner, I STAGING 13/10 (`86a37c6`).** Vises kun, når
+      `/api/moduler` svarer `tilbudAktiv:true`; ellers dashboardet som i dag.
+      Bevist på iPhone med flaget både til og fra. Kunder-fanen åbner endnu
+      `/tilbud/` som egen side — at bygge den ind er Fase 1d.
+- [ ] **PROD: `dashboard.html` kan gå i prod FØR migrationerne**, fordi fanerne
+      kræver `tilbudAktiv:true` og ellers falder tilbage. Men 1a og 1b's
+      migrationer skal i prod, før flaget tændes.
+- [x] **Fase 1d — Kunder-fanen, I STAGING 13/10 (`fefed66`).** Ramme med
+      `/tilbud/?indlejret=1`; `static/adressevaelger.js` delt af dashboardet og
+      `tilbud/index.html`. Bevist på iPhone.
+- [ ] **`/adressevaelger.js` caches IKKE af `sw.js`** (kun `/dashboard` gør).
+      Offline mangler forslagene derfor; Ny opgave falder tilbage til postnr/by,
+      og det er prøvet. Skal filen nogensinde caches, så bump `CACHE_NAME`.
+
 ## Trin 3b — Skive 1b: fotovejen (del af Fase 1)
+
+> ⛔ **UDSKUDT FRA FØRSTE PROD-UDGIVELSE (Ann 19/10).** B7-målingen fandt ingen
+> vision-model, der opfylder bundgrænsen (`RESULTAT-07-fotovejen.md`). Første
+> udgivelse er diktafonvejen alene. Opgaverne nedenfor står, så de er klar, når vejen
+> genoptages — men **B6 (værnet) skal tages op igen**, og klienten skal sende
+> billedet ret op (EXIF). Se D36.
 
 Håndværkere skriver på papir. Uden denne vej rammer Fase 1 kun den halvdel, der
 taler. **Byggerækkefølge: diktafonvejen først, fotovejen ovenpå — men begge
@@ -413,15 +776,20 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       genfind er uændret, og der ligger ikke to slags referater i basen.
 - [ ] **Vision-model vælges på måling, ikke på skøn** (J9 + D14). Kvalitetssættet
       findes: **elleve fotos, taget 27/9, ligger i `proevebaenk\referatfoto\`**.
+      *19/10: 15 fotos af 13 sedler (tre af Anne med blyant, et nyt af referat 4);
+      facit udfyldt af Ann og Anne. Læsningen 27/9 tog fejl i tre af fem sedler —
+      se `FOTOSAETTET.md`.*
       Beskrivelsen og de kendte vanskeligheder står i `FOTOSAETTET.md` — udfyld
       den, før målingen køres, af samme grund som `SAETTET.md` for lyden.
       **Tre ting, målingen SKAL dække, fundet ved at se på fotoerne:**
-      **(a) Alle elleve ligger på siden.** Sedlen er på højkant, fotoet på tværs,
-      og teksten løber nedefra og op. Sådan fotograferer man en notesbog. Kan
-      modellen læse roteret håndskrift — eller skal klienten rette op først?
-      **(b) Overstregninger.** På referat 10 er "450" streget ud og rettet til
-      "380 m³". Modellen skal læse det rettede tal. **Det er præcis den slags,
-      der bliver til en forkert pris.**
+      **(a) Rotation — det er EXIF (rettet 19/10).** I rå pixels ligger alle på
+      siden, men alle 15 har EXIF-orientering 6 og står ret op, når den anvendes.
+      Spørgsmålet er, om klientens canvas-nedskalering anvender EXIF. Målingen
+      kører hvert foto både rå og rettet; telefonen afgør klientdelen (B10).
+      **(b) Overstregninger.** På referat 10 er **klokkeslættet** ~~10.20~~ → 09.30
+      og **enheden** ~~m²~~ → m³. *(Rettet 19/10: "450 rettet til 380" var forkert
+      læst — det er to lokaler.)* Modellen skal læse det rettede. **Det er præcis
+      den slags, der bliver til en forkert pris.**
       **(c) Gennemskrivning fra forrige side.** Spøgelsesskrift bag den rigtige
       tekst. En model kan finde på at læse begge dele som ét.
 - [ ] **KLIENTEN SKAL NEDSKALERE — det er ikke længere et åbent spørgsmål.**
@@ -461,6 +829,13 @@ harmløst, indtil Fase 1 begyndte at blive bygget.*
       referatet op mod — sedlen ER kilden. Fotovejen har altså ikke det værn,
       diktafonvejen har. **Det skal stå i D36, og Anne skal vide det**, før vejen
       frigives.
+      ✅ **Afgjort 18/10 (Ann): (c), forskellen accepteres skriftligt** — står i
+      D36 sammen med stopkriteriet for udgivelse. Intet maskinelt værn; den
+      tekniske beskyttelse er modelvalget (kriterium 1–3). (a) fotoet ved siden
+      af og (b) ingen priser fra foto er fravalgt. **Tilbage:** Anne skal kende
+      valget før sin QA af fotovejen.
+- [x] **Afskrift eller referat afgjort 18/10 (Ann):** under 150 ord ER
+      afskriften referatet; ingen referatmodel på fotovejen.
 
 ## Trin 4 — Skive 2: tilbudsflowet
 

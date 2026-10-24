@@ -11,6 +11,7 @@ const { hentEgenRaekke } = require("./ejerskab");
 const billeder = require("./billeder");
 const { brugFormular, frigivFormular, linkBrugtSide, forMangeBillederSide } = require("./formular-engangs");
 const { registrerPushRuter, sendNytLeadPush } = require("./push");
+const { kraevModul, registrerModulRuter } = require("./moduler");
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL,
@@ -120,6 +121,11 @@ require("./adresse")(app);
 // afsendelsen (sendNytLeadPush) kaldes fra POST /formular/:token nedenfor.
 registrerPushRuter(app, supabase);
 
+// ─── Moduler pr. firma (Fase 1b, 13/10-26) ─────────────────────────────────
+// GET /api/moduler: hvilke moduler firmaet har. Spærrerne selv sidder foran
+// tilbudsruterne nedenfor. Se moduler.js.
+registrerModulRuter(app, supabase, { tilbudAktiv: TILBUD_AKTIV });
+
 // ─── Tilbudsmodul — bag feature flag ────────────────────────────────
 // TILBUD_AKTIV=true kun i staging. Slukket betyder at ruterne slet ikke
 // registreres: /api/tilbud/* og /tilbud/* giver 404, og appen ved ikke at
@@ -131,6 +137,13 @@ registrerPushRuter(app, supabase);
 // Det er den rigtige maade at fejle paa - hoejlydt, med det samme, og kun
 // i staging, fordi prod staar slukket.
 if (TILBUD_AKTIV) {
+  // Modulspærren FØR ruterne (Fase 1b). Referathjælperen: optagelse,
+  // transskription, referat og kvoten. Gemte referater kan LÆSES uden modulet
+  // (afmeldt modul: han beholder sit eget), men ikke oprettes eller rettes.
+  // Kunder og opgaver er fundamentet og spærres ikke.
+  app.use(["/api/tilbud/kvote", "/api/tilbud/transskriber", "/api/tilbud/referat"],
+    kraevModul(supabase, "referat"));
+  app.use("/api/tilbud/referater", kraevModul(supabase, "referat", { kunSkrivning: true }));
   require("./routes/tilbud")(app, supabase);
   app.use("/tilbud", express.static("tilbud"));
 }

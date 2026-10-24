@@ -82,6 +82,35 @@ jobs:
         if: always()
         run: npm audit --omit=dev || true
 
+  # PROEVER (18/10-26).
+  #
+  # Alle proev-*.js koeres ved hvert push til staging og hver PR. Listen og
+  # reglerne staar i kor-proever.js: en proeve, der ikke staar paa en liste,
+  # goer koerslen roed, saa en ny proeve ikke kan glemmes. Proeverne koeres
+  # uden hemmeligheder (der er ingen i dette job) - de bruger falske servere,
+  # falske mikrofoner og falske databaser.
+  #
+  # IKKE (endnu) et paakraevet tjek i main's ruleset. Skal det blive det, saa
+  # tilfoej "Proever" der samme dag, som navnet her er endeligt (runbookens C3).
+  proever:
+    name: Proever
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v7
+
+      - name: Node - samme version som produktion
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Installer praecis det, laasefilen siger
+        run: npm ci --omit=dev
+
+      - name: Koer alle proever (blokerende)
+        run: node kor-proever.js
+
   # SPIKE-VAGT (21/9-26, Spike 0).
   #
   # Testsider til spikes (static/spike*, tilbud/spike*) maa ligge paa staging,

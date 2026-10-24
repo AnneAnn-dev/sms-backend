@@ -50,12 +50,25 @@ og markedsføring.
    noget · `/formular/:token` foreslår et match mod åbne opgaver/kendte kunder ·
    `/opret-opgave` er der, hvor beslutningen reelt tages. **Start strammere:**
    al matchning kræver manuel godkendelse, ingen automatisk sammenlægning endnu.
-   ⚠️ **Uafklaret spænding med punkt 1 ovenfor:** punkt 1 siger "`leads`-tabellen
-   ER opgave-tabellen, der oprettes ingen separat opgavetabel." D35 (besluttet
-   efter punkt 1 blev skrevet) taler om en selvstændig `opgaver`-tabel. Er
-   `opgaver` et nyt navn for det udvidede `leads`, eller en ægte ny tabel ved
-   siden af? Ikke afklaret i nogen af kilderne — bekræft, før migrationen til
-   D35 skrives.
+   ✅ **AFKLARET 9/10-2026 (Ann).** Spændingen stod åben siden 19/8: punkt 1
+   siger "`leads`-tabellen ER opgave-tabellen", D35 taler om en selvstændig
+   `opgaver`-tabel, og ingen af kilderne afgjorde hvilken.
+
+   **Anns formulering afgjorde det: "leads bliver til opgaver bliver til
+   tilbud."** Det er et FORLØB, ikke tre ting. Et lead bliver en opgave, når
+   nogen tager fat i den, og en opgave bliver et tilbud, når den prissættes —
+   det er den samme række længere henne i sit liv. Der skal altså ikke være en
+   `opgaver`-tabel, fordi der ikke er en selvstændig *ting* at putte i den.
+   `leads.status` bærer allerede forløbet.
+
+   **Databasen var bygget sådan hele tiden:** `referater` og `tilbud` har begge
+   `lead_id`, og adressefelterne ligger på `leads` fra migration 2.
+
+   **D35 bliver dermed mindre, end den så ud.** Den er ikke en anden datamodel,
+   men én ændring: **træk adressen ud i sin egen tabel, den dag én kunde har
+   to.** Kontakttabellerne hænger på den og giver ingen mening uden. Udløseren
+   er konkret (Ann, 9/10): *den dag en opgave faktisk har to adresser eller en
+   lejer.* Ikke før.
 
 ## De 10 datafunktioner — besluttet
 
@@ -83,9 +96,83 @@ filtrere listen og gemme resten, skrives om til eksplicitte delete-kald.
   konsollen, skal der et transkodningstrin (fx ffmpeg på Railway) ind mellem upload
   og transskription. Det er nyt arbejde, en ny afhængighed, og det ændrer
   succeskriteriet for Spike 0. **Skal afklares før endpointet designes.**
+  ✅ **AFKLARET 26/9-26 — der skal INTET transkodningstrin.** Spike 0 sendte
+  iPhonens egen fil (`audio/mp4; codecs=mp4a.40.2`, 2 min 41 sek., 3,7 MB) rå til
+  `whisper-large-v3`: HTTP 200 på 8,8 sekunder, dansk tekst retur. API-referencens
+  formatliste er altså ikke udtømmende. **Ingen ffmpeg, ingen ny afhængighed.**
+  Tallene står i `RESULTAT-05-spike0.md`. ⚠️ Og en fælde til koden: på iOS er
+  `recorder.mimeType` en TOM streng — formatet findes kun på den færdige blob.
+  Bygges filnavnet i multipart på recorderens felt, sendes filen uden endelse.
 - **Lyd gemmes ALDRIG.** Optag → transskribér → smid lydfilen væk. Kun tekst og
   referat består. Det er vores vigtigste GDPR-håndtag (ingen arkiv af
   stemmeoptagelser af tredjeparter).
+
+### Referatmodellen RETTER IKKE — besluttet 27/9-26 (Ann og Anne)
+
+Modellen må forkorte, udelade gentagelser og samle indholdet i punkter. Den må
+**ikke** bytte ordene ud. Materialer, fagudtryk, navne, mål og mængder gengives
+ordret — også når de ser forkerte ud.
+
+**Begrundelsen er brugeren, ikke teknikken.** Håndværkerne er ikke trænede
+læsere. En pæn tekst bliver læst hurtigt og godkendt; "bosvand" midt i referatet
+bliver set. Det er beslutningsgrundlagets afsnit 3 taget alvorligt: *poleringen
+fjerner de synlige fejl og bevarer de usynlige.*
+
+Målt 27/9 på de syv referater: den gamle prompt rettede ti af whispers fejl i
+stilhed (*undertallet* → undertag, *bosvand* → brugsvand, *slipning* → slibning).
+Den ordnære lader dem stå. **Prisen er taget med:** 25 % længere referater,
+volapyk i teksten, og de gode rettelser går tabt.
+
+Prompten står i `03b-referat-ordnaert.ps1` i prøvebænken. I produktet bor den i
+`server/prompts/referat.js`.
+
+### Værnet mod tilføjelser er SNÆVERT — besluttet 27/9-26 efter måling
+
+Teknik B markerer **kun tal, navne og forkortelser**, der ikke står i
+transskriptionen. Ikke alle nye ord.
+
+Den brede udgave — *alt i referatet, der ikke findes i transskriptionen* — er
+målt og forkastet: **median 51 markeringer pr. referat, en femtedel af teksten.**
+Årsagen er, at referatet er en omskrivning, ikke et uddrag. Tallene og de tre
+forkastede alternativer står i `RESULTAT-06-teknik-b.md`.
+
+- **Markeringerne må aldrig præsenteres som "her er fejlene."** De er *"det her
+  stod ikke i det, du sagde."* Et værn, der ligner en fuldstændig fejlliste, gør
+  referatet mere troværdigt — og det var grunden til, at teknik A faldt.
+- **Sikkerhedsventil:** overstiger markeringerne 10 % af referatets ord, vises
+  der ikke enkeltsteder, men én besked om at læse hele referatet igennem.
+- **Tætheden logges** pr. referat (markeringer pr. 100 ord). Efter tredive rigtige
+  referater er det et mål for, hvordan modellen klarer ægte stemmer.
+- **Re-trigger:** skiftes transskriptionsmodel, tages både dette og prompt-reglen
+  ovenfor op igen. Begge hviler på, at whisper fejler synligt. Se J9.
+
+### En diktering kan bestå af flere DELE — besluttet 26/9-26
+
+Baggrunden er D66: iOS tager mikrofonen, når appen går i baggrunden, og sporet kan
+ikke genoptages. To MP4-filer kan heller ikke limes sammen uden omkodning på
+serveren — altså ffmpeg, altså præcis den afhængighed, afklaringen ovenfor sparede
+os for. Derfor fortsætter håndværkeren i stedet i en NY del.
+
+- **Hver afbrydelse afslutter en del. "Fortsæt" starter den næste.** Målt 26/9:
+  tre dele (25,4 + 26,7 + 13,6 sek.), to afbrydelser, tab 0,0 hele vejen.
+  `Fortsæt` koster 304 ms og spørger ikke om mikrofonen igen.
+- **Hver del transskriberes FOR SIG, og teksterne sættes sammen i rækkefølge,
+  før referatmodellen ser dem.** Referatmodellen får én sammenhængende tekst og
+  må aldrig vide, at den kom i bidder.
+- **Det koster ikke mere.** Scaleway afregner pr. lydminut, ikke pr. kald: tre
+  dele à ét minut koster som ét stykke på tre.
+- **Kvoten tæller den samlede lydtid på tværs af dele** (Ø2). Ikke pr. kald, og
+  ikke kun den sidste del.
+- **En del med tab INDE i sig kasseres og tælles ikke med.** Resten af
+  dikteringen beholdes. Vi ved ikke, hvad der forsvandt i den ene del, men de
+  andre er hele. Brugeren får at vide, hvilken del der mangler.
+- **En afbrudt del, hvor lyden er hel frem til afbrydelsen, afvises IKKE —
+  brugeren spørges**, om der skal laves referat af det, han nåede. Fanen er
+  egen-diktering (J8), så det talte er en hel tanke, ikke en halv samtale.
+- Modulet, der håndhæver det, er `optager.js` (bygget og målt 26/9, ligger
+  indtil videre som `static/spike-optager.js` på staging). Det leverer
+  `dele[]` og `samlet()`; sammensætningen af teksten hører til i
+  `/api/tilbud/referat`, ikke i ASR-adapteren.
 
 ## Samtykke og afgrænsning — besluttet (J8)
 
@@ -97,24 +184,33 @@ Den beskrivelse er ikke længere gældende.
   "Kundemøde" er fjernet som valgmulighed; kun "Noter" er tilbage. Restrisikoen er
   **misbrug** — at håndværkeren optager et møde alligevel — ikke en manglende
   samtykkemekanik. Derfor er værnet tekst og ansvarsplacering, ikke en samtykkeskærm.
-- **Tre tekster er release-blokerende for diktafonen.** Godkendt af Anne 26/8;
-  implementering i koden udestår. Ordlyden er den godkendte:
-  1. **Advarsel ved optageknappen:** "Kun dine egne noter. Nævnes andre, er det dit
-     ansvar, at de ved det."
-  2. **Uddybning i onboarding:** "Referat-fanen er til dine egne noter — ikke til at
-     optage kundemøder. Du taler frit ind, og vi laver et referat af det, du selv
-     siger. Nævner du andre i optagelsen, en kollega, en kunde, er det dig, der har
-     ansvaret for at fortælle dem, at du optager."
-  3. **Linje i vilkårene:** "Referat-funktionen ('Noter') er til brugerens egne
-     notater. Nævnes tredjeparter i en optagelse, er det brugerens eget ansvar at
-     oplyse dem om det — Dit Digitale Kontor indhenter ikke samtykke på
-     tredjeparters vegne."
+- **Tre tekster er release-blokerende for diktafonen.** Godkendt af Anne 26/8 og
+  **revideret 9/9**, da fotovejen var besluttet (28/8): tekst 2 og 3 dækker nu både
+  indtaling og fotograferet seddel. **9/9-ordlyden manglede i repoet; Ann fandt den
+  18/10, og her står den.** Ordlyden er den godkendte:
+  1. **Advarsel ved optageknappen — uændret:** "Kun dine egne noter. Nævnes andre,
+     er det dit ansvar, at de ved det." Teksten er formatneutral. **Den skal stå
+     BEGGE steder: ved optageknappen og ved kameraknappen.**
+  2. **Uddybning i onboarding — omskrevet 9/9:** "Referat-fanen er til dine egne
+     noter — ikke til at optage kundemøder. Du kan tale frit ind, eller tage et
+     billede af en seddel, du selv har skrevet, og vi laver et referat af det.
+     Nævner du andre — en kollega, en kunde — i det, du taler ind, eller på den
+     seddel, du fotograferer, er det dig, der har ansvaret for, at de ved det."
+  3. **Linje i vilkårene — omskrevet 9/9:** "Referat-funktionen ('Noter') er til
+     brugerens egne notater, indtalte eller håndskrevne og fotograferede. Nævnes
+     tredjeparter i en optagelse eller på en fotograferet note, er det brugerens
+     eget ansvar at oplyse dem om det — Dit Digitale Kontor indhenter ikke samtykke
+     på tredjeparters vegne."
+- **Status 18/10:** tekst 1 står ved optageknappen i Referat-fanen (staging 15/10)
+  og i dashboardets Indtal; kameraknappen findes ikke endnu. Tekst 2 er ikke lagt
+  ind i onboardingen. Tekst 3 skrives ind i vilkårene af Anne — og J13 (17/10):
+  linjen nævner kun Referat-funktionen, ikke indtaling i opgaver.
 - **Konsekvens for CLAUDE.md's tilbuds-invariant.** Invarianten siger "tvungen
   samtykkeskærm i produktet, ikke en linje i vilkårene". Den blev skrevet, da fanen
   stadig var en mødeoptager. Med tredjeparter udelukket fra optagelse er der ikke
   længere en tredjepart at indhente samtykke fra — værnet er flyttet fra en skærm
   til en afgrænsning plus de tre tekster. **Invarianten bør omformuleres, så den
-  ikke læses som et krav, der er sprunget over.** Ikke gjort endnu.
+  ikke læses som et krav, der er sprunget over.** Gjort 13/10 (`c095d8d`, D80).
 
 ## Claude-proxy (4 AI-kald) — besluttet
 

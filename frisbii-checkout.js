@@ -183,20 +183,12 @@ module.exports = (app) => {
       ...(cleanPhone ? { phone: cleanPhone } : {}),
     };
 
-    // Én streng, ikke to. Logger man `payload` og sender `JSON.stringify(payload)`,
-    // er der to udtryk, der kan drive fra hinanden — og så måler loggen ikke det,
-    // der faktisk bliver sendt.
+    // Payloaden logges IKKE. Den midlertidige payload-logning fra Ø6 er fjernet
+    // (registrets opgave 8, 23/10-26): den skrev kundens navn i klartekst og var
+    // kun ment som diagnose, til checkout havde kørt et stykke tid. Skal en
+    // payload fejlsøges igen, så kald Frisbii direkte med test-oe6-*.ps1 mod
+    // staging — ikke ved at sætte logningen tilbage her.
     const kropp = JSON.stringify(payload);
-
-    // ⏳ MIDLERTIDIG (Ø6) — FJERNES når Ø6 er lukket og checkout har kørt et par
-    // uger. Aldrig i production: kundens navn står i klartekst. Nøglen er ikke i
-    // payloaden (den sidder i Authorization-headeren), så den lækker ikke her.
-    if (process.env.NODE_ENV !== "production") {
-      console.log(
-        "🧾 /checkout/start payload:",
-        kropp.split(email.toLowerCase().trim()).join(maskerEmail(email))
-      );
-    }
 
     let frisbiiRes;
     try {

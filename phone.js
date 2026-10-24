@@ -209,10 +209,49 @@ function kundeNoegle(input) {
   return n;
 }
 
+// ─── OPGAVENS SMS-MODTAGER (21/10-26, D88 opgave 2) ──────────────────────────
+// Reglen for, hvem en SMS fra en opgave gaar til, staar HER og kun her.
+// Foer stod den to steder: i /send-sms og i dashboardets leadTelefon() med
+// kommentaren "ret begge" (betingelse 2 fra seks-linse-gennemgangen 21/10).
+// /send-sms, /lead-telefon, /lead-modtager og "Ret kunde" i
+// routes/tilbud/data.js kalder alle disse to funktioner.
+//
+// "Let b" (Ann 21/10): en opgave skriver til det nummer, den kom fra —
+// leads.telefon, hvis haandvaerkeren har rettet det, ellers opkaldets nummer.
+// Der er intet "primaert nummer" paa kunden, og der skiftes ALDRIG i stilhed
+// til et andet af kundens numre (betingelse 4). Kundens numre i
+// kunde_telefoner paavirker kun en opgave, naar "Ret kunde" udtrykkeligt
+// flytter dens modtager (valg (i), Ann 21/10).
+//
+// opgavensNummer(): nummeret, opgaven kom fra (E.164), uden SMS-reglen.
+// kundeNoegle() bruges, saa markoeren "Manuel oprettelse", "anonymous" og
+// Twilios erstatningsnumre for skjult nummer aldrig bliver til et nummer.
+function opgavensNummer(leadTelefon, opkaldNummer) {
+  if (leadTelefon != null && String(leadTelefon).trim()) return kundeNoegle(leadTelefon);
+  return kundeNoegle(opkaldNummer);
+}
+
+// smsModtager(): { nummer, kilde, grund }
+//   nummer — E.164, som SMS'en maa sendes til, eller null
+//   kilde  — "indtastet" (leads.telefon) | "opkald" | null
+//   grund  — null | "intet" (intet nummer at sende til)
+//            | "udenlandsk" (nummeret findes, men er ikke dansk)
+// Nej til SMS til udenlandske numre (Ann 21/10): ogsaa opkaldets nummer skal
+// bestaa gyldigtSmsNummer() (betingelse 3). Foer 21/10 gjorde det ikke.
+function smsModtager(leadTelefon, opkaldNummer) {
+  const n = opgavensNummer(leadTelefon, opkaldNummer);
+  if (!n) return { nummer: null, kilde: null, grund: "intet" };
+  const kilde = leadTelefon != null && String(leadTelefon).trim() ? "indtastet" : "opkald";
+  const g = gyldigtSmsNummer(n);
+  return g ? { nummer: g, kilde, grund: null } : { nummer: null, kilde, grund: "udenlandsk" };
+}
+
 module.exports = {
   normalizePhone,
   gyldigtSmsNummer,
   kundeNoegle,
+  opgavensNummer,
+  smsModtager,
   maskerTlf,
   maskerMail,
   hentEjedeNumre,

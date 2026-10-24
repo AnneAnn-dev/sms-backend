@@ -20,8 +20,8 @@ Der findes to kopier af `docs/`, og kun den ene er sand:
 **Ritualet, når en session skal skrive i dokumenterne:**
 
 1. Ann kører `sync-docs.ps1` (visning). Er arbejdstræet bagud: `-Hent` først.
-2. Sessionen skriver i arbejdskopien.
-3. Ann kører `sync-docs.ps1 -Aflever`, læser `git diff -- docs` og committer.
+2. Sessionen skriver i `_til-repo\` — IKKE direkte i arbejdskopiens `docs\`. Se afsnittet nedenfor.
+3. Ann kopierer fra `_til-repo\` til master, læser `git diff -- docs` og committer MED DET SAMME.
 
 **Bed om trin 1, hvis det ikke er gjort.** En session, der redigerer en forældet kopi, producerer en fletning, ingen bad om. Det skete 13/8 (to grene af registret, ingen af dem komplet) og igen 27/8 (projektkopien seksten minutter bagud, D37 manglede).
 
@@ -37,7 +37,71 @@ Det skete **fem gange mellem 28/8 og 13/9**. Hver gang var indholdet i orden; de
 
 **"Redigeres nu"-linjen fanger det ikke.** Den bor inde i filen, og filen findes to steder — en lås sat i arbejdskopien er usynlig i master og omvendt. Den er et høflighedsskilt mellem sessioner, der læser den *samme* fil. **Git er det eneste, der fanger det på tværs.**
 
-Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet.
+Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroniseringen, men registret er akkumuleret beslutningshistorik, der kun findes ét sted, indtil den er pushet. Hele kæden — også for kode — står under **Kodeleverancer**: *hent → skriv → commit → push → bekræft*.
+
+### Leveringen går gennem `_til-repo\` (fastlagt 1/10-26)
+
+Ritualet ovenfor havde et hul: arbejdskopiens `docs\` kan når som helst blive
+overskrevet — af en `sync-docs.ps1 -Hent`, af en anden chats aflevering eller af en
+manuel `Copy-Item`. Sker det i minutterne mellem, at en session har skrevet færdig,
+og at Ann har committet, er arbejdet væk uden en lyd.
+
+**Det skete fire gange på én dag (1/10-26).** To færdigskrevne tilføjelser til
+registret forsvandt; S29 måtte skrives to gange. Ingen af gangene fejlede noget —
+filen blev bare lagt tilbage til en ældre udgave. Se **S29** i registret.
+
+**Reglen:**
+
+1. Sessionen skriver dokumentændringer til
+   `C:\Users\Bruger\claude-arbejdstrae\_til-repo\<kort-emne>\<filnavn>` og **oplyser TO tal: hvilken udgave den byggede på (basen), og hvad
+   resultatet fylder** — begge i bytes. ⚠️ **Undermappen pr. opgave er ikke pynt:** reglen
+   her gælder ALLE sessioner, så to chats, der begge skriver `_til-repo\RISIKOREGISTER.md`,
+   har flyttet kapløbet til en ny mappe i stedet for at fjerne det. Det skete inden for en
+   time efter, at reglen blev indført (1/10-26). Vælg et navn, der siger hvad opgaven er —
+   fx `_til-repo\s20-s29\` eller `_til-repo\tekstrettelser\`.
+2. **Ann afstemmer BASEN mod master, FØR hun kopierer** — og på den rigtige branch:
+   `git branch --show-current` (dokumenterne committes på `staging`), derefter
+   `(Get-Item docs\<fil>).Length`. Tallet skal være sessionens basetal. Er det et andet,
+   har sessionen bygget på en forældet udgave, og en kopiering vil skrive nyere arbejde
+   væk. STOP, og send tallet tilbage — det koster sessionen få minutter at bygge om.
+3. Ann tjekker størrelsen på KILDEN, kopierer til master, tjekker størrelsen på MÅLET,
+   læser diffen, og committer. I den rækkefølge. Passer tallet ikke, så STOP — kopiér ikke
+   alligevel, og spørg hvad der er kommet imellem.
+4. `sync-docs.ps1` dækker kun `docs\*.md` og `CLAUDE.md`. Undermappen `_til-repo\` er
+   derfor usynlig for den — det er hele pointen, og den må ikke tilføjes til scriptet.
+
+**Hvorfor størrelsen oplyses:** den er det eneste signal, Ann har, om hun kopierer
+sessionens udgave eller noget, der er kommet imellem. Passer tallet ikke, så STOP og
+spørg — kopier ikke alligevel.
+
+**Hvorfor der er TO tal (tilføjet 10/10-26):** der er to kapløb, ikke ét. Det ene ligger
+mellem sessionens fil og Anns kopiering — det fanger resultat-tallet. Det andet ligger FØR
+sessionen overhovedet skriver: har den hentet en forældet udgave at bygge videre på, er
+skaden sket, før filen bliver lagt, og hverken undermappen eller resultat-tallet kan se det.
+**Det skete 9/10-26:** en levering blev bygget på en gammel udgave, og D3, D77, D78 og
+9/10-linjen måtte genskabes (commit `f8cf8d1`, *"overskrevet af 14665de"*). Begge de
+eksisterende led virkede den dag. Base-tallet er det led, der manglede.
+
+**Branchen hører med.** Registret og runbøgerne committes på `staging`; `main` får dem
+først, når et tog kører — 10/10-26 stod `main`s register ni dage bagud. Står du på `main`,
+når du kopierer, committer du dokumenter ad en vej, ingen har besluttet, og udløser et
+prod-deploy oveni. Derfor står `git branch --show-current` først i punkt 2.
+
+**Diffen er dommen, tallet er kun en forhåndskontrol.** `git diff -U0 docs/ |
+Select-String '^[+-]\| '` viser netop de tabelrækker, der er tilføjet eller fjernet.
+Dukker der `-`-rækker op, som ingen har bedt om, er noget skrevet væk.
+
+**Timing, så ingen gætter på den:** en sessions skrivning er FÆRDIG, før den skriver
+sin besked i chatten. Der er intet efterslæb. Risikovinduet ligger efter skrivningen —
+mellem fil og commit. Derfor: **kopiér og commit først, spørg bagefter.**
+
+**Én chat ad gangen i dokumenterne.** To sessioner i samme fil er den anden halvdel af
+årsagen (S29). "Redigeres nu"-linjen er et svagt signal, ikke en spærre — den
+forudsætter, at alle læser den.
+
+**`git status docs/` er et fast punkt i driftsvinduet.** Spørgsmålet er: ligger der
+dokumentarbejde, som git aldrig har set? 1/10-26 var svaret ti dage, og en enkelt
+`git checkout` kunne have slettet det hele.
 
 ## Stack & konventioner
 
@@ -46,7 +110,7 @@ Rækkefølgen er: **skriv → commit → push.** Push er ikke en del af synkroni
 - Windows / PowerShell 5.1 / VS Code. Scripts køres lokalt, ikke på Railway.
 - **`.ps1`-filer skal være REN ASCII** (PS 5.1 fejllæser UTF-8 uden BOM). Ingen æøå, ingen emoji i .ps1.
 - Git: `main` (PR-beskyttet, = prod) · `staging` · feature-branches. Arbejd altid på en branch, aldrig direkte på main.
-- **CI kører ved push til `staging` og ved PR til `main`** (`.github/workflows/ci.yml`): `npm ci --omit=dev` + `npm audit`. ⚠️ Grænsen er `--audit-level=critical`, ikke `high` — det er et bevidst valg (S22), og prisen er, at et NYT high-fund ikke blokerer. Læs derfor "Fuld rapport"-trinnet, når du rører afhængigheder.
+- **CI kører ved push til `staging` og ved PR til `main` og `staging`** (`.github/workflows/ci.yml`): `npm ci --omit=dev` + `node audit-tjek.js`. Grænsen er `high`: ethvert high- eller critical-fund blokerer, undtagen dem, der står navngivet (GHSA-id + pakke) i `UNDTAGELSER` øverst i `audit-tjek.js` (S30). ⚠️ **Sænk aldrig grænsen for at komme forbi et fund** — skriv det i registret med re-trigger, og tilføj derefter undtagelsen. En undtagelse, der ikke længere dækker noget, gør CI rød; rettelsen er at slette linjen. `npm run audit` kører samme tjek lokalt. Begge CI-jobs er påkrævede tjek på `main` (runbookens C3), så rød CI spærrer merge. Moderate fund blokerer ikke — læs derfor "Fuld rapport"-trinnet, når du rører afhængigheder.
 - **Dependabot** åbner PR'er mod `staging` (`.github/dependabot.yml`). Konfigurationsfilen læses fra `main`.
 - EU-datasuverænitet er et produktprincip: ingen nye US-tjenester eller tredjeparts-analytics uden eksplicit beslutning fra Ann.
 
@@ -79,11 +143,16 @@ Fire regler, der gælder alt arbejde i dette repo.
 - Antag aldrig at `create table if not exists` har sat alle kolonner — tjek om tabellen findes i forvejen (messages-fælden).
 - Nye tabeller får **RLS slået til fra første migration**. Ingen tabel uden en bevidst policy-beslutning (evt. "RLS til, ingen policies" = kun service role, som `onboarding_sidevisninger`).
 - **Kan migrationen rulles tilbage?** Er svaret nej, skal det stå eksplicit i migrationsfilens kommentar.
+- **To fremmednøgler mellem de samme to tabeller får PostgREST-embedding til at fejle** (`kunder(navn)` gav "Noget gik galt" på kundesiden, 19/10-26). Tjek med `pg_constraint`, at der er præcis én, før en ny sammensat fremmednøgle lægges oven på en enkel.
+- **`leads.name`, `address` og `task` er NOT NULL.** En klient sender en tom værdi som `''`, aldrig `null` — ellers afvises HELE opdateringen (23502), og alt andet i den forsvinder med (adresse-hotfix 19/10-26). Tjek `is_nullable` i `information_schema.columns`, før ny kode skriver `null` i en kolonne.
+- **Browseren kan kun skrive de kolonner på `leads`, der står i en grant** (S35, 21/10-26): `address, address_mail, is_urgent, name, notes, seen_at, sidst_roert, startet_at, status, task, titel`. `firm_id`, `id`, `call_id`, `kunde_id`, `telefon` og `created_at` skrives kun af serveren. **En ny kolonne, som dashboardet skal skrive, kræver `grant update (<kolonne>) on public.leads to authenticated`** i samme migration — ellers svarer databasen 42501 ("permission denied for table leads"), og hele gemningen afvises. Det er meningen: nye kolonner er lukkede, indtil nogen har besluttet andet.
+- **Før en migration, der ændrer rettigheder eller politikker, køres i prod: tjek hvad PROD-dashboardet skriver** (`git grep -n "\.update(" origin/main -- static`). Prod kører en ældre udgave end staging, og en kolonne, staging ikke længere bruger, kan stadig blive skrevet i prod (S35, 21/10-26).
 
 ## Sikkerhed
 
 - RLS er hele tenant-isolationen. Backend-kald med service role omgår RLS → **hvert endpoint, der modtager et id fra klienten, skal selv verificere ejerskab** via tokenets firm-kobling (IDOR). `firm_id` udledes af Bearer-token, aldrig af request-body.
 - Nye tabeller med brugerdata: SELECT-policy via `firm_users`-opslag; skrivning helst kun server-side (mønster: `messages`).
+- **Permissive RLS-politikker gælder, hvis BARE ÉN godkender — og ved UPDATE tjekkes den nye række også mod SELECT-politikkerne.** En gammel politik, der kun ser på `call_id`, åbnede for at flytte en opgave til et andet firma, selvom den nye politik på `firm_id` var korrekt (S35, 21/10-26). Når ejerskabet flytter til en ny kolonne, fjernes de gamle politikker i samme omgang. Test med de politikker, der faktisk er målt (`pg_policies`) i begge miljøer — staging og prod havde ikke de samme.
 - Modtager-numre, beløb o.l. udledes server-side, ikke fra klienten (mønster: `/send-sms`).
 - **Ingen persondata i logs.** Telefonnumre, adresser, navne, e-mails, lead-indhold og transskriptioner maskeres før udskrivning — også i fejlbeskeder til AppSignal. Hjælperne bor i `phone.js` (`maskerTlf`, `maskerMail`) og skal deles, ikke kopieres.
 - **Ingen ny dublet.** Skal en værdi bruges et nyt sted, hentes den fra sin kilde. Kan den ikke hentes, skal der findes et afstemningsscript, der opdager drift. Kopier uden afstemning er forbudt.
@@ -98,6 +167,7 @@ Fire regler, der gælder alt arbejde i dette repo.
 - Systemnummeret (`TWILIO_SYSTEM_NUMBER`) må aldrig i nummerpuljen.
 - **Læsning af `.env*`, `config.php` og andre hemmelighedsfiler.** Har du brug for en variabels værdi: spørg Ann.
 - **`railway variables`, `supabase secrets`, `gh secret` og lignende** — de omgår ovenstående ad bagvejen.
+- **`supabase migration repair`** — også når CLI'en selv foreslår den. Den markerer migrationer som rullet tilbage, der stadig ligger i databasen, og næste push kører dem igen. *"Remote migration versions not found"* betyder forkert gren eller forkert mappe: hotfix-migrationer lægges fra `staging`-grenen (runbookens Del 1b, faldgruber 10-11/10).
 - **Enhver adgang til `C:\Users\Bruger\sms-backend` fra en Cowork-session — læsning såvel som skrivning.** Sessionen har adgang til `claude-arbejdstrae` og kun den. Skal du se en fil fra repoet, så bed Ann lægge den i arbejdstræet (`sync-docs.ps1 -Hent`) frem for at bede om adgang eller om at få indholdet indsat. Foreslå ændringer; Ann udfører dem. **Spærringen er bevidst: den er grunden til, at et forkert forslag ikke kan blive til en forkert commit — og at ingen session kan komme til at læse `.env` ad omveje.**
 
 ## "Færdig"-tjekliste — gennemgås før hver commit
@@ -110,6 +180,7 @@ Fire regler, der gælder alt arbejde i dette repo.
 - [ ] **Rollback-vejen kendt**, inklusive om migrationen kan rulles tilbage
 - [ ] **Fem linjers begrundelse i repoet**: hvad valgte jeg, hvad var alternativet, hvorfor
 - [ ] **Stopkriteriet var skrevet ned før start** — og det blev overholdt
+- [ ] **En ny `proev-*.js` i repo-roden står i `KOERES` eller `IKKE_I_CI` i `kor-proever.js`** — ellers bliver CI rød (#345, 18/10-26)
 
 ## Seks-linse-tjek — beslutninger og kode
 
@@ -135,13 +206,15 @@ Gælder al kode i modulet. Er én af dem ikke opfyldt, er opgaven ikke færdig.
 - **Ændringer på tilbud er append-only.** Et afsendt tilbud redigeres ikke — det erstattes af en ny version.
 - **Modelstrengen låses eksplicit.** Ingen implicit "seneste model".
 - **Lyd persisteres ikke.** Transskription opbevares efter besluttet frist, aldrig længere.
-- **Tredjeparter informeres før optagelse** — tvungen skærm i produktet, ikke en linje i vilkårene.
+- **Referat-fanen optager kun håndværkerens egne noter — ingen samtykkeskærm** (J8, afgrænset 19/8). Værnet er afgrænsningen ("Noter", aldrig "Kundemøde" — i UI, prompts og markedsføring) plus tre tekster, Anne har godkendt: advarslen ved optage- og kameraknappen, uddybningen i onboarding og linjen i vilkårene. De er release-blokerende for diktafonen. Ordlyden er den, Anne senest har godkendt (9/9) — aldrig en, Claude har formuleret. Uddybning i `docs/tilbud-primer.md`, "Samtykke og afgrænsning".
 - ⚠️ **`tilbud/`-mappen serveres offentligt** (`server.js:108`). Kun det, browseren skal bruge, må ligge der — HTML, CSS, klient-JS, ikoner. Prompter, priser, modelkonfiguration og kvotelogik bor uden for. Reglen står i `tilbud/README.md`, hvor fejlen ville blive begået (**S17**).
 
 ## Deploy & frontend
 
 - Deploy = merge til `staging` (Railway auto-deployer) → røgtest → PR til `main`. Små, reversible deploys; adskil deploy fra release (feature flags frem for big bang).
 - **Bump service worker-cacheversionen i `sw.js` ved ENHVER frontend-ændring.**
+- **Test en frontendændring i en FRISK fane** (eller genstart PWA'en). En gammel fane serverer den cachede side fra den forrige service worker og får en virkende rettelse til at se ud, som om den ikke virker (S33 i prod, 18/10-26).
+- **Input-felter skal have mindst `font-size: 16px`.** Under 16px zoomer iOS siden ind ved fokus og zoomer ikke ud igen — bundbjælken ender midt i billedet (18/10-26).
 - Frontend-JS skrives defensivt: al DOM-udfyldning gennem `setText`-mønsteret (manglende element må aldrig kaste), permission-API'er (Notification, mikrofon m.fl.) altid feature-detected + i try/catch, nye blokke selvstændige så de ikke kan vælte dashboardet (mønster: app-hilsen).
 - QA-regel efter ethvert redesign: fuldt id-tjek (`getElementById` ↔ `id=`). Husk: localhost-demoen skjuler init-fejlklassen — test med rigtigt login på staging.
 - iPhone-PWA'en deler ikke lagring med Safari, og standalone-mode har egne fælder — mobilfeatures røgtestes i den **installerede** app på ægte iPhone, ikke kun i Safari.
@@ -179,6 +252,37 @@ efter en logikfejl i kode, der slet ikke var deployet.
    Ét `Select-String` på en streng, der kun findes i den nye udgave, tager fem
    sekunder. Det er samme disciplin som "min ændring er med i deployet",
    anvendt ét led tidligere — på selve filen.
+
+### Base og resultat som git-hashes for kode (19/10-26)
+
+For kodefiler oplyses base og resultat som git-hashes, ikke kun bytes. Bytes afhænger
+af CRLF/LF; en hash gør ikke (git normaliserer, før den regner):
+
+- **Basen** — før kopiering: `(git rev-parse origin/staging:<sti>) -eq '<hash>'`. `False` = stop; sessionen har bygget på en anden udgave.
+- **Resultatet** — efter kopiering: `(git hash-object <sti>) -eq '<hash>'`.
+
+Dokumenter (registret, runbooken) beholder byte-tallene ovenfor: de kopieres som de er
+og afstemmes mod master.
+
+**Commit kun opgavens egne filer.** En ucommittet ændring i arbejdskopien følger med ved
+branch-skift (`gdpr.xlsx` stod pludselig i en hotfix til `main`, 21/10-26). Brug
+`git add <fil>` — aldrig `git add .` eller `-a` — og tjek `git status --short` før og
+`git show --stat HEAD` efter commit.
+
+### Kæden, i én linje: **hent → skriv → commit → push → bekræft**
+
+Gælder både dokumenter og kode. Hvert led lukker en fejl, der er sket i virkeligheden:
+
+| Led | Hvad det betyder | Fejlen det lukker |
+|---|---|---|
+| **hent** | Hent filen lige før levering. Aldrig fra en tidligere hentning i samme samtale | `onboarding.html` 13/9: trin 1 skrevet væk af en ældre kopi · `ci.yml` 24/9: `--audit-level` rullet fra `high` tilbage til `critical` af en kopi fra 7/9 |
+| **skriv** | I arbejdskopien, aldrig i master. Sæt "Redigeres nu" i registret først | 13/8 og 13/9: to sessioner skrev fra hver sin kopi, tre skrivninger tabt |
+| **commit** | Med det samme, også når det kun er to linjer | Fem gange 28/8-13/9: en ugemt ændring i `docs/` blokerede `sync-docs.ps1` for alle andre |
+| **push** | Straks efter commit | Registret er beslutningshistorik, der kun findes ét sted, indtil det er pushet |
+| **bekræft** | Ét `Select-String` på en streng, der kun findes i den nye udgave | En bestået tidsstempel-vagt beviser ikke, at indholdet er det rigtige |
+
+**Tidsstempel-vagten og "Redigeres nu" er høflighed, ikke beviser.** Kun sidste led — et
+tjek, der ville fejle, hvis leveringen var forkert — er et bevis.
 - Konkrete, holdningsstærke anbefalinger + proaktiv risiko-flagging. Forklar *hvorfor* før *hvordan* ved arkitekturvalg.
 - Fejlhåndtering: fail-closed på miljø/sikkerhed, fail-open (ikke-fatalt) på analyse/logning — analyse må aldrig genere kunden.
 - Går noget galt undervejs — forkert miljø ramt, hemmelighed eksponeret, utilsigtet skrivning: **sig det med det samme**, og noter det i `docs/HAENDELSESLOG.md`.

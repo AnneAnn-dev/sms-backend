@@ -54,6 +54,17 @@ adapteren til at fejle — de sættes til `null`, og det, der læser dem, tåler
 
 ---
 
+## Adapteren kender ÉN fil — med vilje
+
+En diktering kan bestå af flere dele (D66, besluttet 26/9 — se `tilbud-primer.md`).
+**Det er ikke adapterens problem.** Den tager én lydfil ind og giver én tekst ud.
+Sammensætningen af delenes tekster hører til i kaldekoden (`/api/tilbud/referat`).
+
+Grunden er den samme som ovenfor: adapteren skal være tynd nok til, at et
+leverandørskifte er en eftermiddag. Bygger nogen multifil-understøttelse ned i
+den, er den holdt op med at være en adapter. **Det ligner en mangel. Det er en
+grænse.**
+
 ## Ind i adapteren
 
 ```js
@@ -79,8 +90,26 @@ med at være en adapter.
 TILBUD_ASR_LEVERANDOER=scaleway
 TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1
 TILBUD_ASR_MODEL=whisper-large-v3
-SCW_SECRET_KEY=...                  # nøglen under leverandørens eget navn
+SCW_GENAI_SECRET_KEY=...            # nøglen under leverandørens eget navn
 ```
+
+**`<projekt-id>` er et UUID**, ikke access key'en. Sætter man access key'en ind
+(`SCW…`, tyve tegn), svarer Scaleway `404 ROUTE NOT FOUND` — og fejlen ligner en
+forkert sti, ikke en forkert værdi. Kostede tid 27/9. Adapteren afviser nu
+adressen, før der ringes, med en `asr_konfiguration`-fejl der siger hvad der
+mangler.
+
+**Nøglen er `SCW_GENAI_SECRET_KEY`, ikke `SCW_SECRET_KEY`** (besluttet 27/9,
+omdøbt 2/10). Scaleway-mailen (TEM) bruger `SCW_SECRET_KEY`. To formål, to
+nøgler: en rotation af mailnøglen må ikke slå dikteringen ud, og et læk af den
+ene må ikke give begge dele.
+
+**Men transskription og referat deler nøgle** (omdøbt 2/10 fra
+`SCW_ASR_SECRET_KEY`). Det er ét produkt — Generative APIs — på ét projekt, så
+et læk af den ene er et læk af den anden. En opdeling ville ikke købe sikkerhed,
+kun en udløbsdato mere. `tekst-adapter.js` læser den samme variabel.
+Nøglen bæres af IAM-applicationen `ddk-genai-staging` (omdøbt 2/10 fra
+`ddk-transskription`). Prod får sin egen — se `RUNBOOK-noeglerotation.md`.
 
 **Modelstrengen låses eksplicit** (D14). Aldrig et alias, aldrig "latest" — en model, der
 skifter under os, gør regressionssættet værdiløst uden at nogen opdager det.
@@ -104,6 +133,34 @@ En fremtidig leverandør kan afregne pr. kald.
 
 Ellers er budgettet forkert **den dag, modellen skiftes** — og det er nøjagtig den dag,
 ingen kigger på budgettet, fordi opmærksomheden er på kvaliteten.
+
+---
+
+## Første rigtige kald — målt 28/9
+
+*`optagelse 1 tømrer.m4a`, 2,8 MB, 163 sekunder, mod `whisper-large-v3`.*
+
+| | Målt | Hvad det afgør |
+|---|---|---|
+| Pris | **6,09 øre** | Beregnet på forhånd til 6,08 (2,24 × 163/60). **Prisenheden er bekræftet mod en faktureret handling**, ikke mod en prisside. `kvote.js` kan regne på adapteren |
+| Svartid | 9,3 sek. (**forhold 1 : 17**) | 2½ minuts diktering ≈ 10 sek. ventetid. Tre dele ≈ 30 sek. |
+| Segmenter | 29, **alle med konfidens** | Kravet om segmenter holder. Feltet er der — og må aldrig vises |
+| Format | `.m4a` uændret | Ingen konvertering. Samme fund som Spike 0 |
+
+**Konsekvensen af svartiden ligger på skærmen, ikke på serveren.** Ti sekunder
+uden synlig aktivitet på en telefon får brugeren til at trykke igen — dobbelt
+betaling og to referater — eller til at låse skærmen, hvilket på iOS kan dræbe
+kaldet. Ruten kræver derfor en synlig arbejdstilstand og en knap, der slår sig
+selv fra ved første tryk. **Tallet, siden skal kunne holde til, er 30 sekunder,
+ikke 10:** fortsæt-knappen (D66) kan give tre dele.
+
+**Timeout'en er en hængedetektor, ikke en grænse.** 120 sekunder rummer ved
+forholdet 1:17 ca. 34 minutters lyd — den kommer aldrig i vejen for normal brug.
+Den findes udelukkende for at svare på "leverandøren svarer aldrig", så vi fejler
+med vores egen besked i stedet for at lade forbindelsen hænge.
+
+**Åbent:** skal timeout'en følge lydens længde, så en hængende leverandør fanges
+hurtigere ved et kort kald? Afgøres ved opgave 4, ikke sat i stilhed nu.
 
 ---
 
