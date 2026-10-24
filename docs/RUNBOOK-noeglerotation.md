@@ -22,6 +22,7 @@ ligner en tastefejl.**
 | Udløber | Variabel | Service | Hvad der holder op med at virke |
 |---|---|---|---|
 | **2027-10-03** | `SCW_GENAI_SECRET_KEY` (Railway staging + `.env.staging`) | Generative APIs, application `ddk-genai-staging`, nøglen "Railway staging - tilbudsmodulet" | **Både transskriptionen OG referatet** i tilbudsmodulet |
+| **? — LÆS I KONSOLLEN** (oprettet 24/10-2026, højst ét år) | `SCW_GENAI_SECRET_KEY` (Railway **prod** + `.env.prod`) | Generative APIs, application `referater-prod`, projekt `referater produktion` | **Transskription og referat i PROD** — piloternes Referathjælper. Skriv datoen her og i årshjulet |
 | **2027-10-03** | `SCW_SECRET_KEY` i `.env.proevebaenk` ⚠️ | Generative APIs, samme application, nøglen "Proevebaenk - Anns maskine" | Prøvebænken. Ingen kunde mærker det — men målingerne stopper, og vi opdager det først, når vi skal måle |
 | **? — LÆS I KONSOLLEN** | `SCW_SECRET_KEY` | TEM (mail) | `/onboarding/nyt-link` (glemt adgangskode) og onboarding-mails. **I BEGGE miljøer**, fordi nøglen er delt |
 
@@ -211,6 +212,14 @@ prod har aldrig kendt det gamle navn.
   egen application og sin egen nøgle**: et læk på staging må ikke kunne læse
   prods regning. Den kommer til at hedde `ddk-genai-prod` og oprettes den dag
   `TILBUD_AKTIV` tændes i prod — ikke før.
+- ✅ **Prods nøgle oprettet 24/10-2026 — under andre navne end planlagt:**
+  IAM-application **`referater-prod`** (ikke `ddk-genai-prod`) i sit **eget
+  projekt `referater produktion`**, policy `referat-generative-apis-prod` med
+  `GenerativeApisModelAccess` kun på det projekt. Det egne projekt giver prods
+  forbrug sin egen linje i Cost Manager, og nøglen har kun fået adgang til
+  det projekt (den modsatte prøve — nøglen mod et andet projekt → 403 — er ikke målt). Prods `TILBUD_ASR_URL` og `TILBUD_REFERAT_URL` har det projekts id.
+  `GET /v1/models` med prods id svarede 200 — **ikke et bevis** (se trin 4);
+  beviset er det første referat i prod.
 - **Adressen indeholder projekt-id'et, ikke access key'en:**
   `TILBUD_ASR_URL=https://api.scaleway.ai/<projekt-id>/v1`. Projekt-id er et
   UUID og ændres ikke ved rotation — det er kun secret key'en, der skiftes.
@@ -232,7 +241,7 @@ prod har aldrig kendt det gamle navn.
    transskribere. **Mål det, du spørger om — ikke noget lettere ved siden af.**
 5. Er modelnavne ændret undervejs: `node proev-tekst-adapter.js --modeller`.
    Gratis, og den fanger et navn, der ser rigtigt ud og ikke findes (3/10).
-6. Samme i `.env.prod` + Railway prod, med sin egen application `ddk-genai-prod`.
+6. Samme i `.env.prod` + Railway prod, med sin egen application `referater-prod` (projekt `referater produktion`).
 7. **Slet den gamle nøgle — og mål så igen.** Sletningen er ikke oprydning efter
    beviset; den ER beviset. Så længe den gamle nøgle lever, består enhver prøve,
    uanset hvilken nøgle der faktisk er i brug. 3/10 så vi grønt hele vejen, og
@@ -590,6 +599,7 @@ og `SUPABASE_ANON_KEY`.
 | 2026-07-24 | Frisbii | API-nøgle + webhook-secret, begge konti. |
 | 2026-07-24 | Supabase | Migreret til sb_publishable/sb_secret, legacy deaktiveret, begge projekter. |
 | 2026-07-24 | Twilio | Auth-token roteret via sekundært token, begge konti. |
+| 2026-10-24 | Scaleway Generative APIs | **Ny** prod-nøgle: projekt `referater produktion`, IAM-application `referater-prod`, policy `referat-generative-apis-prod` (`GenerativeApisModelAccess`, kun det projekt). Secret key i Bitwarden → `SCW_GENAI_SECRET_KEY` i Railway prod og `.env.prod` ved tændingen. Udløbsdato: læs i konsollen og skriv i tabellen øverst. `GET /v1/models` 200 med prods id; det rigtige bevis er det første referat i prod. |
 | 2026-10-03 | Scaleway Generative APIs | **To nye nøgler** på `ddk-genai-staging`, begge med udløb **2027-10-03**: "Railway staging - tilbudsmodulet" og "Proevebaenk - Anns maskine". Begge gamle nøgler slettet. Forløbet: de to gamle kunne ikke kendes fra hinanden på beskrivelsen, så vi udskiftede frem for at gætte. Efter sletningen svarede staging **403** (slettet nøgle, ikke manglende rettighed) — Railway kørte stadig den gamle nøgle i hukommelsen, fordi ingen deployment havde set variabelskiftet. Efter en fremtvunget deployment: 200, 163 lydsekunder, 6,09 øre, bogføringen stemte. |
 | 2026-10-02 | Scaleway Generative APIs | **Omdøbt** `SCW_ASR_SECRET_KEY` → `SCW_GENAI_SECRET_KEY`. Samme nøgle, samme værdi, samme udløbsdato — kun variabelnavnet. Grunden: referatet bruger nu den samme nøgle, og et navn med `ASR` i ville være forkert. Gjort mens KUN staging havde variablen. Rækkefølge uden huller: ny variabel tilføjet → kode pushet → rigtigt kald verificeret (6,09 øre, bogføringen stemte) → gammel variabel slettet. IAM-applicationen omdøbt samme dag: `ddk-transskription` → `ddk-genai-staging` (samme application, samme nøgle). |
 | 2026-09-27 | Scaleway Generative APIs | **Ny** nøgle oprettet: IAM-application `ddk-transskription`, `SCW_ASR_SECRET_KEY`, adskilt fra TEM. **Udløber 2027-09-28.** Verificeret med et rigtigt kald 28/9. |
