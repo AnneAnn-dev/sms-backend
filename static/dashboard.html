@@ -266,6 +266,30 @@
     body.faner .afslut-opt { background: var(--white); }
     body.faner .afslut-opt .opt-title { font-size: 17px; }
     body.faner .afslut-opt .opt-desc { font-size: 16px; }
+
+    /* D94 trin 1c (27/10-26): profilen som en oversigt, man folder ud (▸/▾).
+       Kortene ligger i <details>; uden faner er de aabne og overskriften
+       (summary) skjult, saa siden ser ud som foer. Med faner lukker
+       aktiverFaner() dem — kun "Din telefonpasser" staar aaben. */
+    .profil-punkt > summary { display: none; }
+    body.faner .profil-punkt { border-bottom: 1px solid var(--line); }
+    body.faner .profil-punkt.under { border-bottom: 1px solid #EDF0F4; }
+    body.faner .profil-punkt.under:last-child { border-bottom: none; }
+    body.faner #profil-telefonpasser { border-top: 1px solid var(--line); }
+    body.faner .profil-punkt > summary { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 4px; list-style: none; cursor: pointer; font-size: 17px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    body.faner .profil-punkt.under > summary { min-height: 48px; font-size: 16px; }
+    body.faner .profil-punkt > summary::-webkit-details-marker { display: none; }
+    body.faner .profil-punkt > summary::before { content: '▸'; flex: 0 0 14px; font-size: 13px; color: var(--steel); }
+    body.faner .profil-punkt[open] > summary::before { content: '▾'; }
+    .profil-tal { font-weight: 400; color: var(--ink-muted); }
+    body.faner .profil-gruppe { padding-left: 24px; }
+    body.faner .profil-punkt .wl-title, body.faner .profil-punkt .greeting-title, body.faner .profil-punkt .pw-title { display: none; }
+    body.faner .profil-punkt .wl-card, body.faner .profil-punkt .greeting-card, body.faner .profil-punkt .pw-card { border: none; padding: 0 4px 18px 28px; }
+    body.faner .profile-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 4px 18px; }
+    body.faner .profile-avatar { width: 56px; height: 56px; flex: 0 0 56px; font-size: 17px; margin: 0; }
+    body.faner .profile-name { font-size: 17px; overflow-wrap: anywhere; }
+    body.faner .profile-firm { font-size: 16px; margin-top: 0; }
+    body.faner .profile-phone { display: none; }
     .btn-igang { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); cursor: pointer; }
 
     /* Profil */
@@ -739,23 +763,21 @@
   <div class="page" id="page-profil">
     <div class="profile-card">
       <div class="profile-avatar" id="profile-avatar">—</div>
-      <div class="profile-name" id="profile-name">—</div>
-      <div class="profile-firm" id="profile-firm">—</div>
-      <div class="profile-phone" id="profile-phone">—</div>
+      <div class="profile-tekst">
+        <div class="profile-name" id="profile-name">—</div>
+        <div class="profile-firm" id="profile-firm">—</div>
+        <div class="profile-phone" id="profile-phone">—</div>
+      </div>
     </div>
 
-    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
-    <div class="wl-card">
-      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
-      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
-      <div class="wl-add">
-        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
-        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
-        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
-      </div>
-      <div id="wl-error" class="wl-error"></div>
-      <div id="wl-list" class="wl-list"></div>
-    </div>
+    <!-- D94 trin 1c: Din telefonpasser samler besked, viderestilling,
+         VIP-numre og notifikationer. -->
+    <details class="profil-punkt" id="profil-telefonpasser" open>
+    <summary>Din telefonpasser <span class="profil-tal" id="profil-tp-nummer"></span></summary>
+    <div class="profil-gruppe">
+
+    <details class="profil-punkt under" id="profil-besked" open>
+    <summary>Din besked</summary>
 
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
     <div class="greeting-card">
@@ -792,7 +814,10 @@
       </button>
       <div class="greeting-saved" id="g-saved"></div>
     </div>
+    </details>
 
+    <details class="profil-punkt under" id="profil-viderestilling" open>
+    <summary>Din viderestilling</summary>
     <!-- Viderestilling: firmaets nummer + koder til/fra (efterspurgt: Anne
          mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
     <div class="greeting-card">
@@ -820,6 +845,47 @@
       </details>
     </div>
 
+    </details>
+
+    <details class="profil-punkt under" id="profil-vip" open>
+    <summary>VIP-numre <span class="profil-tal" id="wl-count-vip"></span></summary>
+    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
+    <div class="wl-card">
+      <div class="wl-title">VIP-numre <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
+      <div class="wl-add">
+        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
+        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
+        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
+      </div>
+      <div id="wl-error" class="wl-error"></div>
+      <div id="wl-list" class="wl-list"></div>
+    </div>
+
+    </details>
+
+    <details class="profil-punkt under" id="profil-notifikationer" open>
+    <summary>Notifikationer</summary>
+    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
+         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
+         kortet passer ind uden ny CSS. -->
+    <div class="greeting-card" id="push-card">
+      <div class="greeting-title">Beskeder</div>
+      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
+      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
+        <span id="push-toggle-label">Slå notifikationer til</span>
+        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
+      </button>
+      <div class="greeting-saved" id="push-status"></div>
+    </div>
+
+    </details>
+
+    </div>
+    </details>
+
+    <details class="profil-punkt" id="profil-adgangskode" open>
+    <summary>Skift adgangskode</summary>
     <!-- Skift adgangskode -->
     <div class="pw-card">
       <div class="pw-title">Skift adgangskode</div>
@@ -838,18 +904,7 @@
       <div class="pw-msg" id="pw-msg"></div>
     </div>
 
-    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
-         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
-         kortet passer ind uden ny CSS. -->
-    <div class="greeting-card" id="push-card">
-      <div class="greeting-title">Beskeder</div>
-      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
-      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
-        <span id="push-toggle-label">Slå notifikationer til</span>
-        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
-      </button>
-      <div class="greeting-saved" id="push-status"></div>
-    </div>
+    </details>
 
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:var(--white);border-color:var(--line);color:var(--muted)">Log ud</button>
 
@@ -1705,6 +1760,7 @@
     document.getElementById('vs-kode-til').textContent = `**61*${vsNr}#`;
     document.getElementById('vs-kode-fallback').textContent = `*61*${vsNr}#`;
     document.getElementById('profile-phone').textContent = vsNr;
+    document.getElementById('profil-tp-nummer').textContent = '· ' + vsNr;
   }
 
   populateProfile(user, firm?.name);
@@ -2507,6 +2563,8 @@ function leadKort(lead) {
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
+    // D94 trin 1c: profilen som oversigt — alt lukket, undtagen telefonpasseren.
+    document.querySelectorAll('#page-profil details.profil-punkt').forEach(d => { d.open = d.id === 'profil-telefonpasser'; });
     setFane('alle');
   }
 
@@ -2792,6 +2850,8 @@ function leadKort(lead) {
     const count = document.getElementById('wl-count');
     const list = document.getElementById('wl-list');
     if (count) count.textContent = `(${whitelist.length}/${whitelistMax})`;
+    const vipTal = document.getElementById('wl-count-vip');   // D94 trin 1c: tallet i profilens overskrift
+    if (vipTal) vipTal.textContent = `(${whitelist.length}/${whitelistMax})`;
     if (!list) return;
     if (!whitelist.length) {
       list.innerHTML = '<div class="wl-empty">Ingen numre på listen endnu.</div>';
