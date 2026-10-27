@@ -31,6 +31,14 @@ const TWILIO_SUBACCOUNT_NAME = "ditdigitalekontor-staging"; // subkontoens frien
 // se tjekket roedt med vilje; saettes den, siger outputtet det hoejt.
 const FORVENTET_PROEVEDAGE = 7;
 
+// D41 (27/10-26): Frisbii har en test- og en live-side med hver sine noegler.
+// Kontoens handle siger ikke, hvilken side noeglen hoerer til, og /account har
+// intet test-felt (maalt 25/10). Abonnementerne har: test=true paa testsiden.
+// Staging skal ALTID vaere testsiden - ellers kan lokale koersler traekke
+// rigtige penge. CHECK_FORVENTET_FRISBII_TEST findes KUN for at kunne se
+// tjekket roedt med vilje; saettes den, siger outputtet det hoejt.
+const FORVENTET_FRISBII_TEST = true;
+
 let fails = 0;
 let warns = 0;
 
@@ -153,6 +161,26 @@ async function supaFetch(path, key) {
     res = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
   }
   return res;
+}
+
+// ─── D41: doem test-feltet paa et abonnement ─────────────────────────────────
+// Ren funktion (ingen netvaerk), saa den kan proeves med kendte svar.
+// Fail-closed: mangler abonnementet eller feltet, er svaret FEJL, ikke "ok".
+function doemTestFelt(sub, subHandle, forventet) {
+  const navn = "Frisbii: hoerer noeglen til testsiden (abonnementets test-felt)?";
+  if (!sub || typeof sub !== "object") {
+    return { navn, ok: false, detalje: "intet abonnement at aflaese - opret et testkoeb i staging, eller se D41" };
+  }
+  if (!Object.prototype.hasOwnProperty.call(sub, "test")) {
+    return { navn, ok: false, detalje: `abonnement ${subHandle} har intet test-felt - Frisbii har aendret svaret?` };
+  }
+  const ok = sub.test === forventet;
+  return {
+    navn,
+    ok,
+    detalje: `abonnement ${subHandle}: test=${JSON.stringify(sub.test)} - forventede ${forventet}` +
+      (ok ? "" : (sub.test === false ? " (LIVE-siden: rigtige penge!)" : "")),
+  };
 }
 
 // ─── D26: doem planen ud fra Frisbiis svar paa GET /plan ──────────────────────
@@ -290,6 +318,40 @@ async function live() {
         for (const d of doemPlan(await res.json(), handle, forventet)) check(d.navn, d.ok, d.detalje);
       }
     } catch (e) { check("Frisbii: plantjek (D26)", false, e.message); }
+  }
+
+  // 7) D41: er det testsiden? Laeses paa det nyeste abonnement i kontoens events
+  // (/list/subscription svarer 422 - maalt 25/10). Kun naar kontoen er staging.
+  let forventetTest = FORVENTET_FRISBII_TEST;
+  if (process.env.CHECK_FORVENTET_FRISBII_TEST) {
+    forventetTest = process.env.CHECK_FORVENTET_FRISBII_TEST === "true";
+    warn("CHECK_FORVENTET_FRISBII_TEST er sat - forventningen er OVERSTYRET",
+      `forventer test=${forventetTest} i stedet for ${FORVENTET_FRISBII_TEST}. Kun til at se tjekket roedt med vilje; fjern den bagefter`);
+  }
+  if (!frisbiiErStaging) {
+    check("Frisbii: test-side (D41)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const hdr  = { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } };
+      const evRes = await fetch("https://api.reepay.com/v1/event?size=100", hdr);
+      if (!evRes.ok) {
+        check("Frisbii: test-side (D41)", false, `GET /event -> HTTP ${evRes.status}`);
+      } else {
+        const evData = await evRes.json();
+        const ev = (Array.isArray(evData) ? evData : (evData?.content || []))
+          .filter((e) => e && e.subscription)
+          .sort((x, y) => String(y.created || "").localeCompare(String(x.created || "")));
+        const subHandle = ev.length ? ev[0].subscription : null;
+        let sub = null;
+        if (subHandle) {
+          const sRes = await fetch(`https://api.reepay.com/v1/subscription/${encodeURIComponent(subHandle)}`, hdr);
+          if (sRes.ok) sub = await sRes.json();
+        }
+        const d = doemTestFelt(sub, subHandle, forventetTest);
+        check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: test-side (D41)", false, e.message); }
   }
 }
 
