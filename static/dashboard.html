@@ -681,7 +681,7 @@
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
   <div class="topbar-hoejre">
-  <button class="btn-sm" onclick="openNewLeadModal()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
+  <button class="btn-sm" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
   <button class="topbar-profil kun-faner" onclick="setPage('profil')" aria-label="Profil"><svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg></button>
   </div>
 </div>
@@ -3328,6 +3328,7 @@ function leadKort(lead) {
   //   ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
   //                       { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
   //                       { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+  //                       { kilde:'ddk-kunder', type:'aktiv-kunde', kunde: {id,navn,telefon,email,adresse,postnr,by} | null }   (D94 trin 2)
   //   dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
   //                       { kilde:'ddk-dashboard', type:'opgaver-aendret' }
   //                       { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
@@ -3370,6 +3371,16 @@ function leadKort(lead) {
   }
 
   const tekstFelt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  // D94 trin 2 (Ann 27/10): "+ Ny opgave" i toppen. Staar han paa en
+  // kundeside i Kunder-fanen, udfyldes formularen med den kunde — ellers tom.
+  // aktivKunde saettes KUN af Kunder-rammen ('aktiv-kunde', se lytteren).
+  let aktivKunde = null;
+  function nyOpgaveFraTop() {
+    const iKunder = document.getElementById('page-kunder').classList.contains('active');
+    if (iKunder && aktivKunde) aabnNyOpgaveTilKunde(aktivKunde);
+    else openNewLeadModal();
+  }
 
   function aabnNyOpgaveTilKunde(kunde) {
     openNewLeadModal();
@@ -3422,6 +3433,11 @@ function leadKort(lead) {
 
     rammeErKlar();                            // enhver gyldig besked beviser, at rammen lever
     if (d.type === 'klar') return;
+    if (d.type === 'aktiv-kunde') {           // D94 trin 2 — en tilstand, ingen kvittering
+      const k = d.kunde;
+      aktivKunde = (k && typeof k === 'object' && BRO_ID_RE.test(String(k.id || ''))) ? k : null;
+      return;
+    }
     if (d.type === 'ny-opgave') {
       kvitter(true);
       aabnNyOpgaveTilKunde(d.kunde || null);

@@ -230,6 +230,11 @@
       .map((o) => ({
         id: o.id, titel: o.titel || o.task || '', beskrivelse: o.task || '',
         oprettet: o.created_at || '',
+        // D94 trin 2: til stregerne og anden linje paa kundesiden. Ikke i
+        // OPGAVE_PROTO — de rettes ikke herfra. (`adresse` er optaget: den
+        // bruges kun, naar en NY opgave oprettes, se saveOpgaver.)
+        status: o.status || 'open', startetAt: o.startet_at || null,
+        haster: !!o.is_urgent, opgaveAdresse: o.address || '',
       }));
     opgaveIder.set(kundeId, list.map((o) => o.id));
     list.forEach((o) => husk('opgave', o, OPGAVE_PROTO));
@@ -272,6 +277,15 @@
         husk('opgave', o, OPGAVE_PROTO);
       }
     }
+  }
+
+  // D94 trin 2: flyt en opgave til en anden kunde. Serveren tjekker, at
+  // kunden er firmaets (hentEgenRaekke), og den sammensatte fremmednoegle
+  // holder kunde og opgave i samme firma. SMS-nummeret paa opgaven roeres
+  // ikke (D88 betingelse 6, valg (a)).
+  async function flytOpgave(opgaveId, kundeId) {
+    const { opgave } = await api('PATCH', '/api/tilbud/opgaver/' + encodeURIComponent(opgaveId), { kunde_id: kundeId });
+    return opgave;
   }
 
   /* ──────────────────────────────  REFERATER  ───────────────────────────── */
@@ -470,7 +484,7 @@
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
     loadCustomers, saveCustomers, retKunde, hentOpgaveNumre,
-    loadOpgaver, saveOpgaver,
+    loadOpgaver, saveOpgaver, flytOpgave,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,

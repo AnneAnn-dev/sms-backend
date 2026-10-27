@@ -483,7 +483,9 @@ module.exports = function (app, supabase) {
       // skal med i listen; det er netop dem, der lige er oprettet.
       const { data, error } = await supabase
         .from("leads")
-        .select("id, name, address, task, status, is_urgent, titel, created_at, kunde_id, kunder(navn)")
+        // startet_at (D94 trin 2): kundesiden tegner samme streger som
+        // dashboardets Opgaver-fane — blaa = ny, til der er gjort noget.
+        .select("id, name, address, task, status, is_urgent, titel, created_at, startet_at, kunde_id, kunder(navn)")
         .eq("firm_id", firmId)
         .order("created_at", { ascending: false });
       if (error) throw error;
