@@ -2182,9 +2182,9 @@ function leadKort(lead) {
   }
 
   function indtalEl(id) { return document.getElementById(id); }
-  function indtalEsc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
+  // Indtalingens egen escape-funktion er fjernet (S33's rest, D94 trin 1d): der
+  // er ÉN i dashboardet, esc() laengere nede. Brugerinput saettes aldrig i
+  // innerHTML uden den.
   function indtalTid(sek) {
     sek = Math.max(0, Math.round(sek || 0));
     return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0');
@@ -2444,8 +2444,8 @@ function leadKort(lead) {
         tekst = 'Kasseret: ' + (d.forklaring || 'optagelsen kunne ikke bruges.') + ' Den kommer ikke med i teksten.';
       }
       return `<div class="${klasse}">
-          <div class="dt">Del ${d.del} · ${indtalEsc(laengde)}</div>
-          <div class="dm">${indtalEsc(tekst)}</div>${valg}
+          <div class="dt">Del ${d.del} · ${esc(laengde)}</div>
+          <div class="dm">${esc(tekst)}</div>${valg}
         </div>`;
     }).join('');
     wrap.querySelectorAll('button[data-svar]').forEach(b => {
