@@ -25,6 +25,12 @@ const STAGING_BASE_URL       = "https://sms-backend-staging-908c.up.railway.app"
 const FRISBII_STAGING_HANDLE = "lommekontor";               // staging-KONTOENS handle
 const TWILIO_SUBACCOUNT_NAME = "ditdigitalekontor-staging"; // subkontoens friendly name
 
+// D26 (genaabnet 25/10-26): proeveperioden paa planen er besluttet til 7 dage
+// (Ann 25/10, D25 - indloesningsaftaleudbyderen bad om det). Afviger Frisbii,
+// skal tjekket blive roedt. CHECK_FORVENTET_PROEVEDAGE findes KUN for at kunne
+// se tjekket roedt med vilje; saettes den, siger outputtet det hoejt.
+const FORVENTET_PROEVEDAGE = 7;
+
 let fails = 0;
 let warns = 0;
 
@@ -132,6 +138,8 @@ check("VAPID-noeglepar er sat (begge dele)",
 // Frisbii: kun tilstedevaerelse statisk (kontoen doemmes af --live)
 check("FRISBII_PRIVATE_KEY er sat", !!process.env.FRISBII_PRIVATE_KEY);
 check("FRISBII_WEBHOOK_SECRET er sat", !!process.env.FRISBII_WEBHOOK_SECRET);
+check("FRISBII_PLAN_HANDLE er sat", !!process.env.FRISBII_PLAN_HANDLE,
+  process.env.FRISBII_PLAN_HANDLE || "MANGLER - /checkout/start kan ikke oprette abonnementer");
 
 // ─── Live-tjek (--live): spoerg tjenesterne "hvem er du?" ────────────────────
 
@@ -145,6 +153,45 @@ async function supaFetch(path, key) {
     res = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
   }
   return res;
+}
+
+// ─── D26: doem planen ud fra Frisbiis svar paa GET /plan ──────────────────────
+// Ren funktion (ingen netvaerk), saa den kan proeves med kendte svar.
+// MAALT 25/10-26: GET /plan svarer med ALLE versioner af en plan under samme
+// handle (12 raekker i staging, heraf én "active"; de oevrige "superseded" eller
+// "deleted"). Derfor vaelges versionen med state=active - en gammel version med
+// 5 dages proeve maa hverken goere tjekket groent eller roedt.
+// Tre spoergsmaal, ikke ét (hullet fundet 16/8): planen findes ikke ·
+// proeveperioden er tom · proeveperioden afviger fra det forventede.
+function doemPlan(planer, handle, forventetDage) {
+  const liste = Array.isArray(planer) ? planer : (planer && Array.isArray(planer.content) ? planer.content : []);
+  const aktive = liste.filter((p) => p && p.handle === handle && p.state === "active");
+  const domme = [];
+  domme.push({
+    navn: `Frisbii: findes planen "${handle}" som aktiv version?`,
+    ok: aktive.length === 1,
+    detalje: aktive.length === 1
+      ? `ja (version ${aktive[0].version ?? "?"})`
+      : `fundet ${aktive.length} aktive versioner af ${liste.filter((p) => p && p.handle === handle).length} med det handle - forventede 1`,
+  });
+  if (aktive.length !== 1) return domme; // de to naeste giver ingen mening uden en plan
+  const p = aktive[0];
+  const laengde = p.trial_interval_length;
+  const enhed = p.trial_interval_unit;
+  const harProeve = Number.isFinite(laengde) && laengde > 0 && !!enhed;
+  domme.push({
+    navn: "Frisbii: har planen en proeveperiode?",
+    ok: harProeve,
+    detalje: harProeve ? `${laengde} ${enhed}` : "NEJ - feltet er tomt; kunden ville blive trukket med det samme (D26)",
+  });
+  if (!harProeve) return domme;
+  const rigtig = enhed === "days" && laengde === forventetDage;
+  domme.push({
+    navn: `Frisbii: er proeveperioden ${forventetDage} dage?`,
+    ok: rigtig,
+    detalje: rigtig ? `${laengde} ${enhed} (= forventet)` : `fundet ${laengde} ${enhed} - forventede ${forventetDage} days`,
+  });
+  return domme;
 }
 
 async function live() {
@@ -201,12 +248,14 @@ async function live() {
   // og hvad der blev FORVENTET, saa retningen ikke kan misforstaas.
   // (Konstanten var rigtig hele tiden: staging er `lommekontor`. Fejlen laa i
   // .env.staging, der pegede paa den UBRUGTE konto `oprettelse-og-abonnement`.)
+  let frisbiiErStaging = false;
   try {
     const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
     const res  = await fetch("https://api.reepay.com/v1/account",
       { headers: { Authorization: `Basic ${auth}` } });
     const data = res.ok ? await res.json() : null;
     const rigtig = data?.handle === FRISBII_STAGING_HANDLE;
+    frisbiiErStaging = rigtig;
     check("Frisbii: hvilken konto hoerer noeglen til?",
       rigtig,
       data
@@ -215,6 +264,33 @@ async function live() {
             : `handle="${data.handle}" — forventede "${FRISBII_STAGING_HANDLE}"`)
         : `HTTP ${res.status} (forkert noegle?)`);
   } catch (e) { check("Frisbii: forbindelse", false, e.message); }
+
+  // 6) D26: findes planen, har den en proeveperiode, og er den den besluttede?
+  // Kun meningsfuld, naar noeglen hoerer til staging (tjek 5) - ellers doemmes
+  // en anden kontos planer. Derfor springes den over med en FEJL, ikke stille.
+  const handle = process.env.FRISBII_PLAN_HANDLE;
+  let forventet = FORVENTET_PROEVEDAGE;
+  if (process.env.CHECK_FORVENTET_PROEVEDAGE) {
+    forventet = Number(process.env.CHECK_FORVENTET_PROEVEDAGE);
+    warn("CHECK_FORVENTET_PROEVEDAGE er sat - forventningen er OVERSTYRET",
+      `forventer ${forventet} dage i stedet for ${FORVENTET_PROEVEDAGE}. Kun til at se tjekket roedt med vilje; fjern den bagefter`);
+  }
+  if (!handle) {
+    check("Frisbii: plantjek (D26)", false, "FRISBII_PLAN_HANDLE mangler - kan ikke doemme planen");
+  } else if (!frisbiiErStaging) {
+    check("Frisbii: plantjek (D26)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const res  = await fetch("https://api.reepay.com/v1/plan",
+        { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } });
+      if (!res.ok) {
+        check("Frisbii: plantjek (D26)", false, `GET /plan -> HTTP ${res.status}`);
+      } else {
+        for (const d of doemPlan(await res.json(), handle, forventet)) check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: plantjek (D26)", false, e.message); }
+  }
 }
 
 (async () => {
