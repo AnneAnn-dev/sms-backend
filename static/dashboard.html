@@ -211,6 +211,31 @@
     details.lukkede { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; background: var(--white); }
     details.lukkede summary { cursor: pointer; padding: 8px 0; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--ink-muted); }
     details.lukkede .lead-card { opacity: .85; }
+
+    /* D94 trin 1a (27/10-26): Opgaver-fanen. Nye og I gang er én liste; en
+       streg i margenen siger, hvad opgaven er. Fast raekkefoelge, saa de blaa
+       staar under hinanden (Ann 27/10): blaa/graa yderst (kantlinjen), roed
+       som nummer to (::after, 4px inde). Kun med faner — uden ser alt ud som foer. */
+    body.faner .lead-card.fane-kort { position: relative; border-left: 4px solid transparent; padding: 14px 6px 14px 14px; }
+    body.faner .lead-card.fane-kort.ny { border-left-color: var(--steel); }
+    body.faner .lead-card.fane-kort.afsluttet { border-left-color: #B8C1CC; }
+    body.faner .lead-card.fane-kort.urgent { padding-left: 22px; box-shadow: none; }   /* den gamle 3px-streg (.lead-card.urgent) slukkes */
+    body.faner .lead-card.fane-kort.urgent::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 4px; background: var(--danger); }
+    .lead-overskrift { font-weight: 800; font-size: 17px; font-family: 'Nunito', sans-serif; color: var(--navy); overflow-wrap: anywhere; }
+    .lead-overskrift.mangler { color: var(--ink-muted); }
+    body.faner .fane-kort .lead-address { font-size: 16px; margin-top: 2px; }
+    body.faner details.lukkede { margin-top: 0; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 0; background: none; }
+    body.faner details.lukkede summary { padding: 16px 6px; font-size: 17px; font-weight: 800; }
+    body.faner details.lukkede .lead-card { opacity: 1; }
+    #opgave-soeg-blok { flex-direction: column; gap: 10px; margin-bottom: 6px; }
+    .soeg-felt { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--border); border-radius: 12px; padding: 0 12px; height: 48px; background: var(--white); }
+    .soeg-felt:focus-within { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    .soeg-felt input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 16px; font-family: inherit; color: var(--ink); -webkit-appearance: none; appearance: none; }
+    .streg-forklaring { display: flex; gap: 16px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); font-family: 'Nunito', sans-serif; }
+    .streg-forklaring span { display: inline-flex; align-items: center; gap: 6px; }
+    .streg-forklaring i { display: inline-block; width: 4px; height: 14px; border-radius: 2px; }
+    .soeg-antal { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); font-family: 'Nunito', sans-serif; padding: 4px 6px 8px; }
+    body.faner #opgaver-titel-raekke { display: none !important; }
     .btn-igang { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); cursor: pointer; }
 
     /* Profil */
@@ -647,8 +672,20 @@
 
   <!-- Side: Opgaver -->
   <div class="page active" id="page-opgaver">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div id="opgaver-titel-raekke" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div class="section-title" style="margin-bottom:0" id="opgaver-titel">Opgaver</div>
+    </div>
+    <!-- D94 trin 1a: soegning + forklaring paa stregerne. Kun med faner. -->
+    <div class="kun-faner" id="opgave-soeg-blok">
+      <div class="soeg-felt">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-muted);flex:0 0 auto"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="opgave-soeg" aria-label="Søg i opgaver" placeholder="Søg på navn, adresse, opgave, dato …" autocomplete="off" enterkeyhint="search" oninput="renderLeads()">
+      </div>
+      <div class="streg-forklaring" aria-hidden="true">
+        <span><i style="background:var(--steel)"></i>Ny</span>
+        <span><i style="background:var(--danger)"></i>Haster</span>
+        <span><i style="background:#B8C1CC"></i>Afsluttet</span>
+      </div>
     </div>
     <div class="filters" id="filter-row">
       <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
@@ -830,13 +867,9 @@
 
 <!-- Bundbar -->
 <nav class="bottom-nav">
-  <button class="nav-item kun-faner" id="nav-nye" onclick="setFane('nye')">
+  <button class="nav-item kun-faner" id="nav-alle" onclick="setFane('alle')">
     <svg class="ti" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
-    Nye
-  </button>
-  <button class="nav-item kun-faner" id="nav-igang" onclick="setFane('igang')">
-    <svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg>
-    I gang
+    Opgaver
   </button>
   <button class="nav-item kun-faner" id="nav-kunder" onclick="setFane('kunder')">
     <svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg>
@@ -1663,6 +1696,7 @@
   }
 
 function renderLeads() {
+  if (currentFilter === 'alle') { renderOpgaverFane(); return; }
   const filtered = allLeads.filter(lead => {
     // Faner (Fase 1c): Nye = aaben og ikke startet, I gang = aaben og startet.
     // startet_at saettes af databasen ved foerste handling (Fase 1a).
@@ -1714,6 +1748,67 @@ function renderLeads() {
   updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
 }
 
+// ─── Opgaver-fanen (D94 trin 1a, Ann 26-27/10) ──────────────────────────
+// Nye og I gang er én liste. Aabne oeverst (senest roert foerst), afsluttede
+// sammenklappet nederst. Med en soegning vises ALLE, der passer — ogsaa de
+// afsluttede, med graa streg (Ann 27/10). Soegningen koerer paa det, der
+// allerede er hentet: loadData() henter alle firmaets opgaver, ogsaa lukkede.
+function soegeTekst() {
+  const el = document.getElementById('opgave-soeg');
+  return el ? el.value.trim().toLowerCase() : '';
+}
+function soegDatoer(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  const dd = d.getDate(), mm = d.getMonth() + 1, aa = d.getFullYear();
+  const to = n => String(n).padStart(2, '0');
+  return [formatDate(iso), `${dd}/${mm}`, `${to(dd)}/${to(mm)}`, `${dd}/${mm}-${aa}`, `${dd}-${mm}-${aa}`,
+          `${dd}.${mm}.${aa}`, `${to(dd)}.${to(mm)}.${aa}`, `${aa}-${to(mm)}-${to(dd)}`].join(' ');
+}
+function soegCifre(n) {
+  const c = String(n || '').replace(/\D/g, '');
+  return c.length === 10 && c.startsWith('45') ? c.slice(2) : c;   // +45 xx xx xx xx -> 8 cifre
+}
+function matcherSoegning(lead, q) {
+  const numre = [lead.telefon, lead.calls && lead.calls.from_number].map(soegCifre).filter(Boolean);
+  const qCifre = q.replace(/[\s+\-]/g, '');
+  if (/^\d{4,}$/.test(qCifre) && numre.some(n => n.includes(soegCifre(qCifre)))) return true;
+  const tekst = [visNavn(lead), lead.name, lead.address, lead.titel, lead.task,
+                 lead.telefon, lead.calls && lead.calls.from_number, numre.join(' '),
+                 soegDatoer(lead.created_at)].filter(Boolean).join(' ').toLowerCase();
+  return q.split(/\s+/).every(ord => tekst.includes(ord));
+}
+function renderOpgaverFane() {
+  const list = document.getElementById('lead-list');
+  const roert = l => new Date(l.sidst_roert || l.created_at);
+  const nyesteFoerst = (a, b) => roert(b) - roert(a);
+  const q = soegeTekst();
+  let html;
+  if (q) {
+    const fund = allLeads.filter(l => matcherSoegning(l, q))
+      .sort((a, b) => ((a.status === 'open') === (b.status === 'open')) ? nyesteFoerst(a, b) : (a.status === 'open' ? -1 : 1));
+    html = `<div class="soeg-antal">${fund.length} ${fund.length === 1 ? 'opgave' : 'opgaver'}</div>`
+         + (fund.length ? fund.map(leadKort).join('') : '<div class="empty">Ingen opgaver passer til søgningen</div>');
+  } else {
+    const aabne = allLeads.filter(l => l.status === 'open').sort(nyesteFoerst);
+    const lukkede = allLeads.filter(l => l.status !== 'open').sort(nyesteFoerst);
+    html = aabne.length ? aabne.map(leadKort).join('') : '<div class="empty">Ingen åbne opgaver</div>';
+    if (lukkede.length) html += `<details class="lukkede"><summary>Afsluttede (${lukkede.length})</summary>${lukkede.map(leadKort).join('')}</details>`;
+  }
+  list.innerHTML = html;
+  updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
+}
+
+// Overskriften paa listen: titel, ellers foerste linje af beskrivelsen (gamle
+// opgaver og kundens formular uden titel), ellers "Uden overskrift".
+function overskrift(lead) {
+  const titel = (lead.titel || '').trim();
+  if (titel) return { tekst: titel, mangler: false };
+  const linje = (lead.task || '').trim().split(/\r?\n/)[0].trim();
+  if (linje) return { tekst: linje.length > 60 ? linje.slice(0, 59).trimEnd() + '…' : linje, mangler: false };
+  return { tekst: 'Uden overskrift', mangler: true };
+}
+
 // ─── Navnet (D88 opgave 2, valg (a), Ann 23/10) ──────────────────────────
 // Med faner og en kunde vises KUNDENS navn (kunder.navn) paa kortet og i
 // vinduet. Intet kopieres: leads.name bliver liggende som historik (det,
@@ -1730,6 +1825,26 @@ function visNavn(lead) {
 // Ét kort, brugt af listen OG af Lukkede. Uden faner er det praecis som foer.
 function leadKort(lead) {
   const faner = document.body.classList.contains('faner');
+  if (faner) {
+    // D94 trin 1a: overskrift (fed), derunder navn og adresse. Ingen dato,
+    // intet billedmaerke. Stregerne: se CSS'en for .fane-kort.
+    const aaben = lead.status === 'open';
+    const ny = aaben && !lead.startet_at;      // blaa, til der er gjort noget (startet_at, Fase 1a)
+    const haster = aaben && !!lead.is_urgent;
+    const o = overskrift(lead);
+    const status = lead.status === 'completed' ? 'Udført'
+                 : lead.status === 'rejected' ? 'Afvist'
+                 : lead.status === 'inactive' ? 'Lukket uden aktivitet' : '';
+    const linje2 = [status, visNavn(lead), formatAddress(lead.address)].filter(Boolean).join(' · ');
+    const klasser = ['lead-card', 'fane-kort', ny ? 'ny' : '', haster ? 'urgent' : '', aaben ? '' : 'afsluttet'].filter(Boolean).join(' ');
+    return `
+    <div class="${klasser}" onclick="openModal(${esc(JSON.stringify(lead))})">
+      <div class="lead-overskrift${o.mangler ? ' mangler' : ''}">${esc(o.tekst)}</div>
+      <div class="lead-address">${esc(linje2)}</div>
+      ${ny ? '<span class="sr-only">Ny</span>' : ''}${haster ? '<span class="sr-only">Haster</span>' : ''}
+    </div>
+  `;
+  }
   return `
     <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${esc(JSON.stringify(lead))})">
       <div class="lead-top">
@@ -2341,7 +2456,7 @@ function leadKort(lead) {
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
-    setFane('nye');
+    setFane('alle');
   }
 
   let forrigeFane = null;
@@ -2371,7 +2486,7 @@ function leadKort(lead) {
       if (fra === 'kunder') loadData();
       currentFilter = fane;
       setPage('opgaver');
-      document.getElementById('opgaver-titel').textContent = fane === 'igang' ? 'I gang' : 'Nye opgaver';
+      document.getElementById('opgaver-titel').textContent = fane === 'igang' ? 'I gang' : fane === 'nye' ? 'Nye opgaver' : 'Opgaver';
       renderLeads();
     }
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
