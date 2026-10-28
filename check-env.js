@@ -18,7 +18,8 @@
 // Derfor: koer ALTID --live efter en noeglerotation. Statisk groent er ikke nok.
 // -----------------------------------------------------------------------------
 require("dotenv").config({ quiet: true });
-const { doemPlan, doemTestFelt, nyesteAbonnementFraEvents } = require("./frisbii-tjek");
+const { doemPlan, doemTestFelt, nyesteAbonnementFraEvents, doemProdukter } = require("./frisbii-tjek");
+const { produkterTilSalg } = require("./frisbii-katalog");
 
 // ─── FACIT: staging-miljoeets kendetegn ─────────────────────────────────────
 const STAGING_SUPABASE_REF   = "hehrvdmtzokzbnbihcel";
@@ -290,6 +291,27 @@ async function live() {
         check(d.navn, d.ok, d.detalje);
       }
     } catch (e) { check("Frisbii: test-side (D41)", false, e.message); }
+  }
+
+  // 8) Fase 3, T1b: findes katalogets produkter i staging-kontoen? Basisplanen
+  // og hvert add-on, der saelges, med den rigtige pris (frisbii-katalog.js).
+  // Roedt, indtil opret-frisbii-produkter.js har koert.
+  if (!frisbiiErStaging) {
+    check("Frisbii: katalogets produkter (T1)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const hdr  = { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } };
+      const [pRes, aRes] = await Promise.all([
+        fetch("https://api.reepay.com/v1/plan", hdr),
+        fetch("https://api.reepay.com/v1/add_on", hdr),
+      ]);
+      if (!pRes.ok || !aRes.ok) {
+        check("Frisbii: katalogets produkter (T1)", false, `GET /plan -> ${pRes.status}, GET /add_on -> ${aRes.status}`);
+      } else {
+        for (const d of doemProdukter(await pRes.json(), await aRes.json(), produkterTilSalg())) check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: katalogets produkter (T1)", false, e.message); }
   }
 }
 

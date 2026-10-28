@@ -78,4 +78,41 @@ function nyesteAbonnementFraEvents(evData) {
   return ev.length ? ev[0].subscription : null;
 }
 
-module.exports = { doemPlan, doemTestFelt, nyesteAbonnementFraEvents };
+// ─── T1b: doem katalogets produkter ud fra GET /plan og GET /add_on ──────────
+// (Fase 3, 28/10-26.) Basisplanen skal findes som aktiv version, koste 0 kr.
+// og have katalogets proeveperiode. Hvert add-on, der saelges, skal findes,
+// vaere aktivt, koste katalogets pris ekskl. moms, vaere on_off og kunne
+// bruges paa basisplanen. Kataloget sendes med som argument, saa denne fil
+// ikke selv kender Frisbii-handles.
+function doemProdukter(planer, addOnSvar, salg) {
+  const domme = [];
+  const p = salg.plan;
+  const planDomme = doemPlan(planer, p.handle, p.proevedage);
+  domme.push(...planDomme);
+  if (planDomme.length && planDomme[0].ok) {
+    const liste = Array.isArray(planer) ? planer : (planer && Array.isArray(planer.content) ? planer.content : []);
+    const aktiv = liste.find((x) => x && x.handle === p.handle && x.state === "active");
+    domme.push({
+      navn: `Frisbii: koster basisplanen "${p.handle}" 0 kr.?`,
+      ok: aktiv && aktiv.amount === p.prisOere,
+      detalje: `amount=${aktiv && aktiv.amount} - forventede ${p.prisOere}`,
+    });
+  }
+  const alle = Array.isArray(addOnSvar) ? addOnSvar : (addOnSvar && Array.isArray(addOnSvar.content) ? addOnSvar.content : []);
+  for (const a of salg.addOns) {
+    const f = alle.find((x) => x && x.handle === a.handle);
+    const navn = `Frisbii: add-on "${a.handle}" (${a.navn})?`;
+    if (!f) { domme.push({ navn, ok: false, detalje: "findes ikke - koer opret-frisbii-produkter.js" }); continue; }
+    const afvig = [];
+    if (f.state !== "active") afvig.push(`state=${f.state}`);
+    if (f.amount !== a.prisOere) afvig.push(`amount=${f.amount}, forventede ${a.prisOere}`);
+    if (f.amount_incl_vat !== false) afvig.push(`amount_incl_vat=${f.amount_incl_vat}, forventede false`);
+    if (f.type !== "on_off") afvig.push(`type=${f.type}, forventede on_off`);
+    const planOk = f.all_plans === true || (Array.isArray(f.eligible_plans) && f.eligible_plans.includes(p.handle));
+    if (!planOk) afvig.push(`kan ikke bruges paa ${p.handle}`);
+    domme.push({ navn, ok: afvig.length === 0, detalje: afvig.length ? afvig.join("; ") : `${a.prisOere / 100} kr. ekskl. moms, aktiv` });
+  }
+  return domme;
+}
+
+module.exports = { doemPlan, doemTestFelt, nyesteAbonnementFraEvents, doemProdukter };
