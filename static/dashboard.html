@@ -211,6 +211,85 @@
     details.lukkede { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; background: var(--white); }
     details.lukkede summary { cursor: pointer; padding: 8px 0; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--ink-muted); }
     details.lukkede .lead-card { opacity: .85; }
+
+    /* D94 trin 1a (27/10-26): Opgaver-fanen. Nye og I gang er én liste; en
+       streg i margenen siger, hvad opgaven er. Fast raekkefoelge, saa de blaa
+       staar under hinanden (Ann 27/10): blaa/graa yderst (kantlinjen), roed
+       som nummer to (::after, 4px inde). Kun med faner — uden ser alt ud som foer. */
+    body.faner .lead-card.fane-kort { position: relative; border-left: 4px solid transparent; padding: 14px 6px 14px 14px; }
+    body.faner .lead-card.fane-kort.ny { border-left-color: var(--steel); }
+    body.faner .lead-card.fane-kort.afsluttet { border-left-color: #B8C1CC; }
+    body.faner .lead-card.fane-kort.urgent { padding-left: 22px; box-shadow: none; }   /* den gamle 3px-streg (.lead-card.urgent) slukkes */
+    body.faner .lead-card.fane-kort.urgent::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 4px; background: var(--danger); }
+    .lead-overskrift { font-weight: 800; font-size: 17px; font-family: 'Nunito', sans-serif; color: var(--navy); overflow-wrap: anywhere; }
+    .lead-overskrift.mangler { color: var(--ink-muted); }
+    body.faner .fane-kort .lead-address { font-size: 16px; margin-top: 2px; }
+    body.faner details.lukkede { margin-top: 0; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 0; background: none; }
+    body.faner details.lukkede summary { padding: 16px 6px; font-size: 17px; font-weight: 800; }
+    body.faner details.lukkede .lead-card { opacity: 1; }
+    #opgave-soeg-blok { flex-direction: column; gap: 10px; margin-bottom: 6px; }
+    .soeg-felt { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--border); border-radius: 12px; padding: 0 12px; height: 48px; background: var(--white); }
+    .soeg-felt:focus-within { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    .soeg-felt input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 16px; font-family: inherit; color: var(--ink); -webkit-appearance: none; appearance: none; }
+    .streg-forklaring { display: flex; gap: 16px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); font-family: 'Nunito', sans-serif; }
+    .streg-forklaring span { display: inline-flex; align-items: center; gap: 6px; }
+    .streg-forklaring i { display: inline-block; width: 4px; height: 14px; border-radius: 2px; }
+    .soeg-antal { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); font-family: 'Nunito', sans-serif; padding: 4px 6px 8px; }
+    body.faner #opgaver-titel-raekke { display: none !important; }
+
+    /* D94 trin 1b (27/10-26): opgavevinduet og Ny opgave. Kun med faner.
+       Vinduet er svagt lyseblaat med hvide skrivefelter (laaste felter beholder
+       den graalige tone, #modal input[readonly]). Interne noter og SMS-blokken
+       skjules — de slettes ikke, og Afslaa sender stadig sin SMS. */
+    body.faner .modal { background: #FAFCFE; }
+    body.faner .mfield input[type=text], body.faner .mfield input[type=tel], body.faner .mfield input[type=email],
+    body.faner .mfield textarea, body.faner .mfield select, body.faner .referater-raekke, body.faner .upload-area { background: var(--white); }
+    body.faner .mhead-name { font-size: 22px; font-weight: 800; }
+    body.faner .mhead-phone { font-size: 16px; }
+    body.faner .mfield label { font-size: 13px; }
+    body.faner #modal-task { height: 150px; }
+    body.faner #modal-avatar, body.faner #modal-phone, body.faner #modal-ret-kunde-felt, body.faner #modal-noter-felt,
+    body.faner #new-noter-felt, body.faner #modal-sms-skillelinje, body.faner #modal-sms-blok, body.faner #modal-sms-knap { display: none !important; }
+    #modal-undertitel { display: none; }
+    body.faner #modal-undertitel { display: block; }
+    .tlf-felt { position: relative; }
+    .tlf-kopier { position: absolute; right: 4px; top: 4px; bottom: 4px; align-items: center; padding: 0 10px; border: none; border-radius: 8px; background: transparent; color: var(--steel); font-size: 14px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; }
+    body.faner .tlf-felt input { padding-right: 84px; }
+    body.faner #modal .row2 { grid-template-columns: 1fr; }   /* navn og telefon under hinanden, som i Ny opgave */
+    body.faner .urgent-row { background: var(--white); }
+    body.faner .mfoot button { font-size: 16px; min-height: 48px; }
+    body.faner .btn-afslut, body.faner .btn-confirm-afslut { background: var(--steel); }
+    body.faner .btn-afslut:hover, body.faner .btn-confirm-afslut:hover { background: var(--steel-hover); }
+    body.faner .btn-genaabn { border-color: var(--border); background: var(--white); color: var(--steel); }
+    body.faner .btn-confirm-afslut { font-size: 16px; min-height: 48px; }
+    body.faner .afslut-panel p { font-size: 16px; }
+    body.faner .afslut-opt { background: var(--white); }
+    body.faner .afslut-opt .opt-title { font-size: 17px; }
+    body.faner .afslut-opt .opt-desc { font-size: 16px; }
+
+    /* D94 trin 1c (27/10-26): profilen som en oversigt, man folder ud (▸/▾).
+       Kortene ligger i <details>; uden faner er de aabne og overskriften
+       (summary) skjult, saa siden ser ud som foer. Med faner lukker
+       aktiverFaner() dem — kun "Din telefonpasser" staar aaben. */
+    .profil-punkt > summary { display: none; }
+    body.faner .profil-punkt { border-bottom: 1px solid var(--line); }
+    body.faner .profil-punkt.under { border-bottom: 1px solid #EDF0F4; }
+    body.faner .profil-punkt.under:last-child { border-bottom: none; }
+    body.faner #profil-telefonpasser { border-top: 1px solid var(--line); }
+    body.faner .profil-punkt > summary { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 4px; list-style: none; cursor: pointer; font-size: 17px; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); }
+    body.faner .profil-punkt.under > summary { min-height: 48px; font-size: 16px; }
+    body.faner .profil-punkt > summary::-webkit-details-marker { display: none; }
+    body.faner .profil-punkt > summary::before { content: '▸'; flex: 0 0 14px; font-size: 13px; color: var(--steel); }
+    body.faner .profil-punkt[open] > summary::before { content: '▾'; }
+    .profil-tal { font-weight: 400; color: var(--ink-muted); }
+    body.faner .profil-gruppe { padding-left: 24px; }
+    body.faner .profil-punkt .wl-title, body.faner .profil-punkt .greeting-title, body.faner .profil-punkt .pw-title { display: none; }
+    body.faner .profil-punkt .wl-card, body.faner .profil-punkt .greeting-card, body.faner .profil-punkt .pw-card { border: none; padding: 0 4px 18px 28px; }
+    body.faner .profile-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 4px 18px; }
+    body.faner .profile-avatar { width: 56px; height: 56px; flex: 0 0 56px; font-size: 17px; margin: 0; }
+    body.faner .profile-name { font-size: 17px; overflow-wrap: anywhere; }
+    body.faner .profile-firm { font-size: 16px; margin-top: 0; }
+    body.faner .profile-phone { display: none; }
     .btn-igang { padding: 10px 16px; border-radius: 10px; border: 1.5px solid var(--steel); background: var(--steel-light); font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif; color: var(--navy); cursor: pointer; }
 
     /* Profil */
@@ -602,7 +681,7 @@
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
   <div class="topbar-hoejre">
-  <button class="btn-sm" onclick="openNewLeadModal()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
+  <button class="btn-sm" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
   <button class="topbar-profil kun-faner" onclick="setPage('profil')" aria-label="Profil"><svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg></button>
   </div>
 </div>
@@ -647,8 +726,20 @@
 
   <!-- Side: Opgaver -->
   <div class="page active" id="page-opgaver">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div id="opgaver-titel-raekke" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div class="section-title" style="margin-bottom:0" id="opgaver-titel">Opgaver</div>
+    </div>
+    <!-- D94 trin 1a: soegning + forklaring paa stregerne. Kun med faner. -->
+    <div class="kun-faner" id="opgave-soeg-blok">
+      <div class="soeg-felt">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-muted);flex:0 0 auto"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="opgave-soeg" aria-label="Søg i opgaver" placeholder="Søg på navn, adresse, opgave, dato …" autocomplete="off" enterkeyhint="search" oninput="renderLeads()">
+      </div>
+      <div class="streg-forklaring" aria-hidden="true">
+        <span><i style="background:var(--steel)"></i>Ny</span>
+        <span><i style="background:var(--danger)"></i>Haster</span>
+        <span><i style="background:#B8C1CC"></i>Afsluttet</span>
+      </div>
     </div>
     <div class="filters" id="filter-row">
       <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
@@ -672,23 +763,21 @@
   <div class="page" id="page-profil">
     <div class="profile-card">
       <div class="profile-avatar" id="profile-avatar">—</div>
-      <div class="profile-name" id="profile-name">—</div>
-      <div class="profile-firm" id="profile-firm">—</div>
-      <div class="profile-phone" id="profile-phone">—</div>
+      <div class="profile-tekst">
+        <div class="profile-name" id="profile-name">—</div>
+        <div class="profile-firm" id="profile-firm">—</div>
+        <div class="profile-phone" id="profile-phone">—</div>
+      </div>
     </div>
 
-    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
-    <div class="wl-card">
-      <div class="wl-title">Numre uden SMS <span class="wl-count" id="wl-count"></span></div>
-      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
-      <div class="wl-add">
-        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
-        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
-        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
-      </div>
-      <div id="wl-error" class="wl-error"></div>
-      <div id="wl-list" class="wl-list"></div>
-    </div>
+    <!-- D94 trin 1c: Din telefonpasser samler besked, viderestilling,
+         VIP-numre og notifikationer. -->
+    <details class="profil-punkt" id="profil-telefonpasser" open>
+    <summary>Din telefonpasser <span class="profil-tal" id="profil-tp-nummer"></span></summary>
+    <div class="profil-gruppe">
+
+    <details class="profil-punkt under" id="profil-besked" open>
+    <summary>Din besked</summary>
 
     <!-- Telefonbesked: stemme + tekst der læses op ved ubesvaret opkald -->
     <div class="greeting-card">
@@ -725,7 +814,10 @@
       </button>
       <div class="greeting-saved" id="g-saved"></div>
     </div>
+    </details>
 
+    <details class="profil-punkt under" id="profil-viderestilling" open>
+    <summary>Din viderestilling</summary>
     <!-- Viderestilling: firmaets nummer + koder til/fra (efterspurgt: Anne
          mistede sit nummer — det stod kun i onboardingen og velkomstmailen) -->
     <div class="greeting-card">
@@ -753,6 +845,47 @@
       </details>
     </div>
 
+    </details>
+
+    <details class="profil-punkt under" id="profil-vip" open>
+    <summary>VIP-numre <span class="profil-tal" id="wl-count-vip"></span></summary>
+    <!-- Hvidliste: numre der ikke skal have opgaveformular -->
+    <div class="wl-card">
+      <div class="wl-title">VIP-numre <span class="wl-count" id="wl-count"></span></div>
+      <p class="wl-help">Tilføj numre, som aldrig skal modtage en SMS med opgaveformular — fx familie, medarbejdere, leverandører.</p>
+      <div class="wl-add">
+        <input id="wl-number" class="wl-input" type="tel" inputmode="tel" placeholder="Telefonnummer" autocomplete="off">
+        <input id="wl-label" class="wl-input" type="text" placeholder="Navn (valgfrit)" autocomplete="off">
+        <button class="wl-btn" onclick="addWhitelistNumber(this)">Tilføj</button>
+      </div>
+      <div id="wl-error" class="wl-error"></div>
+      <div id="wl-list" class="wl-list"></div>
+    </div>
+
+    </details>
+
+    <details class="profil-punkt under" id="profil-notifikationer" open>
+    <summary>Notifikationer</summary>
+    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
+         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
+         kortet passer ind uden ny CSS. -->
+    <div class="greeting-card" id="push-card">
+      <div class="greeting-title">Beskeder</div>
+      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
+      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
+        <span id="push-toggle-label">Slå notifikationer til</span>
+        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
+      </button>
+      <div class="greeting-saved" id="push-status"></div>
+    </div>
+
+    </details>
+
+    </div>
+    </details>
+
+    <details class="profil-punkt" id="profil-adgangskode" open>
+    <summary>Skift adgangskode</summary>
     <!-- Skift adgangskode -->
     <div class="pw-card">
       <div class="pw-title">Skift adgangskode</div>
@@ -771,18 +904,7 @@
       <div class="pw-msg" id="pw-msg"></div>
     </div>
 
-    <!-- Beskeder: badge + notifikation ved nye opgaver, også med appen
-         lukket (RISIKOREGISTER D34). Genbruger greeting-card-stilen, så
-         kortet passer ind uden ny CSS. -->
-    <div class="greeting-card" id="push-card">
-      <div class="greeting-title">Beskeder</div>
-      <p class="greeting-help" id="push-help">Få en notifikation og se badge-tallet på hjemmeskærmen, når der kommer en ny opgave — også når appen er lukket.</p>
-      <button class="greeting-save" id="push-toggle-btn" type="button" onclick="skiftPushBeskeder()">
-        <span id="push-toggle-label">Slå notifikationer til</span>
-        <span class="spinner" id="push-toggle-spinner" style="display:none"></span>
-      </button>
-      <div class="greeting-saved" id="push-status"></div>
-    </div>
+    </details>
 
     <button class="btn btn-sm" onclick="logout()" style="width:100%;margin-top:8px;background:var(--white);border-color:var(--line);color:var(--muted)">Log ud</button>
 
@@ -830,13 +952,9 @@
 
 <!-- Bundbar -->
 <nav class="bottom-nav">
-  <button class="nav-item kun-faner" id="nav-nye" onclick="setFane('nye')">
+  <button class="nav-item kun-faner" id="nav-alle" onclick="setFane('alle')">
     <svg class="ti" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
-    Nye
-  </button>
-  <button class="nav-item kun-faner" id="nav-igang" onclick="setFane('igang')">
-    <svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg>
-    I gang
+    Opgaver
   </button>
   <button class="nav-item kun-faner" id="nav-kunder" onclick="setFane('kunder')">
     <svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg>
@@ -870,6 +988,7 @@
         <div>
           <div class="mhead-name" id="modal-name"></div>
           <div class="mhead-phone" id="modal-phone"></div>
+          <div class="mhead-phone" id="modal-undertitel"></div>
         </div>
       </div>
       <button class="close-btn" onclick="closeModal()" aria-label="Luk"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg></button>
@@ -883,7 +1002,10 @@
         </div>
         <div class="mfield">
           <label>Telefon</label>
-          <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="12 34 56 78">
+          <div class="tlf-felt">
+            <input type="text" id="modal-phone-input" inputmode="tel" autocomplete="off" placeholder="12 34 56 78">
+            <button type="button" class="tlf-kopier kun-faner" id="modal-tlf-kopier" onclick="kopierTelefon(this)" aria-label="Kopiér telefonnummer">Kopiér</button>
+          </div>
           <div id="modal-phone-note" style="display:none;font-size:13px;margin-top:6px;color:var(--danger)"></div>
         </div>
       </div>
@@ -933,7 +1055,7 @@
         </div>
       </div>
 
-      <div class="mfield">
+      <div class="mfield" id="modal-noter-felt">
         <div class="indtal-label-row">
           <label for="modal-notes">Noter (interne)</label>
           <button type="button" class="indtal-knap" data-maal="modal-notes" id="indtal-aabn-modal-notes" style="display:none" onclick="aabnIndtaling('modal-notes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg> Indtal</button>
@@ -967,9 +1089,9 @@
         </button>
       </div>
 
-      <div class="mdivider"></div>
+      <div class="mdivider" id="modal-sms-skillelinje"></div>
 
-      <div>
+      <div id="modal-sms-blok">
         <div class="sms-label">Send SMS</div>
         <div class="tpl-row">
           <button class="tpl-btn" onclick="setTpl(this,0)">Bekræft tidspunkt</button>
@@ -1005,10 +1127,10 @@
 
     <div class="mfoot">
       <button class="btn-call" id="modal-call-btn" onclick="ringTilbage()"><svg class="ti" aria-hidden="true"><use href="#i-phone"/></svg> Ring tilbage</button>
-      <button class="btn-sms" onclick="sendSms()"><svg class="ti" aria-hidden="true"><use href="#i-send"/></svg> Send SMS</button>
+      <button class="btn-sms" id="modal-sms-knap" onclick="sendSms()"><svg class="ti" aria-hidden="true"><use href="#i-send"/></svg> Send SMS</button>
       <div class="mfoot-spacer"></div>
       <button class="btn-luk" onclick="closeModal()">Luk</button>
-      <button class="btn-igang" id="btn-igang" onclick="flytTilIGang()" style="display:none">Flyt til i gang</button>
+      <button class="btn-igang" id="btn-igang" onclick="flytTilIGang()" style="display:none">Sæt i gang</button>
       <button class="btn-afslut" id="btn-afslut-toggle" onclick="toggleAfslut()">Afslut opgave</button>
       <button class="btn-genaabn" id="btn-genaabn" onclick="genaabнOpgave()" style="display:none">Genåbn opgave</button>
     </div>
@@ -1102,7 +1224,7 @@
         <input type="checkbox" id="new-urgent-cb" style="pointer-events:none" tabindex="-1">
         <span><svg class="ti" aria-hidden="true"><use href="#i-bolt"/></svg> Det haster</span>
       </div>
-      <div class="mfield">
+      <div class="mfield" id="new-noter-felt">
         <label>Noter (interne)</label>
         <textarea id="new-notes" style="height:60px" placeholder="Kun synlig for dig..."></textarea>
       </div>
@@ -1170,6 +1292,23 @@
       btn.textContent = 'Kopieret ✓';
       setTimeout(() => { btn.textContent = foer; }, 1600);
     } catch (_) {}
+  }
+
+  // D94 trin 1b: kopiér nummeret i telefonfeltet. Samme vagt som kopierKode:
+  // clipboard kraever secure context og kan afvises — saa markeres feltet, og
+  // han kan kopiere selv. Intet nummer = intet at kopiere.
+  async function kopierTelefon(btn) {
+    const felt = document.getElementById('modal-phone-input');
+    const tekst = (felt.value || '').trim();
+    if (!tekst) return;
+    try {
+      if (!(navigator.clipboard && navigator.clipboard.writeText)) throw new Error('intet clipboard');
+      await navigator.clipboard.writeText(tekst);
+      btn.textContent = 'Kopieret ✓';
+      setTimeout(() => { btn.textContent = 'Kopiér'; }, 1600);
+    } catch (_) {
+      try { felt.focus(); felt.select(); } catch (__) {}
+    }
   }
 
   function gaaTilNyAdgangskode() {
@@ -1621,6 +1760,7 @@
     document.getElementById('vs-kode-til').textContent = `**61*${vsNr}#`;
     document.getElementById('vs-kode-fallback').textContent = `*61*${vsNr}#`;
     document.getElementById('profile-phone').textContent = vsNr;
+    document.getElementById('profil-tp-nummer').textContent = '· ' + vsNr;
   }
 
   populateProfile(user, firm?.name);
@@ -1663,6 +1803,7 @@
   }
 
 function renderLeads() {
+  if (currentFilter === 'alle') { renderOpgaverFane(); return; }
   const filtered = allLeads.filter(lead => {
     // Faner (Fase 1c): Nye = aaben og ikke startet, I gang = aaben og startet.
     // startet_at saettes af databasen ved foerste handling (Fase 1a).
@@ -1714,6 +1855,67 @@ function renderLeads() {
   updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
 }
 
+// ─── Opgaver-fanen (D94 trin 1a, Ann 26-27/10) ──────────────────────────
+// Nye og I gang er én liste. Aabne oeverst (senest roert foerst), afsluttede
+// sammenklappet nederst. Med en soegning vises ALLE, der passer — ogsaa de
+// afsluttede, med graa streg (Ann 27/10). Soegningen koerer paa det, der
+// allerede er hentet: loadData() henter alle firmaets opgaver, ogsaa lukkede.
+function soegeTekst() {
+  const el = document.getElementById('opgave-soeg');
+  return el ? el.value.trim().toLowerCase() : '';
+}
+function soegDatoer(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  const dd = d.getDate(), mm = d.getMonth() + 1, aa = d.getFullYear();
+  const to = n => String(n).padStart(2, '0');
+  return [formatDate(iso), `${dd}/${mm}`, `${to(dd)}/${to(mm)}`, `${dd}/${mm}-${aa}`, `${dd}-${mm}-${aa}`,
+          `${dd}.${mm}.${aa}`, `${to(dd)}.${to(mm)}.${aa}`, `${aa}-${to(mm)}-${to(dd)}`].join(' ');
+}
+function soegCifre(n) {
+  const c = String(n || '').replace(/\D/g, '');
+  return c.length === 10 && c.startsWith('45') ? c.slice(2) : c;   // +45 xx xx xx xx -> 8 cifre
+}
+function matcherSoegning(lead, q) {
+  const numre = [lead.telefon, lead.calls && lead.calls.from_number].map(soegCifre).filter(Boolean);
+  const qCifre = q.replace(/[\s+\-]/g, '');
+  if (/^\d{4,}$/.test(qCifre) && numre.some(n => n.includes(soegCifre(qCifre)))) return true;
+  const tekst = [visNavn(lead), lead.name, lead.address, lead.titel, lead.task,
+                 lead.telefon, lead.calls && lead.calls.from_number, numre.join(' '),
+                 soegDatoer(lead.created_at)].filter(Boolean).join(' ').toLowerCase();
+  return q.split(/\s+/).every(ord => tekst.includes(ord));
+}
+function renderOpgaverFane() {
+  const list = document.getElementById('lead-list');
+  const roert = l => new Date(l.sidst_roert || l.created_at);
+  const nyesteFoerst = (a, b) => roert(b) - roert(a);
+  const q = soegeTekst();
+  let html;
+  if (q) {
+    const fund = allLeads.filter(l => matcherSoegning(l, q))
+      .sort((a, b) => ((a.status === 'open') === (b.status === 'open')) ? nyesteFoerst(a, b) : (a.status === 'open' ? -1 : 1));
+    html = `<div class="soeg-antal">${fund.length} ${fund.length === 1 ? 'opgave' : 'opgaver'}</div>`
+         + (fund.length ? fund.map(leadKort).join('') : '<div class="empty">Ingen opgaver passer til søgningen</div>');
+  } else {
+    const aabne = allLeads.filter(l => l.status === 'open').sort(nyesteFoerst);
+    const lukkede = allLeads.filter(l => l.status !== 'open').sort(nyesteFoerst);
+    html = aabne.length ? aabne.map(leadKort).join('') : '<div class="empty">Ingen åbne opgaver</div>';
+    if (lukkede.length) html += `<details class="lukkede"><summary>Afsluttede (${lukkede.length})</summary>${lukkede.map(leadKort).join('')}</details>`;
+  }
+  list.innerHTML = html;
+  updateBadge(allLeads.filter(l => !l.seen_at && l.status === 'open').length);
+}
+
+// Overskriften paa listen: titel, ellers foerste linje af beskrivelsen (gamle
+// opgaver og kundens formular uden titel), ellers "Uden overskrift".
+function overskrift(lead) {
+  const titel = (lead.titel || '').trim();
+  if (titel) return { tekst: titel, mangler: false };
+  const linje = (lead.task || '').trim().split(/\r?\n/)[0].trim();
+  if (linje) return { tekst: linje.length > 60 ? linje.slice(0, 59).trimEnd() + '…' : linje, mangler: false };
+  return { tekst: 'Uden overskrift', mangler: true };
+}
+
 // ─── Navnet (D88 opgave 2, valg (a), Ann 23/10) ──────────────────────────
 // Med faner og en kunde vises KUNDENS navn (kunder.navn) paa kortet og i
 // vinduet. Intet kopieres: leads.name bliver liggende som historik (det,
@@ -1730,6 +1932,26 @@ function visNavn(lead) {
 // Ét kort, brugt af listen OG af Lukkede. Uden faner er det praecis som foer.
 function leadKort(lead) {
   const faner = document.body.classList.contains('faner');
+  if (faner) {
+    // D94 trin 1a: overskrift (fed), derunder navn og adresse. Ingen dato,
+    // intet billedmaerke. Stregerne: se CSS'en for .fane-kort.
+    const aaben = lead.status === 'open';
+    const ny = aaben && !lead.startet_at;      // blaa, til der er gjort noget (startet_at, Fase 1a)
+    const haster = aaben && !!lead.is_urgent;
+    const o = overskrift(lead);
+    const status = lead.status === 'completed' ? 'Udført'
+                 : lead.status === 'rejected' ? 'Afvist'
+                 : lead.status === 'inactive' ? 'Lukket uden aktivitet' : '';
+    const linje2 = [status, visNavn(lead), formatAddress(lead.address)].filter(Boolean).join(' · ');
+    const klasser = ['lead-card', 'fane-kort', ny ? 'ny' : '', haster ? 'urgent' : '', aaben ? '' : 'afsluttet'].filter(Boolean).join(' ');
+    return `
+    <div class="${klasser}" onclick="openModal(${esc(JSON.stringify(lead))})">
+      <div class="lead-overskrift${o.mangler ? ' mangler' : ''}">${esc(o.tekst)}</div>
+      <div class="lead-address">${esc(linje2)}</div>
+      ${ny ? '<span class="sr-only">Ny</span>' : ''}${haster ? '<span class="sr-only">Haster</span>' : ''}
+    </div>
+  `;
+  }
   return `
     <div class="lead-card ${lead.is_urgent && lead.status === 'open' ? 'urgent' : ''}" onclick="openModal(${esc(JSON.stringify(lead))})">
       <div class="lead-top">
@@ -1960,9 +2182,9 @@ function leadKort(lead) {
   }
 
   function indtalEl(id) { return document.getElementById(id); }
-  function indtalEsc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
+  // Indtalingens egen escape-funktion er fjernet (S33's rest, D94 trin 1d): der
+  // er ÉN i dashboardet, esc() laengere nede. Brugerinput saettes aldrig i
+  // innerHTML uden den.
   function indtalTid(sek) {
     sek = Math.max(0, Math.round(sek || 0));
     return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0');
@@ -2222,8 +2444,8 @@ function leadKort(lead) {
         tekst = 'Kasseret: ' + (d.forklaring || 'optagelsen kunne ikke bruges.') + ' Den kommer ikke med i teksten.';
       }
       return `<div class="${klasse}">
-          <div class="dt">Del ${d.del} · ${indtalEsc(laengde)}</div>
-          <div class="dm">${indtalEsc(tekst)}</div>${valg}
+          <div class="dt">Del ${d.del} · ${esc(laengde)}</div>
+          <div class="dm">${esc(tekst)}</div>${valg}
         </div>`;
     }).join('');
     wrap.querySelectorAll('button[data-svar]').forEach(b => {
@@ -2341,7 +2563,9 @@ function leadKort(lead) {
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
-    setFane('nye');
+    // D94 trin 1c: profilen som oversigt — alt lukket, undtagen telefonpasseren.
+    document.querySelectorAll('#page-profil details.profil-punkt').forEach(d => { d.open = d.id === 'profil-telefonpasser'; });
+    setFane('alle');
   }
 
   let forrigeFane = null;
@@ -2371,7 +2595,7 @@ function leadKort(lead) {
       if (fra === 'kunder') loadData();
       currentFilter = fane;
       setPage('opgaver');
-      document.getElementById('opgaver-titel').textContent = fane === 'igang' ? 'I gang' : 'Nye opgaver';
+      document.getElementById('opgaver-titel').textContent = fane === 'igang' ? 'I gang' : fane === 'nye' ? 'Nye opgaver' : 'Opgaver';
       renderLeads();
     }
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -2626,6 +2850,8 @@ function leadKort(lead) {
     const count = document.getElementById('wl-count');
     const list = document.getElementById('wl-list');
     if (count) count.textContent = `(${whitelist.length}/${whitelistMax})`;
+    const vipTal = document.getElementById('wl-count-vip');   // D94 trin 1c: tallet i profilens overskrift
+    if (vipTal) vipTal.textContent = `(${whitelist.length}/${whitelistMax})`;
     if (!list) return;
     if (!whitelist.length) {
       list.innerHTML = '<div class="wl-empty">Ingen numre på listen endnu.</div>';
@@ -2751,6 +2977,11 @@ function leadKort(lead) {
     const initials = navn.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
     document.getElementById('modal-avatar').textContent = initials;
     document.getElementById('modal-name').textContent = navn;
+    // D94 trin 1b: med faner staar opgavens overskrift i hovedet og navnet under.
+    if (document.body.classList.contains('faner')) {
+      document.getElementById('modal-name').textContent = overskrift(lead).tekst;
+      document.getElementById('modal-undertitel').textContent = navn;
+    }
     document.getElementById('modal-name-input').readOnly = laast;
     document.getElementById('modal-phone-input').readOnly = laast;
     document.getElementById('modal-ret-kunde-felt').style.display = laast ? '' : 'none';
@@ -3097,6 +3328,7 @@ function leadKort(lead) {
   //   ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
   //                       { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
   //                       { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+  //                       { kilde:'ddk-kunder', type:'aktiv-kunde', kunde: {id,navn,telefon,email,adresse,postnr,by} | null }   (D94 trin 2)
   //   dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
   //                       { kilde:'ddk-dashboard', type:'opgaver-aendret' }
   //                       { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
@@ -3139,6 +3371,16 @@ function leadKort(lead) {
   }
 
   const tekstFelt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  // D94 trin 2 (Ann 27/10): "+ Ny opgave" i toppen. Staar han paa en
+  // kundeside i Kunder-fanen, udfyldes formularen med den kunde — ellers tom.
+  // aktivKunde saettes KUN af Kunder-rammen ('aktiv-kunde', se lytteren).
+  let aktivKunde = null;
+  function nyOpgaveFraTop() {
+    const iKunder = document.getElementById('page-kunder').classList.contains('active');
+    if (iKunder && aktivKunde) aabnNyOpgaveTilKunde(aktivKunde);
+    else openNewLeadModal();
+  }
 
   function aabnNyOpgaveTilKunde(kunde) {
     openNewLeadModal();
@@ -3191,6 +3433,11 @@ function leadKort(lead) {
 
     rammeErKlar();                            // enhver gyldig besked beviser, at rammen lever
     if (d.type === 'klar') return;
+    if (d.type === 'aktiv-kunde') {           // D94 trin 2 — en tilstand, ingen kvittering
+      const k = d.kunde;
+      aktivKunde = (k && typeof k === 'object' && BRO_ID_RE.test(String(k.id || ''))) ? k : null;
+      return;
+    }
     if (d.type === 'ny-opgave') {
       kvitter(true);
       aabnNyOpgaveTilKunde(d.kunde || null);

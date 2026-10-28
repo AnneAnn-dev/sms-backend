@@ -111,6 +111,20 @@ jobs:
       - name: Koer alle proever (blokerende)
         run: node kor-proever.js
 
+      # D52 (6/9-26), D94 trin 1d: browserfilerne i static/ og tilbud/ koeres
+      # aldrig af noget, der kan sige fra - serveren parser dem ikke, og
+      # roegtesten kalder kun endpoints. En manglende quote i sw.js braekkede
+      # hele service workeren 6/9 uden et eneste signal. node --check fanger
+      # den klasse. Inline-scripts i .html daekkes IKKE her.
+      - name: Syntakstjek af browserfiler (blokerende)
+        run: |
+          set -e
+          for f in static/*.js tilbud/*.js; do
+            [ -e "$f" ] || continue
+            node --check "$f"
+            echo "ok: $f"
+          done
+
   # SPIKE-VAGT (21/9-26, Spike 0).
   #
   # Testsider til spikes (static/spike*, tilbud/spike*) maa ligge paa staging,
