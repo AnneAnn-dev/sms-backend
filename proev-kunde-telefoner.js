@@ -122,11 +122,28 @@ const antal = async (tabel, felter) => {
     const { data: uk } = await admin.from('kunder').select('navn').eq('id', u1.kunde_id).single();
     tjek(uk && uk.navn === 'Ukendt kunde', 'tomt navn bliver "Ukendt kunde"', `navn: ${JSON.stringify(uk)}`);
 
+    // D94 trin 3a (Ann 28/10): en inaktiv (arkiveret) kunde AKTIVERES igen,
+    // naar hun ringer. Foer 28/10 blev nummeret flyttet til en ny kunde.
     await admin.from('kunder').update({ arkiveret_at: new Date().toISOString() }).eq('id', r1.kunde_id);
     const r3 = await findEllerOpret(a.firmId, n1, 'Jens igen', null);
     const { data: ejer } = await admin.from('kunde_telefoner').select('kunde_id').eq('firm_id', a.firmId).eq('telefon', n1);
-    tjek(r3.ny && r3.kunde_id !== r1.kunde_id && ejer.length === 1 && ejer[0].kunde_id === r3.kunde_id,
-      'nummer hos en ARKIVERET kunde → ny kunde, nummeret flyttet');
+    const { data: k3 } = await admin.from('kunder').select('navn, arkiveret_at').eq('id', r1.kunde_id).single();
+    tjek(r3.ny === false && r3.kunde_id === r1.kunde_id && ejer.length === 1 && ejer[0].kunde_id === r1.kunde_id
+      && k3 && k3.arkiveret_at === null && k3.navn === 'Jens Prøve',
+      'nummer hos en INAKTIV kunde → samme kunde, aktiveret igen, navnet uændret',
+      `r3=${JSON.stringify(r3)} ejer=${JSON.stringify(ejer)} kunde=${JSON.stringify(k3)}`);
+
+    // Samtidige opkald fra en inaktiv kundes nummer → én aktiv kunde, intet nyt.
+    await admin.from('kunder').update({ arkiveret_at: new Date().toISOString() }).eq('id', r1.kunde_id);
+    const saml = await Promise.allSettled(
+      Array.from({ length: SAMTIDIGE }, () => findEllerOpret(a.firmId, n1, 'Samtidig', null))
+    );
+    const okSaml = saml.filter((x) => x.status === 'fulfilled').map((x) => x.value);
+    const { data: k4 } = await admin.from('kunder').select('arkiveret_at').eq('id', r1.kunde_id).single();
+    tjek(okSaml.length === SAMTIDIGE && okSaml.every((v) => v.kunde_id === r1.kunde_id && v.ny === false)
+      && k4 && k4.arkiveret_at === null,
+      `${SAMTIDIGE} samtidige opkald fra en inaktiv kundes nummer → samme kunde, aktiv, ingen ny`,
+      `samtidig genaktivering: ${okSaml.length} ok, kunde=${JSON.stringify(k4)}`);
 
     // --- Samtidighed ---------------------------------------------------------
     console.log('\nSamtidighed:');

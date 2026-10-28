@@ -266,6 +266,10 @@
     body.faner .afslut-opt { background: var(--white); }
     body.faner .afslut-opt .opt-title { font-size: 17px; }
     body.faner .afslut-opt .opt-desc { font-size: 16px; }
+    /* D94 trin 3a: advarslen i Ny opgave. To lige store, hvide knapper (Ann 26/10). */
+    .ny-advarsel { background: #FDF3E3; border: 1px solid #E8C88F; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; line-height: 1.4; color: #5A3D0C; }
+    .ny-advarsel-knapper { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .ny-advarsel-knapper button { min-height: 48px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--white); color: var(--ink); font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; }
 
     /* D94 trin 1c (27/10-26): profilen som en oversigt, man folder ud (▸/▾).
        Kortene ligger i <details>; uden faner er de aabne og overskriften
@@ -1158,7 +1162,17 @@
       </div>
       <div class="mfield">
         <label>Telefon</label>
-        <input type="tel" id="new-phone" placeholder="12 34 56 78">
+        <input type="tel" id="new-phone" placeholder="12 34 56 78" oninput="nyOpgaveNummerAendret()">
+      </div>
+      <!-- D94 trin 3a (Ann 27/10): nummeret hoerer allerede til en kunde. Kun
+           med faner. Teksten saettes som TEKST (kundenavnet kan komme fra den
+           offentlige formular, S33). -->
+      <div class="ny-advarsel" id="new-advarsel" style="display:none" role="status">
+        <div id="new-advarsel-tekst"></div>
+        <div class="ny-advarsel-knapper">
+          <button type="button" id="new-advarsel-laeg" onclick="laegPaaKunden()"></button>
+          <button type="button" id="new-advarsel-ny" onclick="nyKundeUdenNummer()">Ny kunde uden nummer</button>
+        </div>
       </div>
       <div class="mfield" style="position:relative">
         <label>Adresse</label>
@@ -1994,6 +2008,7 @@ function leadKort(lead) {
     // D88 trin 2: en kunde fra Kunder-fanen saettes EFTER aabningen
     // (aabnNyOpgaveTilKunde). Hvert andet aabningssted er uden kunde.
     nyOpgaveKundeId = null;
+    skjulNyAdvarsel();
     document.getElementById('new-lead-undertitel').textContent = 'Opret manuelt';
     document.getElementById('new-file-in').value = '';
     visBilledStatus('new-billed-status', '');
@@ -3371,6 +3386,65 @@ function leadKort(lead) {
   }
 
   const tekstFelt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  // ── D94 trin 3a: advarslen i Ny opgave ───────────────────────────────
+  // Taster han et nummer, der hoerer til en af firmaets kunder, siger vinduet
+  // det: "Læg på X" (opgaven faar kunde_id — og en inaktiv kunde aktiveres af
+  // serveren) eller "Ny kunde uden nummer" (feltet toemmes). Kun med faner
+  // (opslaget bor under /api/tilbud). Svarer opslaget ikke, sker intet —
+  // matchningen paa serveren knytter alligevel opgaven til nummerets kunde.
+  let nyAdvarselKunde = null, nyAdvarselNr = 0, nyAdvarselTimer = null;
+  function skjulNyAdvarsel() {
+    nyAdvarselKunde = null;
+    nyAdvarselNr++;
+    clearTimeout(nyAdvarselTimer);
+    const el = document.getElementById('new-advarsel');
+    if (el) el.style.display = 'none';
+  }
+  function nyOpgaveNummerAendret() {
+    skjulNyAdvarsel();
+    if (!document.body.classList.contains('faner')) return;
+    const v = document.getElementById('new-phone').value.trim();
+    if (v.replace(/\D/g, '').length < 8) return;
+    const mitNr = nyAdvarselNr;
+    nyAdvarselTimer = setTimeout(() => slaaNummerOp(v, mitNr), 400);
+  }
+  async function slaaNummerOp(v, mitNr) {
+    try {
+      const r = await fetch('/api/tilbud/kunde-opslag', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, await authHeader()),
+        body: JSON.stringify({ telefon: v }),
+      });
+      if (!r.ok || mitNr !== nyAdvarselNr) return;
+      const svar = await r.json();
+      const k = svar && svar.kunde;
+      if (mitNr !== nyAdvarselNr || !k || !BRO_ID_RE.test(String(k.id || ''))) return;
+      if (k.id === nyOpgaveKundeId) return;              // allerede lagt paa netop den kunde
+      nyAdvarselKunde = k;
+      const navn = tekstFelt(k.navn, 200) || 'en kunde';
+      document.getElementById('new-advarsel-tekst').textContent =
+        visNummer(k.telefon) + ' hører til kunden ' + navn + (k.inaktiv ? ' (inaktiv)' : '') +
+        '. Skal opgaven lægges på ' + navn + '?';
+      document.getElementById('new-advarsel-laeg').textContent = 'Læg på ' + navn;
+      document.getElementById('new-advarsel').style.display = '';
+    } catch (err) {
+      console.warn('Kundeopslag svarede ikke — ingen advarsel:', err && err.message);
+    }
+  }
+  function laegPaaKunden() {
+    const k = nyAdvarselKunde;
+    if (!k) return;
+    nyOpgaveKundeId = k.id;
+    const navn = tekstFelt(k.navn, 200);
+    if (navn) document.getElementById('new-name').value = navn;
+    document.getElementById('new-lead-undertitel').textContent = navn ? 'Til ' + navn : 'Til kunden';
+    skjulNyAdvarsel();
+  }
+  function nyKundeUdenNummer() {
+    document.getElementById('new-phone').value = '';
+    skjulNyAdvarsel();
+  }
 
   // D94 trin 2 (Ann 27/10): "+ Ny opgave" i toppen. Staar han paa en
   // kundeside i Kunder-fanen, udfyldes formularen med den kunde — ellers tom.
