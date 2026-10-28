@@ -136,8 +136,9 @@
   let kundeIder = [];
   const kundeCache = new Map();             // id → kunde (bruges af saveOpgaver)
 
-  async function loadCustomers() {
-    const { kunder } = await api('GET', '/api/tilbud/kunder');
+  // D94 trin 3a: medInaktive = ogsaa de inaktive (arkiverede) kunder.
+  async function loadCustomers(medInaktive) {
+    const { kunder } = await api('GET', '/api/tilbud/kunder' + (medInaktive ? '?inaktive=1' : ''));
     const list = (kunder || []).map((k) => ({
       id: k.id, navn: k.navn || '', telefon: k.telefon || '', adresse: k.adresse || '',
       oprettet: k.created_at || '',
@@ -145,6 +146,7 @@
       // udfylder med. Ikke i KUNDE_PROTO — de rettes ikke herfra.
       telefoner: Array.isArray(k.telefoner) ? k.telefoner.slice() : (k.telefon ? [k.telefon] : []),
       email: k.email || '', postnr: k.postnr || '', by: k.by || '',
+      inaktiv: !!k.arkiveret_at,      // D94 trin 3a — ikke i KUNDE_PROTO; rettes kun via saetInaktiv
     }));
     kundeIder = list.map((k) => k.id);
     kundeCache.clear();
@@ -283,6 +285,12 @@
   // kunden er firmaets (hentEgenRaekke), og den sammensatte fremmednoegle
   // holder kunde og opgave i samme firma. SMS-nummeret paa opgaven roeres
   // ikke (D88 betingelse 6, valg (a)).
+  // D94 trin 3a: inaktivér (true) eller aktivér (false) en kunde.
+  async function saetInaktiv(kundeId, inaktiv) {
+    const { kunde } = await api('POST', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/inaktiv', { inaktiv: !!inaktiv });
+    return kunde;
+  }
+
   async function flytOpgave(opgaveId, kundeId) {
     const { opgave } = await api('PATCH', '/api/tilbud/opgaver/' + encodeURIComponent(opgaveId), { kunde_id: kundeId });
     return opgave;
@@ -484,7 +492,7 @@
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
     loadCustomers, saveCustomers, retKunde, hentOpgaveNumre,
-    loadOpgaver, saveOpgaver, flytOpgave,
+    loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,
