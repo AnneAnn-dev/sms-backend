@@ -4,7 +4,7 @@ Hvad der sker, når en kunde stopper: opsigelse i Frisbii, automatisk
 nummer-tilbagetagelse, og — kun når du eksplicit beslutter det — permanent
 sletning af firmaets data.
 
-Sidst opdateret: 24/8-2026 (ny)
+Sidst opdateret: 27/10-2026 (Frisbiis danske knapper, genkøb via hjemmesiden, to advarsler). Før: 24/8-2026 (ny)
 
 ---
 
@@ -26,6 +26,54 @@ andre" til GDPR-pakken er afklaret). Indtil den beslutning er taget: slet
 kun et firma, når du eksplicit har besluttet at det skal væk (en udtrykkelig
 anmodning fra kunden, eller oprydning af et forladt test-/pilotfirma) — ikke
 efter en fast frist, for den frist er ikke besluttet endnu.
+
+---
+
+## 0b. Frisbiis knapper på dansk — og hvad de udløser hos os
+
+*Tilføjet 27/10-26, målt samme dag i prod på `sub-0072` og `sub-0077`.*
+Frisbiis brugerflade er på dansk, mens denne runbog og koden bruger de
+engelske event-navne. **Forveksles "Opsig" og "Luk", nedlægges kundens firma.**
+
+| Knap i Frisbii | Svarer til | Event til os | Hvad der sker hos os |
+|---|---|---|---|
+| **Opsig** | Cancel | `subscription_cancelled` | `billing_status = cancelled`. Service **fortsætter** til periodens slut. Ved periodens slut kommer `subscription_expired` af sig selv |
+| **Luk** | Expire now | `subscription_expired` | **Med det samme:** `deprovisionFirm()` sætter firmaet `inactive` og frigiver nummeret (karantæne efter afsnit 1) |
+| **Genoptag** (kun på et opsagt abonnement) | Uncancel | `subscription_uncancelled` | `billing_status = active` igen. Firmaet var aldrig rørt |
+
+Menuen på et aktivt abonnement viser også *Rediger* og *Forlæng
+prøveperioden*. "Genoptag" vises kun, når abonnementet er opsagt.
+
+**Vil kunden fortsætte efter en opsigelse: tryk "Genoptag" på det GAMLE
+abonnement.** Lad ham ikke købe igen via hjemmesiden — se næste afsnit.
+
+### Kunden køber igen via hjemmesiden (D91)
+
+I dag giver et nyt køb med samme e-mail **et nyt firma med nyt nummer**,
+mens hans login stadig peger på det gamle firma. For kunden ser det sådan
+ud: velkomstmailen giver ham et nyt nummer, hans kunder ringer til det
+gamle, og hans opgaver, kunder og referater står i det gamle firma, der er
+på vej mod udløb — og slettes 3 måneder efter (D89). Det skete for Ann selv
+27/10, ved præcis den handling, en kunde ville gøre.
+
+**Er det sket, så ryd op i Frisbii — ingen SQL mod prod — i denne rækkefølge:**
+
+1. **"Genoptag" det GAMLE abonnement** (det, firmaet med login hænger på).
+   Tjek i prod (kun læsning):
+   `select billing_status from firms where frisbii_subscription = '<gammelt handle>';`
+   → `active`. Først når det står der, videre til trin 2.
+2. **"Luk" det NYE abonnement.** Tjek handlet, før du trykker. Det nye firma
+   bliver `inactive`/`expired`, og nummeret frigives — straks, hvis det nye
+   abonnement aldrig er betalt.
+3. Tjek begge firmaer i prod:
+   `select name, status, billing_status, phone_number is not null as har_nummer, frisbii_subscription from firms where email = '<kundens e-mail>' order by created_at;`
+   → det gamle `active`/`active`/`true`, det nye `inactive`/`expired`/`false`.
+4. Det tomme nye firma kan derefter slettes efter afsnit 2 (abonnementet er
+   udløbet, så det kommer ikke igen ved en fornyelse).
+
+Rækkefølgen er vigtig: lukkes det nye før det gamle er genoptaget, er begge
+firmaer et øjeblik på vej ud. Varig løsning: Fase 3 ("samme firma hele
+vejen", D91 løsning B).
 
 ---
 
@@ -93,6 +141,19 @@ eksplicit, Storage i `greetings/` og `lead-images/`).
    manuelt under **Authentication → Users** i Supabase og slet den der.
 9. **"potentielle kunder"-bucketten røres ikke** af scriptet — den er ikke
    fundet i koden (grep 19/8). Tjek selv i Storage-UI'en, hvis relevant.
+
+### ⚠️ To ting, scriptet ikke selv tjekker (tilføjet 27/10-26)
+
+- **`delete-firma.js` spørger ikke Frisbii (D93).** Slettes et firma, mens
+  abonnementet stadig er aktivt, opretter næste fornyelse (`invoice_settled`)
+  formentlig et nyt firma med nyt nummer. Trin 2 ovenfor ("vent til
+  `subscription_expired`") er det eneste værn — spring det ikke over.
+- **Et abonnement med en pris på 0 kr. (fx en gratis pilot) dømmes som
+  "aldrig betalt" (D95).** Udløber det, frigives nummeret **straks uden
+  karantæne** — også selvom det står på kundens bil. Tryk aldrig "Luk" på et
+  0-kr.-abonnement uden først at have besluttet, hvad der skal ske med
+  nummeret.
+
 
 ### ⚠️ Rækkefølgen er ikke tilfældig
 
