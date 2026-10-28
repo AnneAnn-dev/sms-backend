@@ -769,6 +769,13 @@ app.post("/opret-opgave", async (req, res) => {
   }
 
   if (kundeId) {
+    // D94 trin 3a: en ny opgave paa en inaktiv (arkiveret) kunde aktiverer
+    // hende igen — samme regel som et opkald (find_eller_opret_kunde). Fejler
+    // det, har opgaven stadig sin kunde; fejlen logges uden persondata.
+    const { error: aFejl } = await supabase.from("kunder")
+      .update({ arkiveret_at: null })
+      .eq("id", kundeId).eq("firm_id", firm_id).not("arkiveret_at", "is", null);
+    if (aFejl) console.error("❌ opret-opgave: kunden kunne ikke aktiveres:", aFejl.code, aFejl.message);
     // Valgt kunde: ingen matchning. Et nyt nummer laegges paa kunden. Fejler
     // det (fx 23505, fordi en anden naaede foerst), har opgaven stadig sin
     // kunde — fejlen logges uden nummeret.

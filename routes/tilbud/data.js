@@ -2,9 +2,11 @@
 //
 // Monteres fra routes/tilbud/index.js, altsaa kun naar TILBUD_AKTIV er true.
 //
-//   GET    /api/tilbud/kunder            listen
+//   GET    /api/tilbud/kunder            listen (?inaktive=1: ogsaa de inaktive)
 //   POST   /api/tilbud/kunder            opret
 //   PATCH  /api/tilbud/kunder/:id        ret
+//   POST   /api/tilbud/kunder/:id/inaktiv  inaktivér/aktivér (D94 trin 3a)
+//   POST   /api/tilbud/kunde-opslag      hvilken af firmaets kunder har nummeret? (D94 3a)
 //
 //   GET    /api/tilbud/opgaver           listen, med kundens navn
 //   POST   /api/tilbud/opgaver           opret - UDEN opkald, se nedenfor
@@ -178,8 +180,10 @@ module.exports = function (app, supabase) {
   // Kundens numre (D88): kunde_telefoner er eneste kilde. Svaret har stadig
   // `telefon` (det foerste nummer), saa klienterne ikke skal skifte form, og
   // `telefoner` (alle, aeldste foerst).
+  // arkiveret_at (D94 trin 3a): "Inaktiv" i appen. Kun laesning her; den
+  // skrives af POST /api/tilbud/kunder/:id/inaktiv og find_eller_opret_kunde().
   const KUNDE_KOLONNER =
-    "id, navn, email, adresse, postnr, by, er_erhverv, cvr, created_at, kunde_telefoner(telefon, created_at)";
+    "id, navn, email, adresse, postnr, by, er_erhverv, cvr, created_at, arkiveret_at, kunde_telefoner(telefon, created_at)";
   function medNumre(k) {
     if (!k) return k;
     const { kunde_telefoner, ...resten } = k;
@@ -222,12 +226,14 @@ module.exports = function (app, supabase) {
   app.get("/api/tilbud/kunder", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
     try {
-      const { data, error } = await supabase
+      // D94 trin 3a: ?inaktive=1 giver ogsaa de inaktive (arkiverede) — til
+      // listen "Inaktive kunder" og til soegningen. Uden: som foer.
+      let q = supabase
         .from("kunder")
         .select(KUNDE_KOLONNER)
-        .eq("firm_id", firmId)
-        .is("arkiveret_at", null)
-        .order("navn");
+        .eq("firm_id", firmId);
+      if (req.query.inaktive !== "1") q = q.is("arkiveret_at", null);
+      const { data, error } = await q.order("navn");
       if (error) throw error;
       res.json({ ok: true, kunder: (data || []).map(medNumre) });
     } catch (e) { svarPaaFejl(res, e, "kunder kunne ikke hentes"); }
@@ -332,6 +338,55 @@ module.exports = function (app, supabase) {
   // paa kunden (fx rettet paa opgaven), kommer ogsaa med.
   //   200 { ok, numre: [{ nummer, antal, sms }] }   nummer null = intet nummer
   //   404 fremmed eller ukendt kunde
+  // ─── Inaktivér / aktivér en kunde (D94 trin 3a, Ann 27–28/10) ───────────
+  // Inaktiv = `arkiveret_at`. Kunden forsvinder fra kundelisten (ligger under
+  // "Inaktive kunder"), men intet slettes: numre, opgaver og stamdata bliver.
+  // Ringer kunden igen, aktiverer find_eller_opret_kunde() hende. Opgaver,
+  // aabne som afsluttede, roeres ikke. Ejerskab via opdaterEgenRaekke: fremmed
+  // og ukendt id svarer begge 404.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  app.post("/api/tilbud/kunder/:id/inaktiv", async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    if (!UUID.test(String(req.params.id || ""))) return res.status(404).json({ error: "ikke_fundet", besked: "Den findes ikke." });
+    const inaktiv = req.body && req.body.inaktiv;
+    if (typeof inaktiv !== "boolean") {
+      return res.status(400).json({ error: "ugyldigt_felt", felt: "inaktiv", besked: "inaktiv skal være true eller false." });
+    }
+    try {
+      await opdaterEgenRaekke(supabase, "kunder", req.params.id, firmId,
+        { arkiveret_at: inaktiv ? new Date().toISOString() : null });
+      const kunde = medNumre(await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, KUNDE_KOLONNER));
+      res.json({ ok: true, kunde });
+    } catch (e) { svarPaaFejl(res, e, "kunden kunne ikke inaktiveres/aktiveres"); }
+  });
+
+  // ─── Hvilken kunde har nummeret? (D94 trin 3a, advarslen i Ny opgave) ───
+  // Nummeret i KROPPEN, aldrig i URL'en (adgangslogs). Normaliseres med
+  // kundeNoegle() — samme noegle som alt andet (D88 betingelse 1) — og slaas
+  // KUN op i tokenets firma. Et andet firmas nummer, et ukendt og et ugyldigt
+  // nummer giver PRAECIS samme svar ({ kunde: null }), saa opslaget ikke kan
+  // bruges til at finde navne paa tvaers af firmaer. Intet nummer i loggen.
+  app.post("/api/tilbud/kunde-opslag", async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    const noegle = kundeNoegle(req.body && req.body.telefon);
+    if (!noegle) return res.json({ ok: true, kunde: null });
+    try {
+      const { data, error } = await supabase
+        .from("kunde_telefoner")
+        .select("kunde_id, kunder(id, navn, email, adresse, postnr, by, arkiveret_at)")
+        .eq("firm_id", firmId)
+        .eq("telefon", noegle)
+        .maybeSingle();
+      if (error) throw error;
+      const k = data && data.kunder;
+      if (!k) return res.json({ ok: true, kunde: null });
+      res.json({ ok: true, kunde: {
+        id: k.id, navn: k.navn || "", email: k.email || "", adresse: k.adresse || "",
+        postnr: k.postnr || "", by: k.by || "", telefon: noegle, inaktiv: !!k.arkiveret_at,
+      } });
+    } catch (e) { svarPaaFejl(res, e, "kundeopslag fejlede"); }
+  });
+
   app.get("/api/tilbud/kunder/:id/opgave-numre", async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
     try {
