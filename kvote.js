@@ -222,9 +222,12 @@ async function tjek({ firmId, maxPrisOere = null }, supabase, env) {
 
   if (firmaDagOere >= firmaLoft.dagOere) {
     return nej("firma_dagsloft",
-      "Du har lavet usædvanligt mange referater i dag, så vi holder pause til i " +
-      "morgen. Din optagelse er gemt her på telefonen — skriv til os, hvis det " +
-      "haster.",
+      // D84 / D94 (Ann og Anne 27/10): neutral ordlyd — samme kvote bruges af
+      // referater OG indtaling i opgaver (/api/indtaling/*). Ordret, rettes kun
+      // efter Annes ordlyd.
+      "Du har brugt optagefunktionen over hvad der er inkluderet i dit forbrug " +
+      "pr dag, optagelse er sat på pause til i morgen. Du kan stadig skrive " +
+      "teksten selv.",
       { forbrugtOere: firmaDagOere, loftOere: firmaLoft.dagOere });
   }
 

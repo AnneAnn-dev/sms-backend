@@ -269,6 +269,43 @@
   .sheet h2 { font-family: 'Nunito', sans-serif; font-size: 16px; margin: 0 0 12px; }
   .sheet-kunde-row { padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; cursor: pointer; }
   .sheet-kunde-row:last-of-type { border-bottom: none; }
+  /* ---------- D94 trin 2 (27/10-26): Kunder som liste, samme udtryk som
+     dashboardets Opgaver-fane. Lister paa hvid baggrund, ark svagt lyseblaa
+     med hvide felter, blaa hovedknapper, fire tekststoerrelser. ---------- */
+  input, textarea { font-size: 16px; }                 /* under 16px zoomer iOS ind */
+  .btn-primary { background: var(--steel); }
+  .btn-primary:disabled { background: #A9C2D8; }
+  html.indlejret, html.indlejret body, html.indlejret .app { background: var(--white); }
+  html.indlejret .fab { display: none !important; }    /* "+ Ny opgave" i toppen afloeser plusserne */
+  html.indlejret #kundeOpgaverHjaelp { display: none; }
+  .sheet { background: #FAFCFE; }
+  .sheet input, .sheet textarea { background: var(--white); }
+  .sheet h2 { font-size: 22px; font-weight: 800; }
+  .soeg-felt { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px; height: 48px; background: var(--white); margin: 0 0 6px; }
+  .soeg-felt:focus-within { border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+  .soeg-felt input { flex: 1; min-width: 0; border: none; padding: 0; box-shadow: none; background: transparent; -webkit-appearance: none; appearance: none; }
+  .soeg-felt input:focus { box-shadow: none; }
+  .kunde-row { background: transparent; border: none; border-radius: 0; border-bottom: 1px solid var(--line); padding: 14px 4px; margin: 0; }
+  .kunde-row .kn { font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; }
+  .kunde-row .kc { font-size: 16px; }
+  #kundeDetailName { font-size: 22px; font-weight: 800; text-transform: none; letter-spacing: 0; color: var(--navy); margin: 8px 0 4px; }
+  #kundeDetailNumre, #kundeDetailAdresse { font-style: normal; font-size: 16px; color: var(--navy); }
+  .kd-nummer { display: flex; align-items: center; gap: 4px; }
+  .kd-kopier { width: auto; min-height: 44px; padding: 0 10px; border: none; background: none; color: var(--steel); font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; }
+  .opg-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); border-left: 4px solid transparent; position: relative; }
+  .opg-row.ny { border-left-color: var(--steel); }
+  .opg-row.afsluttet { border-left-color: #B8C1CC; }
+  .opg-row.haster::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 4px; background: var(--rec); }
+  .opg-row .opg-tekst { flex: 1; min-width: 0; padding: 14px 4px 14px 14px; cursor: pointer; }
+  .opg-row.haster .opg-tekst { padding-left: 22px; }
+  .opg-row .ot { font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .opg-row.afsluttet .ot { color: var(--ink-soft); }
+  .opg-row .om { font-size: 16px; color: var(--ink-soft); margin-top: 2px; }
+  .opg-flyt { width: auto; flex: 0 0 auto; min-height: 44px; padding: 0 12px; margin-right: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--steel); font-size: 16px; font-weight: 800; font-family: 'Nunito', sans-serif; cursor: pointer; }
+  .flyt-hjaelp { font-size: 16px; color: var(--ink-soft); margin: 0 0 10px; }
+  .flyt-bekraeft { border: 1px solid var(--line); background: var(--white); border-radius: 12px; padding: 12px; margin-top: 10px; font-size: 16px; }
+  .flyt-knapper { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+
   /* Ret kunde (D88 opgave 2, 23/10). 16px i felterne: under det zoomer iOS ind. */
   #retKundeSheet input[type=text] { font-size: 16px; }
   .rk-nummer { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 15px; }
@@ -469,6 +506,11 @@
   <!-- ================= SCREEN: KUNDER (liste) ================= -->
   <div class="screen" id="screen-customers">
     <div class="section-label">Kunder</div>
+    <!-- D94 trin 2: soegning paa navn, telefon og adresse. Kun i det hentede. -->
+    <div class="soeg-felt">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-soft);flex:0 0 auto"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="search" id="kundeSoeg" aria-label="Søg i kunder" placeholder="Søg på navn, telefon eller adresse" autocomplete="off" enterkeyhint="search">
+    </div>
     <div class="error-banner" id="errorBannerKunder"></div>
     <div id="kundeListWrap"><p class="indlaeser">Henter kunder …</p></div>
     <button class="fab" id="fabAddKunde">+</button>
@@ -490,7 +532,8 @@
     <!-- D88 opgave 2 (23/10): kundens stamdata rettes her og kun her. -->
     <button class="btn btn-secondary" id="retKundeBtn" type="button" style="margin:0 0 10px">Ret kunde</button>
     <p class="felt-hjaelp" id="kundeDetailKvittering" style="display:none;margin:0 2px 10px"></p>
-    <p class="empty-note" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
+    <p class="empty-note" id="kundeOpgaverHjaelp" style="margin-bottom:12px;">Opgaver for denne kunde. Referater og tilbud hænger på den enkelte opgave.</p>
+    <div class="section-label" id="kundeOpgaverEtiket" style="margin-top:14px;display:none">Opgaver</div>
     <div class="error-banner" id="errorBannerKundeDetail"></div>
     <div id="kundeOpgaverWrap"></div>
     <button class="fab" id="fabAddOpgave">+</button>
@@ -558,6 +601,27 @@
         <div class="error-banner" id="errorBannerOpretKunde"></div>
         <button class="btn btn-primary" id="okKundeGemBtn">Opret kunde</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: flyt opgave (D94 trin 2, 27/10) ================= -->
+  <div class="sheet-overlay" id="flytSheet">
+    <div class="sheet">
+      <h2 id="flytTitel">Flyt opgaven</h2>
+      <p class="flyt-hjaelp">Vælg den kunde, opgaven skal ligge på. SMS-nummeret på opgaven følger med.</p>
+      <div class="soeg-felt">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-soft);flex:0 0 auto"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="flytSoeg" aria-label="Søg kunde" placeholder="Søg på navn, telefon eller adresse" autocomplete="off">
+      </div>
+      <div id="flytListe"></div>
+      <div class="flyt-bekraeft" id="flytBekraeft" style="display:none">
+        <div id="flytBekraeftTekst"></div>
+        <div class="flyt-knapper">
+          <button class="btn btn-secondary" id="flytFortrydBtn" type="button" style="margin-top:0">Fortryd</button>
+          <button class="btn btn-primary" id="flytBtn" type="button">Flyt</button>
+        </div>
+      </div>
+      <div class="error-banner" id="errorBannerFlyt"></div>
     </div>
   </div>
 
@@ -702,7 +766,7 @@ function udenFaser() { faseKnap = null; }
 Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
-const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver,
+const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver, flytOpgave,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
         retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
@@ -752,6 +816,7 @@ function showScreen(id) {
   if (id !== 'record') { try { stopHvisOptager(); } catch (_) { /* aldrig vælte navigationen */ } }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
+  if (id !== 'kunde-detail') meldAktivKunde(null);   // D94 trin 2, se Kunder-broen
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
 }
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -829,19 +894,46 @@ async function renderKundeList() {
     visFejl('errorBannerKunder', e);
     return;
   }
+  tegnKundeListe();
+}
+
+// D94 trin 2: soegning i kunderne — navn, adresse og numre (med eller uden
+// mellemrum og +45). Kun i det hentede; ingen nye kald.
+function kundeCifre(n) {
+  const c = String(n || '').replace(/\D/g, '');
+  return c.length === 10 && c.startsWith('45') ? c.slice(2) : c;
+}
+function kundeMatcher(k, q) {
+  const numre = (k.telefoner || []).map(kundeCifre).filter(Boolean);
+  const qCifre = q.replace(/[\s+\-]/g, '');
+  if (/^\d{4,}$/.test(qCifre) && numre.some(n => n.includes(kundeCifre(qCifre)))) return true;
+  const tekst = [k.navn, kundeAdresse(k), k.email, (k.telefoner || []).join(' '), numre.join(' ')]
+    .filter(Boolean).join(' ').toLowerCase();
+  return q.split(/\s+/).every(ord => tekst.includes(ord));
+}
+function tegnKundeListe() {
+  const wrap = document.getElementById('kundeListWrap');
+  const felt = document.getElementById('kundeSoeg');
+  const q = felt ? felt.value.trim().toLowerCase() : '';
   if (!customers.length) {
-    wrap.innerHTML = `<p class="empty-note">Ingen kunder endnu. Tryk på + for at tilføje en.</p>`;
+    wrap.innerHTML = `<p class="empty-note">Ingen kunder endnu. Kunder opstår, når du opretter en opgave.</p>`;
     return;
   }
-  wrap.innerHTML = customers.map(k => `
+  const liste = q ? customers.filter(k => kundeMatcher(k, q)) : customers;
+  if (!liste.length) {
+    wrap.innerHTML = `<p class="empty-note">Ingen kunder passer til søgningen.</p>`;
+    return;
+  }
+  wrap.innerHTML = liste.map(k => `
     <div class="kunde-row" data-id="${escapeHtml(k.id)}">
-      <div><div class="kn">${escapeHtml(k.navn)}</div><div class="kc">${escapeHtml(k.adresse || 'Tryk for at se opgaver')}</div></div>
+      <div><div class="kn">${escapeHtml(k.navn)}</div><div class="kc">${escapeHtml(kundeAdresse(k) || 'Ingen adresse')}</div></div>
       <span class="chev">›</span>
     </div>`).join('');
   wrap.querySelectorAll('.kunde-row').forEach(row => {
     row.addEventListener('click', () => openKundeDetail(row.dataset.id));
   });
 }
+document.getElementById('kundeSoeg').addEventListener('input', tegnKundeListe);
 
 async function openKundeDetail(kundeId) {
   currentKundeDetailId = kundeId;
@@ -850,8 +942,23 @@ async function openKundeDetail(kundeId) {
   document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
   const numreEl = document.getElementById('kundeDetailNumre');
   const numre = (k && k.telefoner) || [];
-  numreEl.textContent = numre.map(visTelefon).join(' · ');
+  // D94 trin 2: hvert nummer paa sin linje med en kopiér-knap. Bygget med DOM
+  // og textContent — nummeret er data, aldrig HTML (S33).
+  numreEl.textContent = '';
+  numre.forEach(n => {
+    const linje = document.createElement('div');
+    linje.className = 'kd-nummer';
+    const tal = document.createElement('span');
+    tal.textContent = visTelefon(n);
+    const knap = document.createElement('button');
+    knap.type = 'button'; knap.className = 'kd-kopier'; knap.textContent = 'Kopiér';
+    knap.setAttribute('aria-label', 'Kopiér ' + visTelefon(n));
+    knap.addEventListener('click', () => kopierNummer(knap, visTelefon(n)));
+    linje.append(tal, knap);
+    numreEl.appendChild(linje);
+  });
   numreEl.style.display = numre.length ? '' : 'none';
+  meldAktivKunde(k || null);
   const adresseEl = document.getElementById('kundeDetailAdresse');
   const adr = kundeAdresse(k);
   adresseEl.textContent = adr;
@@ -869,20 +976,125 @@ async function openKundeDetail(kundeId) {
     visFejl('errorBannerKundeDetail', e);
     return;
   }
+  // D94 trin 2: samme streger som dashboardets Opgaver-fane. Aabne foerst
+  // (nyeste oeverst), afsluttede bagefter. Flyt findes KUN her (Ann 27/10).
+  const etiket = document.getElementById('kundeOpgaverEtiket');
+  etiket.textContent = 'Opgaver (' + opgaver.length + ')';
+  etiket.style.display = opgaver.length ? '' : 'none';
+  const aabne = opgaver.filter(o => o.status === 'open');
+  const lukkede = opgaver.filter(o => o.status !== 'open');
   wrap.innerHTML = opgaver.length
-    ? opgaver.map(o => `
-        <div class="referat-list-row" data-id="${escapeHtml(o.id)}">
-          <div class="rt">${escapeHtml(o.titel)}</div>
-          <div class="rm">Oprettet ${escapeHtml((o.oprettet || '').slice(0, 10))}</div>
-        </div>`).join('')
-    : `<p class="empty-note">Ingen opgaver endnu for denne kunde. Tryk på + for at oprette en.</p>`;
+    ? aabne.concat(lukkede).map(o => {
+        const aaben = o.status === 'open';
+        const kl = ['opg-row', aaben && !o.startetAt ? 'ny' : '', aaben && o.haster ? 'haster' : '', aaben ? '' : 'afsluttet'].filter(Boolean).join(' ');
+        const status = o.status === 'completed' ? 'Udført' : o.status === 'rejected' ? 'Afvist'
+                     : o.status === 'inactive' ? 'Lukket uden aktivitet' : '';
+        const linje2 = [status, o.opgaveAdresse].filter(Boolean).join(' · ');
+        return `
+        <div class="${kl}" data-id="${escapeHtml(o.id)}">
+          <div class="opg-tekst" role="button" tabindex="0">
+            <div class="ot">${escapeHtml(opgaveOverskrift(o))}</div>
+            ${linje2 ? `<div class="om">${escapeHtml(linje2)}</div>` : ''}
+          </div>
+          <button class="opg-flyt" type="button">Flyt</button>
+        </div>`;
+      }).join('')
+    : `<p class="empty-note">Ingen opgaver endnu for denne kunde.</p>`;
   // D88 trin 2, opgave 10 (Ann 19/10): tryk på en opgave åbner dashboardets
-  // opgavevindue — det samme som under Nye og I gang. Reserve: opgavesiden her.
-  wrap.querySelectorAll('.referat-list-row').forEach(row => {
-    row.addEventListener('click', () =>
-      bedDashboard({ type: 'aabn-opgave', opgaveId: row.dataset.id }, () => openOpgaveDetail(kundeId, row.dataset.id)));
+  // opgavevindue — det samme som under Opgaver. Reserve: opgavesiden her.
+  wrap.querySelectorAll('.opg-row').forEach(row => {
+    const aabn = () => bedDashboard({ type: 'aabn-opgave', opgaveId: row.dataset.id }, () => openOpgaveDetail(kundeId, row.dataset.id));
+    const tekst = row.querySelector('.opg-tekst');
+    tekst.addEventListener('click', aabn);
+    tekst.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aabn(); } });
+    const o = opgaver.find(x => x.id === row.dataset.id);
+    row.querySelector('.opg-flyt').addEventListener('click', () => aabnFlyt(kundeId, o));
   });
 }
+
+// Overskriften: titel, ellers foerste linje af beskrivelsen (som i dashboardet).
+function opgaveOverskrift(o) {
+  const t = String(o.titel || '').trim();
+  const linje = (t || String(o.beskrivelse || '').trim()).split(/\r?\n/)[0].trim();
+  if (!linje) return 'Uden overskrift';
+  return linje.length > 60 ? linje.slice(0, 59).trimEnd() + '…' : linje;
+}
+
+async function kopierNummer(knap, tekst) {
+  try {
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) return;
+    await navigator.clipboard.writeText(tekst);
+    knap.textContent = 'Kopieret ✓';
+    setTimeout(() => { knap.textContent = 'Kopiér'; }, 1600);
+  } catch (_) { /* afvist: han kan markere nummeret selv */ }
+}
+
+/* ---------- Flyt opgave (D94 trin 2) ---------- */
+const flytSheet = document.getElementById('flytSheet');
+let flyt = { fraKundeId: null, opgave: null, tilKunde: null };
+function aabnFlyt(fraKundeId, opgave) {
+  if (!opgave) return;
+  flyt = { fraKundeId, opgave, tilKunde: null };
+  document.getElementById('flytTitel').textContent = 'Flyt "' + opgaveOverskrift(opgave) + '"';
+  document.getElementById('flytSoeg').value = '';
+  document.getElementById('flytBekraeft').style.display = 'none';
+  skjulFejl('errorBannerFlyt');
+  tegnFlytListe();
+  flytSheet.classList.add('open');
+}
+function tegnFlytListe() {
+  const q = document.getElementById('flytSoeg').value.trim().toLowerCase();
+  const liste = customers.filter(k => k.id !== flyt.fraKundeId && (!q || kundeMatcher(k, q)));
+  const wrap = document.getElementById('flytListe');
+  wrap.textContent = '';
+  if (!liste.length) {
+    const p = document.createElement('p'); p.className = 'empty-note';
+    p.textContent = q ? 'Ingen kunder passer til søgningen.' : 'Der er ingen andre kunder.';
+    wrap.appendChild(p); return;
+  }
+  liste.forEach(k => {
+    const r = document.createElement('div');
+    r.className = 'kunde-row'; r.setAttribute('role', 'button'); r.tabIndex = 0;
+    const tekst = document.createElement('div');
+    const n = document.createElement('div'); n.className = 'kn'; n.textContent = k.navn;
+    const a = document.createElement('div'); a.className = 'kc'; a.textContent = kundeAdresse(k) || 'Ingen adresse';
+    tekst.append(n, a); r.appendChild(tekst);
+    const vaelg = () => {
+      flyt.tilKunde = k;
+      document.getElementById('flytBekraeftTekst').textContent =
+        'Flyt "' + opgaveOverskrift(flyt.opgave) + '" til ' + k.navn + '?';
+      document.getElementById('flytBekraeft').style.display = '';
+    };
+    r.addEventListener('click', vaelg);
+    r.addEventListener('keydown', (e) => { if (e.key === 'Enter') vaelg(); });
+    wrap.appendChild(r);
+  });
+}
+document.getElementById('flytSoeg').addEventListener('input', tegnFlytListe);
+document.getElementById('flytFortrydBtn').addEventListener('click', () => {
+  flyt.tilKunde = null;
+  document.getElementById('flytBekraeft').style.display = 'none';
+});
+document.getElementById('flytBtn').addEventListener('click', async () => {
+  if (!flyt.opgave || !flyt.tilKunde) return;
+  const knap = document.getElementById('flytBtn');
+  knap.disabled = true;
+  skjulFejl('errorBannerFlyt');
+  try {
+    await flytOpgave(flyt.opgave.id, flyt.tilKunde.id);
+    flytSheet.classList.remove('open');
+    const kv = document.getElementById('kundeDetailKvittering');
+    kv.textContent = '"' + opgaveOverskrift(flyt.opgave) + '" ligger nu på ' + flyt.tilKunde.navn + '.';
+    kv.style.display = '';
+    openKundeDetail(flyt.fraKundeId).then(() => { kv.style.display = ''; });
+  } catch (e) {
+    if (erLoggetUd(e)) { flytSheet.classList.remove('open'); return showScreen('login'); }
+    visFejl('errorBannerFlyt', e);
+  } finally {
+    knap.disabled = false;
+  }
+});
+flytSheet.addEventListener('click', (e) => { if (e.target === flytSheet) flytSheet.classList.remove('open'); });
 document.getElementById('backToKunder').addEventListener('click', () => {
   showScreen('customers');
   renderKundeList();
@@ -2042,6 +2254,7 @@ if (typeof initDawa === 'function') {
      ramme -> dashboard  { kilde:'ddk-kunder', type:'klar' }
                          { kilde:'ddk-kunder', type:'ny-opgave',   ref, kunde: {id,navn,telefon,email,adresse,postnr,by} | null }
                          { kilde:'ddk-kunder', type:'aabn-opgave', ref, opgaveId }
+                         { kilde:'ddk-kunder', type:'aktiv-kunde', kunde: {id,navn,telefon,email,adresse,postnr,by} | null }   (D94 trin 2)
      dashboard -> ramme  { kilde:'ddk-dashboard', type:'kvittering', ref, ok }
                          { kilde:'ddk-dashboard', type:'opgaver-aendret' }
                          { kilde:'ddk-dashboard', type:'vis-referater', kundeId, opgaveId }
@@ -2067,6 +2280,17 @@ function bedDashboard(besked, reserve) {
   } catch (err) {
     clearTimeout(timer); broVenter.delete(ref); reserve();
   }
+}
+
+// D94 trin 2 (Ann 27/10): plusserne er vaek. Dashboardets "+ Ny opgave" i
+// toppen udfylder formularen med den kunde, hvis side er aaben — derfor siger
+// rammen til, naar en kundeside vises, og naar den forlades (null). Ingen
+// kvittering: beskeden er en tilstand, ikke en anmodning.
+function meldAktivKunde(k) {
+  if (!INDLEJRET_I_DASHBOARD) return;
+  const kunde = k ? { id: k.id, navn: k.navn || '', telefon: visTelefon((k.telefoner && k.telefoner[0]) || k.telefon),
+                      email: k.email || '', adresse: k.adresse || '', postnr: k.postnr || '', by: k.by || '' } : null;
+  try { window.parent.postMessage({ kilde: 'ddk-kunder', type: 'aktiv-kunde', kunde }, location.origin); } catch (_) {}
 }
 
 function aktivSkaerm() {
