@@ -33,25 +33,13 @@ require("dotenv").config({ quiet: true });
 const { createClient } = require("@supabase/supabase-js");
 const { modulsaet } = require("./frisbii-modulsaet");
 const { sammenlignFirma, abonnementerUdenFirma } = require("./frisbii-afstem");
-
-const MILJOER = [
-  { navn: "staging", ref: "hehrvdmtzokzbnbihcel", frisbii: "lommekontor" },
-  { navn: "prod",    ref: "glymuxqtrbpeyzmflilf", frisbii: "test-2-lommekontor" },
-];
-const API = "https://api.frisbii.com/v1";
+const { lavFrisbiiGet, bestemMiljoe } = require("./frisbii-miljoe");
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "FRISBII_PRIVATE_KEY"]) {
   if (!process.env[k]) { console.error(`Mangler ${k} i miljoeet. Intet er laest.`); process.exit(1); }
 }
-const AUTH = "Basic " + Buffer.from(process.env.FRISBII_PRIVATE_KEY + ":").toString("base64");
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-async function hent(sti) {
-  const r = await fetch(API + sti, { headers: { Authorization: AUTH, Accept: "application/json" } });
-  let data = null;
-  try { data = await r.json(); } catch (e) { data = null; }
-  return { ok: r.ok, status: r.status, data };
-}
+const hent = lavFrisbiiGet(process.env.FRISBII_PRIVATE_KEY);
 const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) ? d.content : []);
 const kort = (id) => String(id).slice(0, 8);
 
@@ -59,15 +47,13 @@ const kort = (id) => String(id).slice(0, 8);
   const nu = new Date().toISOString();
 
   // 1) Samme miljoe paa begge sider?
-  const miljoe = MILJOER.find((m) => process.env.SUPABASE_URL.includes(m.ref));
-  const konto = await hent("/account");
-  const handle = konto.ok ? konto.data.handle : `HTTP ${konto.status}`;
+  const { miljoe, handle, enig } = await bestemMiljoe(process.env.SUPABASE_URL, hent);
   console.log("=".repeat(72));
   console.log("AFSTEMNING FRISBII <-> DATABASE  (kun laesning)  " + nu);
   console.log(`  Supabase:      ${miljoe ? miljoe.navn + " (" + miljoe.ref + ")" : "UKENDT projekt"}`);
   console.log(`  Frisbii-konto: ${handle}`);
   console.log("=".repeat(72));
-  if (!miljoe || handle !== miljoe.frisbii) {
+  if (!enig) {
     console.log(`STOP: Supabase og Frisbii hoerer ikke til samme miljoe (forventede ${miljoe ? miljoe.frisbii : "?"}). Intet sammenlignet.`);
     process.exit(1);
   }
