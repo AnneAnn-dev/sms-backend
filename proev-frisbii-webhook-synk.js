@@ -22,11 +22,11 @@ const lig = (n, faktisk, forventet) => {
 
 // Attrapper. synk svarer med det givne resultat (eller kaster), og alle kald taelles.
 function attrap({ svar, kast, alarmKaster } = {}) {
-  const k = { synk: [], alarm: [], log: [], fejl: [] };
+  const k = { synk: [], alarm: [], tekst: [], log: [], fejl: [] };
   return {
     k,
     synk: async (abonnement) => { k.synk.push(abonnement); if (kast) throw new Error(kast); return svar; },
-    alarm: async (b) => { k.alarm.push(b.subject); if (alarmKaster) throw new Error("smtp nede"); },
+    alarm: async (b) => { k.alarm.push(b.subject); k.tekst.push(b.text); if (alarmKaster) throw new Error("smtp nede"); },
     log: { log: (...a) => k.log.push(a.join(" ")), error: (...a) => k.fejl.push(a.join(" ")) },
   };
 }
@@ -68,6 +68,7 @@ async function kaster(fn) { try { await fn(); return null; } catch (e) { return 
   let e = await kaster(() => efterEvent({ body: ev("subscription_changed"), aktiv: true, ...a }));
   lig("ukendt produkt: kaster (webhooken bogfoerer fejl, ikke 'behandlet')", !!e, true);
   lig("  ... en alarm, der naevner produktet", [a.k.alarm.length, a.k.alarm[0] && a.k.alarm[0].includes("ukendt produkt")], [1, true]);
+  lig("  ... teksten siger, at Frisbii IKKE proever igen, og hvad man goer (T6b)", [/IKKE igen/.test(a.k.tekst[0]), /proever igen\./.test(a.k.tekst[0]), /Gensend eventet i Frisbii/.test(a.k.tekst[0]), /gensynk-firma\.js sub-0124/.test(a.k.tekst[0])], [true, false, true, true]);
   lig("  ... og catch alarmerer ikke en gang til", [await alarmVedFejl({ body: ev("subscription_changed"), fejl: e, aktiv: true, ...a }), a.k.alarm.length], [false, 1]);
   a = attrap({ svar: UKENDT, alarmKaster: true });
   e = await kaster(() => efterEvent({ body: ev("subscription_changed"), aktiv: true, ...a }));
@@ -78,6 +79,7 @@ async function kaster(fn) { try { await fn(); return null; } catch (e) { return 
   e = await kaster(() => efterEvent({ body: ev("invoice_settled"), aktiv: true, ...a }));
   lig("Frisbii nede: kaster, ingen alarm endnu", [!!e, a.k.alarm.length], [true, 0]);
   lig("  ... alarmVedFejl sender en alarm med eventet", [await alarmVedFejl({ body: ev("invoice_settled"), fejl: e, aktiv: true, ...a }), a.k.alarm.length, a.k.alarm[0].includes("invoice_settled")], [true, 1, true]);
+  lig("  ... teksten siger IKKE igen og peger paa gensend i Frisbii (T6b)", [/IKKE igen/.test(a.k.tekst[0]), /Gensend eventet i Frisbii/.test(a.k.tekst[0])], [true, true]);
   a = attrap({ svar: { status: "toerkoersel" } });
   lig("uventet status (toerkoersel) kaster", !!(await kaster(() => efterEvent({ body: ev("invoice_settled"), aktiv: true, ...a }))), true);
 
@@ -87,6 +89,7 @@ async function kaster(fn) { try { await fn(); return null; } catch (e) { return 
   lig("efterEvent kaldes efter switchen og foer markProcessed", iEfter > kode.indexOf("switch (body.event_type)") && iEfter < iProc, true);
   lig("efterEvent og alarmVedFejl faar aktiv: FASE3_SYNK", (kode.match(/aktiv: FASE3_SYNK/g) || []).length, 2);
   lig("alarmVedFejl kaldes i catch efter markFailed", iFejl > kode.indexOf("await markFailed(body.id"), true);
+  lig("ingen tekst i webhooken lover Frisbiis genforsoeg (D92, maalt 29/10)", /naeste retry|proever igen\./.test(kode), false);
   lig("synk kaldes med skriv: true", /synkFirma\(\{[^}]*skriv: true/.test(kode), true);
   const cases = [...kode.matchAll(/case "([a-z_]+)":/g)].map((m) => m[1]).sort();
   lig("KENDTE_EVENTS = webhookens cases", [...KENDTE_EVENTS].sort(), cases);

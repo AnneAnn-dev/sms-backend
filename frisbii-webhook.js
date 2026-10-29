@@ -133,9 +133,13 @@ module.exports = (app, supabase) => {
 
   // ─── Bogfoer udfaldet af behandlingen ────────────────────────────────────────
   // processed_at saettes KUN ved succes. Ved fejl gemmes aarsagen i error og
-  // processed_at forbliver NULL — saa Frisbiis naeste retry faar "unprocessed"
-  // og proever igen. Tabellen ER dermed vores dead-letter-liste:
+  // processed_at forbliver NULL. Tabellen ER dermed vores dead-letter-liste:
   //   select * from frisbii_webhook_events where processed_at is null;
+  // MAALT 29/10-26 (D92): Frisbii proever IKKE selv igen. Vi svarer 200 foer
+  // behandlingen, og Frisbii bogfoerer eventet som COMPLETED efter 1 forsoeg.
+  // En raekke her bliver kun behandlet igen, naar et menneske gensender eventet
+  // i Frisbii (Webhooks) - saa giver claim "unprocessed" - eller koerer
+  // gensynk-firma.js. Den planlagte genbehandling er D92 del 3b.
   async function markProcessed(webhookId) {
     const { error } = await supabase
       .from("frisbii_webhook_events")
@@ -268,7 +272,7 @@ module.exports = (app, supabase) => {
 
     if (findErr) {
       console.error("❌ Deprovisionering: kunne ikke slaa firma op:", findErr);
-      throw findErr; // -> markFailed: genbehandles ved naeste retry
+      throw findErr; // -> markFailed: dead-letter (Frisbii gensender ikke selv, D92)
     }
     if (!firm) {
       console.warn("⚠️  Deprovisionering: intet firma for", subscriptionHandle, "— ignorerer");
@@ -588,7 +592,8 @@ module.exports = (app, supabase) => {
     // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
     // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot —
     // OG bogfoeres i frisbii_webhook_events (processed_at/error), saa et fejlet
-    // event kan genbehandles ved Frisbiis naeste retry i stedet for at gaa tabt.
+    // event kan genbehandles ved en gensendelse fra Frisbii i stedet for at gaa
+    // tabt. Frisbii gensender IKKE af sig selv (maalt 29/10-26, D92).
     res.status(200).send("ok");
 
     if (claim === "processed") return; // faerdigbehandlet tidligere — intet mere at goere
@@ -744,8 +749,9 @@ module.exports = (app, supabase) => {
       await markProcessed(body.id);
     } catch (err) {
       // Svaret er allerede sendt (200) — vi logger og bogfoerer fejlen.
-      // processed_at forbliver NULL -> Frisbiis naeste retry genbehandler.
-      console.error("❌ Frisbii efterbehandling fejlede (genbehandles ved naeste retry):", err);
+      // processed_at forbliver NULL -> dead-letter. Frisbii gensender IKKE af sig
+      // selv (maalt 29/10-26): gensend i Frisbii eller koer gensynk-firma.js.
+      console.error("❌ Frisbii efterbehandling fejlede (staar i dead-letter - Frisbii gensender IKKE selv):", err);
       await markFailed(body.id, err.message || err);
       // T6 (D92): med FASE3_SYNK giver et fejlet event alarm. Slukket = som foer.
       await alarmVedFejl({ body, fejl: err, aktiv: FASE3_SYNK, alarm: sendAdminAlert, log: console });

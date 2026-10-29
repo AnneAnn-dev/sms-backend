@@ -11,8 +11,10 @@
 //
 // D92: ukendte event-typer blev bogfoert som behandlet uden et ord. Nu:
 //   - ukendt event-type  -> altid en loglinje
-//   - ukendt produkt     -> alarm til admin + kast (dead-letter, Frisbii
-//                           proever igen). Synk har IKKE skrevet noget.
+//   - ukendt produkt     -> alarm til admin + kast (dead-letter). Synk har
+//                           IKKE skrevet noget.
+// Frisbii gensender IKKE et event af sig selv (maalt 29/10-26, D92): vi svarer
+// 200 foer behandlingen. Alarmteksten siger derfor, hvad et menneske skal goere.
 //   - synk fejler        -> alarm til admin + kast (dead-letter)
 //
 // FLAG SLUKKET: begge funktioner goer INTET. Webhooken opfoerer sig som foer.
@@ -78,9 +80,12 @@ async function efterEvent({ body, aktiv, synk, alarm, log }) {
       text:
         `Event: ${type} (id ${body.id})\nAbonnement: ${abonnement}\nFirma: ${kort(r.firma)}\n` +
         `Ukendt hos Frisbii: ${ukendte.join(", ")}\n\n` +
-        `Synk har IKKE aendret firmaets moduler. Eventet staar i dead-letter, og Frisbii proever igen.\n` +
-        `Ret kataloget (frisbii-katalog.js) eller abonnementet i Frisbii.\n` +
-        `Se paa det:  node gensynk-firma.js ${abonnement}`,
+        `Synk har IKKE aendret firmaets moduler. Eventet staar i dead-letter.\n` +
+        `Frisbii proever IKKE igen af sig selv.\n\n` +
+        `Saadan:\n` +
+        `1. Se paa det:  node gensynk-firma.js ${abonnement}\n` +
+        `2. Ret kataloget (frisbii-katalog.js) eller abonnementet i Frisbii.\n` +
+        `3. Gensend eventet i Frisbii (Webhooks), eller koer:  node gensynk-firma.js ${abonnement} --skriv`,
     });
     const fejl = new Error(`ukendt produkt paa ${abonnement}: ${ukendte.join(", ")}`);
     fejl.alarmSendt = true;
@@ -110,8 +115,12 @@ async function alarmVedFejl({ body, fejl, aktiv, alarm, log }) {
     text:
       `Event: ${body && body.event_type} (id ${body && body.id})\nAbonnement: ${(body && body.subscription) || "-"}\n` +
       `Fejl: ${(fejl && fejl.message) || fejl}\n\n` +
-      `Eventet staar i dead-letter (processed_at er tom), og Frisbii proever igen.\n` +
-      `Se:  select * from frisbii_webhook_events where processed_at is null;`,
+      `Eventet staar i dead-letter (processed_at er tom). Frisbii proever IKKE igen af sig selv.\n\n` +
+      `Saadan:\n` +
+      `1. Find aarsagen:  select * from frisbii_webhook_events where processed_at is null;\n` +
+      `2. Ret den.\n` +
+      `3. Gensend eventet i Frisbii (Webhooks), saa koerer hele behandlingen igen.\n` +
+      `   (gensynk-firma.js retter kun modulerne - ikke fx et firma, der aldrig blev oprettet.)`,
   });
   return true;
 }
