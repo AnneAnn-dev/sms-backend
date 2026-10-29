@@ -2040,6 +2040,7 @@ document.getElementById('rkSletBtn').addEventListener('click', async () => {
   const spaer = document.getElementById('sletSpaerring');
   skjulFejl('errorBannerSlet');
   tekst.textContent = 'Henter …';
+  tekst.style.display = '';
   spaer.style.display = 'none';
   knap.style.display = 'none';
   sletSheet.classList.add('open');
@@ -2051,6 +2052,9 @@ document.getElementById('rkSletBtn').addEventListener('click', async () => {
     tekst.textContent = navn + ' slettes' + (dele ? ' sammen med ' + dele : '') +
       '. Kundens telefonnumre slettes også. Det kan ikke fortrydes.';
     if (svar.spaerring) {
+      // Spaerret: intet slettes, saa "slettes sammen med … afsluttede opgaver"
+      // ville vaere forkert (en af dem er netop aaben). Kun beskeden vises.
+      tekst.style.display = 'none';
       spaer.textContent = svar.besked || 'Kunden kan ikke slettes lige nu.';
       spaer.style.display = '';
     } else {
@@ -2087,6 +2091,7 @@ document.getElementById('sletBtn').addEventListener('click', async () => {
     if (erLoggetUd(e)) { sletSheet.classList.remove('open'); retKundeSheet.classList.remove('open'); return showScreen('login'); }
     if (e instanceof ApiFejl && e.status === 409) {
       const spaer = document.getElementById('sletSpaerring');
+      document.getElementById('sletTekst').style.display = 'none';
       spaer.textContent = e.message;
       spaer.style.display = '';
       knap.style.display = 'none';
