@@ -42,4 +42,10 @@ module.exports = {
   // ukendt produkt eller fejl (D92). Slukket = webhooken som foer T6.
   // Rollback-vejen for T6-T8. Se frisbii-webhook-synk.js.
   FASE3_SYNK: flag("FASE3_SYNK"),
+
+  // D94 trin 3b (29/10-26): "Slet kunde" i Kunder-appen. Slukket = ruterne
+  // svarer 404, og knappen vises ikke. Sletningen kan ikke fortrydes — derfor
+  // eget flag, uafhaengigt af TILBUD_AKTIV. Se slet_kunde() i migrationen
+  // 20261029100000_slet_kunde.sql.
+  SLET_KUNDE_AKTIV: flag("SLET_KUNDE_AKTIV"),
 };

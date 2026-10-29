@@ -285,6 +285,21 @@
   // kunden er firmaets (hentEgenRaekke), og den sammensatte fremmednoegle
   // holder kunde og opgave i samme firma. SMS-nummeret paa opgaven roeres
   // ikke (D88 betingelse 6, valg (a)).
+  // D94 trin 3b: hvad slettes, og er der en spaerring? 404 `ikke_aktiv` =
+  // flaget er slukket (knappen skal ikke vises).
+  async function hentSletOversigt(kundeId) {
+    return api('GET', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/slet-oversigt');
+  }
+  // D94 trin 3b: sletter kunden og alt om hende. Kan ikke fortrydes.
+  async function sletKunde(kundeId) {
+    const svar = await api('POST', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/slet', { bekraeft: true });
+    const i = kundeIder.indexOf(kundeId);
+    if (i !== -1) kundeIder.splice(i, 1);
+    kundeCache.delete(kundeId);
+    sidst.delete(nøgle('kunde', kundeId));
+    return svar;
+  }
+
   // D94 trin 3a: inaktivér (true) eller aktivér (false) en kunde.
   async function saetInaktiv(kundeId, inaktiv) {
     const { kunde } = await api('POST', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/inaktiv', { inaktiv: !!inaktiv });
@@ -492,7 +507,7 @@
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
     loadCustomers, saveCustomers, retKunde, hentOpgaveNumre,
-    loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv,
+    loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,
