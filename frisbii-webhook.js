@@ -33,6 +33,11 @@ const twilio = require("twilio");
 const { sendWelcomeMail, sendAdminAlert } = require("./mail");
 const { uniqueSlug } = require("./slug");
 const { maskerTlf, maskerMail, normalizePhone, vaelgLedigtNummer } = require("./phone");
+// Fase 3, T6: synk bag FASE3_SYNK. Slukket = intet nyt sker (se frisbii-webhook-synk.js).
+const { FASE3_SYNK } = require("./flags");
+const { efterEvent, alarmVedFejl } = require("./frisbii-webhook-synk");
+const { synkFirma } = require("./frisbii-synk");
+const { lavFrisbiiGet } = require("./frisbii-miljoe");
 
 // Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
 // Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
@@ -58,6 +63,8 @@ module.exports = (app, supabase) => {
 
   const PRIVATE_KEY    = process.env.FRISBII_PRIVATE_KEY;    // privat API-noegle
   const WEBHOOK_SECRET = process.env.FRISBII_WEBHOOK_SECRET; // secret fra webhook-indstillingerne
+  // T6: synkFirma henter selv abonnement og add-ons med samme noegle.
+  const frisbiiHent = lavFrisbiiGet(PRIVATE_KEY);
 
   // ─── Signatur: HMAC-SHA256(secret, timestamp + id), hex ─────────────────────
   // Daekker KUN timestamp+id -> ingen raa body noedvendig (modsat Shopify).
@@ -719,8 +726,18 @@ module.exports = (app, supabase) => {
         }
 
         default:
-          break; // oevrige events ignoreres bevidst — men markeres behandlet nedenfor
+          break; // oevrige events: ingen egen case. Med FASE3_SYNK logges og synkes de nedenfor (D92)
       }
+
+      // Fase 3, T6: Frisbii -> firma_moduler. Slukket flag = returnerer straks.
+      // Kaster ved ukendt produkt eller fejl -> catch -> dead-letter + alarm.
+      await efterEvent({
+        body,
+        aktiv: FASE3_SYNK,
+        synk: (abonnement) => synkFirma({ supabase, hent: frisbiiHent, abonnement, skriv: true }),
+        alarm: sendAdminAlert,
+        log: console,
+      });
 
       // Alt gik godt (eller eventet var bevidst ignoreret): bogfoer succes,
       // saa fremtidige dubletter/retries afvises som "processed".
@@ -730,6 +747,8 @@ module.exports = (app, supabase) => {
       // processed_at forbliver NULL -> Frisbiis naeste retry genbehandler.
       console.error("❌ Frisbii efterbehandling fejlede (genbehandles ved naeste retry):", err);
       await markFailed(body.id, err.message || err);
+      // T6 (D92): med FASE3_SYNK giver et fejlet event alarm. Slukket = som foer.
+      await alarmVedFejl({ body, fejl: err, aktiv: FASE3_SYNK, alarm: sendAdminAlert, log: console });
     }
   });
 

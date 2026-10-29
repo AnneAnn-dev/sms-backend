@@ -36,4 +36,10 @@ module.exports = {
   // Slukket = linket kan bruges igen som foer, men calls.formular_brugt_at
   // skrives stadig. Se formular-engangs.js.
   FORMULAR_ENGANGS_AKTIV: flag("FORMULAR_ENGANGS_AKTIV"),
+
+  // Fase 3, T6 (29/10-26): webhooken synker Frisbii -> firma_moduler efter
+  // hvert event med et abonnement, logger ukendte event-typer og alarmerer ved
+  // ukendt produkt eller fejl (D92). Slukket = webhooken som foer T6.
+  // Rollback-vejen for T6-T8. Se frisbii-webhook-synk.js.
+  FASE3_SYNK: flag("FASE3_SYNK"),
 };
