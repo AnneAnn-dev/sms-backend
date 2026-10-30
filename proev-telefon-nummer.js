@@ -8,7 +8,7 @@
 "use strict";
 
 delete process.env.QUARANTINE_DAYS_PAID;
-const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk } = require("./telefon-nummer");
+const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate } = require("./telefon-nummer");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -143,6 +143,16 @@ const NU = "2026-10-30T08:00:00.000Z";
   lig("fravalg: nummeret frigives straks (aldrig verificeret)", [r.status, db.t.firms[0].phone_number, db.t.phone_numbers[0].quarantined_until], ["frigivet", null, null]);
   r = await nummerEfterSynk({ supabase: db, twilioClient: null, firmId: "F1", saet: S(["referat"], FREM), nu: NU });
   lig("igen: 'ingen telefon'", r.status, "ingen telefon");
+
+  console.log("\n6. opkaldsGate (T7c)");
+  const G = (o) => { const g = opkaldsGate(o); return [g.tilladt, g.grund]; };
+  lig("flag slukket, active -> tilladt (som foer)", G({ fase3: false, billing: "active", moduler: null }), [true, "billing active"]);
+  lig("flag slukket, past_due -> lukket (som foer)", G({ fase3: false, billing: "past_due", moduler: ["telefon"] }), [false, "billing past_due"]);
+  lig("flag taendt, past_due men telefon aktiv (respit) -> tilladt", G({ fase3: true, billing: "past_due", moduler: ["telefon"] }), [true, "telefonmodul aktivt"]);
+  lig("flag taendt, cancelled men telefon til periodens slut -> tilladt", G({ fase3: true, billing: "cancelled", moduler: ["referat", "telefon"] }), [true, "telefonmodul aktivt"]);
+  lig("flag taendt, active men telefon fravalgt -> lukket (neutral besked)", G({ fase3: true, billing: "active", moduler: ["referat"] }), [false, "telefonmodul ikke aktivt"]);
+  lig("flag taendt, moduler kunne ikke laeses + active -> tilladt", G({ fase3: true, billing: "active", moduler: null }), [true, "moduler ukendte - billing active"]);
+  lig("flag taendt, moduler kunne ikke laeses + expired -> lukket", G({ fase3: true, billing: "expired", moduler: null }), [false, "billing expired"]);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
   console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);

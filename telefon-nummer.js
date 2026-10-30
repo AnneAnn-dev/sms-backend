@@ -13,6 +13,10 @@
 //   frigivNummer      - laegger firmaets nummer tilbage i puljen, med karantaene
 //                       hvis nummeret har vaeret VERIFICERET (Ann 30/10, D95).
 //   karantaeneTil     - ren regel: hvornaar maa nummeret genbruges.
+//   opkaldsGate       - T7c (bag FASE3_SYNK): maa et opkald til firmaets nummer
+//                       blive til et lead? Med flaget afgoer TELEFONMODULET det
+//                       (respit og opsigelse til periodens slut virker); uden
+//                       flaget billing_status, som foer.
 //   nummerEfterSynk   - T7b (bag FASE3_SYNK): bringer nummeret i trit med det
 //                       modulsaet, synk lige har skrevet. Telefon koebt og
 //                       aktiv + intet nummer -> tildel. Telefon IKKE koebt +
@@ -144,4 +148,21 @@ async function nummerEfterSynk({ supabase, twilioClient, firmId, saet, nu = new 
   return f.status === "frigivet" ? f : { status: "ingen telefon", nummer: null };
 }
 
-module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk };
+// Ren regel. Returnerer { tilladt, grund }.
+//   fase3:     FASE3_SYNK
+//   billing:   firms.billing_status
+//   moduler:   aktive moduler (moduler.js aktiveModuler) - eller null, hvis de
+//              ikke kunne laeses (modulFejl). Saa bruges den gamle regel: et
+//              databasehik maa ikke lukke for en betalende kundes opkald, og
+//              det maa heller ikke aabne for en, der ikke betaler.
+function opkaldsGate({ fase3, billing, moduler }) {
+  if (fase3 && Array.isArray(moduler)) {
+    return moduler.includes("telefon")
+      ? { tilladt: true, grund: "telefonmodul aktivt" }
+      : { tilladt: false, grund: "telefonmodul ikke aktivt" };
+  }
+  if (billing && billing !== "active") return { tilladt: false, grund: `billing ${billing}` };
+  return { tilladt: true, grund: fase3 ? "moduler ukendte - billing active" : "billing active" };
+}
+
+module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate };

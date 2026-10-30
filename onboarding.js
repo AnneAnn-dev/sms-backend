@@ -18,6 +18,10 @@ const { uniqueSlug, SLUG_MAKS } = require("./slug");
 // sendAdminAlert deles med frisbii-webhook.js — alarmer om stille fejl skal
 // ud af loggen og ind i en indbakke, ellers opdages de foerst af en kunde.
 const { sendAdminAlert } = require("./mail");
+// Fase 3, T7c: opkald foelger telefonmodulet (bag FASE3_SYNK).
+const { FASE3_SYNK } = require("./flags");
+const { aktiveModuler } = require("./moduler");
+const { opkaldsGate } = require("./telefon-nummer");
 // sendError sender en fejl til AppSignal med sin egen rod-span. Samme kald som
 // fejl-middlewaren i server.js bruger. Noedvendigt her, fordi AppSignal KUN ser
 // fejl, der kastes videre til Express — et catch, der svarer paent, naar den aldrig.
@@ -404,8 +408,19 @@ module.exports = function registerOnboarding(app, supabase) {
     // ─── GATE: kun betalende firmaer modtager leads ───────────────────────
     // Gater KUN på billing_status, ikke på status — så selv et firma der stadig
     // står som "onboarding" kan fange leads, så længe abonnementet er aktivt.
-    if (firm.billing_status && firm.billing_status !== "active") {
-      console.log(`⏸️  Opkald til suspenderet firma (billing: ${firm.billing_status}):`, firm.id);
+    // T7c (FASE3_SYNK): telefonMODULET afgør i stedet (Ann 30/10, beslutning 2
+    // 28/10). Så virker respitten (7 dage efter en fejlet betaling) og en
+    // opsigelse til periodens slut — billing_status "past_due"/"cancelled"
+    // lukkede for opkaldene med det samme. Kan modulerne ikke læses, bruges
+    // den gamle regel. Neutral besked i begge tilfælde (Ann 30/10, løsning a).
+    let moduler = null;
+    if (FASE3_SYNK) {
+      try { moduler = await aktiveModuler(supabase, firm.id); }
+      catch (err) { console.error("❌ /opkald: moduler kunne ikke læses — bruger billing_status:", err.message); }
+    }
+    const gate = opkaldsGate({ fase3: FASE3_SYNK, billing: firm.billing_status, moduler });
+    if (!gate.tilladt) {
+      console.log(`⏸️  Opkald til firma uden aktiv telefon (${gate.grund}):`, firm.id);
       twiml.say({ voice: "Polly.Naja", language: "da-DK" },
         "Dette nummer er ikke aktivt i øjeblikket.");
       twiml.hangup();
