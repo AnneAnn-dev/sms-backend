@@ -36,23 +36,26 @@ const MILJOER = {
     basisUrl:        process.env.SMOKE_STAGING_URL,
     supabaseUrl:     process.env.SMOKE_STAGING_SUPABASE_URL,
     supabaseAnon:    null,   // hentes fra /config.js (D69)
-    // ⚠️ RETTET 5/8-26. Her stod "modulet SKAL vaere taendt i staging", og det
-    // var forkert: mappen routes/ FINDES IKKE endnu. Tilbudsmodulet er ikke
-    // bygget. Saetter man TILBUD_AKTIV=true i dag, CRASHER appen ved opstart,
-    // fordi require("./routes/tilbud") kaster (server.js advarer om praecis
-    // det). Flaget staar derfor korrekt SLUKKET i begge miljoeer.
-    //
-    // Feltet her laeses ikke af noget tjek — tjekket spoerger /health om den
-    // FAKTISKE tilstand i stedet for at have en forventning, nogen skal huske
-    // at rette. Kommentaren loeg altsaa uden at goere skade, men den loeg.
-    // Saet den til true igen, naar routes/tilbud rent faktisk er bygget.
-    tilbudForventet: false,
+    // Staging maa staa, som det staar: flagene vises som oplysning, ikke krav.
+    // (Den gamle note om, at routes/tilbud ikke fandtes, er foraeldet — modulet
+    // er bygget og taendt i begge miljoeer, 30/10-26.)
+    flagForventet: null,
   },
   prod: {
     basisUrl:        process.env.SMOKE_PROD_URL,
     supabaseUrl:     process.env.SMOKE_PROD_SUPABASE_URL,
     supabaseAnon:    null,   // hentes fra /config.js (D69)
-    tilbudForventet: false,  // SLUKKET i prod indtil du selv taender det
+    // De flag, Ann har BESLUTTET skal staa taendt i prod (30/10-26). Tjekket
+    // sammenligner med /health og er roedt ved enhver afvigelse — begge veje:
+    // et flag, der staar taendt ved et uheld, og et, der er faldet ud (fx efter
+    // en rollback i Railway, der ruller variablerne med). Taender eller slukker
+    // du et flag med vilje, saa ret det HER i samme omgang.
+    flagForventet: {
+      tilbud:         true,   // TILBUD_AKTIV — Kunder-fanen og referater (D88/D94)
+      sletKunde:      true,   // SLET_KUNDE_AKTIV (D94 trin 3b)
+      laegSammen:     true,   // LAEG_SAMMEN_AKTIV (D94 trin 4)
+      formularUdloeb: true,   // FORMULAR_UDLOEB_AKTIV (D97)
+    },
   },
 };
 
@@ -74,7 +77,8 @@ const TIMEOUT_MS = 8000;
 // REGEL FOR LISTEN: kun ruter, der skal findes i BEGGE miljoeer. Ruter bag et
 // feature flag hoerer ikke hjemme her — `TILBUD_AKTIV=false` giver 404 MED
 // VILJE, og et permanent roedt tjek laerer dig at ignorere roedt. Tilbudsruterne
-// tjekkes derfor betinget af tilstand.tilbud, ikke her.
+// tjekkes derfor betinget af tilstand.tilbud, ikke her. (Flagenes forventede
+// tilstand i prod staar i cfg.flagForventet, se tjekket "Flagene staar som besluttet".)
 //
 // KRAV TIL HVERT KALD: bivirkningsfrit i prod. Kroppen skal falde paa den
 // FOERSTE validering i handleren, saa kaldet aldrig naar hverken database
@@ -115,7 +119,7 @@ class Advarsel extends Error {}
 // Udfyldes af /health-tjekket og bruges af de senere tjek, saa de kan SPOERGE
 // serveren om dens tilstand i stedet for at have en haardkodet forventning,
 // nogen skal huske at rette.
-const tilstand = { tilbud: null };
+const tilstand = { tilbud: null, health: null };
 
 const erProd = process.argv.includes("--prod");
 const miljo  = erProd ? "prod" : "staging";
@@ -252,6 +256,7 @@ const TJEK = [
       if (r.status !== 200) throw new Error(`status ${r.status}, forventede 200`);
       const krop = await r.json().catch(() => ({}));
       tilstand.tilbud = krop.tilbud ?? null;
+      tilstand.health = krop;
       return `status 200 (tilbud: ${tilstand.tilbud === null ? "ukendt" : tilstand.tilbud ? "TAENDT" : "SLUKKET"})`;
     },
   },
@@ -518,19 +523,28 @@ const TJEK = [
   },
 
   {
-    // Sikkerhedsegenskaben er: PROD staar aldrig taendt ved et uheld. Den er haard.
-    // Staging maa vaere hvad som helst - der er intet at beskytte, og et roedt
-    // tjek af bogholderiaarsager laerer dig bare at ignorere roedt.
-    navn: "Tilbudsmodulet staar ikke uventet taendt i prod",
+    // Sikkerhedsegenskaben er: PROD staar praecis som besluttet (cfg.flagForventet).
+    // Foer 30/10 krævede tjekket "tilbud SLUKKET" og var roedt hver gang, efter at
+    // modulet med vilje blev taendt — et permanent roedt tjek laerer dig at
+    // ignorere roedt. Staging maa vaere hvad som helst: oplysning, ikke krav.
+    navn: "Flagene staar som besluttet",
     sikker: true,
     async kor() {
-      if (tilstand.tilbud === null) throw new Advarsel("kunne ikke laese tilstand fra /health");
-      if (erProd && tilstand.tilbud) {
-        throw new Error("modulet er TAENDT i PROD - saet TILBUD_AKTIV=false i Railway, hvis det ikke var med vilje");
+      const h = tilstand.health;
+      if (!h) throw new Advarsel("kunne ikke laese tilstand fra /health");
+      const vis = (v) => (v === true ? "TAENDT" : v === false ? "SLUKKET" : "MANGLER");
+      if (!cfg.flagForventet) {
+        const navne = ["tilbud", "sletKunde", "laegSammen", "formularUdloeb"];
+        return "staging: " + navne.map((n) => `${n} ${vis(h[n])}`).join(", ") + " (oplysning, ikke krav)";
       }
-      return erProd
-        ? "prod er slukket"
-        : `staging: ${tilstand.tilbud ? "taendt" : "slukket"} (oplysning, ikke krav)`;
+      const afvig = Object.entries(cfg.flagForventet)
+        .filter(([n, forventet]) => h[n] !== forventet)
+        .map(([n, forventet]) => `${n}: besluttet ${vis(forventet)}, er ${vis(h[n])}`);
+      if (afvig.length) {
+        throw new Error(afvig.join("; ") + " — ret flaget i Railway (husk Deploy), eller ret flagForventet i smoke.js, hvis aendringen var med vilje");
+      }
+      return "alle " + Object.keys(cfg.flagForventet).length + " flag som besluttet (" +
+        Object.keys(cfg.flagForventet).join(", ") + ")";
     },
   },
 
