@@ -300,6 +300,22 @@
     return svar;
   }
 
+  // D94 trin 4: Læg sammen. `med` uden vaerdi = "er funktionen slaaet til?"
+  // (400 mangler_med = ja, 404 ikke_aktiv = nej).
+  async function hentLaegSammenOversigt(kundeId, med) {
+    return api('GET', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/laeg-sammen-oversigt' +
+      (med ? '?med=' + encodeURIComponent(med) : ''));
+  }
+  // D94 trin 4: laegger `med` ind i kundeId. `med` forsvinder. Kan ikke fortrydes.
+  async function laegSammen(kundeId, med) {
+    const svar = await api('POST', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/laeg-sammen', { med, bekraeft: true });
+    const i = kundeIder.indexOf(med);
+    if (i !== -1) kundeIder.splice(i, 1);
+    kundeCache.delete(med);
+    sidst.delete(nøgle('kunde', med));
+    return svar;
+  }
+
   // D94 trin 3a: inaktivér (true) eller aktivér (false) en kunde.
   async function saetInaktiv(kundeId, inaktiv) {
     const { kunde } = await api('POST', '/api/tilbud/kunder/' + encodeURIComponent(kundeId) + '/inaktiv', { inaktiv: !!inaktiv });
@@ -507,7 +523,7 @@
     saetFase(fn) { paaFase = typeof fn === 'function' ? fn : function () {}; },
     ApiFejl,
     loadCustomers, saveCustomers, retKunde, hentOpgaveNumre,
-    loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde,
+    loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde, hentLaegSammenOversigt, laegSammen,
     loadReferater, saveReferater, hentReferat,
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,

@@ -9,6 +9,8 @@
 //   POST   /api/tilbud/kunde-opslag      hvilken af firmaets kunder har nummeret? (D94 3a)
 //   GET    /api/tilbud/kunder/:id/slet-oversigt  hvad slettes, og er der en spaerring? (D94 3b)
 //   POST   /api/tilbud/kunder/:id/slet   slet kunden og alt om hende (D94 3b, eget flag)
+//   GET    /api/tilbud/kunder/:id/laeg-sammen-oversigt?med=<id>  hvad flyttes? (D94 4)
+//   POST   /api/tilbud/kunder/:id/laeg-sammen  laeg en anden kunde ind i denne (D94 4, eget flag)
 //
 //   GET    /api/tilbud/opgaver           listen, med kundens navn
 //   POST   /api/tilbud/opgaver           opret - UDEN opkald, se nedenfor
@@ -51,7 +53,7 @@ const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
 const { medFirma, hentEgenRaekke, opdaterEgenRaekke } = require("../../ejerskab");
 const { kundeNoegle, gyldigtSmsNummer, normalizePhone, opgavensNummer } = require("../../phone");
-const { SLET_KUNDE_AKTIV } = require("../../flags");
+const { SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV } = require("../../flags");
 const { sletOpgaveBilleder } = require("../../billedoprydning");
 
 const RUTER = [
@@ -460,6 +462,68 @@ module.exports = function (app, supabase) {
     }
     res.json({ ok: true, slettet: { opgaver: r.opgaver, billeder: billeder.filer, referater: r.referater,
       sms: r.sms, opkald: r.opkald, numre: r.numre }, billeder_fejl: billeder.fejl.length });
+  });
+
+  // ─── Læg sammen (D94 trin 4, Ann 27/10 og 30/10-26) ─────────────────────
+  // :id er kunden, man staar paa (BEHOLD), `med` den anden (FJERN). BEHOLD
+  // beholder navn og adresse; FJERNs numre og opgaver flyttes; tomme felter
+  // hos BEHOLD fyldes; FJERN slettes. Alt i ÉN databasefunktion
+  // (laeg_sammen_kunder, migrationen 20261030100000) med samme laase som
+  // find_eller_opret_kunde() og slet_kunde(). Begge id'er tjekkes mod
+  // tokenets firma DER — et fremmed id giver ikke_fundet. Bag eget flag
+  // LAEG_SAMMEN_AKTIV. Ingen navne eller numre i loggen.
+  const LAEG_SAMMEN_FEJL = {
+    samme_kunde: [400, "Vælg en anden kunde end den, du står på."],
+    proev_igen: [409, "En af kunderne blev ændret imens. Prøv igen."],
+  };
+  const lsIkkeAktiv = (res) => res.status(404).json({ error: "ikke_aktiv", besked: "Læg sammen er ikke slået til." });
+
+  app.get("/api/tilbud/kunder/:id/laeg-sammen-oversigt", async (req, res) => {
+    if (!LAEG_SAMMEN_AKTIV) return lsIkkeAktiv(res);
+    const firmId = await firma(req, res); if (!firmId) return;
+    const med = String(req.query.med || "");
+    if (!UUID.test(String(req.params.id || ""))) return ikkeFundet(res);
+    // Uden `med`: kun "er funktionen slaaet til?" (Kunder-appen viser knappen).
+    if (!med) return res.status(400).json({ error: "mangler_med", besked: "Vælg den anden kunde." });
+    if (!UUID.test(med)) return ikkeFundet(res);
+    if (med === req.params.id) return res.status(400).json({ error: "samme_kunde", besked: LAEG_SAMMEN_FEJL.samme_kunde[1] });
+    try {
+      const { data, error } = await supabase.rpc("laeg_sammen_oversigt", { p_firm: firmId, p_behold: req.params.id, p_fjern: med });
+      if (error) throw error;
+      const o = Array.isArray(data) ? data[0] : data;
+      if (!o || !o.findes) return ikkeFundet(res);
+      res.json({ ok: true, oversigt: { numre: o.numre, opgaver: o.opgaver, aabne: o.aabne,
+        felter: o.felter || [], fjern_inaktiv: !!o.fjern_inaktiv } });
+    } catch (e) { svarPaaFejl(res, e, "sammenlaegningsoversigten kunne ikke hentes"); }
+  });
+
+  app.post("/api/tilbud/kunder/:id/laeg-sammen", async (req, res) => {
+    if (!LAEG_SAMMEN_AKTIV) return lsIkkeAktiv(res);
+    const firmId = await firma(req, res); if (!firmId) return;
+    if (!UUID.test(String(req.params.id || ""))) return ikkeFundet(res);
+    const krop = req.body || {};
+    if (krop.bekraeft !== true) {
+      return res.status(400).json({ error: "ikke_bekraeftet", besked: "Sammenlægningen skal bekræftes." });
+    }
+    const med = String(krop.med || "");
+    if (!UUID.test(med)) return ikkeFundet(res);
+    let r;
+    try {
+      const { data, error } = await supabase.rpc("laeg_sammen_kunder", { p_firm: firmId, p_behold: req.params.id, p_fjern: med });
+      if (error) {
+        const kode = String(error.message || "").trim();
+        if (kode === "ikke_fundet") return ikkeFundet(res);
+        if (LAEG_SAMMEN_FEJL[kode]) return res.status(LAEG_SAMMEN_FEJL[kode][0]).json({ error: kode, besked: LAEG_SAMMEN_FEJL[kode][1] });
+        throw error;
+      }
+      r = Array.isArray(data) ? data[0] : data;
+      if (!r) throw new Error("laeg_sammen_kunder svarede tomt");
+    } catch (e) { return svarPaaFejl(res, e, "kunderne kunne ikke lægges sammen"); }
+    console.log(`🔗 Kunder lagt sammen: firma ${firmId} behold ${req.params.id} fjern ${med} — numre ${r.numre}, opgaver ${r.opgaver}, felter ${(r.felter || []).join(",") || "-"}`);
+    let kunde = null;
+    try { kunde = medNumre(await hentEgenRaekke(supabase, "kunder", req.params.id, firmId, KUNDE_KOLONNER)); }
+    catch (e) { console.error("❌ Læg sammen: kunden kunne ikke hentes bagefter:", e && (e.kode || e.code)); }
+    res.json({ ok: true, lagt_sammen: { numre: r.numre, opgaver: r.opgaver, felter: r.felter || [] }, kunde });
   });
 
   app.get("/api/tilbud/kunder/:id/opgave-numre", async (req, res) => {
