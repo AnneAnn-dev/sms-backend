@@ -38,6 +38,8 @@ const { FASE3_SYNK } = require("./flags");
 const { efterEvent, alarmVedFejl } = require("./frisbii-webhook-synk");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
+// Fase 3, T7a: nummerets egne funktioner + karantaene efter verifikation (D95).
+const { sikrTelefonModul, frigivNummer } = require("./telefon-nummer");
 
 // Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
 // Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
@@ -229,33 +231,14 @@ module.exports = (app, supabase) => {
     return true;
   }
 
-  // ─── Har abonnementet nogensinde haft en betalt faktura? ────────────────────
-  // Afgoer karantaeneperioden ved deprovisionering: proevekunder (aldrig betalt)
-  // faar kort karantaene, betalende kunder lang. Kilden er Frisbii (fakturaerne
-  // lyver ikke). FAIL-SAFE: kan sporgsmaalet ikke besvares (API-fejl, ukendt
-  // svarformat), antages BETALT -> lang karantaene. Hellere gemme et nummer for
-  // laenge end at genbruge en betalende kundes nummer for tidligt.
-  async function hasEverPaid(subscriptionHandle) {
-    try {
-      const res = await frisbiiGet(
-        `/list/invoice?subscription=${encodeURIComponent(subscriptionHandle)}&state=settled&size=20`
-      );
-      const invoices = res?.content || res || [];
-      if (!Array.isArray(invoices)) throw new Error("uventet svarformat fra /list/invoice");
-      return invoices.some((inv) => (inv.amount ?? 0) > 0);
-    } catch (err) {
-      console.warn("⚠️  Kunne ikke afgoere betalingshistorik (antager BETALT, lang karantaene):", err.message);
-      return true;
-    }
-  }
-
   // ─── Deprovisionering: her lukkes udgiftsdriveren ────────────────────────────
   // Kaldes ved subscription_expired (og expired_dunning): kunden har ikke
   // laengere et betalt abonnement. Firmaet saettes inaktivt (rutning stopper),
-  // og nummeret haandteres efter betalingshistorik:
-  //   - proevekunde (aldrig betalt):  frigives STRAKS til puljen (ingen karantaene)
-  //   - betalende kunde:              KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
-  //     — en vundet-tilbage kunde skal kunne faa SIT nummer igen (det staar paa bilen!)
+  // og nummeret frigives med frigivNummer (telefon-nummer.js, T7a):
+  //   - nummeret har ALDRIG vaeret verificeret: frigives STRAKS (ingen karantaene)
+  //   - nummeret HAR vaeret verificeret:        KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
+  //     — det har vaeret kundens (det staar paa bilen!), uanset prisen (D95, Ann 30/10).
+  //     Foer afgjordes det af betalingshistorikken, og en 0-kr.-pris taltes som "proeve".
   // last_firm_id gemmes, saa win-back kan genforene kunde og nummer med ét opslag.
   // Pool-udvaelgelsen springer karantaene-numre over, til perioden er udloebet.
   // Idempotent: koeres den to gange, goer anden koersel intet.
@@ -283,28 +266,17 @@ module.exports = (app, supabase) => {
       return;
     }
 
-    // Karantaeneperiode efter betalingshistorik:
-    //   - proevekunde (aldrig betalt en krone): INGEN karantaene — nummeret
-    //     frigives straks (svag binding: nummeret naaede naeppe bilen paa en proeve)
-    //   - betalende kunde: QUARANTINE_DAYS_PAID (default 30) — win-back-vindue
-    const paid = await hasEverPaid(subscriptionHandle);
-    const days = paid ? (Number(process.env.QUARANTINE_DAYS_PAID) || 30) : 0;
-    const quarantinedUntil = days > 0
-      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    // 1) Frigiv nummeret — med karantaene hvis kunden var betalende.
-    //    last_firm_id gemmes i BEGGE tilfaelde (billigt historisk spor).
-    const { error: poolErr } = await supabase
-      .from("phone_numbers")
-      .update({ firm_id: null, quarantined_until: quarantinedUntil, last_firm_id: firm.id })
-      .eq("firm_id", firm.id);
-    if (poolErr) {
-      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr);
+    // 1) Frigiv nummeret (begge registreringer) — karantaene, hvis det har
+    //    vaeret verificeret. last_firm_id gemmes i begge tilfaelde.
+    let frigivet;
+    try {
+      frigivet = await frigivNummer({ supabase, firmId: firm.id });
+    } catch (poolErr) {
+      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr.message);
       throw poolErr;
     }
 
-    // 2) Ryd firmaets nummer-kolonne + saet inaktiv (rutning stopper)
+    // 2) Saet inaktiv (rutning stopper). phone_number er ryddet af frigivNummer.
     const { error: firmErr } = await supabase
       .from("firms")
       .update({ status: "inactive", phone_number: null })
@@ -315,9 +287,9 @@ module.exports = (app, supabase) => {
     }
 
     console.log(
-      paid
-        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} i karantaene til ${quarantinedUntil} (betalt kunde: ${days} dage)`
-        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} frigivet STRAKS (proevekunde, ingen karantaene)`
+      frigivet.karantaeneTil
+        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${frigivet.nummer} i karantaene til ${frigivet.karantaeneTil} (nummeret har vaeret verificeret)`
+        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${frigivet.nummer || "(intet)"} frigivet STRAKS (aldrig verificeret, ingen karantaene)`
     );
   }
 
@@ -465,6 +437,11 @@ module.exports = (app, supabase) => {
       .from("phone_numbers")
       .update({ firm_id: firm.id })
       .eq("id", phoneRow.id);
+
+    // T7a: telefon-raekken i firma_moduler, som triggeren firma_faar_telefon
+    // gav foer (triggeren fjernes i migrationen t7a). Med FASE3_SYNK overtager
+    // synk raekken bagefter, praecis som den overtog triggerens.
+    await sikrTelefonModul(supabase, firm.id);
 
     // ─── D33: firmanavnet manglede — sig det, i stedet for at substituere tavst ──
     // Alarmen forhindrer ikke den forkerte provisionering; den goer den SYNLIG.
@@ -641,7 +618,7 @@ module.exports = (app, supabase) => {
           // idempotens-tjek goer provisioneringen til en no-op, og settled-
           // casens setBillingStatus bekraefter blot active. Betaler kunden
           // ALDRIG, koerer dunning -> expired -> deprovisionering, hvor
-          // hasEverPaid doemmer "proevekunde" -> nummeret frigives straks.
+          // nummeret frigives straks, medmindre det naaede at blive verificeret (T7a, D95).
           break;
         }
 

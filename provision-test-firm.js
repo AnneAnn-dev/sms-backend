@@ -51,6 +51,7 @@ require('dotenv').config();
 const readline = require('readline');
 const { createClient } = require('@supabase/supabase-js');
 const { renderGreeting } = require('./tts');
+const { sikrTelefonModul } = require('./telefon-nummer');
 
 /* =============================================================================
  * CONFIG
@@ -297,6 +298,9 @@ async function main() {
       .from(CONFIG.FIRMS_TABLE).insert(row).select('id').single();
     if (error) throw error;
     firmId = data.id;
+    // T7a: triggeren firma_faar_telefon er fjernet - telefon-raekken laegges her,
+    // ligesom i frisbii-webhook.js. Uden den har testfirmaet ingen Telefonpasser.
+    await sikrTelefonModul(supabase, firmId);
   } catch (err) { fail('firma-oprettelse', err); }
   console.log(`   ✓ Firma-id: ${firmId}`);
 

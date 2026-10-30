@@ -256,6 +256,14 @@ module.exports = function registerOnboarding(app, supabase) {
         .from("firms")
         .update({ verification_status: "verified", status: "active" })
         .eq("id", firm.id);
+      // T7a (D95): HAR nummeret vaeret verificeret? Saettes kun foerste gang og
+      // ryddes aldrig — verification_status gaar tilbage til "pending" ved hvert
+      // nyt testopkald. Afgoer karantaenen, naar nummeret frigives (telefon-nummer.js).
+      await supabase
+        .from("firms")
+        .update({ nummer_verificeret_at: new Date().toISOString() })
+        .eq("id", firm.id)
+        .is("nummer_verificeret_at", null);
 
       console.log("✅ Viderestilling verificeret for firma:", firm.id);
 
