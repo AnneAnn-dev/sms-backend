@@ -400,11 +400,16 @@ module.exports = function (app, supabase) {
   // med opgave-id'et — kunden ER slettet, og ryd-forladte-billeder.js tager
   // resten. Ingen navne eller numre i loggen.
   const SPAERRINGER = {
-    aaben_opgave: "Kunden har en åben opgave. Afslut den først — eller inaktivér kunden i stedet.",
+    // Uden antal (409 ved sletning): flertal. Oversigten kender antallet, se aabenTekst().
+    aaben_opgave: "Kunden har åbne opgaver. Afslut dem først — eller inaktivér kunden i stedet.",
     tilbud: "Kunden har et tilbud, og tilbud gemmes indtil videre. Du kan inaktivere kunden i stedet.",
     nyt_opkald: "Kunden har ringet inden for den sidste uge, og opgaven er ikke kommet endnu. Prøv igen senere — eller inaktivér kunden i stedet.",
     proev_igen: "Kunden blev ændret imens. Prøv igen.",
   };
+  // Ann 30/10 i prod: "en åben opgave" stod paa en kunde med to.
+  const aabenTekst = (n) => n === 1
+    ? "Kunden har en åben opgave. Afslut den først — eller inaktivér kunden i stedet."
+    : `Kunden har ${n} åbne opgaver. Afslut dem først — eller inaktivér kunden i stedet.`;
   const ikkeAktiv = (res) => res.status(404).json({ error: "ikke_aktiv", besked: "Slet kunde er ikke slået til." });
   const ikkeFundet = (res) => res.status(404).json({ error: "ikke_fundet", besked: "Den findes ikke." });
 
@@ -420,7 +425,7 @@ module.exports = function (app, supabase) {
       const spaerring = o.aabne > 0 ? "aaben_opgave" : o.tilbud > 0 ? "tilbud" : o.nye_opkald > 0 ? "nyt_opkald" : null;
       res.json({ ok: true,
         oversigt: { opgaver: o.opgaver, billeder: o.billeder, referater: o.referater, sms: o.sms, opkald: o.opkald, numre: o.numre },
-        spaerring, besked: spaerring ? SPAERRINGER[spaerring] : null });
+        spaerring, besked: spaerring === "aaben_opgave" ? aabenTekst(o.aabne) : spaerring ? SPAERRINGER[spaerring] : null });
     } catch (e) { svarPaaFejl(res, e, "sletteoversigten kunne ikke hentes"); }
   });
 
