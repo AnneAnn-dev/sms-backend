@@ -5,7 +5,7 @@ const webpush = require("web-push");
 const { firmIdFromToken } = require("./auth");
 const { gyldigtSmsNummer, kundeNoegle } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV } = require("./flags");
 const { knytKunde } = require("./kundematch");
 const { hentEgenRaekke } = require("./ejerskab");
 const billeder = require("./billeder");
@@ -53,6 +53,7 @@ app.get("/health", (req, res) =>
     tilbud: TILBUD_AKTIV,
     kundematch: KUNDE_MATCH_AKTIV,
     formularEngangs: FORMULAR_ENGANGS_AKTIV,
+    sletKunde: SLET_KUNDE_AKTIV,        // D94 trin 3b
     kvote: kvoteKonfigureret(),
   })
 );

@@ -36,4 +36,10 @@ module.exports = {
   // Slukket = linket kan bruges igen som foer, men calls.formular_brugt_at
   // skrives stadig. Se formular-engangs.js.
   FORMULAR_ENGANGS_AKTIV: flag("FORMULAR_ENGANGS_AKTIV"),
+
+  // D94 trin 3b (29/10-26): "Slet kunde" i Kunder-appen. Slukket = ruterne
+  // svarer 404, og knappen vises ikke. Sletningen kan ikke fortrydes — derfor
+  // eget flag, uafhaengigt af TILBUD_AKTIV. Se slet_kunde() i migrationen
+  // 20261029100000_slet_kunde.sql.
+  SLET_KUNDE_AKTIV: flag("SLET_KUNDE_AKTIV"),
 };

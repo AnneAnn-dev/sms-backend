@@ -307,6 +307,11 @@
   .kunde-row.inaktiv { border-left: 4px solid #B8C1CC; padding-left: 10px; }
   .kunde-row.inaktiv .kn { color: var(--ink-soft); }
   .inaktive-knap { display: flex; justify-content: space-between; align-items: center; width: 100%; border: none; border-bottom: 1px solid var(--line); background: none; padding: 16px 4px; font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; color: var(--ink-soft); cursor: pointer; text-align: left; }
+  /* D94 trin 3b: rød bruges KUN til Slet kunde (Ann 26/10). */
+  .btn-danger { background: #C0392B; color: white; margin-top: 8px; }
+  .btn-danger:disabled { background: #E0A49D; }
+  .slet-tekst { font-size: 16px; line-height: 1.45; margin: 0 0 10px; }
+  .kvittering-liste { background: #EEF6F1; border: 1px solid #BFDCCB; color: #1E4D33; font-size: 16px; border-radius: 10px; padding: 10px 12px; margin: 10px 0 0; }
   .inaktiv-maerke { display: inline-block; margin: 0 0 6px; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); border: 1px solid #B8C1CC; border-radius: 6px; padding: 2px 6px; }
   .flyt-bekraeft { border: 1px solid var(--line); background: var(--white); border-radius: 12px; padding: 12px; margin-top: 10px; font-size: 16px; }
   .flyt-knapper { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
@@ -517,6 +522,7 @@
       <input type="search" id="kundeSoeg" aria-label="Søg i kunder" placeholder="Søg på navn, telefon eller adresse" autocomplete="off" enterkeyhint="search">
     </div>
     <div class="error-banner" id="errorBannerKunder"></div>
+    <p class="kvittering-liste" id="kundeListKvittering" role="status" style="display:none"></p>
     <div id="kundeListWrap"><p class="indlaeser">Henter kunder …</p></div>
     <button class="fab" id="fabAddKunde">+</button>
   </div>
@@ -651,6 +657,23 @@
         <button class="btn btn-primary" id="rkGemBtn" type="button">Gem</button>
         <!-- D94 trin 3a: inaktivér/aktivér. Intet slettes. -->
         <button class="btn btn-secondary" id="rkInaktivBtn" type="button">Inaktivér kunde</button>
+        <!-- D94 trin 3b: kun naar SLET_KUNDE_AKTIV er taendt (oversigten svarer). -->
+        <button class="btn btn-danger" id="rkSletBtn" type="button" style="display:none">Slet kunde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: slet kunde (D94 trin 3b, 29/10) ================= -->
+  <div class="sheet-overlay" id="sletSheet">
+    <div class="sheet">
+      <h2>Slet kunde</h2>
+      <!-- Teksten foer bekraeftelsen: godkendt af Ann 29/10-26 (D94 trin 3b). -->
+      <p class="slet-tekst" id="sletTekst"></p>
+      <p class="slet-tekst" id="sletSpaerring" style="display:none"></p>
+      <div class="error-banner" id="errorBannerSlet"></div>
+      <div class="flyt-knapper">
+        <button class="btn btn-secondary" id="sletFortrydBtn" type="button" style="margin-top:0">Fortryd</button>
+        <button class="btn btn-danger" id="sletBtn" type="button" style="margin-top:0">Slet for altid</button>
       </div>
     </div>
   </div>
@@ -774,7 +797,7 @@ function udenFaser() { faseKnap = null; }
 Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
-const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv,
+const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
         retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
@@ -966,6 +989,7 @@ document.getElementById('kundeSoeg').addEventListener('input', tegnKundeListe);
 async function openKundeDetail(kundeId) {
   currentKundeDetailId = kundeId;
   document.getElementById('kundeDetailKvittering').style.display = 'none';
+  document.getElementById('kundeListKvittering').style.display = 'none';
   const k = customers.find(c => c.id === kundeId);
   document.getElementById('kundeDetailName').textContent = k ? k.navn : 'Kunde';
   document.getElementById('kundeDetailInaktiv').style.display = (k && k.inaktiv) ? '' : 'none';
@@ -1979,7 +2003,106 @@ function aabnRetKunde() {
   inaktivKnap.disabled = false;
   retKundeSheet.classList.add('open');
   rkHentBrug();
+  rkTjekSlet(k.id);
 }
+
+// ─── D94 trin 3b: Slet kunde ────────────────────────────────────────────
+// Knappen vises kun, naar oversigten svarer (flaget taendt). Fejler den af
+// en anden grund, vises den heller ikke: fail-closed. Tallene hentes igen,
+// naar arket aabnes, saa bekraeftelsen altid viser det, der faktisk slettes.
+const sletSheet = document.getElementById('sletSheet');
+let sletKundeId = null;
+async function rkTjekSlet(kundeId) {
+  const knap = document.getElementById('rkSletBtn');
+  knap.style.display = 'none';
+  try {
+    await hentSletOversigt(kundeId);
+    if (rk && rk.id === kundeId) knap.style.display = '';
+  } catch (_) { /* slukket eller utilgaengelig: ingen knap */ }
+}
+function sletDele(o) {
+  const dele = [];
+  const n = (x, en, flere) => x === 1 ? '1 ' + en : x + ' ' + flere;
+  if (o.opgaver) dele.push(n(o.opgaver, 'afsluttet opgave', 'afsluttede opgaver'));
+  if (o.billeder) dele.push(n(o.billeder, 'billede', 'billeder'));
+  if (o.sms) dele.push(n(o.sms, 'SMS', "SMS'er"));
+  if (o.opkald) dele.push(n(o.opkald, 'opkald', 'opkald'));
+  if (!dele.length) return '';
+  return dele.length === 1 ? dele[0] : dele.slice(0, -1).join(', ') + ' og ' + dele[dele.length - 1];
+}
+document.getElementById('rkSletBtn').addEventListener('click', async () => {
+  if (!rk) return;
+  const k = customers.find(c => c.id === rk.id);
+  if (!k) return;
+  sletKundeId = k.id;
+  const knap = document.getElementById('sletBtn');
+  const tekst = document.getElementById('sletTekst');
+  const spaer = document.getElementById('sletSpaerring');
+  skjulFejl('errorBannerSlet');
+  tekst.textContent = 'Henter …';
+  tekst.style.display = '';
+  spaer.style.display = 'none';
+  knap.style.display = 'none';
+  sletSheet.classList.add('open');
+  try {
+    const svar = await hentSletOversigt(k.id);
+    if (sletKundeId !== k.id) return;
+    const navn = k.navn || 'Kunden';
+    const dele = sletDele(svar.oversigt || {});
+    // Ann 29/10: "Stop! Du sletter xxxx. Det kan ikke fortrydes." — xxxx er
+    // kunden og, naar der er noget, det der slettes med (tallene, seks-linse 28/10).
+    tekst.textContent = 'Stop! Du sletter ' + navn + (dele ? ' sammen med ' + dele : '') +
+      '. Det kan ikke fortrydes.';
+    if (svar.spaerring) {
+      // Spaerret: intet slettes, saa "slettes sammen med … afsluttede opgaver"
+      // ville vaere forkert (en af dem er netop aaben). Kun beskeden vises.
+      tekst.style.display = 'none';
+      spaer.textContent = svar.besked || 'Kunden kan ikke slettes lige nu.';
+      spaer.style.display = '';
+    } else {
+      knap.style.display = '';
+      knap.disabled = false;
+    }
+  } catch (e) {
+    if (erLoggetUd(e)) { sletSheet.classList.remove('open'); retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    tekst.textContent = '';
+    visFejl('errorBannerSlet', e);
+  }
+});
+document.getElementById('sletFortrydBtn').addEventListener('click', () => { sletSheet.classList.remove('open'); sletKundeId = null; });
+sletSheet.addEventListener('click', (e) => { if (e.target === sletSheet) { sletSheet.classList.remove('open'); sletKundeId = null; } });
+document.getElementById('sletBtn').addEventListener('click', async () => {
+  const id = sletKundeId;
+  if (!id) return;
+  const knap = document.getElementById('sletBtn');
+  knap.disabled = true;
+  skjulFejl('errorBannerSlet');
+  try {
+    const svar = await sletKunde(id);
+    sletSheet.classList.remove('open');
+    retKundeSheet.classList.remove('open');
+    rk = null; sletKundeId = null;
+    customers = customers.filter(c => c.id !== id);
+    showScreen('customers');
+    await renderKundeList();
+    const kv = document.getElementById('kundeListKvittering');
+    kv.textContent = 'Kunden er slettet.' + (svar && svar.billeder_fejl
+      ? ' Nogle billeder kunne ikke slettes med det samme — de bliver ryddet op senere.' : '');
+    kv.style.display = '';
+  } catch (e) {
+    if (erLoggetUd(e)) { sletSheet.classList.remove('open'); retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    if (e instanceof ApiFejl && e.status === 409) {
+      const spaer = document.getElementById('sletSpaerring');
+      document.getElementById('sletTekst').style.display = 'none';
+      spaer.textContent = e.message;
+      spaer.style.display = '';
+      knap.style.display = 'none';
+      return;
+    }
+    visFejl('errorBannerSlet', e);
+    knap.disabled = false;
+  }
+});
 
 // Hvilke numre de åbne opgaver bruger. Fejler det, vises arket uden tallene —
 // og Gem med et nyt nummer spørger igen, før noget flyttes.

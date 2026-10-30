@@ -7,6 +7,8 @@
 //   PATCH  /api/tilbud/kunder/:id        ret
 //   POST   /api/tilbud/kunder/:id/inaktiv  inaktivér/aktivér (D94 trin 3a)
 //   POST   /api/tilbud/kunde-opslag      hvilken af firmaets kunder har nummeret? (D94 3a)
+//   GET    /api/tilbud/kunder/:id/slet-oversigt  hvad slettes, og er der en spaerring? (D94 3b)
+//   POST   /api/tilbud/kunder/:id/slet   slet kunden og alt om hende (D94 3b, eget flag)
 //
 //   GET    /api/tilbud/opgaver           listen, med kundens navn
 //   POST   /api/tilbud/opgaver           opret - UDEN opkald, se nedenfor
@@ -49,6 +51,8 @@ const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("../../auth");
 const { medFirma, hentEgenRaekke, opdaterEgenRaekke } = require("../../ejerskab");
 const { kundeNoegle, gyldigtSmsNummer, normalizePhone, opgavensNummer } = require("../../phone");
+const { SLET_KUNDE_AKTIV } = require("../../flags");
+const { sletOpgaveBilleder } = require("../../billedoprydning");
 
 const RUTER = [
   "/api/tilbud/kunder",
@@ -385,6 +389,72 @@ module.exports = function (app, supabase) {
         postnr: k.postnr || "", by: k.by || "", telefon: noegle, inaktiv: !!k.arkiveret_at,
       } });
     } catch (e) { svarPaaFejl(res, e, "kundeopslag fejlede"); }
+  });
+
+  // ─── Slet kunde (D94 trin 3b, plan godkendt af Ann 29/10-26) ─────────────
+  // Bag eget flag SLET_KUNDE_AKTIV: slukket svarer begge ruter 404
+  // `ikke_aktiv`, og Kunder-appen viser ikke knappen. Selve sletningen er ÉN
+  // databasefunktion (slet_kunde, se migrationen 20261029100000) med laase og
+  // spaerringer; her oversaettes dens fejl, og billedfilerne slettes BAGEFTER
+  // (Storage er ikke i transaktionen). En fil, der ikke kunne slettes, logges
+  // med opgave-id'et — kunden ER slettet, og ryd-forladte-billeder.js tager
+  // resten. Ingen navne eller numre i loggen.
+  const SPAERRINGER = {
+    aaben_opgave: "Kunden har en åben opgave. Afslut den først — eller inaktivér kunden i stedet.",
+    tilbud: "Kunden har et tilbud, og tilbud gemmes indtil videre. Du kan inaktivere kunden i stedet.",
+    nyt_opkald: "Kunden har ringet inden for den sidste uge, og opgaven er ikke kommet endnu. Prøv igen senere — eller inaktivér kunden i stedet.",
+    proev_igen: "Kunden blev ændret imens. Prøv igen.",
+  };
+  const ikkeAktiv = (res) => res.status(404).json({ error: "ikke_aktiv", besked: "Slet kunde er ikke slået til." });
+  const ikkeFundet = (res) => res.status(404).json({ error: "ikke_fundet", besked: "Den findes ikke." });
+
+  app.get("/api/tilbud/kunder/:id/slet-oversigt", async (req, res) => {
+    if (!SLET_KUNDE_AKTIV) return ikkeAktiv(res);
+    const firmId = await firma(req, res); if (!firmId) return;
+    if (!UUID.test(String(req.params.id || ""))) return ikkeFundet(res);
+    try {
+      const { data, error } = await supabase.rpc("slet_kunde_oversigt", { p_firm: firmId, p_kunde: req.params.id });
+      if (error) throw error;
+      const o = Array.isArray(data) ? data[0] : data;
+      if (!o || !o.findes) return ikkeFundet(res);
+      const spaerring = o.aabne > 0 ? "aaben_opgave" : o.tilbud > 0 ? "tilbud" : o.nye_opkald > 0 ? "nyt_opkald" : null;
+      res.json({ ok: true,
+        oversigt: { opgaver: o.opgaver, billeder: o.billeder, referater: o.referater, sms: o.sms, opkald: o.opkald, numre: o.numre },
+        spaerring, besked: spaerring ? SPAERRINGER[spaerring] : null });
+    } catch (e) { svarPaaFejl(res, e, "sletteoversigten kunne ikke hentes"); }
+  });
+
+  app.post("/api/tilbud/kunder/:id/slet", async (req, res) => {
+    if (!SLET_KUNDE_AKTIV) return ikkeAktiv(res);
+    const firmId = await firma(req, res); if (!firmId) return;
+    if (!UUID.test(String(req.params.id || ""))) return ikkeFundet(res);
+    // Kun et bevidst kald sletter: kroppen skal sige bekraeft: true.
+    if (!req.body || req.body.bekraeft !== true) {
+      return res.status(400).json({ error: "ikke_bekraeftet", besked: "Sletningen skal bekræftes." });
+    }
+    let r;
+    try {
+      const { data, error } = await supabase.rpc("slet_kunde", { p_firm: firmId, p_kunde: req.params.id });
+      if (error) {
+        const kode = String(error.message || "").trim();
+        if (kode === "ikke_fundet") return ikkeFundet(res);
+        if (SPAERRINGER[kode]) return res.status(409).json({ error: kode, besked: SPAERRINGER[kode] });
+        throw error;
+      }
+      r = Array.isArray(data) ? data[0] : data;
+      if (!r) throw new Error("slet_kunde svarede tomt");
+    } catch (e) { return svarPaaFejl(res, e, "kunden kunne ikke slettes"); }
+
+    const opgaveIder = r.opgave_ider || [];
+    const billeder = await sletOpgaveBilleder(supabase, opgaveIder);
+    console.log(`🗑️ Kunde slettet: firma ${firmId} kunde ${req.params.id} — opgaver ${r.opgaver}, billedraekker ${r.billeder}, ` +
+      `billedfiler ${billeder.filer}, referater ${r.referater}, sms ${r.sms}, opkald ${r.opkald}, numre ${r.numre}`);
+    for (const f of billeder.fejl) {
+      console.error(`❌ Slet kunde: billedfiler for opgave ${f.opgaveId} blev ikke slettet: ${f.besked}`);
+      sendError(new Error(`slet kunde: billedfiler for opgave ${f.opgaveId}: ${f.besked}`));
+    }
+    res.json({ ok: true, slettet: { opgaver: r.opgaver, billeder: billeder.filer, referater: r.referater,
+      sms: r.sms, opkald: r.opkald, numre: r.numre }, billeder_fejl: billeder.fejl.length });
   });
 
   app.get("/api/tilbud/kunder/:id/opgave-numre", async (req, res) => {
