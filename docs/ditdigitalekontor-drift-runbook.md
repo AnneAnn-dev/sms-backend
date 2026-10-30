@@ -503,7 +503,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - Tilføj et simpelt **health-check-endpoint** (fx `GET /health` → 200).
 - Sæt en gratis **uptime-monitor** til at pinge det og **alarmere til din telefon**.
 - Log + alarmér på de tre sømme der fejler tavst: **Twilio-webhook · Frisbii-webhook · Scaleway-mail.**
-- 📌 **TODO (fra byggetrin 6, 6/7-26): dead-letter-alarm på `frisbii_webhook_events`.** Tabellen bogfører nu udfald (`processed_at`/`error`); et event med `processed_at IS NULL` ældre end ~1 time er et tabt/fejlet event, der venter på Frisbii-retry — eller er løbet tør for retries (3 dage). Cron/dagligt tjek: `select id, event_type, received_at, error from frisbii_webhook_events where processed_at is null and received_at < now() - interval '1 hour';` → mail via `sendAdminAlert` hvis ikke tom. Byg sammen med drifts-overvågningen (trin 7).
+- 📌 **TODO (fra byggetrin 6, 6/7-26): dead-letter-alarm på `frisbii_webhook_events`.** Tabellen bogfører nu udfald (`processed_at`/`error`); et event med `processed_at IS NULL` ældre end ~1 time er et tabt/fejlet event, der venter på Frisbii-retry — eller er løbet tør for retries (3 dage). Cron/dagligt tjek: `select id, event_type, received_at, error from frisbii_webhook_events where processed_at is null and received_at < now() - interval '1 hour';` → mail via `sendAdminAlert` hvis ikke tom. Byg sammen med drifts-overvågningen (trin 7). **✅ Bygget 30/10 — se F3.** Frisbii gensender ikke, så der findes ingen retries at vente på (målt 29/10, D92).
 - Evt. en daglig digest-mail: "X nye leads, Y fejlede SMS'er."
 
 ### F2. Vagten — løbende overvågning af det, kerneflowet hviler på (etableret 8–9/10-26)
@@ -549,6 +549,32 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 - **En ny udløbsdato** (nøgle, token, certifikat uden for Railway): føj `navn=ÅÅÅÅ-MM-DD` til `VAGT_UDLOEBSDATOER` med `;` imellem — kun navne og datoer, **aldrig nøgler**. I dag: `scaleway-genai=2027-10-03;adressevaelger=2026-12-31`.
 - **Et nyt tjek** bygges, så det ville have fanget en fejl, vi rent faktisk har haft, og **brækkes én gang med vilje i staging**, før det kommer i drift. Et tjek, du aldrig har set rødt, er dekoration. Tjek kan køres i hånden uden at melde noget: `node vagt.js --toer` eller `node vagt.js --kun <navn> --toer` i vagt-servicens Console. **Bruddet i staging** køres som HEL kørsel (`node vagt.js` med bruddet i en `$env:`-variabel) — `--kun` melder intet i staging, og det er `staging-samlet`, der skal blive rød og grøn igen.
 - **Ny vagt.js til prod** går hotfix-vejen (Del 1b) som al anden kode — prod-vagten bygger fra `main`.
+
+### F3. Natlig Frisbii-kontrol — dead-letter og afstemning (etableret 30/10-26)
+
+*Baggrund: registret **D92** og **D15**. Frisbii gensender aldrig et event af sig selv (målt 29/10): vi svarer 200 før behandlingen, og Frisbii bogfører COMPLETED efter ét forsøg. Et event i dead-letter bliver liggende, til et menneske ser det.*
+
+**Hvad den er.** `natlig-frisbii.js` kører som sin egen Railway-service, `natlig-frisbii` — cron `0 3 * * *` (UTC), start `node natlig-frisbii.js`, Restart Policy *Never*. Indtil videre kun i **staging** (bygger fra `staging`); prod oprettes, før `FASE3_SYNK` tændes i prod. Den **læser kun**: hverken Frisbii eller databasen ændres. Hver nat sender den **én mail** via `sendAdminAlert` — også når alt er grønt.
+
+**Mailen**
+
+| Emnet indeholder | Betyder | Gør dette |
+|---|---|---|
+| `GROENT` | Ingen dead-letter, afstemningen enig | Intet |
+| `N i dead-letter` | Events med tom `processed_at`, ældre end 15 min | Ret årsagen (fejlteksten siger hvad). Gensend eventet i Frisbii (Webhooks) — så kører hele behandlingen igen. Kun moduler: `node gensynk-firma.js <abonnement>` (tørkørsel), derefter `--skriv` |
+| `afstemning uenig` | Frisbii og databasen siger forskelligt | `node afstem-frisbii.js` for hele billedet; ret med `gensynk-firma.js` |
+| `afstemning fejlede` | Afstemningen kunne ikke køre | Kør `node afstem-frisbii.js` lokalt og læs fejlen |
+
+**Kommer der ingen mail**, har kontrollen ikke kørt, eller mailen blev ikke sendt — **ingen mail er aldrig grønt.** Railway → `natlig-frisbii` → Cron Runs → loggen. Exit 1 = blandet miljø, database nede eller mailen blokeret.
+
+**Kendte røde i staging (30/10):** `sub-0124` (måle-add-on'et `fase3-maaling-a`, til efter målingen 2/11) og `sub-0122` (D93).
+
+**Kør i hånden:** `node natlig-frisbii.js --ingen-mail` skriver mailen i terminalen (profilen afgør miljøet). Railway → Cron Runs → **Run now** sender den.
+
+**Faldgruber**
+- **En cron-indstilling på webappen lægger den ned.** 30/10 kom `Cron Schedule` på `sms-backend` i stedet for en ny service, og staging svarede ikke i ca. 30 min. En cron-service oprettes på projektoversigten med **+ Create → GitHub Repo** — en NY boks. Kontrollér boksens **navn**, før du sætter cron; antallet af variabler er ikke nok. Fjernes med **Cron Schedule → No schedule** + redeploy.
+- **Variabler er pr. service.** Den nye service får webappens værdier som referencer, ikke kopier — i Raw Editor `NAVN=${{sms-backend.NAVN}}` for `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FRISBII_PRIVATE_KEY`, `SCW_SECRET_KEY`, `SCW_PROJECT_ID`, `SMTP_FROM`, `ADMIN_EMAIL`, `MAIL_OVERRIDE_TO`, `APPSIGNAL_APP_ENV`.
+- **Railway-cron er UTC.** `0 3 * * *` = 04:00 dansk vintertid, 05:00 sommertid (Ann 30/10: det er fint).
 
 ---
 
