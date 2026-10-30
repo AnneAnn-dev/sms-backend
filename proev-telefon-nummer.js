@@ -8,7 +8,7 @@
 "use strict";
 
 delete process.env.QUARANTINE_DAYS_PAID;
-const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer } = require("./telefon-nummer");
+const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk } = require("./telefon-nummer");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -123,6 +123,26 @@ const NU = "2026-10-30T08:00:00.000Z";
   r = await frigivNummer({ supabase: db, firmId: "F1", nu: NU });
   lig("halv registrering (kun puljeraekken): ryddes alligevel", [r.status, r.nummer, db.t.phone_numbers[0].firm_id], ["frigivet", "+4511111111", null]);
   lig("ukendt firma: kaster", !!(await kaster(() => frigivNummer({ supabase: lavDb({ firms: [], phone_numbers: [] }), firmId: "X" }))), true);
+
+  console.log("\n5. nummerPlan og nummerEfterSynk (T7b)");
+  const S = (moduler, til) => ({ moduler, til });
+  const FREM = "2026-11-08T09:42:23.632Z", FORBI = "2026-10-29T00:00:00.000Z";
+  lig("koebt + aktiv + intet nummer -> tildel", nummerPlan({ saet: S(["telefon"], FREM), harNummer: false, nu: NU }), "tildel");
+  lig("koebt + aktiv + har nummer -> intet", nummerPlan({ saet: S(["telefon", "referat"], FREM), harNummer: true, nu: NU }), "intet");
+  lig("koebt, respit gaaet (rykker) -> behold (beslutning 2, 28/10)", nummerPlan({ saet: S(["telefon"], FORBI), harNummer: true, nu: NU }), "behold");
+  lig("ikke koebt + har nummer -> frigiv", nummerPlan({ saet: S(["referat"], FREM), harNummer: true, nu: NU }), "frigiv");
+  lig("ikke koebt + intet nummer -> intet", nummerPlan({ saet: S(["referat"], FREM), harNummer: false, nu: NU }), "intet");
+  lig("intet saet (fejl) -> aldrig tildel", nummerPlan({ saet: null, harNummer: false, nu: NU }), "intet");
+  db = lavDb({ firms: [{ id: "F1", phone_number: null }], phone_numbers: pulje() });
+  r = await nummerEfterSynk({ supabase: db, twilioClient: twilio(["+4511111111"]), firmId: "F1", saet: S(["telefon"], FREM), nu: NU });
+  lig("tilkoeb: nummer tildelt", [r.status, db.t.firms[0].phone_number], ["tildelt", "+4511111111"]);
+  db = lavDb({ firms: [{ id: "F1", phone_number: "+4511111111", nummer_verificeret_at: null }], phone_numbers: [{ id: 1, number: "+4511111111", firm_id: "F1" }] });
+  r = await nummerEfterSynk({ supabase: db, twilioClient: null, firmId: "F1", saet: S(["telefon"], FORBI), nu: NU });
+  lig("rykker: nummeret beholdes, intet roeres", [r.status, db.t.firms[0].phone_number], ["beholdt", "+4511111111"]);
+  r = await nummerEfterSynk({ supabase: db, twilioClient: null, firmId: "F1", saet: S(["referat"], FREM), nu: NU });
+  lig("fravalg: nummeret frigives straks (aldrig verificeret)", [r.status, db.t.firms[0].phone_number, db.t.phone_numbers[0].quarantined_until], ["frigivet", null, null]);
+  r = await nummerEfterSynk({ supabase: db, twilioClient: null, firmId: "F1", saet: S(["referat"], FREM), nu: NU });
+  lig("igen: 'ingen telefon'", r.status, "ingen telefon");
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
   console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);

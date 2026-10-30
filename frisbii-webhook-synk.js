@@ -54,9 +54,13 @@ async function sendAlarm(alarm, log, besked) {
 //   synk:  async (abonnement) => resultat fra synkFirma({ ..., skriv: true })
 //   alarm: async ({ subject, text }) => ...   (sendAdminAlert)
 //   log:   console
+//   efterSkrevet (valgfri, T7b): async (synkResultat) => nummerresultat.
+//          Kaldes kun, naar synk har skrevet. Bringer telefonnummeret i trit
+//          med modulsaettet (tildel/frigiv). Kaster den, gaar eventet i
+//          dead-letter som enhver anden fejl.
 // Returnerer { handling, ... }. Kaster ved ukendt produkt og ved fejl i synk,
 // saa webhooken bogfoerer fejlen (dead-letter) i stedet for "behandlet".
-async function efterEvent({ body, aktiv, synk, alarm, log }) {
+async function efterEvent({ body, aktiv, synk, alarm, log, efterSkrevet }) {
   if (!aktiv) return { handling: "slukket" };
   const type = body && body.event_type;
   const abonnement = body && body.subscription;
@@ -101,7 +105,14 @@ async function efterEvent({ body, aktiv, synk, alarm, log }) {
     .filter((k) => f[k] && f[k].length)
     .map((k) => `${k} ${f[k].join("+")}`);
   log.log(`🔄 Synk ${abonnement} (${type}): firma ${kort(r.firma)} -> [${r.saet.moduler.join(", ")}] til ${r.saet.til}${dele.length ? " - " + dele.join(", ") : " - ingen aendring"}`);
-  return { handling: "skrevet", funktion: f };
+  let nummer = null;
+  if (efterSkrevet) {
+    nummer = await efterSkrevet(r);
+    if (nummer && !["har", "ingen telefon"].includes(nummer.status)) {
+      log.log(`📞 Nummer ${abonnement}: ${nummer.status}`); // nummeret selv logges ikke (maskerTlf-reglen)
+    }
+  }
+  return { handling: "skrevet", funktion: f, nummer };
 }
 
 // Kaldes i webhookens catch. Med flaget taendt giver et fejlet event alarm

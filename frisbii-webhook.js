@@ -30,7 +30,7 @@
 
 const crypto = require("crypto");
 const twilio = require("twilio");
-const { sendWelcomeMail, sendAdminAlert } = require("./mail");
+const { sendWelcomeMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail } = require("./mail");
 const { uniqueSlug } = require("./slug");
 const { maskerTlf, maskerMail, normalizePhone, vaelgLedigtNummer } = require("./phone");
 // Fase 3, T6: synk bag FASE3_SYNK. Slukket = intet nyt sker (se frisbii-webhook-synk.js).
@@ -39,7 +39,9 @@ const { efterEvent, alarmVedFejl } = require("./frisbii-webhook-synk");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
 // Fase 3, T7a: nummerets egne funktioner + karantaene efter verifikation (D95).
-const { sikrTelefonModul, frigivNummer } = require("./telefon-nummer");
+const { sikrTelefonModul, frigivNummer, nummerEfterSynk } = require("./telefon-nummer");
+// Fase 3, T7b: nummeret efter synk + puljealarmerne (delt med gensynk-firma.js).
+const { alarmSpoegelser, alarmLavPulje, nummerOgBesked } = require("./frisbii-nummer");
 
 // Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
 // Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
@@ -67,6 +69,12 @@ module.exports = (app, supabase) => {
   const WEBHOOK_SECRET = process.env.FRISBII_WEBHOOK_SECRET; // secret fra webhook-indstillingerne
   // T6: synkFirma henter selv abonnement og add-ons med samme noegle.
   const frisbiiHent = lavFrisbiiGet(PRIVATE_KEY);
+  // T7b: puljealarmer og "dit nummer er klar" (frisbii-nummer.js).
+  const alarmDeps = { alarm: sendAdminAlert, log: console };
+  const nummerDeps = {
+    supabase, twilioClient, alarm: sendAdminAlert, log: console,
+    sendNummerKlar: sendNummerKlarMail, loginUrl: `${process.env.BASE_URL}/dashboard`,
+  };
 
   // ─── Signatur: HMAC-SHA256(secret, timestamp + id), hex ─────────────────────
   // Daekker KUN timestamp+id -> ingen raa body noedvendig (modsat Shopify).
@@ -351,36 +359,31 @@ module.exports = (app, supabase) => {
     // raekken blev slettet. Et spoegelse er et doedt nummer for kunden.
     // Kan Twilio ikke naas, kaster vaelgLedigtNummer -> dead-letter -> retry.
     // Vi gaetter aldrig paa, om et nummer findes.
-    const { valgt: phoneRow, spoegelser, ledigeVerificeret } =
-      await vaelgLedigtNummer({ supabase, twilioClient });
+    // T7b: med FASE3_SYNK oprettes firmaet FOERST, uden nummer, og nummeret
+    // tildeles bagefter - kun hvis Telefonpasser er koebt (D25). Slukket flag:
+    // praecis som foer (nummer foerst, tom pulje = intet firma).
+    let phoneRow = null, spoegelser = [], ledigeVerificeret = 0;
+    if (!FASE3_SYNK) {
+      ({ valgt: phoneRow, spoegelser, ledigeVerificeret } = await vaelgLedigtNummer({ supabase, twilioClient }));
 
-    // Spoegelser slettes IKKE herfra — oprydning i prod sker med aabne oejne.
-    // Men de skal ses: uden alarm er det naeste kunde, der opdager dem.
-    if (spoegelser.length) {
-      console.error("👻 Spoegelsesnumre i puljen (findes ikke hos Twilio):", spoegelser.join(", "));
-      await sendAdminAlert({
-        subject: `Spoegelsesnumre i nummerpuljen (${spoegelser.length})`,
-        text:
-          `Disse numre staar som ledige i phone_numbers, men findes ikke i Twilio-kontoen:\n` +
-          `${spoegelser.join("\n")}\n\n` +
-          `De er sprunget over ved tildelingen, saa ingen kunde har faaet et doedt nummer.\n` +
-          `Ryd op: bekraeft med "node afstem-numre.js" og slet derefter raekkerne (RUNBOOK-numre afsnit 5).`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
-    }
+      // Spoegelser slettes IKKE herfra — oprydning i prod sker med aabne oejne.
+      // Men de skal ses: uden alarm er det naeste kunde, der opdager dem.
+      await alarmSpoegelser(alarmDeps, spoegelser);
 
-    if (!phoneRow) {
-      console.error("❌ Ingen ledige numre i puljen!");
-      // Kritisk: en betalende kunde kunne ikke faa et nummer.
-      await sendAdminAlert({
-        subject: "KRITISK: nummerpuljen er TOM",
-        text:
-          `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
-          `Kunde: ${company} <${email}>\n` +
-          `Frisbii-abonnement: ${subHandle}\n` +
-          (spoegelser.length ? `Bemaerk: ${spoegelser.length} raekke(r) i puljen er spoegelser og taeller ikke med.\n` : ``) +
-          `\nFirmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
-      throw new Error("Ingen ledige numre");
+      if (!phoneRow) {
+        console.error("❌ Ingen ledige numre i puljen!");
+        // Kritisk: en betalende kunde kunne ikke faa et nummer.
+        await sendAdminAlert({
+          subject: "KRITISK: nummerpuljen er TOM",
+          text:
+            `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
+            `Kunde: ${company} <${email}>\n` +
+            `Frisbii-abonnement: ${subHandle}\n` +
+            (spoegelser.length ? `Bemaerk: ${spoegelser.length} raekke(r) i puljen er spoegelser og taeller ikke med.\n` : ``) +
+            `\nFirmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
+        }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+        throw new Error("Ingen ledige numre");
+      }
     }
 
     // Generér en unik slug til den maskerede formular-URL
@@ -400,7 +403,7 @@ module.exports = (app, supabase) => {
         slug,
         email,
         owner_phone:                ownerPhone,   // null = onboardingen spoerger, som foer
-        phone_number:               phoneRow.number,
+        phone_number:               phoneRow ? phoneRow.number : null, // T7b: null med FASE3_SYNK
         frisbii_subscription:       subHandle,
         frisbii_customer:           customer.handle,
         status:                     "onboarding", // onboarding-tilstand: → "active" efter verifikation
@@ -432,16 +435,49 @@ module.exports = (app, supabase) => {
       throw firmErr;
     }
 
-    // Knyt nummeret til firmaet
-    await supabase
-      .from("phone_numbers")
-      .update({ firm_id: firm.id })
-      .eq("id", phoneRow.id);
+    let nummer = phoneRow ? phoneRow.number : null;
+    let moduler = ["telefon"];
+    let udenNummer = null; // T7b: "A" (Telefonpasser ikke koebt) | "B" (koebt, puljen tom)
+    let tjekPulje = !FASE3_SYNK; // lav-pulje-alarm kun, naar et nummer netop blev taget
+    if (!FASE3_SYNK) {
+      // Knyt nummeret til firmaet
+      await supabase
+        .from("phone_numbers")
+        .update({ firm_id: firm.id })
+        .eq("id", phoneRow.id);
 
-    // T7a: telefon-raekken i firma_moduler, som triggeren firma_faar_telefon
-    // gav foer (triggeren fjernes i migrationen t7a). Med FASE3_SYNK overtager
-    // synk raekken bagefter, praecis som den overtog triggerens.
-    await sikrTelefonModul(supabase, firm.id);
+      // T7a: telefon-raekken i firma_moduler, som triggeren firma_faar_telefon
+      // gav foer (triggeren er fjernet i migrationen t7a).
+      await sikrTelefonModul(supabase, firm.id);
+    } else {
+      // T7b: Frisbii afgoer modulerne (synk), og nummeret foelger dem.
+      const r = await synkFirma({ supabase, hent: frisbiiHent, abonnement: subHandle, skriv: true });
+      if (r.status === "skrevet") {
+        moduler = r.saet.moduler;
+        const n = await nummerEfterSynk({ supabase, twilioClient, firmId: firm.id, saet: r.saet });
+        if (n.status === "tildelt") {
+          nummer = n.nummer;
+          tjekPulje = true;
+          ledigeVerificeret = (n.ledigeVerificeret ?? 0) + 1; // lav-pulje-tjekket nedenfor traekker 1 fra
+          await alarmSpoegelser(alarmDeps, n.spoegelser);
+        } else if (n.status === "har") {
+          nummer = n.nummer;
+        } else if (n.status === "tom") {
+          // Alarmen ("venter paa nummer") og spoegelserne meldes af efterEvent,
+          // som koerer lige efter denne case - ellers kom de to gange.
+          udenNummer = "B";
+        } else {
+          udenNummer = moduler.includes("telefon") ? "B" : "A";
+        }
+      } else {
+        // "ukendt" produkt: synk skrev intet. Firmaet oprettes alligevel (ellers
+        // ville en gensendelse sige "allerede behandlet" og kunden faa intet
+        // login). efterEvent kaster bagefter -> dead-letter + alarm.
+        moduler = [];
+        udenNummer = "A";
+        console.warn(`⚠️  Firma ${firm.id} oprettet UDEN moduler: synk sagde "${r.status}" (${subHandle})`);
+      }
+    }
 
     // ─── D33: firmanavnet manglede — sig det, i stedet for at substituere tavst ──
     // Alarmen forhindrer ikke den forkerte provisionering; den goer den SYNLIG.
@@ -478,22 +514,11 @@ module.exports = (app, supabase) => {
       }).catch((e) => console.error("⚠️  Kunne ikke sende alarm om manglende firmanavn:", e.message));
     }
 
-    // Advar hvis puljen er ved at loebe toer. Tallet er nu VERIFICEREDE ledige
-    // numre — karantaene-numre og spoegelser taeller ikke med. Den gamle
-    // optaelling spurgte kun vores egen tabel og sagde 4/9-26 "3 ledige", hvor
-    // det sande tal var 1. En alarm, der overvurderer beholdningen, er verre
-    // end ingen alarm. (-1 fordi det netop tildelte nummer ikke er ledigt mere.)
-    const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
-    const ledige = Math.max(0, ledigeVerificeret - 1);
-    if (ledige <= LOW_POOL) {
-      console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
-      await sendAdminAlert({
-        subject: `Nummerpulje lav: ${ledige} ledige tilbage`,
-        text:
-          `Der er kun ${ledige} ledige numre tilbage i phone_numbers.\n\n` +
-          `Laeg flere numre i puljen, foer den loeber helt toer og en kunde ikke kan oprettes.`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
-    }
+    // Advar hvis puljen er ved at loebe toer. Tallet er VERIFICEREDE ledige
+    // numre — karantaene-numre og spoegelser taeller ikke med (se 4/9-26).
+    // (-1 fordi det netop tildelte nummer ikke er ledigt mere.) Kun naar et
+    // nummer faktisk blev tildelt (T7b: ikke ved "uden nummer").
+    if (tjekPulje) await alarmLavPulje(alarmDeps, Math.max(0, ledigeVerificeret - 1));
 
     // Opret Supabase Auth-bruger
     const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
@@ -533,7 +558,10 @@ module.exports = (app, supabase) => {
 
     // Send velkomstmail (delt funktion fra mail.js)
     try {
-      const mailResult = await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: phoneRow.number });
+      // T7b: uden nummer -> variant A (Telefonpasser ikke koebt) eller B (nummeret er paa vej).
+      const mailResult = nummer
+        ? await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: nummer })
+        : await sendVelkomstUdenNummerMail({ to: email, firmName: company, loginUrl, moduler, variant: udenNummer || "A" });
       if (mailResult?.blocked) {
         console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
       } else {
@@ -544,7 +572,7 @@ module.exports = (app, supabase) => {
       // Firma er oprettet — mail kan sendes igen manuelt
     }
 
-    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", maskerTlf(phoneRow.number));
+    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", nummer ? maskerTlf(nummer) : `(uden nummer, variant ${udenNummer || "A"})`);
   }
 
   // ─── Webhook-rute (express.json() er allerede sat globalt i server.js) ──────
@@ -719,6 +747,8 @@ module.exports = (app, supabase) => {
         synk: (abonnement) => synkFirma({ supabase, hent: frisbiiHent, abonnement, skriv: true }),
         alarm: sendAdminAlert,
         log: console,
+        // T7b: nummeret foelger modulerne (tildel ved tilkoeb, frigiv ved fravalg).
+        efterSkrevet: (r) => nummerOgBesked(nummerDeps, r),
       });
 
       // Alt gik godt (eller eventet var bevidst ignoreret): bogfoer succes,

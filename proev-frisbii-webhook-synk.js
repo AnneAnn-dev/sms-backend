@@ -83,6 +83,21 @@ async function kaster(fn) { try { await fn(); return null; } catch (e) { return 
   a = attrap({ svar: { status: "toerkoersel" } });
   lig("uventet status (toerkoersel) kaster", !!(await kaster(() => efterEvent({ body: ev("invoice_settled"), aktiv: true, ...a }))), true);
 
+  console.log("\n5b. efterSkrevet (T7b: nummeret foelger modulerne)");
+  a = attrap({ svar: SKREVET });
+  let kaldt = [];
+  r = await efterEvent({ body: ev("subscription_changed"), aktiv: true, ...a, efterSkrevet: async (x) => { kaldt.push(x.firma); return { status: "tildelt" }; } });
+  lig("skrevet: efterSkrevet kaldt med synk-resultatet, resultatet med i svaret", [kaldt, r.nummer], [["5bca56b7-xxxx"], { status: "tildelt" }]);
+  lig("  ... og en loglinje uden selve nummeret", a.k.log.some((l) => l.includes("Nummer sub-0124: tildelt")), true);
+  for (const [navn, svar] of [["ukendt", UKENDT], ["intet firma", { status: "intet firma" }]]) {
+    a = attrap({ svar }); kaldt = [];
+    await kaster(() => efterEvent({ body: ev("subscription_changed"), aktiv: true, ...a, efterSkrevet: async (x) => { kaldt.push(x); } }));
+    lig(`${navn}: efterSkrevet IKKE kaldt`, kaldt.length, 0);
+  }
+  a = attrap({ svar: SKREVET });
+  e = await kaster(() => efterEvent({ body: ev("invoice_settled"), aktiv: true, ...a, efterSkrevet: async () => { throw new Error("Twilio nede"); } }));
+  lig("efterSkrevet kaster -> efterEvent kaster (dead-letter)", !!(e && /Twilio nede/.test(e.message)), true);
+
   console.log("\n6. frisbii-webhook.js kalder det rigtige sted");
   const kode = fs.readFileSync(path.join(__dirname, "frisbii-webhook.js"), "utf8");
   const iEfter = kode.indexOf("await efterEvent({"), iProc = kode.indexOf("await markProcessed(body.id)"), iFejl = kode.indexOf("await alarmVedFejl({");
@@ -90,6 +105,8 @@ async function kaster(fn) { try { await fn(); return null; } catch (e) { return 
   lig("efterEvent og alarmVedFejl faar aktiv: FASE3_SYNK", (kode.match(/aktiv: FASE3_SYNK/g) || []).length, 2);
   lig("alarmVedFejl kaldes i catch efter markFailed", iFejl > kode.indexOf("await markFailed(body.id"), true);
   lig("ingen tekst i webhooken lover Frisbiis genforsoeg (D92, maalt 29/10)", /naeste retry|proever igen\./.test(kode), false);
+  lig("efterEvent faar efterSkrevet = nummerOgBesked (T7b)", /efterSkrevet: \(r\) => nummerOgBesked\(nummerDeps, r\)/.test(kode), true);
+  lig("provisionFirm opretter uden nummer med flaget (phone_number null)", /phone_number:\s+phoneRow \? phoneRow\.number : null/.test(kode), true);
   lig("synk kaldes med skriv: true", /synkFirma\(\{[^}]*skriv: true/.test(kode), true);
   const cases = [...kode.matchAll(/case "([a-z_]+)":/g)].map((m) => m[1]).sort();
   lig("KENDTE_EVENTS = webhookens cases", [...KENDTE_EVENTS].sort(), cases);

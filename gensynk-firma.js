@@ -10,6 +10,12 @@
 //        skriver de moduler, kataloget KENDER, selv om Frisbii ogsaa har et
 //        ukendt produkt. Kun et menneske bruger dette flag - aldrig webhooken.
 //
+// T7b (30/10): med --skriv foelger NUMMERET bagefter modulerne (frisbii-nummer.js):
+// Telefonpasser koebt + intet nummer -> tildel og send "Dit nummer er klar";
+// ikke koebt + nummer -> frigiv (karantaene efter verifikation, D95). Toerkoerslen
+// viser, hvad der ville ske. Kraever TWILIO_ACCOUNT_SID og TWILIO_AUTH_TOKEN,
+// naar et nummer skal tildeles (puljen verificeres hos Twilio).
+//
 // Supabase og Frisbii skal hoere til samme miljoe (frisbii-miljoe.js).
 // I PROD skal abonnementets handle skrives igen, foer der skrives.
 // Bagefter: node afstem-frisbii.js.
@@ -23,6 +29,8 @@ const readline = require("readline");
 const { createClient } = require("@supabase/supabase-js");
 const { lavFrisbiiGet, bestemMiljoe } = require("./frisbii-miljoe");
 const { synkFirma } = require("./frisbii-synk");
+const { nummerPlan } = require("./telefon-nummer");
+const { nummerOgBesked } = require("./frisbii-nummer");
 
 const abonnement = process.argv[2];
 const skriv = process.argv.includes("--skriv");
@@ -77,6 +85,11 @@ function spoerg(tekst) {
   console.log(`Frisbii siger: ${r.saet.grund}, moduler [${r.saet.moduler.join(", ")}], til ${r.saet.til}`);
   if (r.saet.ukendte.length) console.log(`Ukendt hos Frisbii: ${r.saet.ukendte.join(", ")}`);
   console.log("\nDatabasen foer:\n" + visRaekker(r.foer));
+  const { data: firmaNr } = await supabase.from("firms").select("phone_number").eq("id", r.firma).maybeSingle();
+  const harNummer = !!(firmaNr && firmaNr.phone_number);
+  const plan = nummerPlan({ saet: r.saet, harNummer, nu });
+  const PLAN_TEKST = { tildel: "TILDELES et nummer fra puljen", frigiv: "FRIGIVES (karantaene, hvis det har vaeret verificeret)", behold: "beholdes (koebt, men ikke aktiv: respit)", intet: harNummer ? "uaendret (har nummer)" : "uaendret (intet nummer, Telefonpasser ikke koebt)" };
+  console.log(`Nummer: ${PLAN_TEKST[plan]}`);
   console.log(r.uenig.length ? "\nUenigt foer:\n" + r.uenig.map((u) => "   ! " + u).join("\n") : "\nEnigt foer.");
 
   if (r.status === "ukendt") {
@@ -94,5 +107,24 @@ function spoerg(tekst) {
     if (v && v.length) console.log(`   ${k.padEnd(10)} ${v.join(", ")}`);
   }
   console.log("\nDatabasen efter:\n" + visRaekker(r.efter));
+
+  // T7b: nummeret foelger modulerne.
+  if (plan === "tildel" || plan === "frigiv") {
+    let twilioClient = null;
+    if (plan === "tildel") {
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+        console.log("\nNUMMER IKKE TILDELT: mangler TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN i miljoeet. Modulerne ER skrevet.");
+        process.exit(1);
+      }
+      twilioClient = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    }
+    const { sendAdminAlert, sendNummerKlarMail } = require("./mail");
+    const n = await nummerOgBesked({
+      supabase, twilioClient, alarm: sendAdminAlert, log: console,
+      sendNummerKlar: sendNummerKlarMail, loginUrl: `${process.env.BASE_URL || ""}/dashboard`,
+    }, r);
+    console.log(`\nNummer: ${n.status}${n.status === "tildelt" ? (n.mailSendt ? " - kunden har faaet 'Dit nummer er klar'" : " - MAILEN BLEV IKKE SENDT, giv kunden besked") : ""}${n.karantaeneTil ? " - karantaene til " + n.karantaeneTil : ""}`);
+    if (n.status === "tom") { console.log("Puljen er stadig tom. Laeg numre i phone_numbers og koer igen."); process.exit(2); }
+  }
   console.log("\nKoer nu: node afstem-frisbii.js");
 })();

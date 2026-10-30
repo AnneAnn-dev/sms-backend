@@ -13,6 +13,13 @@
 //   frigivNummer      - laegger firmaets nummer tilbage i puljen, med karantaene
 //                       hvis nummeret har vaeret VERIFICERET (Ann 30/10, D95).
 //   karantaeneTil     - ren regel: hvornaar maa nummeret genbruges.
+//   nummerEfterSynk   - T7b (bag FASE3_SYNK): bringer nummeret i trit med det
+//                       modulsaet, synk lige har skrevet. Telefon koebt og
+//                       aktiv + intet nummer -> tildel. Telefon IKKE koebt +
+//                       nummer -> frigiv. Telefon koebt, men respitten er gaaet
+//                       (rykkerforloeb) -> BEHOLD nummeret (beslutning 2, 28/10:
+//                       omstillingen stopper, nummeret beholdes til udloeb, og
+//                       udloebet frigiver det via deprovisionFirm).
 //
 // KARANTAENE (D95, Ann 30/10): har nummeret vaeret verificeret, har det vaeret
 // kundens - det staar paa bilen og i kundernes telefoner - og det faar
@@ -112,4 +119,29 @@ async function frigivNummer({ supabase, firmId, nu = new Date().toISOString() })
   return { status: "frigivet", nummer, karantaeneTil: til };
 }
 
-module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer };
+// saet: { moduler, til } fra modulsaet (T2). Returnerer { status, nummer, ... }:
+//   "har" | "tildelt" | "tom"  (fra tildelNummer)
+//   "frigivet"                 (telefon fravalgt)
+//   "ingen telefon"            (ikke koebt, intet nummer - intet at goere)
+//   "beholdt"                  (koebt, men ikke aktiv: respit/rykker)
+// Ren regel (vises ogsaa af gensynk-firma.js i toerkoersel):
+//   "tildel" | "behold" | "frigiv" | "intet"
+function nummerPlan({ saet, harNummer, nu = new Date().toISOString() }) {
+  const koebt = !!(saet && Array.isArray(saet.moduler) && saet.moduler.includes("telefon"));
+  const aktiv = !!(saet && saet.til && new Date(saet.til).toISOString() > new Date(nu).toISOString());
+  if (koebt && aktiv) return harNummer ? "intet" : "tildel";
+  if (koebt) return "behold";
+  return harNummer ? "frigiv" : "intet";
+}
+
+async function nummerEfterSynk({ supabase, twilioClient, firmId, saet, nu = new Date().toISOString() }) {
+  // Om firmaet HAR et nummer, afgoer tildelNummer/frigivNummer selv (og race-sikkert),
+  // saa reglen spoerges her, som om det ikke har.
+  const plan = nummerPlan({ saet, harNummer: false, nu });
+  if (plan === "tildel") return tildelNummer({ supabase, twilioClient, firmId }); // "har" / "tildelt" / "tom"
+  if (plan === "behold") return { status: "beholdt", nummer: null };
+  const f = await frigivNummer({ supabase, firmId, nu });
+  return f.status === "frigivet" ? f : { status: "ingen telefon", nummer: null };
+}
+
+module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk };
