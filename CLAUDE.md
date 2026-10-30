@@ -138,6 +138,7 @@ Fire regler, der gælder alt arbejde i dette repo.
 
 - Skemaændringer sker **KUN** som versionerede filer i `supabase/migrations/`. Aldrig håndredigeret SQL mod prod.
 - De ENESTE veje til `supabase db push` er `push-staging.ps1` og `push-prod.ps1` (CLI-linket er usynlig tilstand — rå `db push` kan ramme det forkerte projekt).
+- **Før `push-prod.ps1` og `push-staging.ps1`: `git status --short` skal være tom.** Scripterne læser MAPPEN `supabase/migrations/`, ikke grenen — en usporet fil (`??`) kommer med, også en tom fra `supabase migration new`, og også når du står på en hotfix-gren (`git switch` tager usporede filer med). En tom migration bogføres som kørt, og den rigtige springes senere over i stilhed. Står der `??` under `supabase/migrations/`, så parkér filen uden for repoet under kørslen og læg den tilbage. Skriv tjekket ind i de trin, du giver Ann. (Fanget 30/10-26 under D94 trin 4: en anden chats tomme T7a-fil stod på listen; Ann svarede n.)
 - Rækkefølge altid: migration på staging → røgtest → samme migration på prod.
 - **Levende tabeller (fx `leads`) ændres med expand/contract:** tilføj nyt (nullable) → backfill → skriv begge → flyt læsning → drop gammelt i en SENERE release. Omdøb/drop aldrig en kolonne i samme deploy som koden ændres.
 - Antag aldrig at `create table if not exists` har sat alle kolonner — tjek om tabellen findes i forvejen (messages-fælden).

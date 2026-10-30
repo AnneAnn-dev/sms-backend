@@ -641,6 +641,8 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 7. **Promote til prod — i deploy-vinduet** (se Del 2):
    - Railway: promote / deploy `main`.
    - Kør samme migration på **prod**: `.\push-prod.ps1` (kræver PROD-bekræftelse, linker selv om, og skifter tilbage til staging bagefter).
+     **Først: `git status --short` skal være tom.** `push-prod.ps1` læser mappen `supabase\migrations\`, ikke grenen — en usporet fil (`??`) kommer med på listen, også en tom fra `supabase migration new`, og også fra en hotfix-gren. En tom migration bogføres som kørt, og den rigtige springes senere over uden en lyd. Står der en `??`-migration: svar **n** ved `[Y/n]`, parkér filen uden for repoet, kør igen, læg den tilbage. **Læs listen ved `[Y/n]` hver gang** — den skal indeholde præcis de migrationer, du venter. (30/10-26, D94 trin 4: en anden chats tomme T7a-fil stod på listen.)
+   - **Ændrer du en variabel i Railway (fx et flag), aktiveres den først, når du trykker Deploy/Apply.** Indtil da kører den gamle værdi. Tjek `/health` bagefter. (30/10-26, D97.)
    - **Bump `sw.js` cache-version** ved ændringer i sw.js selv eller cachede aktiver. *(Fra v17, 13/7: /dashboard-HTML hentes network-first, så rene HTML-ændringer slår igennem UDEN bump; kundeformular/onboarding/config.js røres slet ikke af SW'en.)*
 8. Verificér i prod: health-check grøn + én ægte handling (fx et testopkald fra egen telefon). Hold øje i ~10 min.
 9. Går det galt: **rollback koden** i Railway (hurtigst). DB: kør kun frem-migrationer; ingen destruktive ændringer uden frisk backup.
