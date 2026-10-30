@@ -5,11 +5,11 @@ const webpush = require("web-push");
 const { firmIdFromToken } = require("./auth");
 const { gyldigtSmsNummer, kundeNoegle } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV, FORMULAR_UDLOEB_AKTIV } = require("./flags");
 const { knytKunde } = require("./kundematch");
 const { hentEgenRaekke } = require("./ejerskab");
 const billeder = require("./billeder");
-const { brugFormular, frigivFormular, linkBrugtSide, forMangeBillederSide } = require("./formular-engangs");
+const { brugFormular, frigivFormular, linkBrugtSide, linkUdloebetSide, erUdloebet, forMangeBillederSide } = require("./formular-engangs");
 const { registrerPushRuter, sendNytLeadPush } = require("./push");
 const { kraevModul, registrerModulRuter } = require("./moduler");
 
@@ -53,6 +53,7 @@ app.get("/health", (req, res) =>
     tilbud: TILBUD_AKTIV,
     kundematch: KUNDE_MATCH_AKTIV,
     formularEngangs: FORMULAR_ENGANGS_AKTIV,
+    formularUdloeb: FORMULAR_UDLOEB_AKTIV,   // D97
     sletKunde: SLET_KUNDE_AKTIV,        // D94 trin 3b
     laegSammen: LAEG_SAMMEN_AKTIV,      // D94 trin 4
     kvote: kvoteKonfigureret(),
@@ -192,7 +193,7 @@ async function firmaTilBrugtSide(firmId) {
 app.get("/formular/:token", async (req, res) => {
   const { data: call, error: callFejl } = await supabase
     .from("calls")
-    .select("id, formular_brugt_at, firms(name, owner_phone)")
+    .select("id, created_at, formular_brugt_at, firms(name, owner_phone)")
     .eq("lead_token", req.params.token)
     .maybeSingle();
 
@@ -209,6 +210,13 @@ app.get("/formular/:token", async (req, res) => {
   // S34: linket virker én gang. 410 = "var her, er der ikke mere".
   if (FORMULAR_ENGANGS_AKTIV && call.formular_brugt_at) {
     return res.status(410).send(linkBrugtSide({
+      firmanavn: call.firms?.name, telefon: call.firms?.owner_phone,
+    }));
+  }
+
+  // D97: linket udloeber 7 dage efter opkaldet. 410 som S34.
+  if (FORMULAR_UDLOEB_AKTIV && erUdloebet(call.created_at)) {
+    return res.status(410).send(linkUdloebetSide({
       firmanavn: call.firms?.name, telefon: call.firms?.owner_phone,
     }));
   }
@@ -500,11 +508,15 @@ app.post("/formular/:token", formularUpload, async (req, res) => {
   // S34 (19/10-26): tag linket i brug med én betinget opdatering, FOER noget
   // gemmes. firm_id kommer med herfra, saa leadet kan baere sin egen
   // ejerskabsnoegle (D21). Se formular-engangs.js.
-  const brug = await brugFormular(supabase, req.params.token, { aktiv: FORMULAR_ENGANGS_AKTIV });
+  const brug = await brugFormular(supabase, req.params.token,
+    { aktiv: FORMULAR_ENGANGS_AKTIV, udloeb: FORMULAR_UDLOEB_AKTIV });
   if (brug.status === "ukendt") return res.status(404).send("Link ikke gyldigt");
   if (brug.status === "fejl") return res.status(500).send("Fejl");
   if (brug.status === "brugt") {
     return res.status(410).send(linkBrugtSide(await firmaTilBrugtSide(brug.call.firm_id)));
+  }
+  if (brug.status === "udloebet") {   // D97 — linket er IKKE taget i brug
+    return res.status(410).send(linkUdloebetSide(await firmaTilBrugtSide(brug.call.firm_id)));
   }
   const call = brug.call;
 

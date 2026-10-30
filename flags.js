@@ -54,4 +54,9 @@ module.exports = {
   // derfor eget flag. Se laeg_sammen_kunder() i migrationen
   // 20261030100000_laeg_sammen_kunder.sql.
   LAEG_SAMMEN_AKTIV: flag("LAEG_SAMMEN_AKTIV"),
+
+  // D97 (30/10-26): kundeformularens link udloeber 7 dage efter opkaldet
+  // (Ann 29/10). Slukket = linket virker som foer, uanset alder. Gaelder alle
+  // kunder — derfor eget flag og rollback i Railway. Se formular-engangs.js.
+  FORMULAR_UDLOEB_AKTIV: flag("FORMULAR_UDLOEB_AKTIV"),
 };
