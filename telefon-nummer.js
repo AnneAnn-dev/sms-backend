@@ -17,6 +17,9 @@
 //                       blive til et lead? Med flaget afgoer TELEFONMODULET det
 //                       (respit og opsigelse til periodens slut virker); uden
 //                       flaget billing_status, som foer.
+//   telefonTilstand   - T7d (bag FASE3_SYNK): hvad onboardingen skal vise -
+//                       telefon aktiv? nummer? paa vej? Og maa firmaet blive
+//                       "active" uden verifikation (ingen telefon / venter)?
 //   nummerEfterSynk   - T7b (bag FASE3_SYNK): bringer nummeret i trit med det
 //                       modulsaet, synk lige har skrevet. Telefon koebt og
 //                       aktiv + intet nummer -> tildel. Telefon IKKE koebt +
@@ -165,4 +168,14 @@ function opkaldsGate({ fase3, billing, moduler }) {
   return { tilladt: true, grund: fase3 ? "moduler ukendte - billing active" : "billing active" };
 }
 
-module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate };
+// Ren regel. Returnerer { aktiv, harNummer, venter, udenVerifikation }.
+// Uden flaget (eller ukendte moduler): som foer - telefon antages, og
+// onboardingen skal gennem verifikationen.
+function telefonTilstand({ fase3, moduler, phoneNumber }) {
+  const harNummer = !!phoneNumber;
+  if (!fase3 || !Array.isArray(moduler)) return { aktiv: true, harNummer, venter: false, udenVerifikation: false };
+  const aktiv = moduler.includes("telefon");
+  return { aktiv, harNummer, venter: aktiv && !harNummer, udenVerifikation: !(aktiv && harNummer) };
+}
+
+module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, telefonTilstand };

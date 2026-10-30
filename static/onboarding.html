@@ -567,7 +567,7 @@
                placeholder="Dit firmanavn" aria-label="Firmanavn"
                onkeydown="if(event.key==='Enter')saveFirmName()">
       </div>
-      <p class="hint">Navnet er det, dine kunder hører, når de ringer til dig.</p>
+      <p class="hint" id="firm-name-hint">Navnet er det, dine kunder hører, når de ringer til dig.</p>
       <p class="error" id="firm-name-error"></p>
       <button class="btn" onclick="saveFirmName()">
         <span id="firm-name-label">Fortsæt</span><span class="spinner" id="firm-name-spin"></span>
@@ -1117,6 +1117,7 @@
     smsNavn:     '',     // kortform, KUN til kunde-SMS'en (tom = brug firmName)
     navnGaettet: false,  // Frisbii havde intet firmanavn — provisioneringen gaettede
     phoneNumber: '',   // firmaets tildelte nummer
+    telefon: null,     // T7d: { aktiv, harNummer, venter, udenVerifikation } fra /api/onboarding (null = som foer)
     ownerPhone:  '',   // håndværkerens eget mobilnummer
     voice:       'female',
     greeting:    '',
@@ -1585,6 +1586,7 @@
       state.smsNavn     = data.firm.sms_navn || '';
       state.navnGaettet = !!data.firm.navn_er_gaettet;
       state.phoneNumber = data.firm.phone_number || '';
+      state.telefon     = data.firm.telefon || null; // T7d
       state.ownerPhone  = data.firm.owner_phone || '';
       state.voice       = data.firm.voice_gender || 'female';
       state.greeting    = data.firm.greeting_text || defaultGreeting(state.firmName);
@@ -1630,7 +1632,36 @@
     // baerer kun de otte cifre.
     document.getElementById('owner-input').value = (state.ownerPhone || '').replace(/^\+?45\s*/, '');
 
+    // T7d: uden Telefonpasser handler navnet ikke om, hvad kunderne hoerer.
+    // UDKAST (Claude 30/10) - Anne skriver den endelige tekst.
+    if (udenTelefon()) setText('firm-name-hint', 'Navnet står på dine opgaver og over for dine kunder.');
+
     showScreen('s-0');
+  }
+
+  // ── T7d (30/10-26, bag FASE3_SYNK): firma uden telefon / nummer paa vej ──
+  // Uden Telefonpasser: firmanavn -> appen (s-1, s-3 og viderestillingen
+  // s-5..s-7 springes over). Nummer paa vej: firmanavn -> eget nummer ->
+  // stemme og besked -> appen; viderestilling og test venter, til mailen
+  // "Dit nummer er klar" kommer. Serveren saetter status "active" uden
+  // verifikation (POST /onboarding/faerdig-uden-telefon) - ellers sendte
+  // dashboardet kunden tilbage hertil for altid. state.telefon er null uden
+  // flaget, og saa gaar alt som foer.
+  function udenTelefon()     { return !!(state.telefon && state.telefon.aktiv === false); }
+  function venterPaaNummer() { return !!(state.telefon && state.telefon.venter); }
+  async function afslutUdenTelefon() {
+    const res = await fetch('/onboarding/faerdig-uden-telefon', {
+      method: 'POST', headers: { Authorization: `Bearer ${state.token}` },
+    });
+    if (!res.ok) throw new Error('faerdig-uden-telefon: ' + res.status);
+    goTo('s-8');
+  }
+  function naesteEfterNavn() {
+    if (!udenTelefon()) return goTo('s-1');
+    afslutUdenTelefon().catch((e) => {
+      console.warn(e);
+      alert('Noget gik galt. Tjek din forbindelse og prøv igen.');
+    });
   }
 
   // Direkte indgang til installationstrinnet. showScreen frem for goTo,
@@ -1885,7 +1916,7 @@
       btnEl.classList.add('ok');
       await new Promise(r => setTimeout(r, 800));
       btnEl.classList.remove('ok');
-      goTo('s-1');
+      naesteEfterNavn(); // T7d: uden telefon direkte til appen
     } catch (e) {
       errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
     } finally {
@@ -1967,7 +1998,7 @@
       btnEl.classList.add('ok');
       await new Promise(r => setTimeout(r, 800));
       btnEl.classList.remove('ok');
-      goTo('s-1');
+      naesteEfterNavn(); // T7d: uden telefon direkte til appen
     } catch (e) {
       errEl.textContent = 'Noget gik galt. Tjek din forbindelse og prøv igen.';
     } finally {
@@ -2167,6 +2198,7 @@
       btnEl.classList.add('ok');
       await new Promise(r => setTimeout(r, 800));
       btnEl.classList.remove('ok');
+      if (venterPaaNummer()) { await afslutUdenTelefon(); return; } // T7d: viderestilling venter paa nummeret
       goTo('s-5');
     } catch (e) {
       hint.textContent = 'Kunne ikke gemme. Tjek din forbindelse og prøv igen.';

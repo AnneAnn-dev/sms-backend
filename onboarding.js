@@ -21,7 +21,7 @@ const { sendAdminAlert } = require("./mail");
 // Fase 3, T7c: opkald foelger telefonmodulet (bag FASE3_SYNK).
 const { FASE3_SYNK } = require("./flags");
 const { aktiveModuler } = require("./moduler");
-const { opkaldsGate } = require("./telefon-nummer");
+const { opkaldsGate, telefonTilstand } = require("./telefon-nummer");
 // sendError sender en fejl til AppSignal med sin egen rod-span. Samme kald som
 // fejl-middlewaren i server.js bruger. Noedvendigt her, fordi AppSignal KUN ser
 // fejl, der kastes videre til Express — et catch, der svarer paent, naar den aldrig.
@@ -446,6 +446,14 @@ module.exports = function registerOnboarding(app, supabase) {
       return res.type("text/xml").send(twiml.toString());
     }
 
+    // T7d (D95, Ann 30/10): ringer kunder til nummeret, har det vaeret
+    // kundens - ogsaa hvis viderestillingen aldrig blev testet. Saet markoeren
+    // ved foerste aegte kundeopkald (kun hvis den er tom). Best effort: maa
+    // aldrig staa i vejen for SMS'en.
+    supabase.from("firms").update({ nummer_verificeret_at: new Date().toISOString() })
+      .eq("id", firm.id).is("nummer_verificeret_at", null)
+      .then(({ error: mErr }) => { if (mErr) console.error("⚠️  nummer_verificeret_at kunne ikke saettes:", mErr.message); });
+
     // Normalt opkald fra kunde — send SMS med formular-link.
     // Format: ${BASE_URL}/{firma-slug}/{lead_token}  (maskeret opgave-subdomæne)
     const formUrl = `${FORM_BASE}/${firm.slug}/${call.lead_token}`;
@@ -668,7 +676,51 @@ module.exports = function registerOnboarding(app, supabase) {
 
     if (!firm) return res.status(404).json({ error: 'Ingen firma fundet' });
 
-    res.json({ firm });
+    // T7d (FASE3_SYNK): fortael siden, om firmaet har Telefonpasser, og om
+    // nummeret er paa vej. Uden flaget (eller hvis modulerne ikke kan laeses)
+    // er svaret "telefon, verifikation kraeves" - som foer.
+    let moduler = null;
+    if (FASE3_SYNK) {
+      try { moduler = await aktiveModuler(supabase, firm.id); }
+      catch (err) { console.error('❌ /api/onboarding: moduler kunne ikke læses:', err.message); }
+    }
+    res.json({ firm: { ...firm, telefon: telefonTilstand({ fase3: FASE3_SYNK, moduler, phoneNumber: firm.phone_number }) } });
+  });
+
+  // ─── T7d: onboarding faerdig UDEN verifikation (30/10-26) ───────────────
+  // Status "active" saettes ellers kun af verifikationen af viderestillingen
+  // (/opkald). Et firma uden Telefonpasser - eller som venter paa sit nummer -
+  // kan ikke verificere og ville sidde fast i onboardingen og aldrig komme ind
+  // i appen (dashboard.html sender status "onboarding" tilbage hertil).
+  // Kun med FASE3_SYNK, og kun naar telefonen IKKE er aktiv med et nummer:
+  // et firma med nummer skal stadig gennem testen.
+  app.post('/onboarding/faerdig-uden-telefon', async (req, res) => {
+    if (!FASE3_SYNK) return res.status(404).json({ error: 'Ikke tilgaengelig' });
+    const firm_id = await firmIdFromToken(supabase, req);
+    if (!firm_id) return res.status(401).json({ error: 'Ikke logget ind' });
+
+    const { data: firm, error: fErr } = await supabase
+      .from('firms').select('id, status, phone_number').eq('id', firm_id).single();
+    if (fErr || !firm) return res.status(404).json({ error: 'Firma ikke fundet' });
+
+    let moduler;
+    try { moduler = await aktiveModuler(supabase, firm.id); }
+    catch (err) {
+      console.error('❌ faerdig-uden-telefon: moduler kunne ikke læses:', err.message);
+      return res.status(503).json({ error: 'moduler_utilgaengelige' });
+    }
+    const t = telefonTilstand({ fase3: true, moduler, phoneNumber: firm.phone_number });
+    if (!t.udenVerifikation) return res.status(409).json({ error: 'telefon_skal_verificeres' });
+    if (firm.status !== 'onboarding') return res.json({ ok: true, uaendret: true });
+
+    const { error } = await supabase
+      .from('firms').update({ status: 'active' }).eq('id', firm.id).eq('status', 'onboarding');
+    if (error) {
+      console.error('❌ faerdig-uden-telefon:', error.message);
+      return res.status(500).json({ error: 'Kunne ikke gemme' });
+    }
+    console.log(`✅ Onboarding færdig uden verifikation (${t.venter ? 'nummer på vej' : 'ingen Telefonpasser'}):`, firm.id);
+    res.json({ ok: true, venter: t.venter });
   });
 
   // ─── API: Appens status paa kundens telefon (13/9-26) ───────────────────

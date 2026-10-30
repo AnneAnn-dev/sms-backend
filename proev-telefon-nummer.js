@@ -8,7 +8,7 @@
 "use strict";
 
 delete process.env.QUARANTINE_DAYS_PAID;
-const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate } = require("./telefon-nummer");
+const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, telefonTilstand } = require("./telefon-nummer");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -153,6 +153,17 @@ const NU = "2026-10-30T08:00:00.000Z";
   lig("flag taendt, active men telefon fravalgt -> lukket (neutral besked)", G({ fase3: true, billing: "active", moduler: ["referat"] }), [false, "telefonmodul ikke aktivt"]);
   lig("flag taendt, moduler kunne ikke laeses + active -> tilladt", G({ fase3: true, billing: "active", moduler: null }), [true, "moduler ukendte - billing active"]);
   lig("flag taendt, moduler kunne ikke laeses + expired -> lukket", G({ fase3: true, billing: "expired", moduler: null }), [false, "billing expired"]);
+
+  console.log("\n7. telefonTilstand og onboardingens kroge (T7d)");
+  lig("flag slukket: telefon antages, verifikation kraeves (som foer)", telefonTilstand({ fase3: false, moduler: ["referat"], phoneNumber: null }), { aktiv: true, harNummer: false, venter: false, udenVerifikation: false });
+  lig("moduler ukendte: som foer", telefonTilstand({ fase3: true, moduler: null, phoneNumber: "+45" }), { aktiv: true, harNummer: true, venter: false, udenVerifikation: false });
+  lig("kun referat: ingen telefon, maa blive active uden verifikation", telefonTilstand({ fase3: true, moduler: ["referat"], phoneNumber: null }), { aktiv: false, harNummer: false, venter: false, udenVerifikation: true });
+  lig("telefon koebt, puljen tom: venter, maa blive active uden verifikation", telefonTilstand({ fase3: true, moduler: ["telefon"], phoneNumber: null }), { aktiv: true, harNummer: false, venter: true, udenVerifikation: true });
+  lig("telefon med nummer: skal verificeres", telefonTilstand({ fase3: true, moduler: ["telefon", "referat"], phoneNumber: "+4593702605" }), { aktiv: true, harNummer: true, venter: false, udenVerifikation: false });
+  const html = require("fs").readFileSync(require("path").join(__dirname, "static", "onboarding.html"), "utf8");
+  lig("onboarding.html: begge navne-skaerme gaar via naesteEfterNavn (ingen direkte goTo s-1 tilbage)", [(html.match(/naesteEfterNavn\(\); \/\/ T7d/g) || []).length, /\n\s+goTo\('s-1'\);\n/.test(html)], [2, false]);
+  lig("onboarding.html: stemme-skaermen springer viderestillingen over, naar nummeret er paa vej", /if \(venterPaaNummer\(\)\) \{ await afslutUdenTelefon\(\); return; \}/.test(html), true);
+  lig("onboarding.html: kalder /onboarding/faerdig-uden-telefon", /fetch\('\/onboarding\/faerdig-uden-telefon'/.test(html), true);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
   console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);
