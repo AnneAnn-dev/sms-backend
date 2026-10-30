@@ -658,7 +658,34 @@
         <!-- D94 trin 3a: inaktivér/aktivér. Intet slettes. -->
         <button class="btn btn-secondary" id="rkInaktivBtn" type="button">Inaktivér kunde</button>
         <!-- D94 trin 3b: kun naar SLET_KUNDE_AKTIV er taendt (oversigten svarer). -->
+        <!-- D94 trin 4: kun naar LAEG_SAMMEN_AKTIV er taendt. -->
+        <button class="btn btn-secondary" id="rkLaegSammenBtn" type="button" style="display:none">Læg sammen med en anden kunde</button>
         <button class="btn btn-danger" id="rkSletBtn" type="button" style="display:none">Slet kunde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SHEET: læg sammen (D94 trin 4, 30/10) ================= -->
+  <div class="sheet-overlay" id="lsSheet">
+    <div class="sheet">
+      <h2>Læg sammen</h2>
+      <p class="flyt-hjaelp" id="lsHjaelp"></p>
+      <div id="lsVaelg">
+        <div class="soeg-felt">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-soft);flex:0 0 auto"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="lsSoeg" aria-label="Søg kunde" placeholder="Søg på navn, telefon eller adresse" autocomplete="off">
+        </div>
+        <div id="lsListe"></div>
+      </div>
+      <div id="lsBekraeft" style="display:none">
+        <p class="slet-tekst" id="lsTekst"></p>
+        <p class="slet-tekst" id="lsFelter" style="display:none"></p>
+      </div>
+      <div class="error-banner" id="errorBannerLs"></div>
+      <div class="flyt-knapper" id="lsKnapper" style="display:none">
+        <button class="btn btn-secondary" id="lsFortrydBtn" type="button" style="margin-top:0">Fortryd</button>
+        <!-- Hvid som Inaktivér (Ann 30/10: ikke flere knapfarver). Advarslen bæres af "Stop!"-teksten. -->
+        <button class="btn btn-secondary" id="lsBtn" type="button" style="margin-top:0">Læg sammen</button>
       </div>
     </div>
   </div>
@@ -797,7 +824,7 @@ function udenFaser() { faseKnap = null; }
 Graenseflade.saetFase(visFase);
 
 // Annes 10 funktioner under deres egne navne, så kaldestederne er hendes.
-const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde,
+const { loadCustomers, saveCustomers, retKunde, hentOpgaveNumre, loadOpgaver, saveOpgaver, flytOpgave, saetInaktiv, hentSletOversigt, sletKunde, hentLaegSammenOversigt, laegSammen,
         loadReferater, saveReferater, hentReferat,
         transskriber, hentKvote, lavUdkast, saetUdkast, udkastSomTekst,
         retReferat, saetTransskript, antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED, ApiFejl } = Graenseflade;
@@ -2004,7 +2031,137 @@ function aabnRetKunde() {
   retKundeSheet.classList.add('open');
   rkHentBrug();
   rkTjekSlet(k.id);
+  rkTjekLaegSammen(k.id);
 }
+
+// ─── D94 trin 4: Læg sammen ─────────────────────────────────────────────
+// Knappen vises, naar serveren svarer 400 `mangler_med` paa oversigten uden
+// `med` (funktionen er slaaet til). 404 eller anden fejl: ingen knap.
+// Kunden, man staar paa, beholder navn og adresse (Ann 27/10); den valgte
+// forsvinder. Inaktive kunder kan vaelges (Ann 30/10).
+const lsSheet = document.getElementById('lsSheet');
+let ls = { beholdId: null, med: null };
+async function rkTjekLaegSammen(kundeId) {
+  const knap = document.getElementById('rkLaegSammenBtn');
+  knap.style.display = 'none';
+  try { await hentLaegSammenOversigt(kundeId); }
+  catch (e) {
+    if (e instanceof ApiFejl && e.status === 400 && e.kode === 'mangler_med' && rk && rk.id === kundeId) knap.style.display = '';
+  }
+}
+function lsDele(o) {
+  const dele = [];
+  if (o.numre) dele.push(o.numre === 1 ? '1 nummer' : o.numre + ' numre');
+  if (o.opgaver) dele.push(o.opgaver === 1 ? '1 opgave' : o.opgaver + ' opgaver');
+  return dele.join(' og ');
+}
+const LS_FELTNAVNE = { email: 'e-mail', cvr: 'CVR', adresse: 'adresse', noter: 'noter' };
+function lsVisListe() {
+  document.getElementById('lsVaelg').style.display = '';
+  document.getElementById('lsBekraeft').style.display = 'none';
+  document.getElementById('lsKnapper').style.display = 'none';
+  ls.med = null;
+  tegnLsListe();
+}
+function tegnLsListe() {
+  const q = document.getElementById('lsSoeg').value.trim().toLowerCase();
+  const liste = customers.filter(k => k.id !== ls.beholdId && (!q || kundeMatcher(k, q)))
+    .sort((a, b) => (a.inaktiv === b.inaktiv ? 0 : (a.inaktiv ? 1 : -1)));
+  const wrap = document.getElementById('lsListe');
+  wrap.textContent = '';
+  if (!liste.length) {
+    const p = document.createElement('p'); p.className = 'empty-note';
+    p.textContent = q ? 'Ingen kunder passer til søgningen.' : 'Der er ingen andre kunder.';
+    wrap.appendChild(p); return;
+  }
+  liste.forEach(k => {
+    const r = document.createElement('div');
+    r.className = 'kunde-row' + (k.inaktiv ? ' inaktiv' : ''); r.setAttribute('role', 'button'); r.tabIndex = 0;
+    const tekst = document.createElement('div');
+    const n = document.createElement('div'); n.className = 'kn'; n.textContent = k.navn;
+    const a = document.createElement('div'); a.className = 'kc';
+    a.textContent = [k.inaktiv ? 'Inaktiv' : '', kundeAdresse(k) || (k.inaktiv ? '' : 'Ingen adresse')].filter(Boolean).join(' · ');
+    tekst.append(n, a); r.appendChild(tekst);
+    const vaelg = () => lsVaelg(k);
+    r.addEventListener('click', vaelg);
+    r.addEventListener('keydown', (e) => { if (e.key === 'Enter') vaelg(); });
+    wrap.appendChild(r);
+  });
+}
+async function lsVaelg(anden) {
+  const behold = customers.find(c => c.id === ls.beholdId);
+  if (!behold) return;
+  ls.med = anden.id;
+  skjulFejl('errorBannerLs');
+  const tekst = document.getElementById('lsTekst');
+  const felter = document.getElementById('lsFelter');
+  document.getElementById('lsVaelg').style.display = 'none';
+  document.getElementById('lsBekraeft').style.display = '';
+  document.getElementById('lsKnapper').style.display = 'none';
+  tekst.textContent = 'Henter …';
+  felter.style.display = 'none';
+  try {
+    const svar = await hentLaegSammenOversigt(behold.id, anden.id);
+    if (ls.med !== anden.id) return;
+    const o = svar.oversigt || {};
+    const dele = lsDele(o);
+    // Ann 30/10: samme form som Slet kunde.
+    tekst.textContent = 'Stop! Du lægger ' + (anden.navn || 'kunden') + ' sammen med ' + (behold.navn || 'denne kunde') +
+      (dele ? ': ' + dele + ' flyttes, og ' : ', og ') + (anden.navn || 'kunden') + ' forsvinder. Det kan ikke fortrydes.';
+    const fl = (o.felter || []).map(f => LS_FELTNAVNE[f]).filter(Boolean);
+    if (fl.length) {
+      felter.textContent = (behold.navn || 'Kunden') + ' får også ' + (fl.length === 1 ? fl[0] : fl.slice(0, -1).join(', ') + ' og ' + fl[fl.length - 1]) +
+        ' fra ' + (anden.navn || 'den anden') + '. Navn og adresse, der allerede står, ændres ikke.';
+      felter.style.display = '';
+    }
+    document.getElementById('lsKnapper').style.display = '';
+    document.getElementById('lsBtn').disabled = false;
+  } catch (e) {
+    if (erLoggetUd(e)) { lsSheet.classList.remove('open'); retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    tekst.textContent = '';
+    visFejl('errorBannerLs', e);
+    document.getElementById('lsKnapper').style.display = '';
+    document.getElementById('lsBtn').disabled = true;
+  }
+}
+document.getElementById('rkLaegSammenBtn').addEventListener('click', () => {
+  if (!rk) return;
+  const k = customers.find(c => c.id === rk.id);
+  if (!k) return;
+  ls = { beholdId: k.id, med: null };
+  document.getElementById('lsHjaelp').textContent = 'Vælg den kunde, der skal lægges ind i ' + (k.navn || 'denne kunde') +
+    '. ' + (k.navn || 'Kunden') + ' beholder navn og adresse.';
+  document.getElementById('lsSoeg').value = '';
+  skjulFejl('errorBannerLs');
+  lsVisListe();
+  lsSheet.classList.add('open');
+});
+document.getElementById('lsSoeg').addEventListener('input', tegnLsListe);
+document.getElementById('lsFortrydBtn').addEventListener('click', lsVisListe);
+lsSheet.addEventListener('click', (e) => { if (e.target === lsSheet) { lsSheet.classList.remove('open'); ls.med = null; } });
+document.getElementById('lsBtn').addEventListener('click', async () => {
+  const beholdId = ls.beholdId, med = ls.med;
+  if (!beholdId || !med) return;
+  const anden = customers.find(c => c.id === med);
+  const knap = document.getElementById('lsBtn');
+  knap.disabled = true;
+  skjulFejl('errorBannerLs');
+  try {
+    await laegSammen(beholdId, med);
+    lsSheet.classList.remove('open');
+    retKundeSheet.classList.remove('open');
+    rk = null; ls = { beholdId: null, med: null };
+    try { customers = await loadCustomers(true); } catch (_) { customers = customers.filter(c => c.id !== med); }
+    await openKundeDetail(beholdId);
+    const kv = document.getElementById('kundeDetailKvittering');
+    kv.textContent = 'Kunderne er lagt sammen. ' + ((anden && anden.navn) || 'Den anden kunde') + ' er væk; numre og opgaver ligger nu her.';
+    kv.style.display = '';
+  } catch (e) {
+    if (erLoggetUd(e)) { lsSheet.classList.remove('open'); retKundeSheet.classList.remove('open'); return showScreen('login'); }
+    visFejl('errorBannerLs', e);
+    knap.disabled = false;
+  }
+});
 
 // ─── D94 trin 3b: Slet kunde ────────────────────────────────────────────
 // Knappen vises kun, naar oversigten svarer (flaget taendt). Fejler den af

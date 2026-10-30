@@ -42,4 +42,10 @@ module.exports = {
   // eget flag, uafhaengigt af TILBUD_AKTIV. Se slet_kunde() i migrationen
   // 20261029100000_slet_kunde.sql.
   SLET_KUNDE_AKTIV: flag("SLET_KUNDE_AKTIV"),
+
+  // D94 trin 4 (30/10-26): "Læg sammen med en anden kunde" i Kunder-appen.
+  // Slukket = ruterne svarer 404, og knappen vises ikke. Kan ikke fortrydes —
+  // derfor eget flag. Se laeg_sammen_kunder() i migrationen
+  // 20261030100000_laeg_sammen_kunder.sql.
+  LAEG_SAMMEN_AKTIV: flag("LAEG_SAMMEN_AKTIV"),
 };
