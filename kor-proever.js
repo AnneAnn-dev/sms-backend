@@ -32,6 +32,7 @@ const KOERES = [
   "proev-frisbii-afstem.js",
   "proev-frisbii-katalog.js",
   "proev-frisbii-modulsaet.js",
+  "proev-frisbii-natlig.js",
   "proev-frisbii-synk.js",
   "proev-frisbii-webhook-synk.js",
   "proev-indtal-mere.js",
