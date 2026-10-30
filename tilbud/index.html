@@ -2049,8 +2049,10 @@ document.getElementById('rkSletBtn').addEventListener('click', async () => {
     if (sletKundeId !== k.id) return;
     const navn = k.navn || 'Kunden';
     const dele = sletDele(svar.oversigt || {});
-    tekst.textContent = navn + ' slettes' + (dele ? ' sammen med ' + dele : '') +
-      '. Kundens telefonnumre slettes også. Det kan ikke fortrydes.';
+    // Ann 29/10: "Stop! Du sletter xxxx. Det kan ikke fortrydes." — xxxx er
+    // kunden og, naar der er noget, det der slettes med (tallene, seks-linse 28/10).
+    tekst.textContent = 'Stop! Du sletter ' + navn + (dele ? ' sammen med ' + dele : '') +
+      '. Det kan ikke fortrydes.';
     if (svar.spaerring) {
       // Spaerret: intet slettes, saa "slettes sammen med … afsluttede opgaver"
       // ville vaere forkert (en af dem er netop aaben). Kun beskeden vises.
