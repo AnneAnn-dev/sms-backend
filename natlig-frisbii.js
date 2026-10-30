@@ -12,6 +12,7 @@
 //      hos Frisbii for at finde abonnement og tidspunkt (raekken gemmer kun
 //      id, event_id og event_type). Yngre end 15 min springes over.
 //   2) Afstemning: koerer afstem-frisbii.js som den er (ingen dublet).
+//   2b) T7b2: firmaer med Telefonpasser, men uden nummer (tom pulje).
 //   3) EN mail til admin HVER nat - ogsaa naar alt er groent. Ellers kan
 //      "ingen mail" betyde baade "groent" og "kontrollen koerte ikke".
 //
@@ -28,7 +29,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { createClient } = require("@supabase/supabase-js");
 const { lavFrisbiiGet, bestemMiljoe } = require("./frisbii-miljoe");
-const { udvaelgDeadLetter, lavRapport } = require("./frisbii-natlig");
+const { udvaelgDeadLetter, ventendeNumre, lavRapport } = require("./frisbii-natlig");
 
 const ingenMail = process.argv.includes("--ingen-mail");
 const MAKS_EVENTS = 100; // hoejst saa mange Frisbii-opslag pr. nat
@@ -66,8 +67,21 @@ async function main() {
   const afstem = { kode: k.status === null ? -1 : k.status, tekst: `${k.stdout || ""}${k.stderr || ""}${k.error ? "\n" + k.error.message : ""}` };
   console.log(`  afstemning: exit ${afstem.kode}`);
 
+  // 2b) Venter paa nummer (T7b2)
+  const { data: udenNr, error: uErr } = await supabase
+    .from("firms").select("id, name, frisbii_subscription")
+    .is("phone_number", null).not("frisbii_subscription", "is", null);
+  if (uErr) throw new Error(`firms: ${uErr.message}`);
+  const ids = (udenNr || []).map((f) => f.id);
+  const { data: telRaekker, error: tErr } = ids.length
+    ? await supabase.from("firma_moduler").select("firm_id, fra, til").eq("modul", "telefon").in("firm_id", ids)
+    : { data: [], error: null };
+  if (tErr) throw new Error(`firma_moduler: ${tErr.message}`);
+  const venter = ventendeNumre(telRaekker, udenNr, nu);
+  console.log(`  venter paa nummer: ${venter.length} (${venter.filter((v) => v.overDoegn).length} over et doegn)`);
+
   // 3) Rapport
-  const rapport = lavRapport({ miljoe: miljoe.navn, deadLetter, afstem, nu });
+  const rapport = lavRapport({ miljoe: miljoe.navn, deadLetter, afstem, nu, venter });
   console.log(`  ${rapport.subject}`);
   if (ingenMail) {
     console.log("\n--- mail (ikke sendt, --ingen-mail) ---\n" + rapport.text);

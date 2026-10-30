@@ -7,7 +7,7 @@
 // 29/10-26. Ren ASCII.
 "use strict";
 
-const { udvaelgDeadLetter, lavRapport, MAKS_LINJER } = require("./frisbii-natlig");
+const { udvaelgDeadLetter, ventendeNumre, lavRapport, MAKS_LINJER } = require("./frisbii-natlig");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -59,6 +59,28 @@ lig("ingen afstemning overhovedet = roed (aldrig groent af mangel paa svar)", r.
 const mange = Array.from({ length: MAKS_LINJER + 7 }, (_, i) => ({ id: "x" + i, event_type: "t", error: "e", abonnement: null, created: null, hentet: true }));
 r = lavRapport({ miljoe: "staging", deadLetter: mange, afstem: GROEN, nu: NU });
 lig("mange raekker: mailen kappes og siger hvor mange mere", [/\.\.\. og 7 mere/.test(r.text), (r.text.match(/fejl: e/g) || []).length], [true, MAKS_LINJER]);
+
+console.log("\n3. Venter paa nummer (T7b2)");
+const firmaer = [
+  { id: "A1111111-x", name: "Lang ventetid", frisbii_subscription: "sub-0201" },
+  { id: "B2222222-x", name: "Kort ventetid", frisbii_subscription: "sub-0202" },
+  { id: "C3333333-x", name: "Kun referat", frisbii_subscription: "sub-0203" },
+  { id: "D4444444-x", name: "Telefon udloebet", frisbii_subscription: "sub-0204" },
+];
+const raekker = [
+  { firm_id: "A1111111-x", fra: "2026-10-28T10:00:00Z", til: "2026-11-13T00:00:00Z" },  // 42 t
+  { firm_id: "B2222222-x", fra: "2026-10-30T01:00:00Z", til: null },                    // 3 t
+  { firm_id: "D4444444-x", fra: "2026-10-01T00:00:00Z", til: "2026-10-29T00:00:00Z" },  // ikke aktiv
+];
+const v = ventendeNumre(raekker, firmaer, NU);
+lig("kun aktive telefon-raekker uden nummer, laengst ventende foerst", v.map((x) => [x.abonnement, x.timer, x.overDoegn]), [["sub-0201", 42, true], ["sub-0202", 3, false]]);
+r = lavRapport({ miljoe: "staging", deadLetter: [], afstem: GROEN, nu: NU, venter: v });
+lig("over et doegn: ROED, og emnet siger det", [r.roed, r.subject], [true, "Natlig Frisbii-kontrol (staging): ROED - 1 venter paa nummer over et doegn"]);
+lig("  ... teksten naevner rabatkode og gensynk --skriv", [/rabatkode/.test(r.text), /gensynk-firma\.js <abonnement> --skriv/.test(r.text), /OVER ET DOEGN/.test(r.text)], [true, true, true]);
+r = lavRapport({ miljoe: "staging", deadLetter: [], afstem: GROEN, nu: NU, venter: v.filter((x) => !x.overDoegn) });
+lig("under et doegn: listes, men GROENT", [r.roed, /VENTER PAA NUMMER/.test(r.text), /rabatkode/.test(r.text)], [false, true, false]);
+r = lavRapport({ miljoe: "staging", deadLetter: [], afstem: GROEN, nu: NU });
+lig("ingen ventende: afsnittet vises ikke (gammel kalder virker uaendret)", [r.roed, /VENTER PAA NUMMER/.test(r.text)], [false, false]);
 
 console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
 console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);
