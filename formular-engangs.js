@@ -23,6 +23,12 @@
 // Bag flaget FORMULAR_ENGANGS_AKTIV: slukket markeres linket stadig som brugt
 // (saa data er ens i begge tilstande), men det afvises ikke. Det er
 // rollback-haandtaget — et flag i Railway, ikke et deploy.
+//
+// D97 (30/10-26): linket UDLOEBER 7 dage efter opkaldet (`calls.created_at`,
+// Ann 29/10). Et udloebet link tages IKKE i brug — formularen afviser foer
+// stemplet. Bag sit eget flag FORMULAR_UDLOEB_AKTIV. Siden: "Linket er
+// udloebet. Ring til [firma] paa [nummer]." (Ann 30/10). Slet kunde spaerrer i
+// samme 7 dage efter et opkald uden opgave (D94 trin 3b), saa de er enige.
 // -----------------------------------------------------------------------------
 "use strict";
 
@@ -33,16 +39,39 @@ function rapporter(besked) {
   try { sendError(new Error("formular-engangs: " + besked)); } catch (_) { /* maa aldrig vaelte kaldet */ }
 }
 
+// D97: hvor laenge et formularlink lever, regnet fra opkaldet.
+const FORMULAR_LEVETID_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Er linket udloebet? Et tidspunkt, der ikke kan laeses, er IKKE udloebet:
+// en kunde maa ikke miste sin formular paa et datoformat.
+function erUdloebet(createdAt, nu = Date.now()) {
+  const t = Date.parse(createdAt);
+  return Number.isFinite(t) && nu - t > FORMULAR_LEVETID_MS;
+}
+
 // Tager linket i brug. Returnerer
 //   { status: "ok",       call, stempel }   — denne indsendelse maa gemmes
 //   { status: "brugt",    call }            — linket er brugt (kun med flaget)
+//   { status: "udloebet", call }            — linket er over 7 dage (kun med udloeb, D97)
 //   { status: "ukendt" }                    — intet opkald har det token
 //   { status: "fejl" }                      — databasen svarede ikke
 // `call` har id, firm_id, from_number.
-async function brugFormular(supabase, token, { aktiv }) {
-  const stempel = new Date().toISOString();
+async function brugFormular(supabase, token, { aktiv, udloeb = false, nu = Date.now() }) {
+  const stempel = new Date(nu).toISOString();
   const kolonner = "id, firm_id, from_number";
   try {
+    // D97: et udloebet link afvises FOER det tages i brug. Alderen aendrer sig
+    // kun én vej, saa et opslag foer stemplet er nok — intet kapløb.
+    if (udloeb) {
+      const { data: c, error: uFejl } = await supabase
+        .from("calls").select(kolonner + ", created_at").eq("lead_token", token).maybeSingle();
+      if (uFejl) throw uFejl;
+      if (!c) return { status: "ukendt" };
+      if (erUdloebet(c.created_at, nu)) {
+        const { created_at, ...call } = c;   // eslint-disable-line no-unused-vars
+        return { status: "udloebet", call };
+      }
+    }
     if (!aktiv) {
       // Flaget slukket: opfoer dig som foer, men skriv tidspunktet for FOERSTE
       // brug, hvis det mangler (is null), og brug opkaldet uanset hvad.
@@ -163,6 +192,19 @@ function linkBrugtSide({ firmanavn, telefon }) {
 ${ring}`);
 }
 
+// D97: siden, kunden ser, naar linket er over 7 dage gammelt. Ordlyd (Ann
+// 30/10-26): "Linket er udløbet. Ring til [firma] på [nummer]." Nummeret er et
+// tel:-link, naar det kan ringes til. Mangler firmaets nummer: "Ring til [firma]."
+function linkUdloebetSide({ firmanavn, telefon }) {
+  const navn = escapeHtml(firmanavn || "os");
+  const href = telHref(telefon);
+  const ring = href
+    ? `    <p>Ring til ${navn} på <a href="tel:${escapeHtml(href)}"><strong>${escapeHtml(visNummer(telefon))}</strong></a>.</p>`
+    : `    <p>Ring til ${navn}.</p>`;
+  return side("Linket er udløbet", `    <h1>Linket er udløbet.</h1>
+${ring}`);
+}
+
 // Siden ved for store eller for mange billeder. Linket er IKKE taget i brug
 // (multer afviser foer brugFormular), saa kunden kan gaa tilbage og sende igen.
 // Annes ordlyd (tekst 4, 23/10-26). En ukendt fejl ved modtagelsen siger ikke
@@ -181,6 +223,9 @@ module.exports = {
   brugFormular,
   frigivFormular,
   linkBrugtSide,
+  linkUdloebetSide,
+  erUdloebet,
+  FORMULAR_LEVETID_MS,
   forMangeBillederSide,
   visNummer,
   telHref,
