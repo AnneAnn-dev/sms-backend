@@ -113,6 +113,23 @@
     .screen.on { display: flex; }
     .screen.visible { opacity: 1; }
 
+    /* Knappen paa en fast linje (Ann 31/10, variant B): indholdet staar
+       nederst mod knappen, og knappen staar i samme hoejde paa alle skaerme
+       - ca. to tredjedele nede. Fylder indholdet mere, skubbes knappen ned
+       (viderestillingen), aldrig op. Et stille link efter knappen ("Aabn i
+       browseren") ligger i luften under den og flytter den ikke. */
+    .screen {
+      justify-content: flex-end;
+      padding: 24px 0 30dvh;
+      position: relative;
+    }
+    .screen > .btn ~ .linklike {
+      position: absolute;
+      left: 0; right: 0;
+      bottom: calc(30dvh - 64px);
+      margin: 0;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .screen, .dots, .dot { transition: none; }
     }
@@ -649,7 +666,7 @@
         <span class="voice-play" onclick="playSample('male', event)">▶ Lyt</span>
       </button>
 
-      <p class="hint" id="voice-confirm" style="font-weight:600;color:var(--success)"></p>
+      <p class="hint" id="voice-confirm" style="font-weight:600;color:var(--accent)"></p>
 
       <!-- Glider ind, når en stemme er valgt -->
       <div class="reveal" id="besked-sektion">
@@ -724,8 +741,8 @@
 
     <!-- ── SIDE 8: SIDSTE TRIN ────────────────────────────── -->
     <section class="screen" id="s-8">
-      <div class="check">✓</div>
-      <h1 class="h-xl">Sidste trin</h1>
+      <div class="check" id="s8-check">✓</div>
+      <h1 class="h-xl" id="s8-titel">Sidste trin</h1>
       <!-- Linjen er flyttet op OVER knappen (9/9-26, Anns beslutning): den
            siger, hvad der venter, og saa foelger handlingen — samme rytme som
            resten af flowet, hvor beskeden staar foer knappen. Det er SAMME
@@ -1646,8 +1663,13 @@
     document.getElementById('owner-input').value = (state.ownerPhone || '').replace(/^\+?45\s*/, '');
 
     // T7d: uden Telefonpasser handler navnet ikke om, hvad kunderne hoerer.
-    // UDKAST (Claude 30/10) - Anne skriver den endelige tekst.
-    if (udenTelefon()) setText('firm-name-hint', 'Navnet står på dine opgaver og over for dine kunder.');
+    // Ann og Anne 31/10: saa staar der kun "Hedder dit firma:" - ingen hjaelpetekst.
+    // Og side 8 er det foerste rigtige trin, ikke det sidste: intet flueben.
+    if (udenTelefon()) {
+      setText('firm-name-hint', '');
+      setText('s8-titel', 'Læg appen på din telefon');
+      document.getElementById('s8-check').style.display = 'none';
+    }
 
     showScreen('s-0');
   }

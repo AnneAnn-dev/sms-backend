@@ -8,7 +8,7 @@
 "use strict";
 
 delete process.env.QUARANTINE_DAYS_PAID;
-const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, telefonTilstand } = require("./telefon-nummer");
+const { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, inaktivBesked, telefonTilstand } = require("./telefon-nummer");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -153,6 +153,12 @@ const NU = "2026-10-30T08:00:00.000Z";
   lig("flag taendt, active men telefon fravalgt -> lukket (neutral besked)", G({ fase3: true, billing: "active", moduler: ["referat"] }), [false, "telefonmodul ikke aktivt"]);
   lig("flag taendt, moduler kunne ikke laeses + active -> tilladt", G({ fase3: true, billing: "active", moduler: null }), [true, "moduler ukendte - billing active"]);
   lig("flag taendt, moduler kunne ikke laeses + expired -> lukket", G({ fase3: true, billing: "expired", moduler: null }), [false, "billing expired"]);
+
+  console.log("\n6b. inaktivBesked (Ann og Anne 31/10)");
+  lig("med navn", inaktivBesked("Mogens Maler"), "Telefonsvareren for Mogens Maler er ikke længere i drift. Vi anbefaler, at du ringer til Mogens Maler igen.");
+  lig("uden navn", inaktivBesked("  "), "Telefonsvareren er ikke længere i drift. Vi anbefaler, at du ringer igen.");
+  lig("onboarding.js bruger inaktivBesked i gaten", /twiml\.say\(\{ voice: "Polly\.Naja", language: "da-DK" \}, inaktivBesked\(firm\.name\)\)/.test(require("fs").readFileSync(require("path").join(__dirname, "onboarding.js"), "utf8")), true);
+  lig("onboarding.html: uden telefon ingen hjaelpetekst og intet flueben paa side 8", [/setText\('firm-name-hint', ''\)/.test(require("fs").readFileSync(require("path").join(__dirname, "static", "onboarding.html"), "utf8")), /s8-check'\)\.style\.display = 'none'/.test(require("fs").readFileSync(require("path").join(__dirname, "static", "onboarding.html"), "utf8"))], [true, true]);
 
   console.log("\n7. telefonTilstand og onboardingens kroge (T7d)");
   lig("flag slukket: telefon antages, verifikation kraeves (som foer)", telefonTilstand({ fase3: false, moduler: ["referat"], phoneNumber: null }), { aktiv: true, harNummer: false, venter: false, udenVerifikation: false });

@@ -168,6 +168,15 @@ function opkaldsGate({ fase3, billing, moduler }) {
   return { tilladt: true, grund: fase3 ? "moduler ukendte - billing active" : "billing active" };
 }
 
+// Det, den der ringer, hoerer, naar opkaldsGate siger nej (Ann og Anne 31/10).
+// Navnet kommer fra firms.name; mangler det, siges saetningen uden navn.
+function inaktivBesked(firmanavn) {
+  const navn = String(firmanavn || "").trim();
+  return navn
+    ? `Telefonsvareren for ${navn} er ikke længere i drift. Vi anbefaler, at du ringer til ${navn} igen.`
+    : "Telefonsvareren er ikke længere i drift. Vi anbefaler, at du ringer igen.";
+}
+
 // Ren regel. Returnerer { aktiv, harNummer, venter, udenVerifikation }.
 // Uden flaget (eller ukendte moduler): som foer - telefon antages, og
 // onboardingen skal gennem verifikationen.
@@ -178,4 +187,4 @@ function telefonTilstand({ fase3, moduler, phoneNumber }) {
   return { aktiv, harNummer, venter: aktiv && !harNummer, udenVerifikation: !(aktiv && harNummer) };
 }
 
-module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, telefonTilstand };
+module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, inaktivBesked, telefonTilstand };

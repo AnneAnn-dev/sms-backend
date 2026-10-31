@@ -21,7 +21,7 @@ const { sendAdminAlert } = require("./mail");
 // Fase 3, T7c: opkald foelger telefonmodulet (bag FASE3_SYNK).
 const { FASE3_SYNK } = require("./flags");
 const { aktiveModuler } = require("./moduler");
-const { opkaldsGate, telefonTilstand } = require("./telefon-nummer");
+const { opkaldsGate, inaktivBesked, telefonTilstand } = require("./telefon-nummer");
 // sendError sender en fejl til AppSignal med sin egen rod-span. Samme kald som
 // fejl-middlewaren i server.js bruger. Noedvendigt her, fordi AppSignal KUN ser
 // fejl, der kastes videre til Express — et catch, der svarer paent, naar den aldrig.
@@ -412,7 +412,7 @@ module.exports = function registerOnboarding(app, supabase) {
     // 28/10). Så virker respitten (7 dage efter en fejlet betaling) og en
     // opsigelse til periodens slut — billing_status "past_due"/"cancelled"
     // lukkede for opkaldene med det samme. Kan modulerne ikke læses, bruges
-    // den gamle regel. Neutral besked i begge tilfælde (Ann 30/10, løsning a).
+    // den gamle regel. Samme besked i begge tilfælde (tekst: Ann og Anne 31/10).
     let moduler = null;
     if (FASE3_SYNK) {
       try { moduler = await aktiveModuler(supabase, firm.id); }
@@ -421,8 +421,7 @@ module.exports = function registerOnboarding(app, supabase) {
     const gate = opkaldsGate({ fase3: FASE3_SYNK, billing: firm.billing_status, moduler });
     if (!gate.tilladt) {
       console.log(`⏸️  Opkald til firma uden aktiv telefon (${gate.grund}):`, firm.id);
-      twiml.say({ voice: "Polly.Naja", language: "da-DK" },
-        "Dette nummer er ikke aktivt i øjeblikket.");
+      twiml.say({ voice: "Polly.Naja", language: "da-DK" }, inaktivBesked(firm.name));
       twiml.hangup();
       return res.type("text/xml").send(twiml.toString());
     }
