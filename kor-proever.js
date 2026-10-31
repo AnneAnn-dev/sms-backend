@@ -43,6 +43,7 @@ const KOERES = [
   "proev-kundenoegle.js",
   "proev-kvote.js",
   "proev-login-maaling.js",
+  "proev-opkald.js",
   "proev-optager-besked.js",
   "proev-optager-fravalg.js",
   "proev-optager.js",
