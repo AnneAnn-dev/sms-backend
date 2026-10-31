@@ -132,10 +132,9 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 //                doegn, faar kunden en rabatkode (natlig-frisbii.js melder det).
 // sendNummerKlarMail sendes, naar nummeret bliver tildelt senere (B2).
 // TEKSTERNE ER CLAUDES UDKAST (30/10) - Anne skriver de endelige.
-const MODUL_NAVNE = {
-  telefon: "Telefonpasser", referat: "Referathjælper", tilbud: "Tilbud", faktura: "Faktura",
-  booking: "Booking", svar: "Svar", facebook: "Facebook",
-};
+// Modulernes navne staar ET sted: kataloget (T8b, 31/10 - foer stod de ogsaa her).
+const { KATALOG } = require("./frisbii-katalog");
+const MODUL_NAVNE = Object.fromEntries(Object.entries(KATALOG.MODUL_ADDONS).map(([m, a]) => [m, a.navn]));
 const modulTekst = (moduler) => (moduler || []).map((m) => MODUL_NAVNE[m] || m).join(", ") || "Dit Digitale Kontor";
 const ramme = (indhold) => `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">

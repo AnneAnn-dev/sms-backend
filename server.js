@@ -97,12 +97,13 @@ require("./frisbii-webhook")(app, supabase);
 // → POST giver 404, intet logges, og Simply-sidens koeb-knap "lykkes" tavst.
 // Det var anden forekomst af den fejlmaade (foerste var onboarding-link
 // herunder); fjernes permanent af ≠404-tjekket i roegtesten, se D23.
-// Tager KUN (app) — routen roerer ikke databasen.
+// T8b (31/10): tager ogsaa supabase - med FASE3_SYNK slaar /checkout/start op,
+// om kunden allerede har et koerende abonnement (D91), og /bestil serveres.
 // Env-vars laeses ved MONTERING, ikke pr. kald: aendres FRISBII_PLAN_HANDLE
 // eller SIMPLY_BASE_URL i Railway, skal appen genstarte, foer det virker.
 // Mangler de, svarer routen 500 "server_misconfigured" — den kan ikke crashe
 // ved boot, fordi requireConfig() foerst kaldes inde i handleren.
-require("./frisbii-checkout")(app);
+require("./frisbii-checkout")(app, supabase);
 
 // ─── "Send mig et login-link": redningsvej for glemt adgangskode ────────────
 // Registrerer POST /onboarding/nyt-link (prefetch-sikkert login-link via egen

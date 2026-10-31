@@ -77,12 +77,18 @@ lig("Hele pakken foelger MODULER (et fremtidigt modul kommer automatisk med)",
 console.log("\n4. Det, der skal findes i Frisbii");
 const salg = produkterTilSalg();
 lig("basisplanen: 0 kr. og 7 dages proeve", salg.plan, { handle: P, prisOere: 0, proevedage: 7 });
-lig("kun Telefonpasser, Referathjaelper og Hele pakken saelges (Ann 28/10)",
+lig("kun Telefonpasser og Referat saelges (Ann 31/10: Hele pakken venter paa flere moduler)",
   salg.addOns.map((a) => a.handle).sort(),
-  [A("referat"), A("telefon"), KATALOG.HELE_PAKKEN.handle].sort());
-lig("priserne ekskl. moms (D80): 500, 400, 1.500 kr.",
+  [A("referat"), A("telefon")].sort());
+lig("priserne ekskl. moms: 500 og 400 kr.",
   salg.addOns.map((a) => [a.handle, a.prisOere]).sort(),
-  [[KATALOG.HELE_PAKKEN.handle, 150000], [A("referat"), 40000], [A("telefon"), 50000]].sort());
+  [[A("referat"), 40000], [A("telefon"), 50000]].sort());
+lig("de aftalte navne og priser (Ann 31/10)",
+  Object.entries(KATALOG.MODUL_ADDONS).filter(([m]) => m !== "booking").map(([m, x]) => [m, x.navn, x.prisOere]),
+  [["telefon", "Telefonpasser", 50000], ["referat", "Referat", 40000], ["tilbud", "Tilbud", 50000], ["faktura", "Faktura", 50000],
+   ["svar", "Kundehenvendelser", 20000], ["facebook", "SoMe-v\u00e6rkt\u00f8j", 20000]]);
+lig("Hele pakken giver stadig alle moduler, hvis et gammelt abonnement har den",
+  modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle]).moduler, [...MODULER].sort());
 
 console.log("\n5. Roedt med vilje: tjekKatalog skal se et oedelagt katalog");
 let k = kopi(); delete k.MODUL_ADDONS.svar;

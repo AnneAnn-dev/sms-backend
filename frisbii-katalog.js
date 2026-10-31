@@ -16,8 +16,10 @@
 //    linje, mister de telefonen ved foerste synk.
 //
 // Priser i oere EKSKL. moms (Frisbii: amount + vat 0.25, amount_incl_vat false),
-// fra beslutningsgrundlaget 13/10 (D80). Navnene vises paa Frisbiis fakturaer;
-// Anne ejer teksterne.
+// fra beslutningsgrundlaget 13/10 (D80), rettet 31/10 efter Anns prisliste
+// (Tilbud og Faktura 500 kr.). Navnene er de aftalte (Ann 31/10) og vises paa
+// bestillingssiden, i mails og paa Frisbiis fakturaer; Anne ejer teksterne.
+// Hele pakken saelges ikke, foer der er flere moduler at samle (Ann 31/10).
 //
 // Rene funktioner, ingen netvaerk, ingen miljoevariabler. Proeves af
 // proev-frisbii-katalog.js, som ogsaa tjekker, at kataloget, MODULER og
@@ -36,16 +38,16 @@ const GAMLE_PLANER = {
 };
 
 const MODUL_ADDONS = {
-  telefon:  { handle: "modul-telefon",  navn: "Telefonpasser",   prisOere: 50000, saelges: true },
-  referat:  { handle: "modul-referat",  navn: "Referathjælper",  prisOere: 40000, saelges: true },
-  tilbud:   { handle: "modul-tilbud",   navn: "Tilbudshjælper",  prisOere: 40000, saelges: false },
-  faktura:  { handle: "modul-faktura",  navn: "Fakturahjælper",  prisOere: 40000, saelges: false },
-  booking:  { handle: "modul-booking",  navn: "Booking",         prisOere: 40000, saelges: false },
-  svar:     { handle: "modul-svar",     navn: "Svarhjælper",     prisOere: 20000, saelges: false },
-  facebook: { handle: "modul-facebook", navn: "Facebook-opslag", prisOere: 20000, saelges: false },
+  telefon:  { handle: "modul-telefon",  navn: "Telefonpasser",     prisOere: 50000, saelges: true },
+  referat:  { handle: "modul-referat",  navn: "Referat",           prisOere: 40000, saelges: true },
+  tilbud:   { handle: "modul-tilbud",   navn: "Tilbud",            prisOere: 50000, saelges: false },
+  faktura:  { handle: "modul-faktura",  navn: "Faktura",           prisOere: 50000, saelges: false },
+  booking:  { handle: "modul-booking",  navn: "Booking",           prisOere: 40000, saelges: false },
+  svar:     { handle: "modul-svar",     navn: "Kundehenvendelser", prisOere: 20000, saelges: false },
+  facebook: { handle: "modul-facebook", navn: "SoMe-værktøj",      prisOere: 20000, saelges: false },
 };
 
-const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere: 150000, saelges: true };
+const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere: 150000, saelges: false };
 
 const KATALOG = { BASISPLAN, PROEVEDAGE, GAMLE_PLANER, MODUL_ADDONS, HELE_PAKKEN };
 

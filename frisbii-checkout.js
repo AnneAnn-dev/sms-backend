@@ -7,9 +7,22 @@
 // session-url, kunden derefter omdirigeres til (eller en session-id til JS-SDK'en,
 // hvis I senere vil vise checkout som overlay i stedet for redirect).
 //
-// Indlaeses fra server.js med:  require("./frisbii-checkout")(app);
-// (kraever ikke supabase — denne route rører ikke databasen; det gør
-// frisbii-webhook.js, når invoice_settled rent faktisk modtages bagefter.)
+// Indlaeses fra server.js med:  require("./frisbii-checkout")(app, supabase);
+//
+// Fase 3, T8b (31/10-26), kun med FASE3_SYNK:
+//  - Kunden vaelger moduler (bestillingssiden /bestil). Abonnementet bliver
+//    basisplanen + et add-on pr. modul (kataloget, frisbii-katalog.js) - maalt
+//    31/10: Frisbiis checkout tager begge i samme session. Uden moduler saelges
+//    Telefonpasser, saa en gammel knap virker uaendret.
+//  - En kunde, hvis abonnement stadig koerer, faar 409 "har_konto" i stedet
+//    for et nyt koeb (D91, Ann 31/10, beslutning 1). Siden tilbyder et
+//    login-link via /onboarding/nyt-link. Svaret afsloerer, at e-mailen er
+//    kunde; loftet herunder begraenser, hvor mange e-mails man kan proeve
+//    (Ann 31/10: accepteret, staar i registret).
+//  - GET /checkout/produkter: det, der saelges, med navne og priser fra
+//    kataloget - saa siden aldrig har sine egne priser.
+//  - GET /bestil: bestillingssiden (static/bestil.html).
+// Slukket flag: praecis som foer (gammel plan, ingen opslag i databasen).
 //
 // Flow:  Simply-side -> POST /checkout/start -> denne route -> Frisbii API
 //        -> { url } -> Simply-siden omdirigerer kunden -> kunde betaler
@@ -18,7 +31,11 @@
 // Kraever Node 18+ (global fetch).
 // -----------------------------------------------------------------------------
 
+const path = require("path");
 const { opretLoft, klientIp } = require("./ratelimit");
+const { FASE3_SYNK } = require("./flags");
+const { KATALOG, handleForModul } = require("./frisbii-katalog");
+const { firmaerMedEmail } = require("./frisbii-kunde");
 
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
 
@@ -64,7 +81,37 @@ function maskerEmail(s) {
   return `${synlig}${"*".repeat(Math.max(1, lokal.length - 2))}@${domaene}`;
 }
 
-module.exports = (app) => {
+// ─── T8b: de moduler, der kan koebes nu (kataloget: saelges = true) ─────────
+function tilSalg(katalog = KATALOG) {
+  return Object.entries(katalog.MODUL_ADDONS)
+    .filter(([, a]) => a.saelges)
+    .map(([modul, a]) => ({ modul, navn: a.navn, prisOere: a.prisOere }));
+}
+
+// Kundens valg -> { ok, moduler } eller { ok: false, fejl }. Tager en liste
+// eller en kommasepareret tekst (fra linket ?moduler=telefon,referat).
+// Intet valg = Telefonpasser (som foer T8b). Kun moduler, der saelges.
+function vaelgModuler(input, katalog = KATALOG) {
+  let liste;
+  if (input === undefined || input === null || input === "") liste = ["telefon"];
+  else if (Array.isArray(input)) liste = input;
+  else if (typeof input === "string") liste = input.split(",");
+  else return { ok: false, fejl: "ugyldige_moduler" };
+  const valgt = [...new Set(liste.map((m) => String(m).trim().toLowerCase()).filter(Boolean))];
+  if (!valgt.length) return { ok: false, fejl: "ingen_moduler" };
+  const salg = new Set(tilSalg(katalog).map((p) => p.modul));
+  const ukendte = valgt.filter((m) => !salg.has(m));
+  if (ukendte.length) return { ok: false, fejl: "ukendt_modul", ukendte };
+  return { ok: true, moduler: valgt.sort() };
+}
+
+// Har kunden allerede et abonnement, der koerer? Et udloebet firma (inactive)
+// og en pilot uden abonnement maa gerne koebe - dem tager webhooken (T8a).
+function harKoerendeKonto(firmaer) {
+  return (firmaer || []).some((f) => f.status !== "inactive" && !!f.frisbii_subscription);
+}
+
+function checkoutModul(app, supabase) {
   const PRIVATE_KEY  = process.env.FRISBII_PRIVATE_KEY;   // samme noegle som frisbii-webhook.js bruger til frisbiiGet
   const PLAN_HANDLE  = process.env.FRISBII_PLAN_HANDLE;   // pr. 15/8-26: "abonnement-standard" — IKKE en test-plan i produktion
   const SIMPLY_BASE_URL = process.env.SIMPLY_BASE_URL;    // Simply-sidens domæne, til accept_url/cancel_url
@@ -91,7 +138,7 @@ module.exports = (app) => {
       return res.status(500).json({ error: "server_misconfigured" });
     }
 
-    const { name, email, phone, company } = req.body || {};
+    const { name, email, phone, company, moduler: modulInput } = req.body || {};
 
     if (!looksLikeEmail(email)) {
       return res.status(400).json({ error: "invalid_email" });
@@ -143,6 +190,26 @@ module.exports = (app) => {
       console.warn("⚠️  /checkout/start: ingen x-forwarded-for — loftet er sprunget over for dette kald");
     }
 
+    // ─── T8b: moduler og "har allerede en konto" (kun med FASE3_SYNK) ────────
+    let valg = null;
+    if (FASE3_SYNK) {
+      valg = vaelgModuler(modulInput);
+      if (!valg.ok) return res.status(400).json({ error: valg.fejl });
+      if (supabase) {
+        try {
+          const firmaer = await firmaerMedEmail(supabase, email.toLowerCase().trim());
+          if (harKoerendeKonto(firmaer)) {
+            console.log("ℹ️  /checkout/start: kunden har allerede en konto - intet nyt koeb:", maskerEmail(email));
+            return res.status(409).json({ error: "har_konto" });
+          }
+        } catch (err) {
+          // Fail-open: koebet maa gerne gaa igennem - webhooken (T8a) opretter
+          // alligevel intet nyt firma for en kunde med et koerende abonnement.
+          console.error("⚠️  /checkout/start: kunne ikke slaa kunden op - fortsaetter:", err.message);
+        }
+      }
+    }
+
     // E.164-tjek er bevidst løst her (kun præfiks) — phone er valgfri for
     // Frisbii (de prefilder kun Vipps/MobilePay-signup-siden med den), og
     // jeres egen owner_phone-validering sker først rigtigt i onboarding trin 1.
@@ -152,7 +219,9 @@ module.exports = (app) => {
 
     const payload = {
       prepare_subscription: {
-        plan: PLAN_HANDLE,
+        // T8b: basisplanen + et add-on pr. valgt modul. Slukket flag: den gamle plan.
+        plan: valg ? KATALOG.BASISPLAN : PLAN_HANDLE,
+        ...(valg ? { add_ons: valg.moduler.map((m) => ({ add_on: handleForModul(m) })) } : {}),
         // ⚠️ Ø6: abonnementet skal have SIT EGET handle. `generate_handle` inde i
         // create_customer gælder kun kundens handle — uden denne linje afviser
         // Frisbii hvert kald med 400 "handle is required", og det gjorde den fra
@@ -231,12 +300,28 @@ module.exports = (app) => {
       return res.status(502).json({ error: "frisbii_missing_url" });
     }
 
-    console.log("🧾 Checkout-session oprettet:", session.id, "for", maskerEmail(email));
+    console.log("🧾 Checkout-session oprettet:", session.id, "for", maskerEmail(email), valg ? `[${valg.moduler.join(", ")}]` : "");
     res.json({ url: session.url, session_id: session.id });
   });
+
+  // ─── T8b: produkterne og bestillingssiden ───────────────────────────────────
+  // Uden flaget findes de ikke (404), saa ingen kan bestille moduler, foer
+  // webhooken kan haandtere dem.
+  if (FASE3_SYNK) {
+    app.get("/checkout/produkter", (req, res) => {
+      res.set("Cache-Control", "no-store");
+      res.json({ proevedage: KATALOG.PROEVEDAGE, produkter: tilSalg() });
+    });
+    app.get("/bestil", (req, res) => res.sendFile(path.join(__dirname, "static", "bestil.html")));
+  }
 
   console.log(
     `🧾 Frisbii checkout-rute registreret paa /checkout/start ` +
     `(loft: ${CHECKOUT_LOFT_MAKS} kald pr. IP pr. ${CHECKOUT_LOFT_VINDUE_MIN} min.)`
   );
-};
+}
+
+module.exports = checkoutModul;
+module.exports.vaelgModuler = vaelgModuler;
+module.exports.tilSalg = tilSalg;
+module.exports.harKoerendeKonto = harKoerendeKonto;
