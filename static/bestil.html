@@ -13,7 +13,9 @@
       /bestil?moduler=telefon | referat | telefon,referat
     Modulerne og priserne hentes fra /checkout/produkter (kataloget) - siden har
     ingen priser selv. Koebet starter med POST /checkout/start, som svarer med
-    Frisbiis betalingsside eller 409 "har_konto" (D91).
+    Frisbiis betalingsside eller 409 "har_konto" (D91). "Har konto" sender kunden
+    til log ind-siden (/dashboard), hvor koden fra mailen kan tastes - en kode
+    sendt herfra havde intet felt at blive tastet i (Ann 31/10).
     Stil: docs/DASHBOARD-STIL.md (side med skrivefelter = svagt lyseblaa, hvide
     felter, en blaa knap, alle andre hvide med kant, ingen groen i hvile).
     Kundens egne ord vises altid som tekst, aldrig som HTML (S33).
@@ -138,9 +140,8 @@
 
   <section class="boks" id="har-konto" hidden>
     <h2>Du har allerede en konto hos os</h2>
-    <p>Log ind for at se din pakke. Vi kan sende dig et login-link med det samme.</p>
-    <button class="btn hvid" id="send-link" type="button">Send mig et login-link</button>
-    <p class="hint" id="link-svar" role="status"></p>
+    <p>Log ind med din e-mail og adgangskode. Har du ingen adgangskode, kan du få en kode på mail på log ind-siden.</p>
+    <a class="btn" id="til-login" href="/dashboard" style="text-decoration:none">Log ind</a>
   </section>
 </main>
 
@@ -235,21 +236,6 @@
     });
   });
 
-  $("send-link").addEventListener("click", function () {
-    var knap = $("send-link"); knap.disabled = true;
-    fetch("/onboarding/nyt-link", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: $("email").value.trim() }),
-    }).then(function (r) { return r.json(); }).then(function (d) {
-      $("link-svar").textContent = d.cooldown
-        ? "Vi har lige sendt et link. Du kan bede om et nyt om " + d.cooldown + " sekunder."
-        : "Tjek din indbakke - vi har sendt dig et login-link. Kig i spam, hvis det ikke er kommet om fem minutter.";
-      setTimeout(function () { knap.disabled = false; }, 60000);
-    }).catch(function () {
-      knap.disabled = false;
-      $("link-svar").textContent = "Ingen forbindelse. Prøv igen.";
-    });
-  });
 })();
 </script>
 </body>
