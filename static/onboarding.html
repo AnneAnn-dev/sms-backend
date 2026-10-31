@@ -115,18 +115,20 @@
 
     /* Knappen paa en fast linje (Ann 31/10, variant B): indholdet staar
        nederst mod knappen, og knappen staar i samme hoejde paa alle skaerme
-       - ca. to tredjedele nede. Fylder indholdet mere, skubbes knappen ned
+       - ca. tre fjerdedele nede. Fylder indholdet mere, skubbes knappen ned
        (viderestillingen), aldrig op. Et stille link efter knappen ("Aabn i
-       browseren") ligger i luften under den og flytter den ikke. */
+       browseren") ligger i luften under den og flytter den ikke.
+       31/10: knappens bund staar 25 % fra skaermens bund (Ann). 48px er
+       body'ens bundpolstring, som ligger uden for skaermen. */
     .screen {
       justify-content: flex-end;
-      padding: 24px 0 30dvh;
+      padding: 24px 0 calc(25dvh - 48px);
       position: relative;
     }
     .screen > .btn ~ .linklike {
       position: absolute;
       left: 0; right: 0;
-      bottom: calc(30dvh - 64px);
+      bottom: calc(25dvh - 48px - 60px);
       margin: 0;
     }
 
