@@ -106,6 +106,27 @@ const NU = "2026-10-30T08:00:00.000Z";
     twilioClient: { incomingPhoneNumbers: { list: async () => { throw new Error("Twilio nede"); } } }, firmId: "F1" }));
   lig("Twilio kan ikke spoerges: kaster (aldrig et uverificeret nummer)", !!e, true);
 
+  console.log("\n3b. Eget nummer tilbage (T8a, D91 loesning B)");
+  const egen = () => [
+    { id: 1, number: "+4511111111", firm_id: null, quarantined_until: null },
+    { id: 7, number: "+4577777777", firm_id: null, quarantined_until: "2026-12-01T00:00:00Z", last_firm_id: "F1" },
+  ];
+  db = lavDb({ firms: [{ id: "F1", phone_number: null }], phone_numbers: egen() });
+  r = await tildelNummer({ supabase: db, twilioClient: twilio(["+4511111111", "+4577777777"]), firmId: "F1" });
+  lig("gammelt nummer i karantaene: tilbage til samme firma, karantaenen ryddet", [r.status, r.nummer, r.egetNummer, db.t.firms[0].phone_number, db.t.phone_numbers[1].firm_id, db.t.phone_numbers[1].quarantined_until],
+    ["tildelt", "+4577777777", true, "+4577777777", "F1", null]);
+  lig("ingen lav-pulje-tal for et eget nummer (undefined, ikke null)", r.ledigeVerificeret === undefined, true);
+  db = lavDb({ firms: [{ id: "F2", phone_number: null }], phone_numbers: egen() });
+  r = await tildelNummer({ supabase: db, twilioClient: twilio(["+4511111111", "+4577777777"]), firmId: "F2" });
+  lig("et ANDET firma faar ikke F1's karantaenenummer", [r.status, r.nummer, !!r.egetNummer], ["tildelt", "+4511111111", false]);
+  db = lavDb({ firms: [{ id: "F1", phone_number: null }], phone_numbers: egen() });
+  r = await tildelNummer({ supabase: db, twilioClient: twilio(["+4511111111"]), firmId: "F1" });
+  lig("gammelt nummer findes ikke laengere hos Twilio: nyt fra puljen", [r.status, r.nummer, !!r.egetNummer], ["tildelt", "+4511111111", false]);
+  db = lavDb({ firms: [{ id: "F1", phone_number: null }], phone_numbers: [{ id: 1, number: "+4511111111", firm_id: null, quarantined_until: null },
+    { id: 7, number: "+4577777777", firm_id: "F9", quarantined_until: null, last_firm_id: "F1" }] });
+  r = await tildelNummer({ supabase: db, twilioClient: twilio(["+4511111111", "+4577777777"]), firmId: "F1" });
+  lig("gammelt nummer givet til en anden: nyt fra puljen", [r.status, r.nummer, db.t.phone_numbers[1].firm_id], ["tildelt", "+4511111111", "F9"]);
+
   console.log("\n4. frigivNummer");
   db = lavDb({ firms: [{ id: "F1", phone_number: "+4511111111", nummer_verificeret_at: "2026-09-01T00:00:00Z" }],
     phone_numbers: [{ id: 1, number: "+4511111111", firm_id: "F1", quarantined_until: null, last_firm_id: null }] });

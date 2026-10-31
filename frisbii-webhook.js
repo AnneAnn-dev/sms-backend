@@ -30,7 +30,7 @@
 
 const crypto = require("crypto");
 const twilio = require("twilio");
-const { sendWelcomeMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail } = require("./mail");
+const { sendWelcomeMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail } = require("./mail");
 const { uniqueSlug } = require("./slug");
 const { maskerTlf, maskerMail, normalizePhone, vaelgLedigtNummer } = require("./phone");
 // Fase 3, T6: synk bag FASE3_SYNK. Slukket = intet nyt sker (se frisbii-webhook-synk.js).
@@ -42,6 +42,8 @@ const { lavFrisbiiGet } = require("./frisbii-miljoe");
 const { sikrTelefonModul, frigivNummer, nummerEfterSynk } = require("./telefon-nummer");
 // Fase 3, T7b: nummeret efter synk + puljealarmerne (delt med gensynk-firma.js).
 const { alarmSpoegelser, alarmLavPulje, nummerOgBesked } = require("./frisbii-nummer");
+// Fase 3, T8a: samme firma hele vejen (D91, loesning B).
+const { kundeBeslutning, firmaerMedEmail, sikrLogin, genoplivFirma, alarmTekst } = require("./frisbii-kunde");
 
 // Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
 // Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
@@ -302,6 +304,78 @@ module.exports = (app, supabase) => {
   }
 
   // ─── Provisionering (spejler Shopify-flowet i onboarding.js) ────────────────
+  // Prefetch-sikkert login-link (token_hash), som velkomstmailen bruger.
+  // T8a: delt med genoplivningen. Samme kald som i provisionFirm nedenfor.
+  async function lavLoginUrl(email) {
+    const { data: linkData } = await supabase.auth.admin.generateLink({
+      type:    "magiclink",
+      email,
+      options: { redirectTo: `${process.env.BASE_URL}/onboarding` },
+    });
+    const tokenHash = linkData?.properties?.hashed_token;
+    return tokenHash
+      ? `${process.env.BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`
+      : `${process.env.BASE_URL}/dashboard`;
+  }
+
+  // ─── T8a: kender vi kunden i forvejen? (kun bag FASE3_SYNK) ─────────────────
+  // Returnerer true, hvis abonnementet er HAANDTERET her (intet nyt firma skal
+  // oprettes), false, hvis provisionFirm skal oprette et firma som foer.
+  async function genkendKunde({ customer, subHandle, email }) {
+    const firmaer = await firmaerMedEmail(supabase, email);
+    const b = kundeBeslutning({ firmaer, abonnement: subHandle });
+    if (b.handling === "ny") return false;
+    if (b.handling === "behandlet") {
+      console.log("ℹ️  Abonnement allerede behandlet:", subHandle);
+      return true;
+    }
+    if (b.handling === "koerer" || b.handling === "pilot" || b.handling === "flere") {
+      const a = alarmTekst(b.handling, { abonnement: subHandle, firma: b.firma, firmaer: b.firmaer, mailMaskeret: maskerMail(email) });
+      console.warn(`⚠️  T8a: ${b.handling} - intet nyt firma for ${subHandle} (${maskerMail(email)})`);
+      await sendAdminAlert(a).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+      if (b.handling === "flere") {
+        // Dead-letter, saa eventet kan gensendes, naar Ann har ryddet op.
+        const fejl = new Error(`flere firmaer paa samme e-mail - intet oprettet (${subHandle})`);
+        fejl.alarmSendt = true;
+        throw fejl;
+      }
+      return true;
+    }
+
+    // "genopliv": det gamle firma vaagner (Ann 31/10, beslutning 2).
+    const g = await genoplivFirma(
+      { supabase, twilioClient, hent: frisbiiHent, synkFirma, nummerEfterSynk, log: console },
+      { firma: b.firma, abonnement: subHandle, kundeHandle: customer.handle },
+    );
+    if (g.status === "race") {
+      console.log("ℹ️  Race tabt - firmaet blev netop genoplivet af et parallelt event:", subHandle);
+      return true;
+    }
+    try {
+      await sikrLogin({ supabase, firmId: b.firma.id, email, firmName: b.firma.name });
+    } catch (e) {
+      console.error("❌ T8a: login kunne ikke kobles til det genoplivede firma:", e.message);
+      await sendAdminAlert({
+        subject: `Login ikke koblet - genoplivet firma ${b.firma.name || b.firma.id}`,
+        text: `Firmaet ${b.firma.id} er genoplivet med ${subHandle}, men login kunne ikke kobles (firm_users):
+${e.message}
+
+Kunden kan ikke logge ind i firmaet, foer koblingen er lavet.`,
+      }).catch(() => {});
+    }
+    try {
+      const loginUrl = await lavLoginUrl(email);
+      const svar = await sendVelkommenTilbageMail({
+        to: email, firmName: b.firma.name, loginUrl, moduler: g.moduler,
+        nummer: g.nummer, egetNummer: g.egetNummer, venter: g.venter,
+      });
+      console.log(svar?.blocked ? "📧 Velkommen tilbage BLOKERET af staging-gaten:" : "✉️  Velkommen tilbage sendt til:", maskerMail(email));
+    } catch (mailErr) {
+      console.error("❌ Velkommen tilbage-mail fejlede (firmaet ER genoplivet):", mailErr.message || mailErr);
+    }
+    return true;
+  }
+
   async function provisionFirm({ customer, subscription }) {
     const subHandle = subscription.handle;
     const email     = customer.email?.toLowerCase().trim();
@@ -340,6 +414,9 @@ module.exports = (app, supabase) => {
       console.error("❌ Ingen email paa Frisbii-kunde:", customer.handle);
       return;
     }
+
+    // T8a: samme e-mail -> samme firma (D91). Slukket flag: som foer.
+    if (FASE3_SYNK && await genkendKunde({ customer, subHandle, email })) return;
 
     // Idempotens — er abonnementet allerede behandlet? (renewal/duplikat -> spring over)
     const { data: existing } = await supabase
@@ -520,8 +597,24 @@ module.exports = (app, supabase) => {
     // nummer faktisk blev tildelt (T7b: ikke ved "uden nummer").
     if (tjekPulje) await alarmLavPulje(alarmDeps, Math.max(0, ledigeVerificeret - 1));
 
-    // Opret Supabase Auth-bruger
-    const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+    // T8a: med flaget kobles firmaet ogsaa til et login, der findes i forvejen
+    // (beslutning 3, Ann 31/10) - D91-roden. Fejler det, faar Ann en alarm;
+    // firmaet er oprettet, og koblingen kan laves i haanden.
+    if (FASE3_SYNK) {
+      try {
+        const l = await sikrLogin({ supabase, firmId: firm.id, email, firmName: company });
+        if (!l.nyBruger) console.log("ℹ️  Login fandtes allerede for", maskerMail(email), "- koblet til det nye firma");
+      } catch (e) {
+        console.error("❌ T8a: login kunne ikke kobles til firmaet:", e.message);
+        await sendAdminAlert({
+          subject: `Login ikke koblet - nyt firma ${company}`,
+          text: `Firmaet ${firm.id} er oprettet (${subHandle}), men login kunne ikke kobles (firm_users):\n${e.message}\n\nKunden kan ikke logge ind i firmaet, foer koblingen er lavet.`,
+        }).catch(() => {});
+      }
+    }
+
+    // Opret Supabase Auth-bruger (uden flaget: som foer)
+    const { data: authUser, error: authErr } = FASE3_SYNK ? { data: null, error: null } : await supabase.auth.admin.createUser({
       email,
       email_confirm: true,
       user_metadata: { firm_id: firm.id, firm_name: company },

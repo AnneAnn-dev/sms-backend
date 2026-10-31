@@ -40,7 +40,7 @@
 // -----------------------------------------------------------------------------
 "use strict";
 
-const { vaelgLedigtNummer } = require("./phone");
+const { vaelgLedigtNummer, hentEjedeNumre, normalizePhone } = require("./phone");
 
 const KARANTAENE_DAGE = () => Number(process.env.QUARANTINE_DAYS_PAID) || 30;
 
@@ -67,13 +67,52 @@ async function hentFirma(supabase, firmId) {
   return data;
 }
 
-// Returnerer { status: "har" | "tildelt" | "tom", nummer, spoegelser, ledigeVerificeret }.
+// T8a (31/10-26, D91 loesning B): et firma, der kommer tilbage, faar sit
+// GAMLE nummer, hvis det stadig ligger ledigt med last_firm_id = firmaet -
+// i karantaene eller ej. Det er karantaenens formaal (nummeret staar paa bilen).
+// Twilio skal stadig eje det (samme regel som puljen: intet doedt nummer).
+// Returnerer nummeret eller null. Race-sikkert som tildelingen nedenfor.
+async function tagEgetNummer({ supabase, twilioClient, firmId }) {
+  const { data: egne, error } = await supabase
+    .from("phone_numbers").select("id, number")
+    .eq("last_firm_id", firmId).is("firm_id", null)
+    .order("quarantined_until", { ascending: false }).limit(1);
+  if (error) throw new Error(`phone_numbers: ${error.message}`);
+  const eget = egne && egne[0];
+  if (!eget) return null;
+  const ejede = await hentEjedeNumre(twilioClient); // kaster, hvis Twilio ikke kan spoerges
+  if (!ejede.has(normalizePhone(eget.number))) return null;
+
+  const { data: taget, error: tErr } = await supabase
+    .from("phone_numbers").update({ firm_id: firmId, quarantined_until: null })
+    .eq("id", eget.id).is("firm_id", null).select("id");
+  if (tErr) throw new Error(`phone_numbers: ${tErr.message}`);
+  if (!taget || !taget.length) return null; // en anden naaede det foerst
+
+  const { data: sat, error: sErr } = await supabase
+    .from("firms").update({ phone_number: eget.number })
+    .eq("id", firmId).is("phone_number", null).select("id");
+  if (sErr || !sat || !sat.length) {
+    await supabase.from("phone_numbers").update({ firm_id: null }).eq("id", eget.id).eq("firm_id", firmId);
+    if (sErr) throw new Error(`firms: ${sErr.message}`);
+    return null;
+  }
+  return eget.number;
+}
+
+// Returnerer { status: "har" | "tildelt" | "tom", nummer, spoegelser, ledigeVerificeret[, egetNummer] }.
 // Race-sikker: puljeraekken tages kun, hvis den stadig er ledig (firm_id null),
 // og firmaet faar kun nummeret, hvis det stadig ikke har et. Taber vi et kaploeb
 // om puljeraekken, proeves naeste (hoejst 3 gange).
 async function tildelNummer({ supabase, twilioClient, firmId }) {
   const firma = await hentFirma(supabase, firmId);
   if (firma.phone_number) return { status: "har", nummer: firma.phone_number, spoegelser: [], ledigeVerificeret: null };
+
+  // T8a: firmaets eget, tidligere nummer foerst. ledigeVerificeret er
+  // undefined (ikke null), saa lav-pulje-alarmen ikke gaar paa et nummer,
+  // der aldrig var i den ledige pulje.
+  const eget = await tagEgetNummer({ supabase, twilioClient, firmId });
+  if (eget) return { status: "tildelt", nummer: eget, egetNummer: true, spoegelser: [], ledigeVerificeret: undefined };
 
   let spoegelser = [], ledigeVerificeret = 0;
   for (let forsoeg = 1; forsoeg <= 3; forsoeg++) {
@@ -187,4 +226,4 @@ function telefonTilstand({ fase3, moduler, phoneNumber }) {
   return { aktiv, harNummer, venter: aktiv && !harNummer, udenVerifikation: !(aktiv && harNummer) };
 }
 
-module.exports = { karantaeneTil, sikrTelefonModul, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, inaktivBesked, telefonTilstand };
+module.exports = { karantaeneTil, sikrTelefonModul, tagEgetNummer, tildelNummer, frigivNummer, nummerPlan, nummerEfterSynk, opkaldsGate, inaktivBesked, telefonTilstand };

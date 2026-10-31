@@ -186,6 +186,60 @@ async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, var
   });
 }
 
+// ─── Velkommen tilbage (Fase 3, T8a, 31/10-26) ──────────────────────────────
+// Til en kunde, hvis udloebne firma er genoplivet med et nyt abonnement (D91,
+// loesning B): samme login, opgaver og kunder. Fire udgaver efter nummeret.
+// UDKAST (Claude 31/10) - Anne skriver de endelige tekster.
+const tilHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+async function sendVelkommenTilbageMail({ to, firmName, loginUrl, moduler, nummer, egetNummer, venter }) {
+  const navn = tilHtml(firmName);
+  const telefon = (moduler || []).includes("telefon");
+  const nummerBoks = nummer ? `
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:22px;
+                    font-weight:700;letter-spacing:0.05em;text-align:center;margin-bottom:24px">
+          ${tilHtml(nummer)}
+        </div>` : "";
+  let afsnit;
+  if (telefon && nummer && egetNummer) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:16px">Du har dit gamle nummer igen:</p>${nummerBoks}
+        <p style="color:#555;margin-bottom:24px">
+          Har du ikke ændret din viderestilling, virker den med det samme. Dine opgaver
+          og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else if (telefon && nummer) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:16px">Dit gamle nummer var desværre ikke ledigt længere. Dit nye nummer er:</p>${nummerBoks}
+        <p style="color:#555;margin-bottom:24px">
+          Sæt viderestillingen op igen, så opkald, du ikke når, går til dit nye nummer.
+          Log ind, så viser vi dig hvordan. Dine opgaver og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else if (telefon && venter) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:24px">
+          Dit telefonnummer er på vej — vi skriver til dig, så snart det er klar.
+          Dine opgaver og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else {
+    afsnit = `
+        <p style="color:#555;margin-bottom:24px">
+          Du har adgang til: ${tilHtml(modulTekst(moduler))}. Dine opgaver og kunder ligger,
+          hvor du forlod dem.
+        </p>`;
+  }
+  return await sendViaScaleway({
+    to,
+    fromEmail: process.env.SMTP_FROM,
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
+    subject:   `Velkommen tilbage, ${firmName}`,
+    html: ramme(`
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen tilbage, ${navn}!</h1>
+        <p style="color:#555;margin-bottom:16px">Dit abonnement er aktivt igen.</p>${afsnit}
+        ${knap(loginUrl, "Log ind")}
+        <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>`),
+  });
+}
+
 async function sendNummerKlarMail({ to, firmName, phoneNumber, loginUrl }) {
   return await sendViaScaleway({
     to,
@@ -313,4 +367,4 @@ async function sendAdminAlert({ subject, text }) {
   });
 }
 
-module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, MODUL_NAVNE };
+module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE };
