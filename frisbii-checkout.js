@@ -22,6 +22,16 @@
 //  - GET /checkout/produkter: det, der saelges, med navne og priser fra
 //    kataloget - saa siden aldrig har sine egne priser.
 //  - GET /bestil: bestillingssiden (static/bestil.html).
+//
+// Rabatkode (1/11-26, kun med FASE3_SYNK): kunden kan skrive en kuponkode
+// (feltet paa /bestil eller ?kode= i linket). Koden tjekkes hos Frisbii
+// (GET /coupon/code/validate?code=..&plan=ddk-basis), FOER betalingssiden
+// laves, og sendes saa med som prepare_subscription.coupon_codes. Ukendt
+// eller udloebet kode -> 400 "ukendt_kode", og kunden bliver paa siden.
+// MAALT 1/11 (staging, sub-0140): kuponen PILOTTEST (rabat pilot-gratis,
+// 100 %, apply_to all) gav basis + Telefonpasser + Referat til 0 kr., og
+// Frisbii afviser en ukendt kode i sessionen med 404 code 86. Koder skrives
+// med STORE bogstaver i Frisbii; vi retter kundens tekst til store bogstaver.
 // Slukket flag: praecis som foer (gammel plan, ingen opslag i databasen).
 //
 // Flow:  Simply-side -> POST /checkout/start -> denne route -> Frisbii API
@@ -38,6 +48,7 @@ const { KATALOG, handleForModul } = require("./frisbii-katalog");
 const { firmaerMedEmail } = require("./frisbii-kunde");
 
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
+const FRISBII_API = "https://api.frisbii.com/v1";
 
 // ─── Vindueloft (S12) ────────────────────────────────────────────────────────
 // Routen er offentlig og uautentificeret, og hvert kald bruger den private
@@ -105,6 +116,35 @@ function vaelgModuler(input, katalog = KATALOG) {
   return { ok: true, moduler: valgt.sort() };
 }
 
+// Rabatkoden fra kunden -> { ok, kode } (kode = null: ingen kode) eller
+// { ok: false, fejl }. Store bogstaver; kun A-Z, 0-9, - og _ (maks 40 tegn) -
+// alt andet kan ikke vaere en af vores koder og sendes aldrig til Frisbii.
+function rensKode(input) {
+  if (input === undefined || input === null) return { ok: true, kode: null };
+  if (typeof input !== "string") return { ok: false, fejl: "ukendt_kode" };
+  const kode = input.trim().toUpperCase();
+  if (!kode) return { ok: true, kode: null };
+  if (!/^[A-Z0-9_-]{1,40}$/.test(kode)) return { ok: false, fejl: "ukendt_kode" };
+  return { ok: true, kode };
+}
+
+// Spoerger Frisbii, om koden gaelder basisplanen. 200 = god, 404 = ukendt,
+// udloebet, brugt op eller ikke til denne plan (code 86). Alt andet (netvaerk,
+// 5xx) -> "kode_utilgaengelig": vi gaetter ikke, kunden proever igen.
+async function tjekKode(kode, { noegle, plan, fetchFn = fetch }) {
+  const auth = "Basic " + Buffer.from(`${noegle}:`).toString("base64");
+  let r;
+  try {
+    r = await fetchFn(`${FRISBII_API}/coupon/code/validate?code=${encodeURIComponent(kode)}&plan=${encodeURIComponent(plan)}`,
+      { method: "GET", headers: { Authorization: auth, Accept: "application/json" } });
+  } catch (e) {
+    return { ok: false, fejl: "kode_utilgaengelig" };
+  }
+  if (r.status === 200) return { ok: true };
+  if (r.status === 404) return { ok: false, fejl: "ukendt_kode" };
+  return { ok: false, fejl: "kode_utilgaengelig", status: r.status };
+}
+
 // Har kunden allerede et abonnement, der koerer? Et udloebet firma (inactive)
 // og en pilot uden abonnement maa gerne koebe - dem tager webhooken (T8a).
 function harKoerendeKonto(firmaer) {
@@ -138,7 +178,7 @@ function checkoutModul(app, supabase) {
       return res.status(500).json({ error: "server_misconfigured" });
     }
 
-    const { name, email, phone, company, moduler: modulInput } = req.body || {};
+    const { name, email, phone, company, moduler: modulInput, kode: kodeInput } = req.body || {};
 
     if (!looksLikeEmail(email)) {
       return res.status(400).json({ error: "invalid_email" });
@@ -210,6 +250,25 @@ function checkoutModul(app, supabase) {
       }
     }
 
+    // ─── Rabatkode (kun med FASE3_SYNK) ──────────────────────────────────────
+    let kode = null;
+    if (FASE3_SYNK) {
+      const k = rensKode(kodeInput);
+      if (!k.ok) return res.status(400).json({ error: k.fejl });
+      if (k.kode) {
+        const t = await tjekKode(k.kode, { noegle: PRIVATE_KEY, plan: KATALOG.BASISPLAN });
+        if (!t.ok) {
+          if (t.fejl === "ukendt_kode") {
+            console.log(`ℹ️  /checkout/start: ukendt rabatkode ${k.kode} (${maskerEmail(email)})`);
+            return res.status(400).json({ error: "ukendt_kode" });
+          }
+          console.error(`❌ /checkout/start: kunne ikke tjekke rabatkoden hos Frisbii (${t.status || "netvaerk"})`);
+          return res.status(502).json({ error: "kode_utilgaengelig" });
+        }
+        kode = k.kode;
+      }
+    }
+
     // E.164-tjek er bevidst løst her (kun præfiks) — phone er valgfri for
     // Frisbii (de prefilder kun Vipps/MobilePay-signup-siden med den), og
     // jeres egen owner_phone-validering sker først rigtigt i onboarding trin 1.
@@ -222,6 +281,7 @@ function checkoutModul(app, supabase) {
         // T8b: basisplanen + et add-on pr. valgt modul. Slukket flag: den gamle plan.
         plan: valg ? KATALOG.BASISPLAN : PLAN_HANDLE,
         ...(valg ? { add_ons: valg.moduler.map((m) => ({ add_on: handleForModul(m) })) } : {}),
+        ...(kode ? { coupon_codes: [kode] } : {}),
         // ⚠️ Ø6: abonnementet skal have SIT EGET handle. `generate_handle` inde i
         // create_customer gælder kun kundens handle — uden denne linje afviser
         // Frisbii hvert kald med 400 "handle is required", og det gjorde den fra
@@ -276,6 +336,12 @@ function checkoutModul(app, supabase) {
     }
 
     const bodyText = await frisbiiRes.text();
+    // Koden var god for et oejeblik siden, men Frisbii afviser den nu (fx brugt
+    // op i mellemtiden): samme svar som en ukendt kode.
+    if (kode && frisbiiRes.status === 404 && /"code"\s*:\s*86\b/.test(bodyText)) {
+      console.log(`ℹ️  /checkout/start: Frisbii afviste rabatkoden ${kode} i sessionen`);
+      return res.status(400).json({ error: "ukendt_kode" });
+    }
     if (!frisbiiRes.ok) {
       // Frisbii returnerer en struktureret fejl (code/error/message) — log den
       // fulde tekst, så en evt. plan/MSN-fejlkonfiguration er let at se i
@@ -300,7 +366,7 @@ function checkoutModul(app, supabase) {
       return res.status(502).json({ error: "frisbii_missing_url" });
     }
 
-    console.log("🧾 Checkout-session oprettet:", session.id, "for", maskerEmail(email), valg ? `[${valg.moduler.join(", ")}]` : "");
+    console.log("🧾 Checkout-session oprettet:", session.id, "for", maskerEmail(email), valg ? `[${valg.moduler.join(", ")}]` : "", kode ? `kode ${kode}` : "");
     res.json({ url: session.url, session_id: session.id });
   });
 
@@ -325,3 +391,5 @@ module.exports = checkoutModul;
 module.exports.vaelgModuler = vaelgModuler;
 module.exports.tilSalg = tilSalg;
 module.exports.harKoerendeKonto = harKoerendeKonto;
+module.exports.rensKode = rensKode;
+module.exports.tjekKode = tjekKode;

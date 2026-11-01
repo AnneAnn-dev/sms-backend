@@ -5,7 +5,7 @@
 //
 //   node proev-frisbii-checkout.js
 //
-// 31/10-26. Ren ASCII.
+// 31/10-26. Rabatkode tilfoejet 1/11-26. Ren ASCII.
 "use strict";
 
 let bestaaet = 0, fejlet = 0;
@@ -40,9 +40,22 @@ function falskDb(firmaer, { fejl = false } = {}) {
   } };
 }
 
-let sendt = [];
+// Falsk Frisbii: kupon-opslaget (GET) og sessionen (POST).
+// Kendte koder: PILOTTEST = god. NEDE = Frisbii svarer 500. BRUGTOP = god ved
+// opslaget, men sessionen afviser den (404 code 86). Alt andet: 404.
+let sendt = [], opslag = [];
 global.fetch = async (url, opt) => {
-  sendt.push({ url, krop: JSON.parse(opt.body) });
+  if (url.includes("/coupon/code/validate")) {
+    const kode = new URL(url).searchParams.get("code");
+    opslag.push({ kode, plan: new URL(url).searchParams.get("plan"), metode: opt.method });
+    const status = kode === "PILOTTEST" || kode === "BRUGTOP" ? 200 : kode === "NEDE" ? 500 : 404;
+    return { ok: status === 200, status, json: async () => ({}), text: async () => "{}" };
+  }
+  const krop = JSON.parse(opt.body);
+  sendt.push({ url, krop });
+  if ((krop.prepare_subscription.coupon_codes || []).includes("BRUGTOP")) {
+    return { ok: false, status: 404, text: async () => JSON.stringify({ code: 86, error: "Coupon not found or not eligible" }) };
+  }
   return { ok: true, status: 200, text: async () => JSON.stringify({ id: "cs_1", url: "https://checkout.invalid/cs_1" }) };
 };
 
@@ -52,9 +65,9 @@ async function kald(mod, db, krop) {
   mod(app, db);
   let status = 200, data = null;
   const res = { status(s) { status = s; return res; }, json(d) { data = d; return res; }, set() { return res; }, sendFile(f) { data = { fil: f }; return res; } };
-  sendt = [];
+  sendt = []; opslag = [];
   await ruter["POST /checkout/start"]({ body: krop, headers: { "x-forwarded-for": "10.0.0." + Math.floor(Math.random() * 200) } }, res);
-  return { status, data, frisbii: sendt[0] ? sendt[0].krop : null, ruter: Object.keys(ruter).sort() };
+  return { status, data, frisbii: sendt[0] ? sendt[0].krop : null, opslag: opslag.slice(), ruter: Object.keys(ruter).sort() };
 }
 
 const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler" };
@@ -94,11 +107,33 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   lig("firmanavn mangler stadig: 400 missing_company (D33)", [r.status, r.data.error], [400, "missing_company"]);
   lig("ruterne med flaget: produkter og bestil findes", r.ruter, ["GET /bestil", "GET /checkout/produkter", "POST /checkout/start"]);
 
+  console.log("\n2b. Rabatkode (maalt 1/11, sub-0140)");
+  lig("rensKode: ingen kode", [m.rensKode(undefined), m.rensKode(""), m.rensKode("   ")], [{ ok: true, kode: null }, { ok: true, kode: null }, { ok: true, kode: null }]);
+  lig("rensKode: smaa bogstaver og mellemrum -> STORE", m.rensKode("  pilottest "), { ok: true, kode: "PILOTTEST" });
+  lig("rensKode: maerkelige tegn -> afvist", [m.rensKode("PILOT TEST").ok, m.rensKode("a/b").ok, m.rensKode("x".repeat(41)).ok, m.rensKode(42).ok], [false, false, false, false]);
+  r = await kald(m, falskDb([]), { ...KROP, moduler: ["telefon", "referat"], kode: "pilottest" });
+  lig("god kode: tjekket mod ddk-basis med GET", r.opslag, [{ kode: "PILOTTEST", plan: "ddk-basis", metode: "GET" }]);
+  lig("god kode: sendt som coupon_codes sammen med moduler", [r.status, r.frisbii.prepare_subscription.coupon_codes, r.frisbii.prepare_subscription.add_ons.length], [200, ["PILOTTEST"], 2]);
+  r = await kald(m, falskDb([]), { ...KROP, kode: "FORKERT" });
+  lig("ukendt kode: 400 ukendt_kode, ingen session", [r.status, r.data, r.frisbii], [400, { error: "ukendt_kode" }, null]);
+  r = await kald(m, falskDb([]), { ...KROP, kode: "a/b" });
+  lig("kode med maerkelige tegn: 400 uden kald til Frisbii", [r.status, r.data.error, r.opslag.length, r.frisbii], [400, "ukendt_kode", 0, null]);
+  r = await kald(m, falskDb([]), { ...KROP, kode: "NEDE" });
+  lig("Frisbii svarer 500 paa opslaget: 502 kode_utilgaengelig, ingen session", [r.status, r.data, r.frisbii], [502, { error: "kode_utilgaengelig" }, null]);
+  r = await kald(m, falskDb([]), { ...KROP, kode: "BRUGTOP" });
+  lig("sessionen afviser koden (code 86): 400 ukendt_kode", [r.status, r.data], [400, { error: "ukendt_kode" }]);
+  r = await kald(m, falskDb([]), { ...KROP, kode: "" });
+  lig("tomt felt: ingen opslag, ingen coupon_codes", [r.status, r.opslag.length, "coupon_codes" in r.frisbii.prepare_subscription], [200, 0, false]);
+  r = await kald(m, falskDb([{ email: "mogens@maler.dk", status: "active", frisbii_subscription: "sub-1" }]), { ...KROP, kode: "PILOTTEST" });
+  lig("har konto + kode: 409 foer kodeopslaget", [r.status, r.opslag.length], [409, 0]);
+
   console.log("\n3. /checkout/start med flaget slukket (som foer T8b)");
   const gl = indlaes(false);
   r = await kald(gl, falskDb([{ email: "mogens@maler.dk", status: "active", frisbii_subscription: "sub-1" }]), { ...KROP, moduler: ["referat"] });
   lig("gammel plan, ingen add-ons, intet opslag", [r.status, r.frisbii.prepare_subscription.plan, r.frisbii.prepare_subscription.add_ons], [200, "abonnement-standard", undefined]);
   lig("ingen produkter- eller bestil-rute uden flaget", r.ruter, ["POST /checkout/start"]);
+  r = await kald(gl, falskDb([]), { ...KROP, kode: "PILOTTEST" });
+  lig("uden flaget: koden ignoreres (intet opslag, ingen coupon_codes)", [r.status, r.opslag.length, "coupon_codes" in r.frisbii.prepare_subscription], [200, 0, false]);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
   console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);

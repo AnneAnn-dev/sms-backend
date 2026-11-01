@@ -5,12 +5,13 @@
 //
 //   node proev-frisbii-pakke.js
 //
-// 31/10-26. Ren ASCII.
+// 31/10-26. Rabat (pilot-gratis, maalt 1/11 paa sub-0140) tilfoejet 1/11-26. Ren ASCII.
 "use strict";
 
 process.env.FASE3_SYNK = "true";
 const pakke = require("./frisbii-pakke");
-const { tilstand, visning, planlaeg } = pakke;
+const { tilstand, visning, planlaeg, virkendeRabatter, efterRabat } = pakke;
+const { KATALOG } = require("./frisbii-katalog");
 
 let bestaaet = 0, fejlet = 0;
 const ok = (n, d) => (bestaaet++, console.log(`  OK    ${n}${d ? "  -  " + d : ""}`));
@@ -28,6 +29,9 @@ const BEGGE = A(["modul-referat", "modul-referat"], ["modul-telefon", "modul-tel
 const STOP_REF = { pending_change: { pending: true, remove_add_ons: ["modul-referat"] } };
 const P = (h, m, sub, add) => planlaeg(h, m, tilstand(sub, add), { sub: "sub-0139", nyHandle: "ny-1" });
 const S = "/subscription/sub-0139";
+// Rabatten som maalt 1/11 (staging, sub-0140, GET /subscription/sub-0140/discount), forkortet.
+const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: "active", coupon: "pilottest", name: "Pilot gratis",
+  percentage: 100, count: 0, invoices: [], apply_to: ["all"], apply_to_handles: [], fixed_usage_reached: false, fixed_period_passed: false };
 
 (async () => {
   console.log("1. tilstand og visning");
@@ -73,6 +77,20 @@ const S = "/subscription/sub-0139";
   lig("fortryd det ene af to stop: det andet sendes igen", P("fortryd", "referat", SUB(TO_STOP), TRE).kald[0].krop, { timing: "renewal", remove_add_ons: ["modul-svar"] });
   lig("fortryd uden stop", P("fortryd", "referat", SUB(), BEGGE).fejl, "stopper_ikke");
 
+  console.log("\n3b. Rabat (Ann 1/11: summen skal vaere 0 for en pilot)");
+  lig("pilot-gratis som maalt: virker, 100 %", virkendeRabatter([PILOT]), [{ navn: "Pilot gratis", procent: 100, beloebOere: null }]);
+  lig("ikke aktiv / brugt op / udloebet / kun plan: virker ikke", virkendeRabatter([{ ...PILOT, state: "deleted" }, { ...PILOT, fixed_usage_reached: true }, { ...PILOT, fixed_period_passed: true }, { ...PILOT, apply_to: ["plan"] }]), []);
+  lig("rabat paa add-ons med fast beloeb", virkendeRabatter([{ ...PILOT, percentage: undefined, amount: 10000, apply_to: ["add_on"] }]), [{ navn: "Pilot gratis", procent: null, beloebOere: 10000 }]);
+  lig("efterRabat: 100 % -> 0, 50 % -> halvdelen, 100 kr. af 900 kr., aldrig under 0",
+    [efterRabat(90000, [{ procent: 100, beloebOere: null }]), efterRabat(90000, [{ procent: 50, beloebOere: null }]), efterRabat(90000, [{ procent: null, beloebOere: 10000 }]), efterRabat(5000, [{ procent: null, beloebOere: 10000 }])],
+    [0, 45000, 80000, 0]);
+  v = visning(tilstand(SUB({ subscription_discounts: ["PILOTTEST_pilottest"] }), BEGGE, KATALOG, [PILOT]));
+  lig("pilot med begge moduler: rabatlinje, summen 0, listepriser uaendrede",
+    [v.rabatter, v.prisNuOere, v.prisFraNaesteOere, v.prisFoerRabatOere, v.moduler.filter((m) => m.status === "aktiv").map((m) => m.prisOere)],
+    [[{ navn: "Pilot gratis", procent: 100, beloebOere: null }], 0, 0, 90000, [50000, 40000]]);
+  v = visning(tilstand(SUB(), BEGGE));
+  lig("uden rabat: som foer (900 kr., ingen rabatlinje)", [v.rabatter, v.prisNuOere, v.prisFraNaesteOere], [[], 90000, 90000]);
+
   console.log("\n4. planlaeg - opsig, genindfoer, spaerrer");
   lig("opsig", P("opsig", null, SUB(), BEGGE).kald, [{ metode: "POST", sti: S + "/cancel", krop: {} }]);
   const OPSAGT = SUB({ is_cancelled: true, expires: "2026-11-07T10:59:59.791+00:00" });
@@ -82,11 +100,14 @@ const S = "/subscription/sub-0139";
   lig("ukendt add-on paa abonnementet: afvises", P("stop", "referat", SUB(), A(["modul-telefon", "modul-telefon"], ["modul-referat", "modul-referat"], ["x", "fremmed"])).fejl, "saerligt_abonnement");
 
   console.log("\n5. Ruterne mod falsk Frisbii og database");
-  const sendt = [];
+  const sendt = [], hentet = [];
+  let rabatNede = false;
   let frisbiiSub = SUB(), frisbiiAdd = BEGGE;
   const fetchFn = async (url, opt = {}) => {
     const sti = url.replace("https://api.frisbii.com/v1", "");
     if (opt.method && opt.method !== "GET") { sendt.push({ metode: opt.method, sti, krop: JSON.parse(opt.body) }); return { ok: true, status: 200, json: async () => ({}) }; }
+    hentet.push(sti);
+    if (sti.endsWith("/discount")) return rabatNede ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, status: 200, json: async () => [PILOT] };
     const d = sti.endsWith("/add_on") ? frisbiiAdd : frisbiiSub;
     return { ok: true, status: 200, json: async () => d };
   };
@@ -121,6 +142,16 @@ const S = "/subscription/sub-0139";
   sendt.length = 0;
   r = await kald("POST /api/pakke/stop", { modul: "telefon" });
   lig("POST stop af sidste aktive modul: 409, intet sendt", [r.status, r.data.error, sendt.length], [409, "sidste_modul", 0]);
+  frisbiiSub = SUB({ subscription_discounts: ["PILOTTEST_pilottest"] }); hentet.length = 0;
+  r = await kald("GET /api/pakke");
+  lig("GET /api/pakke for en pilot: rabatterne hentes, summen 0", [r.status, hentet.filter((x) => x.endsWith("/discount")).length, r.data.prisFraNaesteOere, r.data.rabatter.length], [200, 1, 0, 1]);
+  frisbiiSub = SUB(); hentet.length = 0;
+  r = await kald("GET /api/pakke");
+  lig("GET /api/pakke uden rabat: rabatterne hentes ikke", [r.status, hentet.filter((x) => x.endsWith("/discount")).length], [200, 0]);
+  frisbiiSub = SUB({ subscription_discounts: ["PILOTTEST_pilottest"] }); rabatNede = true;
+  r = await kald("GET /api/pakke");
+  lig("rabatterne svarer ikke: 502 (aldrig en forkert sum)", [r.status, r.data.error], [502, "frisbii_utilgaengelig"]);
+  rabatNede = false;
   lig("ruterne findes", Object.keys(ruter).sort(), ["GET /api/pakke", "POST /api/pakke/fortryd", "POST /api/pakke/genindfoer", "POST /api/pakke/koeb", "POST /api/pakke/opsig", "POST /api/pakke/stop"]);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);

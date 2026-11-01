@@ -2665,7 +2665,11 @@ function leadKort(lead) {
           ind.appendChild(pkBoks([['Stop ' + m.navn + '?', true], [m.navn + ' virker til ' + dato + ' og koster ikke noget derefter. Du kan fortryde indtil da.']],
             [pkKnap('Behold', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Stop ' + m.navn, true, () => pakkeHandling('stop', m.modul))]));
         } else {
-          ind.appendChild(pkBoks([['Køb ' + m.navn + '?', true], [m.navn + ' koster ' + pris + ' ekskl. moms og virker med det samme. For resten af denne måned betaler du kun for de dage, der er tilbage.']],
+          const koebTekst = (p.rabatter || []).some((r) => r.procent === 100)
+            ? m.navn + ' virker med det samme. Din rabat (' + p.rabatter.find((r) => r.procent === 100).navn + ') gælder også her, så det koster dig 0 kr.'
+            : m.navn + ' koster ' + pris + ' ekskl. moms og virker med det samme. For resten af denne måned betaler du kun for de dage, der er tilbage.'
+              + ((p.rabatter || []).length ? ' Din rabat trækkes fra.' : '');
+          ind.appendChild(pkBoks([['Køb ' + m.navn + '?', true], [koebTekst]],
             [pkKnap('Fortryd', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Køb ' + m.navn, true, () => pakkeHandling('koeb', m.modul))]));
         }
         continue;
@@ -2684,6 +2688,14 @@ function leadKort(lead) {
     }
     if (p.moduler.some((m) => m.sidste)) {
       ind.appendChild(pkEl('div', 'pk-note', 'Dit sidste modul kan ikke stoppes for sig. Vil du stoppe helt, så opsig abonnementet.'));
+    }
+    // Rabat (1/11-26, Ann: en pilot skal se summen 0): en linje pr. rabat over summen.
+    if (!p.opsagt) {
+      (p.rabatter || []).forEach((r) => {
+        const l = pkEl('div', 'pk-sum'); l.appendChild(pkEl('span', null, r.navn));
+        l.appendChild(pkEl('strong', null, r.procent !== null ? '−' + r.procent + ' %' : '−' + pkKr(r.beloebOere) + '/md.'));
+        ind.appendChild(l);
+      });
     }
     if (!p.opsagt) {
       const sumTekst = p.prisFraNaesteOere !== p.prisNuOere ? 'Fra ' + dato + ', ekskl. moms'

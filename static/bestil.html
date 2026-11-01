@@ -11,6 +11,9 @@
   <!--
     Bestillingssiden (Fase 3, T8b, 31/10-26). Hjemmesidens knapper linker hertil:
       /bestil?moduler=telefon | referat | telefon,referat
+    Rabatkode (1/11-26): feltet "Rabatkode (valgfri)", eller ?kode=PILOTTEST i
+    linket. Serveren tjekker koden hos Frisbii; en ukendt kode giver
+    "ukendt_kode", og kunden bliver her. Rabatten ses paa Frisbiis betalingsside.
     Modulerne og priserne hentes fra /checkout/produkter (kataloget) - siden har
     ingen priser selv. Koebet starter med POST /checkout/start, som svarer med
     Frisbiis betalingsside eller 409 "har_konto" (D91). "Har konto" sender kunden
@@ -58,6 +61,7 @@
       transition: border-color .15s ease;
     }
     input:focus { border-color: var(--accent); }
+    #kode { text-transform: uppercase; }
     input.fejl { border-color: var(--error); }
     .hint { color: var(--muted); margin-top: 6px; }
     .sum {
@@ -123,6 +127,11 @@
         <label class="etiket" for="tlf">Mobilnummer (valgfrit)</label>
         <input id="tlf" type="tel" autocomplete="tel" inputmode="tel">
       </div>
+      <div class="felt">
+        <label class="etiket" for="kode">Rabatkode (valgfri)</label>
+        <input id="kode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
+        <p class="hint" id="kode-hint" hidden>Rabatten ses på betalingssiden, før du betaler.</p>
+      </div>
     </section>
 
     <div class="sum" style="margin-top:28px">
@@ -167,6 +176,13 @@
   var fraLink = (new URLSearchParams(location.search).get("moduler") || "")
     .split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
 
+  // Rabatkode fra linket (?kode=PILOTTEST) udfyldes; hinten vises, naar der er en kode.
+  var kodeFraLink = (new URLSearchParams(location.search).get("kode") || "").trim().toUpperCase().slice(0, 40);
+  if (kodeFraLink) $("kode").value = kodeFraLink;
+  function opdaterKodeHint() { $("kode-hint").hidden = !$("kode").value.trim(); }
+  $("kode").addEventListener("input", function () { $("kode").classList.remove("fejl"); opdaterKodeHint(); });
+  opdaterKodeHint();
+
   fetch("/checkout/produkter", { headers: { Accept: "application/json" } })
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (data) {
@@ -193,6 +209,8 @@
     invalid_email: ["email", "Tjek din e-mail - den ser ikke rigtig ud."],
     missing_name: ["navn", "Skriv dit navn."],
     missing_company: ["firma", "Skriv dit firmanavn."],
+    ukendt_kode: ["kode", "Rabatkoden findes ikke eller er udløbet. Tjek stavningen, eller lad feltet stå tomt."],
+    kode_utilgaengelig: ["kode", "Vi kunne ikke tjekke rabatkoden lige nu. Prøv igen om lidt."],
     ingen_moduler: [null, "Vælg mindst ét modul."],
     ukendt_modul: [null, "Et af modulerne kan ikke købes lige nu. Genindlæs siden og prøv igen."],
   };
@@ -200,10 +218,11 @@
   $("form").addEventListener("submit", function (e) {
     e.preventDefault();
     visBesked("");
-    ["navn", "firma", "email"].forEach(function (id) { $(id).classList.remove("fejl"); });
+    ["navn", "firma", "email", "kode"].forEach(function (id) { $(id).classList.remove("fejl"); });
     var krop = {
       name: $("navn").value.trim(), company: $("firma").value.trim(),
       email: $("email").value.trim(), phone: $("tlf").value.trim(), moduler: valgte(),
+      kode: $("kode").value.trim().toUpperCase(),
     };
     if (!krop.name) { $("navn").classList.add("fejl"); return visBesked("Skriv dit navn."); }
     if (!krop.company) { $("firma").classList.add("fejl"); return visBesked("Skriv dit firmanavn."); }

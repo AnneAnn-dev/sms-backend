@@ -25,6 +25,12 @@
 //     kun saettes paa ddk-basis. Kunden skriver til os (Ann 31/10, valg C).
 //   - Efter hver aendring synkes firmaet straks, saa appen viser det nye.
 //     Webhooken synker ogsaa og tildeler et nummer, hvis Telefonpasser koebes.
+//   - Rabat (1/11-26, Ann: "summen skal vaere 0" for en pilot): har
+//     abonnementet rabatter (subscription_discounts), hentes de med
+//     GET /subscription/{h}/discount. En aktiv rabat, der gaelder alt eller
+//     add-ons, vises som en linje og traekkes fra summerne. Maalt 1/11
+//     (sub-0140): pilot-gratis, percentage 100, apply_to ["all"]. Modulernes
+//     egne priser er uaendrede (prisen paa en raekke er listeprisen).
 // -----------------------------------------------------------------------------
 "use strict";
 
@@ -44,9 +50,35 @@ function handleTilModul(katalog = KATALOG) {
   return m;
 }
 
+// De rabatter, der rammer modulerne: aktive, ikke opbrugte, og gaelder "all"
+// eller "add_on". Ren funktion. rabatter: GET /subscription/{h}/discount.
+function virkendeRabatter(rabatter) {
+  const liste = Array.isArray(rabatter) ? rabatter : (rabatter && Array.isArray(rabatter.content) ? rabatter.content : []);
+  return liste
+    .filter((r) => r && r.state === "active" && !r.fixed_usage_reached && !r.fixed_period_passed)
+    .filter((r) => (r.apply_to || []).some((x) => x === "all" || x === "add_on"))
+    .map((r) => {
+      const procent = typeof r.percentage === "number" ? r.percentage : null;
+      const beloebOere = procent === null && typeof r.amount === "number" ? r.amount : null;
+      return { navn: r.name || (r.discount_dto && r.discount_dto.name) || "Rabat", procent, beloebOere };
+    })
+    .filter((r) => r.procent !== null || r.beloebOere !== null);
+}
+
+// Prisen efter rabatterne, i oere. Ren funktion.
+function efterRabat(oere, rabatter) {
+  let x = oere;
+  for (const r of rabatter || []) {
+    if (r.procent !== null) x = Math.round(x * (100 - Math.min(100, Math.max(0, r.procent))) / 100);
+    else x = Math.max(0, x - r.beloebOere);
+  }
+  return x;
+}
+
 // Abonnementets tilstand, laest ud af Frisbiis svar. Ren funktion.
-// sub: GET /subscription/{h}; addOns: GET /subscription/{h}/add_on (liste)
-function tilstand(sub, addOns, katalog = KATALOG) {
+// sub: GET /subscription/{h}; addOns: GET /subscription/{h}/add_on (liste);
+// rabatter: GET /subscription/{h}/discount (kun hvis subscription_discounts).
+function tilstand(sub, addOns, katalog = KATALOG, rabatter = null) {
   const tilModul = handleTilModul(katalog);
   const liste = Array.isArray(addOns) ? addOns : (addOns && Array.isArray(addOns.content) ? addOns.content : []);
   const pc = sub && sub.pending_change && sub.pending_change.pending ? sub.pending_change : null;
@@ -68,6 +100,7 @@ function tilstand(sub, addOns, katalog = KATALOG) {
     proeveTil: sub && sub.in_trial ? sub.trial_end || null : null,
     instanser, ventendeStop: [...ventendeStop], ukendte,
     andreAendringer: !!(pc && pc.add_ons && pc.add_ons.length),
+    rabatter: virkendeRabatter(rabatter),
   };
 }
 
@@ -93,7 +126,9 @@ function visning(t, katalog = KATALOG) {
     stopDato: t.opsagt ? t.udloeber : t.naestePeriode,
     proeveTil: t.proeveTil,
     moduler: moduler.map((m) => ({ ...m, sidste: m.status === "aktiv" && aktive === 1 })),
-    prisNuOere: nu, prisFraNaesteOere: fraNaeste,
+    rabatter: t.rabatter || [],
+    prisFoerRabatOere: fraNaeste,
+    prisNuOere: efterRabat(nu, t.rabatter), prisFraNaesteOere: efterRabat(fraNaeste, t.rabatter),
     saerlig: t.ukendte.length > 0 || t.andreAendringer,
   };
 }
@@ -154,6 +189,20 @@ function pakkeModul(app, supabase, { noegle = process.env.FRISBII_PRIVATE_KEY, f
   const hent = lavFrisbiiGet(noegle, fetchFn);
   const skriv = lavFrisbiiSkriv(noegle, fetchFn);
 
+  // Frisbiis tre svar -> tilstand, eller null (Frisbii svarede ikke).
+  async function hentTilstand(sub) {
+    const h = encodeURIComponent(sub);
+    const [s, a] = [await hent(`/subscription/${h}`), await hent(`/subscription/${h}/add_on`)];
+    if (!s.ok || !a.ok) { log.error(`❌ /api/pakke: Frisbii svarede ${s.status}/${a.status} for ${sub}`); return null; }
+    let rabatter = null;
+    if (s.data && Array.isArray(s.data.subscription_discounts) && s.data.subscription_discounts.length) {
+      const d = await hent(`/subscription/${h}/discount`);
+      if (!d.ok) { log.error(`❌ /api/pakke: Frisbii svarede ${d.status} paa rabatterne for ${sub}`); return null; }
+      rabatter = d.data;
+    }
+    return tilstand(s.data, a.data, KATALOG, rabatter);
+  }
+
   async function firmaOgTilstand(req, res) {
     const firmId = await firmIdFromToken(supabase, req);
     if (!firmId) { res.status(401).json({ error: "Ikke logget ind" }); return null; }
@@ -161,9 +210,9 @@ function pakkeModul(app, supabase, { noegle = process.env.FRISBII_PRIVATE_KEY, f
     if (error || !firma) { res.status(503).json({ error: "firma_utilgaengeligt" }); return null; }
     if (!firma.frisbii_subscription) { res.json({ abonnement: false }); return null; }
     const sub = firma.frisbii_subscription;
-    const [s, a] = [await hent(`/subscription/${encodeURIComponent(sub)}`), await hent(`/subscription/${encodeURIComponent(sub)}/add_on`)];
-    if (!s.ok || !a.ok) { log.error(`❌ /api/pakke: Frisbii svarede ${s.status}/${a.status} for ${sub}`); res.status(502).json({ error: "frisbii_utilgaengelig" }); return null; }
-    return { firma, sub, t: tilstand(s.data, a.data) };
+    const t = await hentTilstand(sub);
+    if (!t) { res.status(502).json({ error: "frisbii_utilgaengelig" }); return null; }
+    return { firma, sub, t };
   }
 
   app.get("/api/pakke", async (req, res) => {
@@ -199,8 +248,8 @@ function pakkeModul(app, supabase, { noegle = process.env.FRISBII_PRIVATE_KEY, f
         } catch (e) {
           log.error("⚠️  /api/pakke: synk efter aendringen fejlede (webhooken proever ogsaa):", e.message);
         }
-        const [s, a] = [await hent(`/subscription/${encodeURIComponent(f.sub)}`), await hent(`/subscription/${encodeURIComponent(f.sub)}/add_on`)];
-        res.json({ ok: true, abonnement: true, ...(s.ok && a.ok ? visning(tilstand(s.data, a.data)) : {}) });
+        const ny = await hentTilstand(f.sub);
+        res.json({ ok: true, abonnement: true, ...(ny ? visning(ny) : {}) });
       } catch (e) {
         log.error(`❌ /api/pakke/${handling}:`, e.message);
         res.status(500).json({ error: "serverfejl" });
@@ -214,3 +263,5 @@ module.exports = pakkeModul;
 module.exports.tilstand = tilstand;
 module.exports.visning = visning;
 module.exports.planlaeg = planlaeg;
+module.exports.virkendeRabatter = virkendeRabatter;
+module.exports.efterRabat = efterRabat;
