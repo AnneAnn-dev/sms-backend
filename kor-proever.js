@@ -36,6 +36,7 @@ const KOERES = [
   "proev-frisbii-kunde.js",
   "proev-frisbii-modulsaet.js",
   "proev-frisbii-natlig.js",
+  "proev-frisbii-pakke.js",
   "proev-frisbii-nummer.js",
   "proev-frisbii-synk.js",
   "proev-frisbii-webhook-synk.js",

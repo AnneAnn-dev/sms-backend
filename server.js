@@ -105,6 +105,11 @@ require("./frisbii-webhook")(app, supabase);
 // ved boot, fordi requireConfig() foerst kaldes inde i handleren.
 require("./frisbii-checkout")(app, supabase);
 
+// ─── T9a (31/10): "Din pakke" - kunden aendrer sit abonnement fra Profil ────
+// GET /api/pakke + POST /api/pakke/{koeb,stop,fortryd,opsig,genindfoer}.
+// Findes kun med FASE3_SYNK (ellers registreres intet).
+require("./frisbii-pakke")(app, supabase);
+
 // ─── "Send mig et login-link": redningsvej for glemt adgangskode ────────────
 // Registrerer POST /onboarding/nyt-link (prefetch-sikkert login-link via egen
 // Scaleway-mail, rate-limitet + anti-enumeration). UDEN denne linje findes

@@ -20,6 +20,7 @@
 // (Tilbud og Faktura 500 kr.). Navnene er de aftalte (Ann 31/10) og vises paa
 // bestillingssiden, i mails og paa Frisbiis fakturaer; Anne ejer teksterne.
 // Hele pakken saelges ikke, foer der er flere moduler at samle (Ann 31/10).
+// kommer: true = vises graatonet som "Kommer snart" i Din pakke (T9, Ann 31/10).
 //
 // Rene funktioner, ingen netvaerk, ingen miljoevariabler. Proeves af
 // proev-frisbii-katalog.js, som ogsaa tjekker, at kataloget, MODULER og
@@ -40,11 +41,11 @@ const GAMLE_PLANER = {
 const MODUL_ADDONS = {
   telefon:  { handle: "modul-telefon",  navn: "Telefonpasser",     prisOere: 50000, saelges: true },
   referat:  { handle: "modul-referat",  navn: "Referat",           prisOere: 40000, saelges: true },
-  tilbud:   { handle: "modul-tilbud",   navn: "Tilbud",            prisOere: 50000, saelges: false },
-  faktura:  { handle: "modul-faktura",  navn: "Faktura",           prisOere: 50000, saelges: false },
+  tilbud:   { handle: "modul-tilbud",   navn: "Tilbud",            prisOere: 50000, saelges: false, kommer: true },
+  faktura:  { handle: "modul-faktura",  navn: "Faktura",           prisOere: 50000, saelges: false, kommer: true },
   booking:  { handle: "modul-booking",  navn: "Booking",           prisOere: 40000, saelges: false },
-  svar:     { handle: "modul-svar",     navn: "Kundehenvendelser", prisOere: 20000, saelges: false },
-  facebook: { handle: "modul-facebook", navn: "SoMe-værktøj",      prisOere: 20000, saelges: false },
+  svar:     { handle: "modul-svar",     navn: "Kundehenvendelser", prisOere: 20000, saelges: false, kommer: true },
+  facebook: { handle: "modul-facebook", navn: "SoMe-værktøj",      prisOere: 20000, saelges: false, kommer: true },
 };
 
 const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere: 150000, saelges: false };
