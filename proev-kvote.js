@@ -77,10 +77,15 @@ function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa 
 
 const oere = (n, naar, firma = "F1") => ({ firm_id: firma, created_at: naar, pris_oere: n });
 const IDAG = new Date().toISOString();
-// Et tidspunkt i denne maaned, men (normalt) ikke i dag: maanedsstart + 1 minut.
-// Koeres proeven den 1. i maaneden, er de to det samme dag - det er ikke en
-// fejl, men proeven "spredt over maaneden" siger saa ikke noget den dag.
+// Et tidspunkt i denne maaned: maanedsstart + 1 minut. Den 1. i maaneden er
+// det I DAG - saa maa det kun bruges, hvor det er ligegyldigt, om det er i dag
+// (maaneds- og globalloftet), aldrig som "i gaar".
 const TIDLIGERE = new Date(k._maanedsstart().getTime() + 60000).toISOString();
+// I gaar: et minut foer dagens start i dansk tid. Den 1. ligger det i forrige
+// maaned - og skal STADIG ikke taelle i dag. Rettet 1/11-26: "i gaar" brugte
+// TIDLIGERE og var dermed i dag den 1. i hver maaned, saa CI var roed hele
+// dagen (49/1). Selve kvote.js var rigtig; det var proeven, der regnede forkert.
+const IGAAR = new Date(k._dagsstart().getTime() - 60000).toISOString();
 
 async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LOFTER) {
   try {
@@ -146,7 +151,7 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   await proev("firmaets eget dagsloft slaar standarden", "tilladt",
     { raekker: [oere(1500, IDAG)], firmaDagsloft: 30 }, {}, LOFTER_DRIFT);
   await proev("i gaars forbrug taeller ikke i dag", "tilladt",
-    { raekker: [oere(900, TIDLIGERE), oere(900, IDAG)] }, {}, LOFTER_DRIFT);
+    { raekker: [oere(900, IGAAR), oere(900, IDAG)] }, {}, LOFTER_DRIFT);
   await proev("det globale maanedsloft er stadig en bremse", "globalt_maanedsloft",
     { raekker: [oere(50000, TIDLIGERE, "F2")] }, {}, LOFTER_DRIFT);
 
