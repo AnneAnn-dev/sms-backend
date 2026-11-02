@@ -65,7 +65,7 @@ jobs:
         # ref er sat med vilje. Planlagte koersler bruger default branch i
         # forvejen, men en haandkoert workflow_dispatch kan startes fra en
         # anden branch - og saa ville jobbet revidere noget andet end prod.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
