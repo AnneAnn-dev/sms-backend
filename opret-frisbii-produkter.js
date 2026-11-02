@@ -7,9 +7,15 @@
 //   node opret-frisbii-produkter.js           -> toerkoersel: viser hvad der mangler
 //   node opret-frisbii-produkter.js --koer    -> opretter det, der mangler
 //
-// KUN STAGING. Stopper, foer noget kaldes, hvis .ENV-ER-PROD findes, og foer
-// noget skrives, hvis noeglen ikke hoerer til kontoen "lommekontor".
-// Prod faar sine produkter foerst paa vejen til prod (byggeplanen, trin 2).
+// STAGING som standard. Stopper, foer noget kaldes, hvis .ENV-ER-PROD findes,
+// og foer noget skrives, hvis noeglen ikke hoerer til kontoen "lommekontor".
+//
+// PROD (1/11-26, vejen til prod, byggeplanen trin 2): samme produkter, samme
+// kald som i staging - saa LIVE ikke tastes i haanden.
+//   node opret-frisbii-produkter.js --prod                 -> toerkoersel mod LIVE
+//   node opret-frisbii-produkter.js --prod --koer          -> opretter i LIVE
+// --prod kraever BEGGE dele: .ENV-ER-PROD findes (skift-prod.ps1), og noeglen
+// hoerer til kontoen "test-2-lommekontor". Uden --prod stopper prod som foer.
 //
 // OPRETTER KUN DET, DER MANGLER. Findes et produkt allerede, men afviger det
 // (pris, proeveperiode ...), aendres INTET - scriptet siger det, og Ann
@@ -23,8 +29,14 @@
 const fs = require("fs");
 const path = require("path");
 
-if (fs.existsSync(path.join(__dirname, ".ENV-ER-PROD"))) {
-  console.log("STOP: .ENV-ER-PROD findes - miljoeet peger paa PROD. Intet er kaldt.");
+const prod = process.argv.includes("--prod");
+const erProd = fs.existsSync(path.join(__dirname, ".ENV-ER-PROD"));
+if (erProd && !prod) {
+  console.log("STOP: .ENV-ER-PROD findes - miljoeet peger paa PROD. Intet er kaldt. (Mod LIVE: tilfoej --prod.)");
+  process.exit(2);
+}
+if (prod && !erProd) {
+  console.log("STOP: --prod, men .ENV-ER-PROD findes ikke - koer skift-prod.ps1 foerst. Intet er kaldt.");
   process.exit(2);
 }
 require("dotenv").config({ quiet: true });
@@ -34,6 +46,9 @@ const { doemProdukter } = require("./frisbii-tjek");
 
 const API = "https://api.frisbii.com/v1";
 const STAGING_HANDLE = "lommekontor";
+const PROD_HANDLE = "test-2-lommekontor";
+const KONTO = prod ? PROD_HANDLE : STAGING_HANDLE;
+const MILJOE = prod ? "PROD (LIVE)" : "staging";
 const koer = process.argv.includes("--koer");
 const KEY = process.env.FRISBII_PRIVATE_KEY;
 if (!KEY) { console.log("STOP: FRISBII_PRIVATE_KEY mangler. Intet er kaldt."); process.exit(2); }
@@ -53,15 +68,15 @@ async function kald(metode, sti, body) {
 const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) ? d.content : []);
 
 (async () => {
-  console.log(`Fase 3 T1b - katalogets produkter i Frisbii-staging${koer ? "  [--koer]" : "  (toerkoersel)"}  ${new Date().toISOString()}\n`);
+  console.log(`Fase 3 T1b - katalogets produkter i Frisbii-${MILJOE}${koer ? "  [--koer]" : "  (toerkoersel)"}  ${new Date().toISOString()}\n`);
 
-  // 1) Spaerre: kun staging-kontoen.
+  // 1) Spaerre: kontoen skal passe til miljoeet.
   const konto = await kald("GET", "/account");
-  if (!konto.ok || konto.data.handle !== STAGING_HANDLE) {
-    console.log(`STOP: kontoen er ${konto.data && konto.data.handle}, ikke ${STAGING_HANDLE}. Intet skrevet.`);
+  if (!konto.ok || konto.data.handle !== KONTO) {
+    console.log(`STOP: kontoen er ${konto.data && konto.data.handle}, ikke ${KONTO}. Intet skrevet.`);
     process.exit(1);
   }
-  console.log(`   konto = ${STAGING_HANDLE} (staging)\n`);
+  console.log(`   konto = ${KONTO} (${MILJOE})\n`);
 
   // 2) Hvad findes, og hvad mangler?
   const salg = produkterTilSalg();
@@ -134,5 +149,7 @@ const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) 
       process.exit(1);
     }
   }
-  console.log("\nSENDT. Koer nu:  node check-env.js --live   - produkterne skal vaere groenne.");
+  console.log(prod
+    ? "\nSENDT. Koer nu scriptet igen med --prod (uden --koer): alle linjer under \"Status foer\" skal vaere OK."
+    : "\nSENDT. Koer nu:  node check-env.js --live   - produkterne skal vaere groenne.");
 })();
