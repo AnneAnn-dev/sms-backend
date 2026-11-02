@@ -41,6 +41,7 @@ const KOERES = [
   "proev-frisbii-synk.js",
   "proev-frisbii-webhook-synk.js",
   "proev-indtal-mere.js",
+  "proev-kunde-sms.js",
   "proev-kundenoegle.js",
   "proev-kvote.js",
   "proev-login-maaling.js",
