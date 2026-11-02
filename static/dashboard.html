@@ -289,6 +289,25 @@
     body.faner .profil-gruppe { padding-left: 24px; }
     body.faner .profil-punkt .wl-title, body.faner .profil-punkt .greeting-title, body.faner .profil-punkt .pw-title { display: none; }
     body.faner .profil-punkt .wl-card, body.faner .profil-punkt .greeting-card, body.faner .profil-punkt .pw-card { border: none; padding: 0 4px 18px 28px; }
+    /* ── T9b (31/10-26): Din pakke i Profil. DASHBOARD-STIL: hvide raekker med
+       kant, en blaa knap pr. valg, ingen roed, "Stop!" med konsekvensen i tekst. */
+    .pk { padding: 0 4px 18px 28px; display: flex; flex-direction: column; gap: 10px; }
+    .pk-raekke { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    .pk-raekke .tekst { flex: 1; min-width: 0; }
+    .pk-raekke .navn { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); }
+    .pk-raekke .linje2 { font-size: 16px; color: var(--ink-muted); }
+    .pk-raekke.graa { opacity: .55; }
+    .pk-knap { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--steel); white-space: nowrap; cursor: pointer; }
+    .pk-knap.blaa { background: var(--steel); color: #fff; border-color: var(--steel); }
+    .pk-knap:disabled { opacity: .55; cursor: default; }
+    .pk-sum { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; color: var(--ink-muted); padding: 4px 2px 0; }
+    .pk-sum strong { font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--ink); white-space: nowrap; }
+    .pk-boks { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; color: var(--ink); }
+    .pk-boks .knapper { display: flex; gap: 10px; }
+    .pk-boks .knapper button { flex: 1; }
+    .pk-note { font-size: 16px; color: var(--ink-muted); }
+    .pk-fejl { font-size: 16px; color: var(--danger); }
+    .pk-opsig { align-self: flex-start; background: none; border: none; color: var(--ink-muted); font-size: 16px; text-decoration: underline; padding: 6px 2px; cursor: pointer; font-family: inherit; }
     body.faner .profile-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 4px 18px; }
     body.faner .profile-avatar { width: 56px; height: 56px; flex: 0 0 56px; font-size: 17px; margin: 0; }
     body.faner .profile-name { font-size: 17px; overflow-wrap: anywhere; }
@@ -773,6 +792,13 @@
         <div class="profile-phone" id="profile-phone">—</div>
       </div>
     </div>
+
+    <!-- T9b (31/10-26): Din pakke. Skjult, til /api/pakke har svaret (findes
+         kun med FASE3_SYNK). Indholdet bygges af tegnPakke() med textContent. -->
+    <details class="profil-punkt" id="profil-pakke" hidden>
+    <summary>Din pakke</summary>
+    <div class="pk" id="pakke-indhold"></div>
+    </details>
 
     <!-- D94 trin 1c: Din telefonpasser samler besked, viderestilling,
          VIP-numre og notifikationer. -->
@@ -2548,6 +2574,149 @@ function leadKort(lead) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     document.getElementById('nav-' + page)?.classList.add('active');
+    if (page === 'profil') hentPakke();
+  }
+
+  // ── T9b (31/10-26): Din pakke ────────────────────────────────────────────
+  // Serveren (/api/pakke, frisbii-pakke.js) afgoer alt: hvad kunden har, hvad
+  // der kan koebes, og hvilke kald Frisbii skal have. Her vises det bare, og
+  // hvert valg sendes som ét POST. Svarer ruten ikke (flaget slukket, 404),
+  // forbliver blokken skjult og Profil ser ud som foer.
+  // Alt tekstindhold saettes med textContent (S33), ogsaa katalogets navne.
+  let pakke = null, pakkeSpoerg = null, pakkeFejl = '';
+  const pkKr = (oere) => (oere / 100).toLocaleString('da-DK') + ' kr.';
+  const pkDato = (iso) => iso ? new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'long' }) : '';
+  function pkEl(tag, cls, tekst) { const e = document.createElement(tag); if (cls) e.className = cls; if (tekst != null) e.textContent = tekst; return e; }
+  function pkKnap(tekst, blaa, onclick) { const b = pkEl('button', 'pk-knap' + (blaa ? ' blaa' : ''), tekst); b.type = 'button'; b.onclick = onclick; return b; }
+  function pkRaekke(navn, linje2, knap, graa) {
+    const r = pkEl('div', 'pk-raekke' + (graa ? ' graa' : ''));
+    const t = pkEl('div', 'tekst'); t.appendChild(pkEl('div', 'navn', navn)); t.appendChild(pkEl('div', 'linje2', linje2));
+    r.appendChild(t); if (knap) r.appendChild(knap); return r;
+  }
+  function pkBoks(tekster, knapper) {
+    const b = pkEl('div', 'pk-boks'); const p = pkEl('div');
+    tekster.forEach(([tekst, fed]) => { const s = pkEl(fed ? 'b' : 'span', null, tekst); p.appendChild(s); p.appendChild(document.createTextNode(' ')); });
+    b.appendChild(p); const k = pkEl('div', 'knapper'); knapper.forEach((x) => k.appendChild(x)); b.appendChild(k); return b;
+  }
+
+  async function hentPakke() {
+    try {
+      const r = await fetch('/api/pakke', { headers: await authHeader() });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (!d.abonnement) return;
+      const foerste = !pakke;
+      pakke = d;
+      tegnPakke();
+      if (foerste) {
+        document.getElementById('profil-pakke').open = true;
+        document.getElementById('profil-telefonpasser').open = false;
+      }
+    } catch (err) {
+      console.warn('Din pakke: /api/pakke svarede ikke', err);
+    }
+  }
+
+  async function pakkeHandling(handling, modul) {
+    pakkeFejl = ''; pakkeSpoerg = null;
+    document.querySelectorAll('#pakke-indhold button').forEach((b) => { b.disabled = true; });
+    try {
+      const r = await fetch('/api/pakke/' + handling, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify(modul ? { modul } : {}),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.abonnement) pakke = d;
+      else pakkeFejl = ({
+        sidste_modul: 'Dit sidste modul kan ikke stoppes for sig. Vil du stoppe helt, så opsig abonnementet.',
+        opsagt: 'Dit abonnement er opsagt. Genindfør det først.',
+        frisbii_afviste: 'Betalingen kunne ikke ændres lige nu. Prøv igen om lidt, eller skriv til info@ditdigitalekontor.dk.',
+      })[d.error] || 'Noget gik galt. Prøv igen om lidt, eller skriv til info@ditdigitalekontor.dk.';
+    } catch (err) {
+      pakkeFejl = 'Ingen forbindelse. Tjek dit internet og prøv igen.';
+    }
+    tegnPakke();
+  }
+
+  function tegnPakke() {
+    const blok = document.getElementById('profil-pakke');
+    const ind = document.getElementById('pakke-indhold');
+    const p = pakke;
+    blok.hidden = false;
+    ind.replaceChildren();
+    const telefon = p.moduler.find((m) => m.modul === 'telefon');
+    // T7d3: Din telefonpasser vises kun med Telefonpasser (Ann 31/10: skjul helt ellers).
+    document.getElementById('profil-telefonpasser').hidden = !(p.gammelPlan || (telefon && (telefon.status === 'aktiv' || telefon.status === 'stopper')));
+
+    if (p.gammelPlan || p.saerlig) {
+      p.moduler.filter((m) => m.status === 'aktiv').forEach((m) => ind.appendChild(pkRaekke(m.navn, 'Dit nuværende abonnement')));
+      ind.appendChild(pkEl('div', 'pk-note', 'Vil du ændre dit abonnement eller købe flere moduler til, så skriv til info@ditdigitalekontor.dk – så hjælper vi dig.'));
+      return;
+    }
+    const dato = pkDato(p.stopDato);
+    if (p.opsagt) {
+      ind.appendChild(pkBoks([['Dit abonnement stopper ' + dato + '.', true], ['Indtil da virker alt som nu.']],
+        [pkKnap('Genindfør abonnementet', true, () => pakkeHandling('genindfoer'))]));
+    }
+    for (const m of p.moduler) {
+      const pris = pkKr(m.prisOere) + '/md.';
+      if (pakkeSpoerg && pakkeSpoerg.modul === m.modul) {
+        if (pakkeSpoerg.handling === 'stop') {
+          ind.appendChild(pkBoks([['Stop ' + m.navn + '?', true], [m.navn + ' virker til ' + dato + ' og koster ikke noget derefter. Du kan fortryde indtil da.']],
+            [pkKnap('Behold', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Stop ' + m.navn, true, () => pakkeHandling('stop', m.modul))]));
+        } else {
+          const koebTekst = (p.rabatter || []).some((r) => r.procent === 100)
+            ? m.navn + ' virker med det samme. Din rabat (' + p.rabatter.find((r) => r.procent === 100).navn + ') gælder også her, så det koster dig 0 kr.'
+            : m.navn + ' koster ' + pris + ' ekskl. moms og virker med det samme. For resten af denne måned betaler du kun for de dage, der er tilbage.'
+              + ((p.rabatter || []).length ? ' Din rabat trækkes fra.' : '');
+          ind.appendChild(pkBoks([['Køb ' + m.navn + '?', true], [koebTekst]],
+            [pkKnap('Fortryd', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Køb ' + m.navn, true, () => pakkeHandling('koeb', m.modul))]));
+        }
+        continue;
+      }
+      if (m.status === 'aktiv') {
+        const linje = m.sidste ? pris + ' · dit eneste modul' : pris;
+        ind.appendChild(pkRaekke(m.navn, linje, (p.opsagt || m.sidste) ? null : pkKnap('Stop', false, () => { pakkeSpoerg = { handling: 'stop', modul: m.modul }; tegnPakke(); })));
+      } else if (m.status === 'stopper') {
+        ind.appendChild(pkRaekke(m.navn, 'Stopper ' + dato, p.opsagt ? null : pkKnap('Fortryd', false, () => pakkeHandling('fortryd', m.modul))));
+      } else if (m.status === 'kan-koebes') {
+        ind.appendChild(pkRaekke(m.navn, pris + ' · virker med det samme', p.opsagt ? null : pkKnap('Køb', true, () => { pakkeSpoerg = { handling: 'koeb', modul: m.modul }; tegnPakke(); })));
+      } else {
+        ind.appendChild(pkRaekke(m.navn, 'Kommer snart · ' + pris, null, true));
+      }
+      if (m.dobbelt) ind.appendChild(pkEl('div', 'pk-fejl', 'Du betaler for ' + m.navn + ' to gange. Skriv til info@ditdigitalekontor.dk, så retter vi det.'));
+    }
+    if (p.moduler.some((m) => m.sidste)) {
+      ind.appendChild(pkEl('div', 'pk-note', 'Dit sidste modul kan ikke stoppes for sig. Vil du stoppe helt, så opsig abonnementet.'));
+    }
+    // Rabat (1/11-26, Ann: en pilot skal se summen 0): en linje pr. rabat over summen.
+    if (!p.opsagt) {
+      (p.rabatter || []).forEach((r) => {
+        const l = pkEl('div', 'pk-sum'); l.appendChild(pkEl('span', null, r.navn));
+        l.appendChild(pkEl('strong', null, r.procent !== null ? '−' + r.procent + ' %' : '−' + pkKr(r.beloebOere) + '/md.'));
+        ind.appendChild(l);
+      });
+    }
+    if (!p.opsagt) {
+      const sumTekst = p.prisFraNaesteOere !== p.prisNuOere ? 'Fra ' + dato + ', ekskl. moms'
+        : (p.proeveTil ? 'I alt ekskl. moms · gratis prøve til ' + pkDato(p.proeveTil) : 'I alt ekskl. moms');
+      const sum = pkEl('div', 'pk-sum'); sum.appendChild(pkEl('span', null, sumTekst)); sum.appendChild(pkEl('strong', null, pkKr(p.prisFraNaesteOere) + '/md.'));
+      ind.appendChild(sum);
+    }
+    if (pakkeFejl) ind.appendChild(pkEl('div', 'pk-fejl', pakkeFejl));
+    if (!p.opsagt) {
+      if (pakkeSpoerg && pakkeSpoerg.handling === 'opsig') {
+        const navne = p.moduler.filter((m) => m.status === 'aktiv' || m.status === 'stopper').map((m) => m.navn).join(' og ');
+        const tekster = [['Stop! Du opsiger hele abonnementet.', true], [navne + ' stopper ' + dato + '.']];
+        if (telefon && telefon.status !== 'kan-koebes') tekster.push(['Dit nummer holder op med at tage imod opkald.']);
+        tekster.push(['Dine opgaver og kunder gemmes i 3 måneder.']);
+        ind.appendChild(pkBoks(tekster, [pkKnap('Fortryd', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Opsig', true, () => pakkeHandling('opsig'))]));
+      } else {
+        const o = pkEl('button', 'pk-opsig', 'Opsig abonnementet'); o.type = 'button';
+        o.onclick = () => { pakkeSpoerg = { handling: 'opsig' }; tegnPakke(); };
+        ind.appendChild(o);
+      }
+    }
   }
 
   // ── Faner (Fase 1c, 13/10-26) ───────────────────────────────────────────

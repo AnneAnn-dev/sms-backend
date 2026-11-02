@@ -4,13 +4,13 @@
 
 ## Skrift
 
-To skrifttyper: **Nunito** til titler, overskrifter, knapper og etiketter; **Source Sans 3** til brødtekst og feltindhold (reserve for begge: system-ui, sans-serif). Fire størrelser — ikke flere. Forskel på vigtigt og mindre vigtigt laves med **vægt og farve**, ikke med en ny størrelse.
+Én skrifttype: **Nunito** (reserve: system-ui, sans-serif). Fire størrelser — ikke flere. Forskel på vigtigt og mindre vigtigt laves med **vægt og farve**, ikke med en ny størrelse.
 
 | Rolle | Størrelse / vægt | Bruges til |
 |---|---|---|
 | **Titel** | 22 px / 800 | Topbjælken, vinduets titel, kundens navn på kundesiden, arkets titel |
 | **Overskrift** | 17 px / 800 | Opgavens overskrift og kundens navn i listerne, punkterne på profilen |
-| **Tekst** | 16 px / 400 | Brødtekst, feltindhold, anden linje i lister (grå) — Source Sans 3. **Knapper: 16 px / 800 Nunito** |
+| **Tekst** | 16 px / 400 | Brødtekst, feltindhold, anden linje i lister (grå). **Knapper: 16 px / 800** |
 | **Etiket** | 13 px / 700, versaler | Feltetiketter, fanerne i bundbjælken |
 
 **Intet skrivefelt under 16 px** — ellers zoomer iPhone ind, når man trykker i feltet.
@@ -21,18 +21,16 @@ To skrifttyper: **Nunito** til titler, overskrifter, knapper og etiketter; **Sou
 |---|---|---|
 | Hvid | `#FFFFFF` | Lister og skrivefelter |
 | Svag lyseblå | `#FAFCFE` | Baggrund på sider med skrivefelter |
-| Blå | `#2C6B9E` | Knapper (primær), links, aktiv fane, streg: **ny** opgave |
-| Rød | `#C24444` | Streg: **haster** — og knappen **Slet kunde** (det eneste sted, rød er en knap) |
+| Blå | `#2B5B8A` | Knapper (primær), links, aktiv fane |
+| Klar blå | `#2F6FD6` | Streg: **ny** opgave |
+| Rød | `#C0392B` | Streg: **haster** — og knappen **Slet kunde** (det eneste sted, rød er en knap) |
 | Grå | `#B8C1CC` | Streg: **afsluttet** opgave / **inaktiv** kunde |
-| Mørk tekst | `#16232F` | Al hovedtekst |
-| Grå tekst | `#5B6B7A` | Anden linje, etiketter, hjælpetekst |
-| Grøn | `#2E7D52` | **Kun bekræftelse efter et tryk:** knappen bliver grøn et øjeblik (fx *Kopieret*, *Gemt*, *✓ Beskeden er klar*) og går derefter tilbage |
-| Kantlinje | `#E4E9EF` | Felter og hvide knappers kant |
-| Skillelinje | `#E4E9EF` / `#EDF0F4` (underpunkter) | Mellem rækker og sektioner |
+| Mørk tekst | `#1F2D40` | Al hovedtekst |
+| Grå tekst | `#4F5F73` | Anden linje, etiketter, hjælpetekst |
+| Kantlinje | `#D5DDE8` | Felter og hvide knappers kant |
+| Skillelinje | `#E3E8EF` / `#DFE5EE` | Mellem rækker og sektioner |
 
-**Grøn kun som bekræftelse efter et tryk** — aldrig som knapfarve, baggrund, streg eller ikon i hvile (Ann 31/10).
-
-*Værdierne er dashboardets faktiske (staging `ecb84279`), rettet 31/10-26 efter beslutning af Ann. Onboardingen bruger samme værdier.*
+**Ingen grøn.**
 
 ## Regler
 
@@ -41,7 +39,7 @@ To skrifttyper: **Nunito** til titler, overskrifter, knapper og etiketter; **Sou
 3. **Rød er kun *Slet kunde*** (og haster-stregen). Ingen andre røde knapper.
 4. **To ligestillede valg** (fx advarslen i Ny opgave: *Læg på X* / *Ny kunde uden nummer*) er to lige store hvide knapper.
 5. **Streger i venstre margen på en række:**
-   - **blå** (`#2C6B9E`) yderst = ny (forsvinder, når man gør noget ved opgaven)
+   - **blå** yderst = ny (forsvinder, når man gør noget ved opgaven)
    - **rød** som nummer to, med ca. 1 mm luft til den blå = haster
    - **grå** yderst = afsluttet opgave / inaktiv kunde
 6. **Funktioner, man ikke har i sit abonnement, vises gråtonede** (fx Referater) — kommer med trin 5, når modulopdelingen er afgjort (Fase 3).

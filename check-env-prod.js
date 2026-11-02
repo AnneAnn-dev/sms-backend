@@ -23,10 +23,20 @@
 // -----------------------------------------------------------------------------
 
 require("dotenv").config({ quiet: true });
+const { doemPlan, doemTestFelt, nyesteAbonnementFraEvents } = require("./frisbii-tjek");
 
 const PROD_REF     = "glymuxqtrbpeyzmflilf";  // prod-Supabase-projektet
 const STAGING_REF  = "hehrvdmtzokzbnbihcel";  // staging — maa IKKE optraede nogen steder
 const PROD_RAILWAY = "sms-backend-production-5ee1.up.railway.app";
+
+// Frisbii (tilfoejet 28/10-26 - filen havde intet Frisbii-tjek, D41-rettelsen 27/10).
+// Kontoen "Dit Digitale Kontor" har en LIVE- og en TEST-side med hver sine noegler.
+// Aflaest i Frisbii-admin 27/10: LIVE = test-2-lommekontor (prod),
+// TEST "Dur ikke" = test-2-lommekontor_test (maa ingen pege paa),
+// TEST "Dit Digitale Kontor" = lommekontor (staging).
+const PROD_FRISBII_HANDLE    = "test-2-lommekontor";
+const FORVENTET_PROEVEDAGE   = 7;     // D26: besluttet af Ann 25/10
+const FORVENTET_FRISBII_TEST = false; // D41: prod skal vaere LIVE-siden
 
 let fejl = 0;
 let advarsler = 0;
@@ -106,6 +116,16 @@ console.log("\nTwilio (statisk — koer --live for facit):");
   else ok(`TWILIO_SYSTEM_NUMBER: ${sys} (prods systemnummer bor i HOVEDKONTOEN)`);
 }
 
+// ── Frisbii (statisk — koer --live for facit) ──────────────────────────────
+console.log("\nFrisbii (statisk — koer --live for facit):");
+{
+  process.env.FRISBII_PRIVATE_KEY    ? ok("FRISBII_PRIVATE_KEY er sat (siden afgoeres af --live)") : fail("FRISBII_PRIVATE_KEY mangler");
+  process.env.FRISBII_WEBHOOK_SECRET ? ok("FRISBII_WEBHOOK_SECRET er sat (kan ikke doemmes herfra - se D41)") : fail("FRISBII_WEBHOOK_SECRET mangler");
+  process.env.FRISBII_PLAN_HANDLE
+    ? ok(`FRISBII_PLAN_HANDLE: ${process.env.FRISBII_PLAN_HANDLE}`)
+    : fail("FRISBII_PLAN_HANDLE mangler — /checkout/start kan ikke oprette abonnementer");
+}
+
 // ── Mail-adfaerd (informativt, ikke en fejl) ────────────────────────────────
 console.log("\nMail-adfaerd:");
 {
@@ -168,6 +188,68 @@ async function supaFetch(path, key) {
           : ok(`Twilio-konto: '${konto.friendly_name}' (verificer selv: er det HOVEDKONTOEN?)`);
       }
     } catch (e) { fail(`Twilio unreachable: ${e.message}`); }
+
+    // 5-7) Frisbii (D26, D41, Oe6). Samme domme som staging - frisbii-tjek.js.
+    const fAuth = { headers: {
+      Authorization: "Basic " + Buffer.from(`${process.env.FRISBII_PRIVATE_KEY || ""}:`).toString("base64"),
+      Accept: "application/json" } };
+    const dom = (d) => (d.ok ? ok(`${d.navn} — ${d.detalje}`) : fail(`${d.navn} — ${d.detalje}`));
+
+    // 5) Hvilken konto hoerer noeglen til?
+    let frisbiiErProd = false;
+    try {
+      const r = await fetch("https://api.reepay.com/v1/account", fAuth);
+      const konto = r.ok ? await r.json() : null;
+      frisbiiErProd = konto?.handle === PROD_FRISBII_HANDLE;
+      if (!konto) fail(`Frisbii: hvilken konto hoerer noeglen til? — HTTP ${r.status} (forkert noegle?)`);
+      else if (frisbiiErProd) ok(`Frisbii: hvilken konto hoerer noeglen til? — handle="${konto.handle}" (prod)`);
+      else fail(`Frisbii: hvilken konto hoerer noeglen til? — handle="${konto.handle}", forventede "${PROD_FRISBII_HANDLE}"` +
+        (konto.handle === "lommekontor" ? " — det er STAGING-kontoen!" : "") +
+        (konto.handle === "test-2-lommekontor_test" ? " — det er testsiden \"Dur ikke\" (D41)!" : ""));
+    } catch (e) { fail(`Frisbii unreachable: ${e.message}`); }
+
+    // Overstyring - kun for at se tjekkene roede med vilje.
+    let forventetDage = FORVENTET_PROEVEDAGE, forventetTest = FORVENTET_FRISBII_TEST;
+    if (process.env.CHECK_FORVENTET_PROEVEDAGE) {
+      forventetDage = Number(process.env.CHECK_FORVENTET_PROEVEDAGE);
+      warn(`CHECK_FORVENTET_PROEVEDAGE er sat — forventer ${forventetDage} dage i stedet for ${FORVENTET_PROEVEDAGE}. Fjern den bagefter`);
+    }
+    if (process.env.CHECK_FORVENTET_FRISBII_TEST) {
+      forventetTest = process.env.CHECK_FORVENTET_FRISBII_TEST === "true";
+      warn(`CHECK_FORVENTET_FRISBII_TEST er sat — forventer test=${forventetTest} i stedet for ${FORVENTET_FRISBII_TEST}. Fjern den bagefter`);
+    }
+
+    if (!frisbiiErProd) {
+      fail("Frisbii: plan- og test-side-tjek (D26, D41) — sprunget over, noeglen hoerer ikke til prod-kontoen");
+    } else {
+      // 6) Planen: findes den som aktiv version, har den proeveperiode, er den 7 dage?
+      try {
+        const handle = process.env.FRISBII_PLAN_HANDLE;
+        if (!handle) fail("Frisbii: plantjek (D26) — FRISBII_PLAN_HANDLE mangler");
+        else {
+          const r = await fetch("https://api.reepay.com/v1/plan", fAuth);
+          if (!r.ok) fail(`Frisbii: plantjek (D26) — GET /plan -> HTTP ${r.status}`);
+          else for (const d of doemPlan(await r.json(), handle, forventetDage)) dom(d);
+        }
+      } catch (e) { fail(`Frisbii: plantjek (D26) — ${e.message}`); }
+
+      // 7) Er det LIVE-siden? test-feltet paa det nyeste abonnement skal vaere false.
+      try {
+        const r = await fetch("https://api.reepay.com/v1/event?size=100", fAuth);
+        if (!r.ok) fail(`Frisbii: test-side (D41) — GET /event -> HTTP ${r.status}`);
+        else {
+          const subHandle = nyesteAbonnementFraEvents(await r.json());
+          let sub = null;
+          if (subHandle) {
+            const s2 = await fetch(`https://api.reepay.com/v1/subscription/${encodeURIComponent(subHandle)}`, fAuth);
+            if (s2.ok) sub = await s2.json();
+          }
+          const d = doemTestFelt(sub, subHandle, forventetTest);
+          // Overskriften er skrevet til staging; her er spoergsmaalet det omvendte.
+          dom({ ...d, navn: "Frisbii: hoerer noeglen til LIVE-siden (abonnementets test-felt)?" });
+        }
+      } catch (e) { fail(`Frisbii: test-side (D41) — ${e.message}`); }
+    }
   } else {
     console.log("\n  ℹ️  Koer med --live foer enhver prod-koersel:  node check-env-prod.js --live");
     console.log("     (projekt/rolle for Supabase kan ikke afgoeres statisk laengere)");

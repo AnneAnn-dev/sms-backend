@@ -147,11 +147,16 @@ module.exports = (app, supabase) => {
       // "annXb@x.dk" — og korrekt escaping gennem PostgREST er ny
       // query-semantik paa login-redningsvejen. To dage foer go-live er det
       // ikke en byttehandel vaerd; datafixet er entydigt og kan efterproeves.
-      const { data: firm, error: opslagFejl } = await supabase
+      // 31/10-26 (D91): .maybeSingle() fejlede med "multiple rows", naar
+      // e-mailen havde flere firmaer (set i staging, og Annes testkonto i prod
+      // har tre) - og saa kom der INGEN mail. Vi skal kun vide, OM der findes
+      // et firma; login-linket gaelder brugeren, ikke et bestemt firma.
+      const { data: fundne, error: opslagFejl } = await supabase
         .from("firms")
         .select("id")
         .eq("email", email)
-        .maybeSingle();
+        .limit(1);
+      const firm = fundne && fundne[0];
 
       // `error` blev foer kastet vaek i destruktureringen. Fejlede opslaget —
       // RLS, netvaerk, skema-cache — saa det ud PRAECIS som "ukendt email":

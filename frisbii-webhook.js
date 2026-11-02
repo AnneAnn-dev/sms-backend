@@ -30,9 +30,20 @@
 
 const crypto = require("crypto");
 const twilio = require("twilio");
-const { sendWelcomeMail, sendAdminAlert } = require("./mail");
+const { sendWelcomeMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail } = require("./mail");
 const { uniqueSlug } = require("./slug");
 const { maskerTlf, maskerMail, normalizePhone, vaelgLedigtNummer } = require("./phone");
+// Fase 3, T6: synk bag FASE3_SYNK. Slukket = intet nyt sker (se frisbii-webhook-synk.js).
+const { FASE3_SYNK } = require("./flags");
+const { efterEvent, alarmVedFejl } = require("./frisbii-webhook-synk");
+const { synkFirma } = require("./frisbii-synk");
+const { lavFrisbiiGet } = require("./frisbii-miljoe");
+// Fase 3, T7a: nummerets egne funktioner + karantaene efter verifikation (D95).
+const { sikrTelefonModul, frigivNummer, nummerEfterSynk } = require("./telefon-nummer");
+// Fase 3, T7b: nummeret efter synk + puljealarmerne (delt med gensynk-firma.js).
+const { alarmSpoegelser, alarmLavPulje, nummerOgBesked } = require("./frisbii-nummer");
+// Fase 3, T8a: samme firma hele vejen (D91, loesning B).
+const { kundeBeslutning, firmaerMedEmail, sikrLogin, genoplivFirma, alarmTekst } = require("./frisbii-kunde");
 
 // Kun "+45" + otte cifre godtages som haandvaerkerens eget mobilnummer.
 // Frisbii-feltet er frit tekst og valgfrit, saa der kan staa hvad som helst
@@ -58,6 +69,14 @@ module.exports = (app, supabase) => {
 
   const PRIVATE_KEY    = process.env.FRISBII_PRIVATE_KEY;    // privat API-noegle
   const WEBHOOK_SECRET = process.env.FRISBII_WEBHOOK_SECRET; // secret fra webhook-indstillingerne
+  // T6: synkFirma henter selv abonnement og add-ons med samme noegle.
+  const frisbiiHent = lavFrisbiiGet(PRIVATE_KEY);
+  // T7b: puljealarmer og "dit nummer er klar" (frisbii-nummer.js).
+  const alarmDeps = { alarm: sendAdminAlert, log: console };
+  const nummerDeps = {
+    supabase, twilioClient, alarm: sendAdminAlert, log: console,
+    sendNummerKlar: sendNummerKlarMail, loginUrl: `${process.env.BASE_URL}/dashboard`,
+  };
 
   // ─── Signatur: HMAC-SHA256(secret, timestamp + id), hex ─────────────────────
   // Daekker KUN timestamp+id -> ingen raa body noedvendig (modsat Shopify).
@@ -126,9 +145,13 @@ module.exports = (app, supabase) => {
 
   // ─── Bogfoer udfaldet af behandlingen ────────────────────────────────────────
   // processed_at saettes KUN ved succes. Ved fejl gemmes aarsagen i error og
-  // processed_at forbliver NULL — saa Frisbiis naeste retry faar "unprocessed"
-  // og proever igen. Tabellen ER dermed vores dead-letter-liste:
+  // processed_at forbliver NULL. Tabellen ER dermed vores dead-letter-liste:
   //   select * from frisbii_webhook_events where processed_at is null;
+  // MAALT 29/10-26 (D92): Frisbii proever IKKE selv igen. Vi svarer 200 foer
+  // behandlingen, og Frisbii bogfoerer eventet som COMPLETED efter 1 forsoeg.
+  // En raekke her bliver kun behandlet igen, naar et menneske gensender eventet
+  // i Frisbii (Webhooks) - saa giver claim "unprocessed" - eller koerer
+  // gensynk-firma.js. Den planlagte genbehandling er D92 del 3b.
   async function markProcessed(webhookId) {
     const { error } = await supabase
       .from("frisbii_webhook_events")
@@ -218,33 +241,14 @@ module.exports = (app, supabase) => {
     return true;
   }
 
-  // ─── Har abonnementet nogensinde haft en betalt faktura? ────────────────────
-  // Afgoer karantaeneperioden ved deprovisionering: proevekunder (aldrig betalt)
-  // faar kort karantaene, betalende kunder lang. Kilden er Frisbii (fakturaerne
-  // lyver ikke). FAIL-SAFE: kan sporgsmaalet ikke besvares (API-fejl, ukendt
-  // svarformat), antages BETALT -> lang karantaene. Hellere gemme et nummer for
-  // laenge end at genbruge en betalende kundes nummer for tidligt.
-  async function hasEverPaid(subscriptionHandle) {
-    try {
-      const res = await frisbiiGet(
-        `/list/invoice?subscription=${encodeURIComponent(subscriptionHandle)}&state=settled&size=20`
-      );
-      const invoices = res?.content || res || [];
-      if (!Array.isArray(invoices)) throw new Error("uventet svarformat fra /list/invoice");
-      return invoices.some((inv) => (inv.amount ?? 0) > 0);
-    } catch (err) {
-      console.warn("⚠️  Kunne ikke afgoere betalingshistorik (antager BETALT, lang karantaene):", err.message);
-      return true;
-    }
-  }
-
   // ─── Deprovisionering: her lukkes udgiftsdriveren ────────────────────────────
   // Kaldes ved subscription_expired (og expired_dunning): kunden har ikke
   // laengere et betalt abonnement. Firmaet saettes inaktivt (rutning stopper),
-  // og nummeret haandteres efter betalingshistorik:
-  //   - proevekunde (aldrig betalt):  frigives STRAKS til puljen (ingen karantaene)
-  //   - betalende kunde:              KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
-  //     — en vundet-tilbage kunde skal kunne faa SIT nummer igen (det staar paa bilen!)
+  // og nummeret frigives med frigivNummer (telefon-nummer.js, T7a):
+  //   - nummeret har ALDRIG vaeret verificeret: frigives STRAKS (ingen karantaene)
+  //   - nummeret HAR vaeret verificeret:        KARANTAENE i QUARANTINE_DAYS_PAID (default 30)
+  //     — det har vaeret kundens (det staar paa bilen!), uanset prisen (D95, Ann 30/10).
+  //     Foer afgjordes det af betalingshistorikken, og en 0-kr.-pris taltes som "proeve".
   // last_firm_id gemmes, saa win-back kan genforene kunde og nummer med ét opslag.
   // Pool-udvaelgelsen springer karantaene-numre over, til perioden er udloebet.
   // Idempotent: koeres den to gange, goer anden koersel intet.
@@ -261,7 +265,7 @@ module.exports = (app, supabase) => {
 
     if (findErr) {
       console.error("❌ Deprovisionering: kunne ikke slaa firma op:", findErr);
-      throw findErr; // -> markFailed: genbehandles ved naeste retry
+      throw findErr; // -> markFailed: dead-letter (Frisbii gensender ikke selv, D92)
     }
     if (!firm) {
       console.warn("⚠️  Deprovisionering: intet firma for", subscriptionHandle, "— ignorerer");
@@ -272,28 +276,17 @@ module.exports = (app, supabase) => {
       return;
     }
 
-    // Karantaeneperiode efter betalingshistorik:
-    //   - proevekunde (aldrig betalt en krone): INGEN karantaene — nummeret
-    //     frigives straks (svag binding: nummeret naaede naeppe bilen paa en proeve)
-    //   - betalende kunde: QUARANTINE_DAYS_PAID (default 30) — win-back-vindue
-    const paid = await hasEverPaid(subscriptionHandle);
-    const days = paid ? (Number(process.env.QUARANTINE_DAYS_PAID) || 30) : 0;
-    const quarantinedUntil = days > 0
-      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    // 1) Frigiv nummeret — med karantaene hvis kunden var betalende.
-    //    last_firm_id gemmes i BEGGE tilfaelde (billigt historisk spor).
-    const { error: poolErr } = await supabase
-      .from("phone_numbers")
-      .update({ firm_id: null, quarantined_until: quarantinedUntil, last_firm_id: firm.id })
-      .eq("firm_id", firm.id);
-    if (poolErr) {
-      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr);
+    // 1) Frigiv nummeret (begge registreringer) — karantaene, hvis det har
+    //    vaeret verificeret. last_firm_id gemmes i begge tilfaelde.
+    let frigivet;
+    try {
+      frigivet = await frigivNummer({ supabase, firmId: firm.id });
+    } catch (poolErr) {
+      console.error("❌ Deprovisionering: kunne ikke frigive nummer:", poolErr.message);
       throw poolErr;
     }
 
-    // 2) Ryd firmaets nummer-kolonne + saet inaktiv (rutning stopper)
+    // 2) Saet inaktiv (rutning stopper). phone_number er ryddet af frigivNummer.
     const { error: firmErr } = await supabase
       .from("firms")
       .update({ status: "inactive", phone_number: null })
@@ -304,13 +297,85 @@ module.exports = (app, supabase) => {
     }
 
     console.log(
-      paid
-        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} i karantaene til ${quarantinedUntil} (betalt kunde: ${days} dage)`
-        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${firm.phone_number} frigivet STRAKS (proevekunde, ingen karantaene)`
+      frigivet.karantaeneTil
+        ? `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${frigivet.nummer} i karantaene til ${frigivet.karantaeneTil} (nummeret har vaeret verificeret)`
+        : `🔻 DEPROVISIONERET: firma ${firm.id} (${firm.name}) — nummer ${frigivet.nummer || "(intet)"} frigivet STRAKS (aldrig verificeret, ingen karantaene)`
     );
   }
 
   // ─── Provisionering (spejler Shopify-flowet i onboarding.js) ────────────────
+  // Prefetch-sikkert login-link (token_hash), som velkomstmailen bruger.
+  // T8a: delt med genoplivningen. Samme kald som i provisionFirm nedenfor.
+  async function lavLoginUrl(email) {
+    const { data: linkData } = await supabase.auth.admin.generateLink({
+      type:    "magiclink",
+      email,
+      options: { redirectTo: `${process.env.BASE_URL}/onboarding` },
+    });
+    const tokenHash = linkData?.properties?.hashed_token;
+    return tokenHash
+      ? `${process.env.BASE_URL}/onboarding?token_hash=${encodeURIComponent(tokenHash)}&type=email`
+      : `${process.env.BASE_URL}/dashboard`;
+  }
+
+  // ─── T8a: kender vi kunden i forvejen? (kun bag FASE3_SYNK) ─────────────────
+  // Returnerer true, hvis abonnementet er HAANDTERET her (intet nyt firma skal
+  // oprettes), false, hvis provisionFirm skal oprette et firma som foer.
+  async function genkendKunde({ customer, subHandle, email }) {
+    const firmaer = await firmaerMedEmail(supabase, email);
+    const b = kundeBeslutning({ firmaer, abonnement: subHandle });
+    if (b.handling === "ny") return false;
+    if (b.handling === "behandlet") {
+      console.log("ℹ️  Abonnement allerede behandlet:", subHandle);
+      return true;
+    }
+    if (b.handling === "koerer" || b.handling === "pilot" || b.handling === "flere") {
+      const a = alarmTekst(b.handling, { abonnement: subHandle, firma: b.firma, firmaer: b.firmaer, mailMaskeret: maskerMail(email) });
+      console.warn(`⚠️  T8a: ${b.handling} - intet nyt firma for ${subHandle} (${maskerMail(email)})`);
+      await sendAdminAlert(a).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+      if (b.handling === "flere") {
+        // Dead-letter, saa eventet kan gensendes, naar Ann har ryddet op.
+        const fejl = new Error(`flere firmaer paa samme e-mail - intet oprettet (${subHandle})`);
+        fejl.alarmSendt = true;
+        throw fejl;
+      }
+      return true;
+    }
+
+    // "genopliv": det gamle firma vaagner (Ann 31/10, beslutning 2).
+    const g = await genoplivFirma(
+      { supabase, twilioClient, hent: frisbiiHent, synkFirma, nummerEfterSynk, log: console },
+      { firma: b.firma, abonnement: subHandle, kundeHandle: customer.handle },
+    );
+    if (g.status === "race") {
+      console.log("ℹ️  Race tabt - firmaet blev netop genoplivet af et parallelt event:", subHandle);
+      return true;
+    }
+    try {
+      await sikrLogin({ supabase, firmId: b.firma.id, email, firmName: b.firma.name });
+    } catch (e) {
+      console.error("❌ T8a: login kunne ikke kobles til det genoplivede firma:", e.message);
+      await sendAdminAlert({
+        subject: `Login ikke koblet - genoplivet firma ${b.firma.name || b.firma.id}`,
+        text: `Firmaet ${b.firma.id} er genoplivet med ${subHandle}, men login kunne ikke kobles (firm_users):
+${e.message}
+
+Kunden kan ikke logge ind i firmaet, foer koblingen er lavet.`,
+      }).catch(() => {});
+    }
+    try {
+      const loginUrl = await lavLoginUrl(email);
+      const svar = await sendVelkommenTilbageMail({
+        to: email, firmName: b.firma.name, loginUrl, moduler: g.moduler,
+        nummer: g.nummer, egetNummer: g.egetNummer, venter: g.venter,
+      });
+      console.log(svar?.blocked ? "📧 Velkommen tilbage BLOKERET af staging-gaten:" : "✉️  Velkommen tilbage sendt til:", maskerMail(email));
+    } catch (mailErr) {
+      console.error("❌ Velkommen tilbage-mail fejlede (firmaet ER genoplivet):", mailErr.message || mailErr);
+    }
+    return true;
+  }
+
   async function provisionFirm({ customer, subscription }) {
     const subHandle = subscription.handle;
     const email     = customer.email?.toLowerCase().trim();
@@ -350,6 +415,9 @@ module.exports = (app, supabase) => {
       return;
     }
 
+    // T8a: samme e-mail -> samme firma (D91). Slukket flag: som foer.
+    if (FASE3_SYNK && await genkendKunde({ customer, subHandle, email })) return;
+
     // Idempotens — er abonnementet allerede behandlet? (renewal/duplikat -> spring over)
     const { data: existing } = await supabase
       .from("firms")
@@ -368,36 +436,31 @@ module.exports = (app, supabase) => {
     // raekken blev slettet. Et spoegelse er et doedt nummer for kunden.
     // Kan Twilio ikke naas, kaster vaelgLedigtNummer -> dead-letter -> retry.
     // Vi gaetter aldrig paa, om et nummer findes.
-    const { valgt: phoneRow, spoegelser, ledigeVerificeret } =
-      await vaelgLedigtNummer({ supabase, twilioClient });
+    // T7b: med FASE3_SYNK oprettes firmaet FOERST, uden nummer, og nummeret
+    // tildeles bagefter - kun hvis Telefonpasser er koebt (D25). Slukket flag:
+    // praecis som foer (nummer foerst, tom pulje = intet firma).
+    let phoneRow = null, spoegelser = [], ledigeVerificeret = 0;
+    if (!FASE3_SYNK) {
+      ({ valgt: phoneRow, spoegelser, ledigeVerificeret } = await vaelgLedigtNummer({ supabase, twilioClient }));
 
-    // Spoegelser slettes IKKE herfra — oprydning i prod sker med aabne oejne.
-    // Men de skal ses: uden alarm er det naeste kunde, der opdager dem.
-    if (spoegelser.length) {
-      console.error("👻 Spoegelsesnumre i puljen (findes ikke hos Twilio):", spoegelser.join(", "));
-      await sendAdminAlert({
-        subject: `Spoegelsesnumre i nummerpuljen (${spoegelser.length})`,
-        text:
-          `Disse numre staar som ledige i phone_numbers, men findes ikke i Twilio-kontoen:\n` +
-          `${spoegelser.join("\n")}\n\n` +
-          `De er sprunget over ved tildelingen, saa ingen kunde har faaet et doedt nummer.\n` +
-          `Ryd op: bekraeft med "node afstem-numre.js" og slet derefter raekkerne (RUNBOOK-numre afsnit 5).`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
-    }
+      // Spoegelser slettes IKKE herfra — oprydning i prod sker med aabne oejne.
+      // Men de skal ses: uden alarm er det naeste kunde, der opdager dem.
+      await alarmSpoegelser(alarmDeps, spoegelser);
 
-    if (!phoneRow) {
-      console.error("❌ Ingen ledige numre i puljen!");
-      // Kritisk: en betalende kunde kunne ikke faa et nummer.
-      await sendAdminAlert({
-        subject: "KRITISK: nummerpuljen er TOM",
-        text:
-          `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
-          `Kunde: ${company} <${email}>\n` +
-          `Frisbii-abonnement: ${subHandle}\n` +
-          (spoegelser.length ? `Bemaerk: ${spoegelser.length} raekke(r) i puljen er spoegelser og taeller ikke med.\n` : ``) +
-          `\nFirmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
-      throw new Error("Ingen ledige numre");
+      if (!phoneRow) {
+        console.error("❌ Ingen ledige numre i puljen!");
+        // Kritisk: en betalende kunde kunne ikke faa et nummer.
+        await sendAdminAlert({
+          subject: "KRITISK: nummerpuljen er TOM",
+          text:
+            `En betalende kunde kunne IKKE tildeles et nummer, fordi puljen er tom.\n\n` +
+            `Kunde: ${company} <${email}>\n` +
+            `Frisbii-abonnement: ${subHandle}\n` +
+            (spoegelser.length ? `Bemaerk: ${spoegelser.length} raekke(r) i puljen er spoegelser og taeller ikke med.\n` : ``) +
+            `\nFirmaet er IKKE oprettet. Laeg ledige numre i phone_numbers og opret kunden manuelt.`,
+        }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+        throw new Error("Ingen ledige numre");
+      }
     }
 
     // Generér en unik slug til den maskerede formular-URL
@@ -417,7 +480,7 @@ module.exports = (app, supabase) => {
         slug,
         email,
         owner_phone:                ownerPhone,   // null = onboardingen spoerger, som foer
-        phone_number:               phoneRow.number,
+        phone_number:               phoneRow ? phoneRow.number : null, // T7b: null med FASE3_SYNK
         frisbii_subscription:       subHandle,
         frisbii_customer:           customer.handle,
         status:                     "onboarding", // onboarding-tilstand: → "active" efter verifikation
@@ -449,11 +512,49 @@ module.exports = (app, supabase) => {
       throw firmErr;
     }
 
-    // Knyt nummeret til firmaet
-    await supabase
-      .from("phone_numbers")
-      .update({ firm_id: firm.id })
-      .eq("id", phoneRow.id);
+    let nummer = phoneRow ? phoneRow.number : null;
+    let moduler = ["telefon"];
+    let udenNummer = null; // T7b: "A" (Telefonpasser ikke koebt) | "B" (koebt, puljen tom)
+    let tjekPulje = !FASE3_SYNK; // lav-pulje-alarm kun, naar et nummer netop blev taget
+    if (!FASE3_SYNK) {
+      // Knyt nummeret til firmaet
+      await supabase
+        .from("phone_numbers")
+        .update({ firm_id: firm.id })
+        .eq("id", phoneRow.id);
+
+      // T7a: telefon-raekken i firma_moduler, som triggeren firma_faar_telefon
+      // gav foer (triggeren er fjernet i migrationen t7a).
+      await sikrTelefonModul(supabase, firm.id);
+    } else {
+      // T7b: Frisbii afgoer modulerne (synk), og nummeret foelger dem.
+      const r = await synkFirma({ supabase, hent: frisbiiHent, abonnement: subHandle, skriv: true });
+      if (r.status === "skrevet") {
+        moduler = r.saet.moduler;
+        const n = await nummerEfterSynk({ supabase, twilioClient, firmId: firm.id, saet: r.saet });
+        if (n.status === "tildelt") {
+          nummer = n.nummer;
+          tjekPulje = true;
+          ledigeVerificeret = (n.ledigeVerificeret ?? 0) + 1; // lav-pulje-tjekket nedenfor traekker 1 fra
+          await alarmSpoegelser(alarmDeps, n.spoegelser);
+        } else if (n.status === "har") {
+          nummer = n.nummer;
+        } else if (n.status === "tom") {
+          // Alarmen ("venter paa nummer") og spoegelserne meldes af efterEvent,
+          // som koerer lige efter denne case - ellers kom de to gange.
+          udenNummer = "B";
+        } else {
+          udenNummer = moduler.includes("telefon") ? "B" : "A";
+        }
+      } else {
+        // "ukendt" produkt: synk skrev intet. Firmaet oprettes alligevel (ellers
+        // ville en gensendelse sige "allerede behandlet" og kunden faa intet
+        // login). efterEvent kaster bagefter -> dead-letter + alarm.
+        moduler = [];
+        udenNummer = "A";
+        console.warn(`⚠️  Firma ${firm.id} oprettet UDEN moduler: synk sagde "${r.status}" (${subHandle})`);
+      }
+    }
 
     // ─── D33: firmanavnet manglede — sig det, i stedet for at substituere tavst ──
     // Alarmen forhindrer ikke den forkerte provisionering; den goer den SYNLIG.
@@ -490,25 +591,30 @@ module.exports = (app, supabase) => {
       }).catch((e) => console.error("⚠️  Kunne ikke sende alarm om manglende firmanavn:", e.message));
     }
 
-    // Advar hvis puljen er ved at loebe toer. Tallet er nu VERIFICEREDE ledige
-    // numre — karantaene-numre og spoegelser taeller ikke med. Den gamle
-    // optaelling spurgte kun vores egen tabel og sagde 4/9-26 "3 ledige", hvor
-    // det sande tal var 1. En alarm, der overvurderer beholdningen, er verre
-    // end ingen alarm. (-1 fordi det netop tildelte nummer ikke er ledigt mere.)
-    const LOW_POOL = Number(process.env.LOW_POOL_THRESHOLD) || 3;
-    const ledige = Math.max(0, ledigeVerificeret - 1);
-    if (ledige <= LOW_POOL) {
-      console.warn(`⚠️  Nummerpulje lav: ${ledige} ledige tilbage`);
-      await sendAdminAlert({
-        subject: `Nummerpulje lav: ${ledige} ledige tilbage`,
-        text:
-          `Der er kun ${ledige} ledige numre tilbage i phone_numbers.\n\n` +
-          `Laeg flere numre i puljen, foer den loeber helt toer og en kunde ikke kan oprettes.`,
-      }).catch((e) => console.error("⚠️  Kunne ikke sende alarm:", e.message));
+    // Advar hvis puljen er ved at loebe toer. Tallet er VERIFICEREDE ledige
+    // numre — karantaene-numre og spoegelser taeller ikke med (se 4/9-26).
+    // (-1 fordi det netop tildelte nummer ikke er ledigt mere.) Kun naar et
+    // nummer faktisk blev tildelt (T7b: ikke ved "uden nummer").
+    if (tjekPulje) await alarmLavPulje(alarmDeps, Math.max(0, ledigeVerificeret - 1));
+
+    // T8a: med flaget kobles firmaet ogsaa til et login, der findes i forvejen
+    // (beslutning 3, Ann 31/10) - D91-roden. Fejler det, faar Ann en alarm;
+    // firmaet er oprettet, og koblingen kan laves i haanden.
+    if (FASE3_SYNK) {
+      try {
+        const l = await sikrLogin({ supabase, firmId: firm.id, email, firmName: company });
+        if (!l.nyBruger) console.log("ℹ️  Login fandtes allerede for", maskerMail(email), "- koblet til det nye firma");
+      } catch (e) {
+        console.error("❌ T8a: login kunne ikke kobles til firmaet:", e.message);
+        await sendAdminAlert({
+          subject: `Login ikke koblet - nyt firma ${company}`,
+          text: `Firmaet ${firm.id} er oprettet (${subHandle}), men login kunne ikke kobles (firm_users):\n${e.message}\n\nKunden kan ikke logge ind i firmaet, foer koblingen er lavet.`,
+        }).catch(() => {});
+      }
     }
 
-    // Opret Supabase Auth-bruger
-    const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+    // Opret Supabase Auth-bruger (uden flaget: som foer)
+    const { data: authUser, error: authErr } = FASE3_SYNK ? { data: null, error: null } : await supabase.auth.admin.createUser({
       email,
       email_confirm: true,
       user_metadata: { firm_id: firm.id, firm_name: company },
@@ -545,7 +651,10 @@ module.exports = (app, supabase) => {
 
     // Send velkomstmail (delt funktion fra mail.js)
     try {
-      const mailResult = await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: phoneRow.number });
+      // T7b: uden nummer -> variant A (Telefonpasser ikke koebt) eller B (nummeret er paa vej).
+      const mailResult = nummer
+        ? await sendWelcomeMail({ to: email, firmName: company, loginUrl, phoneNumber: nummer })
+        : await sendVelkomstUdenNummerMail({ to: email, firmName: company, loginUrl, moduler, variant: udenNummer || "A" });
       if (mailResult?.blocked) {
         console.log("📧 Velkomstmail BLOKERET af staging-gaten (ikke sendt):", maskerMail(email));
       } else {
@@ -556,7 +665,7 @@ module.exports = (app, supabase) => {
       // Firma er oprettet — mail kan sendes igen manuelt
     }
 
-    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", maskerTlf(phoneRow.number));
+    console.log("✅ Firma oprettet (Frisbii):", firm.id, "—", company, "→", nummer ? maskerTlf(nummer) : `(uden nummer, variant ${udenNummer || "A"})`);
   }
 
   // ─── Webhook-rute (express.json() er allerede sat globalt i server.js) ──────
@@ -581,7 +690,8 @@ module.exports = (app, supabase) => {
     // (tom nummerpulje, mail-fejl, dublet-email osv.) aldrig faa Frisbii til at
     // disable webhooket. Provisioneringen koerer bagefter; fejl logges blot —
     // OG bogfoeres i frisbii_webhook_events (processed_at/error), saa et fejlet
-    // event kan genbehandles ved Frisbiis naeste retry i stedet for at gaa tabt.
+    // event kan genbehandles ved en gensendelse fra Frisbii i stedet for at gaa
+    // tabt. Frisbii gensender IKKE af sig selv (maalt 29/10-26, D92).
     res.status(200).send("ok");
 
     if (claim === "processed") return; // faerdigbehandlet tidligere — intet mere at goere
@@ -629,7 +739,7 @@ module.exports = (app, supabase) => {
           // idempotens-tjek goer provisioneringen til en no-op, og settled-
           // casens setBillingStatus bekraefter blot active. Betaler kunden
           // ALDRIG, koerer dunning -> expired -> deprovisionering, hvor
-          // hasEverPaid doemmer "proevekunde" -> nummeret frigives straks.
+          // nummeret frigives straks, medmindre det naaede at blive verificeret (T7a, D95).
           break;
         }
 
@@ -719,17 +829,32 @@ module.exports = (app, supabase) => {
         }
 
         default:
-          break; // oevrige events ignoreres bevidst — men markeres behandlet nedenfor
+          break; // oevrige events: ingen egen case. Med FASE3_SYNK logges og synkes de nedenfor (D92)
       }
+
+      // Fase 3, T6: Frisbii -> firma_moduler. Slukket flag = returnerer straks.
+      // Kaster ved ukendt produkt eller fejl -> catch -> dead-letter + alarm.
+      await efterEvent({
+        body,
+        aktiv: FASE3_SYNK,
+        synk: (abonnement) => synkFirma({ supabase, hent: frisbiiHent, abonnement, skriv: true }),
+        alarm: sendAdminAlert,
+        log: console,
+        // T7b: nummeret foelger modulerne (tildel ved tilkoeb, frigiv ved fravalg).
+        efterSkrevet: (r) => nummerOgBesked(nummerDeps, r),
+      });
 
       // Alt gik godt (eller eventet var bevidst ignoreret): bogfoer succes,
       // saa fremtidige dubletter/retries afvises som "processed".
       await markProcessed(body.id);
     } catch (err) {
       // Svaret er allerede sendt (200) — vi logger og bogfoerer fejlen.
-      // processed_at forbliver NULL -> Frisbiis naeste retry genbehandler.
-      console.error("❌ Frisbii efterbehandling fejlede (genbehandles ved naeste retry):", err);
+      // processed_at forbliver NULL -> dead-letter. Frisbii gensender IKKE af sig
+      // selv (maalt 29/10-26): gensend i Frisbii eller koer gensynk-firma.js.
+      console.error("❌ Frisbii efterbehandling fejlede (staar i dead-letter - Frisbii gensender IKKE selv):", err);
       await markFailed(body.id, err.message || err);
+      // T6 (D92): med FASE3_SYNK giver et fejlet event alarm. Slukket = som foer.
+      await alarmVedFejl({ body, fejl: err, aktiv: FASE3_SYNK, alarm: sendAdminAlert, log: console });
     }
   });
 

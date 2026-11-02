@@ -18,12 +18,28 @@
 // Derfor: koer ALTID --live efter en noeglerotation. Statisk groent er ikke nok.
 // -----------------------------------------------------------------------------
 require("dotenv").config({ quiet: true });
+const { doemPlan, doemTestFelt, nyesteAbonnementFraEvents, doemProdukter } = require("./frisbii-tjek");
+const { produkterTilSalg } = require("./frisbii-katalog");
 
 // ─── FACIT: staging-miljoeets kendetegn ─────────────────────────────────────
 const STAGING_SUPABASE_REF   = "hehrvdmtzokzbnbihcel";
 const STAGING_BASE_URL       = "https://sms-backend-staging-908c.up.railway.app";
 const FRISBII_STAGING_HANDLE = "lommekontor";               // staging-KONTOENS handle
 const TWILIO_SUBACCOUNT_NAME = "ditdigitalekontor-staging"; // subkontoens friendly name
+
+// D26 (genaabnet 25/10-26): proeveperioden paa planen er besluttet til 7 dage
+// (Ann 25/10, D25 - indloesningsaftaleudbyderen bad om det). Afviger Frisbii,
+// skal tjekket blive roedt. CHECK_FORVENTET_PROEVEDAGE findes KUN for at kunne
+// se tjekket roedt med vilje; saettes den, siger outputtet det hoejt.
+const FORVENTET_PROEVEDAGE = 7;
+
+// D41 (27/10-26): Frisbii har en test- og en live-side med hver sine noegler.
+// Kontoens handle siger ikke, hvilken side noeglen hoerer til, og /account har
+// intet test-felt (maalt 25/10). Abonnementerne har: test=true paa testsiden.
+// Staging skal ALTID vaere testsiden - ellers kan lokale koersler traekke
+// rigtige penge. CHECK_FORVENTET_FRISBII_TEST findes KUN for at kunne se
+// tjekket roedt med vilje; saettes den, siger outputtet det hoejt.
+const FORVENTET_FRISBII_TEST = true;
 
 let fails = 0;
 let warns = 0;
@@ -132,6 +148,8 @@ check("VAPID-noeglepar er sat (begge dele)",
 // Frisbii: kun tilstedevaerelse statisk (kontoen doemmes af --live)
 check("FRISBII_PRIVATE_KEY er sat", !!process.env.FRISBII_PRIVATE_KEY);
 check("FRISBII_WEBHOOK_SECRET er sat", !!process.env.FRISBII_WEBHOOK_SECRET);
+check("FRISBII_PLAN_HANDLE er sat", !!process.env.FRISBII_PLAN_HANDLE,
+  process.env.FRISBII_PLAN_HANDLE || "MANGLER - /checkout/start kan ikke oprette abonnementer");
 
 // ─── Live-tjek (--live): spoerg tjenesterne "hvem er du?" ────────────────────
 
@@ -201,12 +219,14 @@ async function live() {
   // og hvad der blev FORVENTET, saa retningen ikke kan misforstaas.
   // (Konstanten var rigtig hele tiden: staging er `lommekontor`. Fejlen laa i
   // .env.staging, der pegede paa den UBRUGTE konto `oprettelse-og-abonnement`.)
+  let frisbiiErStaging = false;
   try {
     const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
     const res  = await fetch("https://api.reepay.com/v1/account",
       { headers: { Authorization: `Basic ${auth}` } });
     const data = res.ok ? await res.json() : null;
     const rigtig = data?.handle === FRISBII_STAGING_HANDLE;
+    frisbiiErStaging = rigtig;
     check("Frisbii: hvilken konto hoerer noeglen til?",
       rigtig,
       data
@@ -215,6 +235,84 @@ async function live() {
             : `handle="${data.handle}" — forventede "${FRISBII_STAGING_HANDLE}"`)
         : `HTTP ${res.status} (forkert noegle?)`);
   } catch (e) { check("Frisbii: forbindelse", false, e.message); }
+
+  // 6) D26: findes planen, har den en proeveperiode, og er den den besluttede?
+  // Kun meningsfuld, naar noeglen hoerer til staging (tjek 5) - ellers doemmes
+  // en anden kontos planer. Derfor springes den over med en FEJL, ikke stille.
+  const handle = process.env.FRISBII_PLAN_HANDLE;
+  let forventet = FORVENTET_PROEVEDAGE;
+  if (process.env.CHECK_FORVENTET_PROEVEDAGE) {
+    forventet = Number(process.env.CHECK_FORVENTET_PROEVEDAGE);
+    warn("CHECK_FORVENTET_PROEVEDAGE er sat - forventningen er OVERSTYRET",
+      `forventer ${forventet} dage i stedet for ${FORVENTET_PROEVEDAGE}. Kun til at se tjekket roedt med vilje; fjern den bagefter`);
+  }
+  if (!handle) {
+    check("Frisbii: plantjek (D26)", false, "FRISBII_PLAN_HANDLE mangler - kan ikke doemme planen");
+  } else if (!frisbiiErStaging) {
+    check("Frisbii: plantjek (D26)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const res  = await fetch("https://api.reepay.com/v1/plan",
+        { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } });
+      if (!res.ok) {
+        check("Frisbii: plantjek (D26)", false, `GET /plan -> HTTP ${res.status}`);
+      } else {
+        for (const d of doemPlan(await res.json(), handle, forventet)) check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: plantjek (D26)", false, e.message); }
+  }
+
+  // 7) D41: er det testsiden? Laeses paa det nyeste abonnement i kontoens events
+  // (/list/subscription svarer 422 - maalt 25/10). Kun naar kontoen er staging.
+  let forventetTest = FORVENTET_FRISBII_TEST;
+  if (process.env.CHECK_FORVENTET_FRISBII_TEST) {
+    forventetTest = process.env.CHECK_FORVENTET_FRISBII_TEST === "true";
+    warn("CHECK_FORVENTET_FRISBII_TEST er sat - forventningen er OVERSTYRET",
+      `forventer test=${forventetTest} i stedet for ${FORVENTET_FRISBII_TEST}. Kun til at se tjekket roedt med vilje; fjern den bagefter`);
+  }
+  if (!frisbiiErStaging) {
+    check("Frisbii: test-side (D41)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const hdr  = { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } };
+      const evRes = await fetch("https://api.reepay.com/v1/event?size=100", hdr);
+      if (!evRes.ok) {
+        check("Frisbii: test-side (D41)", false, `GET /event -> HTTP ${evRes.status}`);
+      } else {
+        const subHandle = nyesteAbonnementFraEvents(await evRes.json());
+        let sub = null;
+        if (subHandle) {
+          const sRes = await fetch(`https://api.reepay.com/v1/subscription/${encodeURIComponent(subHandle)}`, hdr);
+          if (sRes.ok) sub = await sRes.json();
+        }
+        const d = doemTestFelt(sub, subHandle, forventetTest);
+        check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: test-side (D41)", false, e.message); }
+  }
+
+  // 8) Fase 3, T1b: findes katalogets produkter i staging-kontoen? Basisplanen
+  // og hvert add-on, der saelges, med den rigtige pris (frisbii-katalog.js).
+  // Roedt, indtil opret-frisbii-produkter.js har koert.
+  if (!frisbiiErStaging) {
+    check("Frisbii: katalogets produkter (T1)", false, "sprunget over - noeglen hoerer ikke til staging-kontoen (se tjekket ovenfor)");
+  } else {
+    try {
+      const auth = Buffer.from(`${process.env.FRISBII_PRIVATE_KEY}:`).toString("base64");
+      const hdr  = { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } };
+      const [pRes, aRes] = await Promise.all([
+        fetch("https://api.reepay.com/v1/plan", hdr),
+        fetch("https://api.reepay.com/v1/add_on", hdr),
+      ]);
+      if (!pRes.ok || !aRes.ok) {
+        check("Frisbii: katalogets produkter (T1)", false, `GET /plan -> ${pRes.status}, GET /add_on -> ${aRes.status}`);
+      } else {
+        for (const d of doemProdukter(await pRes.json(), await aRes.json(), produkterTilSalg())) check(d.navn, d.ok, d.detalje);
+      }
+    } catch (e) { check("Frisbii: katalogets produkter (T1)", false, e.message); }
+  }
 }
 
 (async () => {

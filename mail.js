@@ -124,6 +124,142 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
   });
 }
 
+// ─── Fase 3, T7b (30/10-26): velkomst UDEN nummer, og "dit nummer er klar" ──
+// Telefonpasser er et tilkoeb (D25). Et firma kan derfor oprettes uden nummer:
+//   variant "A": kunden har ikke koebt Telefonpasser
+//   variant "B": kunden HAR koebt det, men puljen er tom lige nu - nummeret
+//                kommer. Vi lover ingen dage (Ann 30/10); gaar der mere end et
+//                doegn, faar kunden en rabatkode (natlig-frisbii.js melder det).
+// sendNummerKlarMail sendes, naar nummeret bliver tildelt senere (B2).
+// TEKSTERNE ER CLAUDES UDKAST (30/10) - Anne skriver de endelige.
+// Modulernes navne staar ET sted: kataloget (T8b, 31/10 - foer stod de ogsaa her).
+const { KATALOG } = require("./frisbii-katalog");
+const MODUL_NAVNE = Object.fromEntries(Object.entries(KATALOG.MODUL_ADDONS).map(([m, a]) => [m, a.navn]));
+const modulTekst = (moduler) => (moduler || []).map((m) => MODUL_NAVNE[m] || m).join(", ") || "Dit Digitale Kontor";
+const ramme = (indhold) => `
+      <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
+        ${indhold}
+        <p style="color:#aaa;font-size:13px;margin-top:32px">
+          Har du spørgsmål? Svar på denne mail.
+        </p>
+      </div>
+    `;
+const knap = (url, tekst) => `
+        <a href="${url}"
+           style="display:inline-block;background:#2563eb;color:#fff;padding:14px 28px;
+                  border-radius:8px;text-decoration:none;font-weight:500;font-size:16px">
+          ${tekst}
+        </a>`;
+
+async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, variant }) {
+  const venter = variant === "B";
+  const indhold = venter ? `
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${firmName}!</h1>
+        <p style="color:#555;margin-bottom:16px">
+          Din konto er oprettet. Dit eget telefonnummer er på vej — vi sætter det op
+          hurtigst muligt og skriver til dig, så snart det er klar.
+        </p>
+        <p style="color:#555;margin-bottom:24px">
+          Imens kan du logge ind og gøre resten klar: vælg stemme og skriv din
+          velkomstbesked, så er alt klar, når nummeret kommer.
+        </p>
+        ${knap(loginUrl, "Log ind og kom i gang")}
+        <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>` : `
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${firmName}!</h1>
+        <p style="color:#555;margin-bottom:16px">
+          Din konto er oprettet og klar til brug. Du har adgang til: ${modulTekst(moduler)}.
+        </p>
+        <p style="color:#555;margin-bottom:24px">Næste skridt: Log ind og kom i gang.</p>
+        ${knap(loginUrl, "Log ind og kom i gang")}
+        <p style="color:#555;margin-top:24px">
+          Vil du også have et telefonnummer, der tager imod opkald, når du ikke kan nå
+          telefonen? Det kan du tilføje når som helst under Profil → Din pakke.
+        </p>
+        <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>`;
+  return await sendViaScaleway({
+    to,
+    fromEmail: process.env.SMTP_FROM,
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
+    subject:   venter ? `Velkommen, ${firmName} — dit nummer er på vej` : `Velkommen, ${firmName} — din konto er klar`,
+    html: ramme(indhold),
+  });
+}
+
+// ─── Velkommen tilbage (Fase 3, T8a, 31/10-26) ──────────────────────────────
+// Til en kunde, hvis udloebne firma er genoplivet med et nyt abonnement (D91,
+// loesning B): samme login, opgaver og kunder. Fire udgaver efter nummeret.
+// UDKAST (Claude 31/10) - Anne skriver de endelige tekster.
+const tilHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+async function sendVelkommenTilbageMail({ to, firmName, loginUrl, moduler, nummer, egetNummer, venter }) {
+  const navn = tilHtml(firmName);
+  const telefon = (moduler || []).includes("telefon");
+  const nummerBoks = nummer ? `
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:22px;
+                    font-weight:700;letter-spacing:0.05em;text-align:center;margin-bottom:24px">
+          ${tilHtml(nummer)}
+        </div>` : "";
+  let afsnit;
+  if (telefon && nummer && egetNummer) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:16px">Du har dit gamle nummer igen:</p>${nummerBoks}
+        <p style="color:#555;margin-bottom:24px">
+          Har du ikke ændret din viderestilling, virker den med det samme. Dine opgaver
+          og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else if (telefon && nummer) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:16px">Dit gamle nummer var desværre ikke ledigt længere. Dit nye nummer er:</p>${nummerBoks}
+        <p style="color:#555;margin-bottom:24px">
+          Sæt viderestillingen op igen, så opkald, du ikke når, går til dit nye nummer.
+          Log ind, så viser vi dig hvordan. Dine opgaver og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else if (telefon && venter) {
+    afsnit = `
+        <p style="color:#555;margin-bottom:24px">
+          Dit telefonnummer er på vej — vi skriver til dig, så snart det er klar.
+          Dine opgaver og kunder ligger, hvor du forlod dem.
+        </p>`;
+  } else {
+    afsnit = `
+        <p style="color:#555;margin-bottom:24px">
+          Du har adgang til: ${tilHtml(modulTekst(moduler))}. Dine opgaver og kunder ligger,
+          hvor du forlod dem.
+        </p>`;
+  }
+  return await sendViaScaleway({
+    to,
+    fromEmail: process.env.SMTP_FROM,
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
+    subject:   `Velkommen tilbage, ${firmName}`,
+    html: ramme(`
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen tilbage, ${navn}!</h1>
+        <p style="color:#555;margin-bottom:16px">Dit abonnement er aktivt igen.</p>${afsnit}
+        ${knap(loginUrl, "Log ind")}
+        <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>`),
+  });
+}
+
+async function sendNummerKlarMail({ to, firmName, phoneNumber, loginUrl }) {
+  return await sendViaScaleway({
+    to,
+    fromEmail: process.env.SMTP_FROM,
+    fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
+    subject:   `Dit nummer er klar, ${firmName}`,
+    html: ramme(`
+        <h1 style="font-size:22px;margin-bottom:8px">Hej ${firmName}</h1>
+        <p style="color:#555;margin-bottom:16px">Dit eget telefonnummer er nu klar:</p>
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:22px;
+                    font-weight:700;letter-spacing:0.05em;text-align:center;margin-bottom:24px">
+          ${phoneNumber}
+        </div>
+        <p style="color:#555;margin-bottom:24px">
+          Sidste skridt: Sæt viderestilling op på din telefon, så opkald, du ikke når,
+          går til dit nummer. Log ind, så viser vi dig hvordan.
+        </p>
+        ${knap(loginUrl, "Log ind")}`),
+  });
+}
+
 // ─── Send login-link-mail (rescue) ──────────────────────────────────────────
 // Bruges af "Send mig et login-link"-endpointet (onboarding-link.js) til en
 // EKSISTERENDE kunde, der er laast ude. Bevidst adskilt fra velkomstmailen:
@@ -230,4 +366,4 @@ async function sendAdminAlert({ subject, text }) {
   });
 }
 
-module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert };
+module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE };
