@@ -29,6 +29,7 @@ const KOERES = [
   "proev-billedoprydning.js",
   "proev-ejerskab.js",
   "proev-formular-graenser.js",
+  "proev-formular-rute.js",
   "proev-formular-udloeb.js",
   "proev-frisbii-afstem.js",
   "proev-frisbii-checkout.js",
