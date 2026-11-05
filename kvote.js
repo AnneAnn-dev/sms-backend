@@ -29,6 +29,12 @@
 //   4. FAIL-CLOSED. Mangler en loftvariabel, eller kan forbruget ikke læses,
 //      afvises kaldet. Et ukendt forbrug er ikke det samme som et lavt forbrug.
 //
+//   5. HVER DEL HAR SIN EGEN PULJE (Fase 4, 5/11-26). Referat og Skrivehjælp
+//      må ikke tage af hinandens loft: en håndværker, der skriver mange svar,
+//      må aldrig blive spærret for at optage. Et formål hører til præcis én
+//      pulje, og puljen afgør, hvilket forbrug der lægges sammen. Det globale
+//      månedsloft er fælles — det er platformens nødbremse, ikke kundens loft.
+//
 // Denne fil logger hverken lyd, tekst eller prompter — kun tal (CLAUDE.md).
 
 "use strict";
@@ -57,6 +63,91 @@ const LOFTER = [
   ["AI_KALD_LOFT_DKK", "kaldDkk"],
 ];
 
+// ─── Puljerne ────────────────────────────────────────────────────────────────
+// Hvert formål i ai_forbrug hører til PRÆCIS én pulje. Listen skal følge
+// CHECK-reglen ai_forbrug_formaal_gyldig: et formål, databasen tillader, men
+// som ingen pulje kender, tæller ikke mod noget firmaloft (kun mod det globale)
+// — derfor larmer bogfoer(), hvis det sker.
+//
+// `optagelse` er det, der fandtes før Fase 4, og bruger firmaets lofter
+// (AI_FIRMA_* og firma_profil). De nye puljer har kun lofter i miljøet; et
+// firma kan ikke få sit eget Skrivehjælp-loft endnu — det bygges, når nogen
+// har brug for det.
+//
+// Lofterne til Skrivehjælp (Ann 5/11-26): 10 kr./md. og 2 kr./dag pr. del. Ved
+// ca. 2 øre pr. udkast er det ca. 500 udkast om måneden — loftet stopper fejl
+// og misbrug, ikke almindelig brug.
+const PULJER = {
+  optagelse: {
+    formaal: ["transskription", "referat", "opgave_transskription", "tilbud", "notefoto"],
+    lofter: null, // firmaets lofter, se firmaLofterOere()
+  },
+  svar: {
+    formaal: ["skrivehjaelp_svar", "skrivehjaelp_kommentar"],
+    lofter: ["AI_SVAR_MAANEDSLOFT_DKK", "AI_SVAR_DAGSLOFT_DKK"],
+  },
+  facebook: {
+    formaal: ["skrivehjaelp_opslag"],
+    lofter: ["AI_FACEBOOK_MAANEDSLOFT_DKK", "AI_FACEBOOK_DAGSLOFT_DKK"],
+  },
+};
+
+function puljeFor(formaal) {
+  for (const [navn, p] of Object.entries(PULJER)) if (p.formaal.includes(formaal)) return navn;
+  return null;
+}
+
+function hentPulje(pulje) {
+  const p = PULJER[pulje];
+  if (!p) throw brugsfejl(`ukendt pulje '${pulje}'. Kendte: ${Object.keys(PULJER).join(", ")}`);
+  return p;
+}
+
+// Læses KUN, når puljen bruges. Mangler en Skrivehjælp-variabel, afvises
+// Skrivehjælp — men Referat kører videre. Ét modul må aldrig kunne lukke et andet.
+function puljeLofterOere(pulje, env) {
+  const p = hentPulje(pulje);
+  const e = env || process.env;
+  const [mNavn, dNavn] = p.lofter;
+  const tal = (navn) => {
+    const raa = (e[navn] || "").trim();
+    if (!raa) throw konfigfejl(`${navn} mangler`);
+    const v = Number(raa.replace(",", "."));
+    if (!Number.isFinite(v) || v <= 0) throw konfigfejl(`${navn} er ikke et positivt tal ('${raa}')`);
+    return v * 100;
+  };
+  return { maanedOere: tal(mNavn), dagOere: tal(dNavn) };
+}
+
+// Teksterne pr. pulje. `optagelse` er Annes ordlyd og står ordret.
+// ANNE-ORDLYD: Skrivehjælps tekster er pladsholdere, til Anne har skrevet dem.
+// `git grep ANNE-ORDLYD` skal give 0 træf, før Skrivehjælp tændes i prod (som D88).
+const TEKSTER = {
+  optagelse: {
+    kald_for_stort: "Optagelsen er for lang til at kunne behandles i ét stykke. " +
+      "Del den op, eller kontakt os.",
+    firma_maanedsloft: "Månedens forbrug er brugt op. Din optagelse er gemt her på telefonen — " +
+      "skriv til os, hvis du har brug for mere denne måned.",
+    // D84 / D94 (Ann og Anne 27/10): neutral ordlyd — samme kvote bruges af
+    // referater OG indtaling i opgaver (/api/indtaling/*). Ordret, rettes kun
+    // efter Annes ordlyd.
+    firma_dagsloft: "Du har brugt optagefunktionen over hvad der er inkluderet i dit forbrug " +
+      "pr dag, optagelse er sat på pause til i morgen. Du kan stadig skrive " +
+      "teksten selv.",
+    globalt_maanedsloft: "Vi kan ikke behandle optagelser lige nu. Din optagelse er gemt her på " +
+      "telefonen — vi er på sagen.",
+  },
+  skrivehjaelp: {
+    kald_for_stort: "ANNE-ORDLYD Teksten er for lang til at kunne behandles. Gør den kortere, og prøv igen.",
+    firma_maanedsloft: "ANNE-ORDLYD Månedens forbrug af skrivehjælpen er brugt op. Skriv til os, " +
+      "hvis du har brug for mere denne måned.",
+    firma_dagsloft: "ANNE-ORDLYD Du har brugt dagens skrivehjælp. Du kan stadig skrive teksten selv, " +
+      "eller prøve igen i morgen.",
+    globalt_maanedsloft: "ANNE-ORDLYD Skrivehjælpen kan ikke bruges lige nu. Vi er på sagen.",
+  },
+};
+const tekst = (pulje, aarsag) => TEKSTER[pulje === "optagelse" ? "optagelse" : "skrivehjaelp"][aarsag];
+
 // DAGSLOFTET ER PR. FIRMA, ikke globalt (besluttet 29/9 af Ann). Et globalt
 // dagsloft ville lukke for ALLE firmaer, fordi ét havde en dårlig dag — og de
 // andre havde intet gjort og kunne intet stille op. Pr. firma har loftet også
@@ -68,8 +159,10 @@ const LOFTER = [
 // globale månedsloft står tilbage — det kan bruges op på få dage uden at nogen
 // opdager det undervejs.
 // RE-TRIGGER, målbar og ikke fornemmet: overstiger (antal aktive firmaer ×
-// AI_FIRMA_DAGSLOFT_DKK) det globale månedsloft delt med tre, skal et globalt
-// dagsloft tilbage. Med 70/10/500 sker det ved 17 firmaer. Tæl dem.
+// summen af ALLE puljers dagslofter) det globale månedsloft delt med tre, skal
+// et globalt dagsloft tilbage. Med 70/10/500 alene skete det ved 17 firmaer;
+// med Skrivehjælp (10 + 2 + 2 = 14 kr./dag pr. firma) sker det ved 12. Tæl dem.
+// (Ann 5/11-26: det globale loft bliver, som det er, så længe der ingen kunder er.)
 
 function hentLofter(env) {
   const e = env || process.env;
@@ -141,9 +234,11 @@ const dagsstart = (nu) => start(nu || new Date(), "dag");
 // på en måned, skal summen flyttes til en RPC i databasen. Tæl rækkerne, når
 // pilotkunderne er i gang, i stedet for at bygge det nu til et omfang, vi ikke
 // har.
-async function sumOere(supabase, fra, firmId) {
+async function sumOere(supabase, fra, firmId, formaal) {
   let q = supabase.from("ai_forbrug").select("pris_oere").gte("created_at", fra.toISOString());
   if (firmId) q = q.eq("firm_id", firmId);
+  // Puljens formål. Det globale loft sender ingen liste og tæller alt.
+  if (formaal) q = q.in("formaal", formaal);
   const { data, error } = await q;
   // Regel 4: et ukendt forbrug er ikke et lavt forbrug.
   if (error) throw laesefejl(`kunne ikke laese ai_forbrug (${error.message})`);
@@ -183,9 +278,12 @@ function laesefejl(besked) {
 // `maxPrisOere` er kaldekodens egen beregning af, hvad DETTE kald højst kan
 // koste, givet det input den har begrænset. Udelades den, springes regel 2
 // over — og det må kun ske for kald, der ikke kan variere i pris.
-async function tjek({ firmId, maxPrisOere = null }, supabase, env) {
+async function tjek({ firmId, maxPrisOere = null, pulje = "optagelse" }, supabase, env) {
   if (!firmId) throw brugsfejl("firmId mangler");
+  const p = hentPulje(pulje);
   const lofter = hentLofter(env);
+  // Puljens egne lofter læses FØR databasen: mangler de, afvises kaldet (regel 4).
+  const puljeLoft = p.lofter ? puljeLofterOere(pulje, env) : null;
   const nu = new Date();
 
   // Regel 2 først: den er gratis, og den er den eneste, der kan afvise et kald,
@@ -193,10 +291,8 @@ async function tjek({ firmId, maxPrisOere = null }, supabase, env) {
   if (maxPrisOere != null) {
     const kaldLoftOere = lofter.kaldDkk * 100;
     if (Number(maxPrisOere) > kaldLoftOere) {
-      return nej("kald_for_stort",
-        "Optagelsen er for lang til at kunne behandles i ét stykke. " +
-        "Del den op, eller kontakt os.",
-        { maxPrisOere: Number(maxPrisOere), loftOere: kaldLoftOere });
+      return nej("kald_for_stort", tekst(pulje, "kald_for_stort"),
+        { pulje, maxPrisOere: Number(maxPrisOere), loftOere: kaldLoftOere });
     }
   }
 
@@ -204,44 +300,35 @@ async function tjek({ firmId, maxPrisOere = null }, supabase, env) {
   const dag = dagsstart(nu);
 
   const [firmaMaanedOere, firmaDagOere, firmaLoft, globaltMaanedOere] = await Promise.all([
-    sumOere(supabase, maaned, firmId),
-    sumOere(supabase, dag, firmId),
-    firmaLofterOere(supabase, firmId, lofter),
-    sumOere(supabase, maaned, null),
+    sumOere(supabase, maaned, firmId, p.formaal),
+    sumOere(supabase, dag, firmId, p.formaal),
+    puljeLoft ? Promise.resolve(puljeLoft) : firmaLofterOere(supabase, firmId, lofter),
+    sumOere(supabase, maaned, null, null),
   ]);
 
   // Måneden først: den er den mere varige tilstand, og beskeden er den mest
   // brugbare. Rammer han begge, er det måneden, han skal vide noget om.
   if (firmaMaanedOere >= firmaLoft.maanedOere) {
-    return nej("firma_maanedsloft",
-      "Månedens forbrug er brugt op. Din optagelse er gemt her på telefonen — " +
-      "skriv til os, hvis du har brug for mere denne måned.",
-      { forbrugtOere: firmaMaanedOere, loftOere: firmaLoft.maanedOere,
+    return nej("firma_maanedsloft", tekst(pulje, "firma_maanedsloft"),
+      { pulje, forbrugtOere: firmaMaanedOere, loftOere: firmaLoft.maanedOere,
         naesteNulstilling: naesteMaaned(nu) });
   }
 
   if (firmaDagOere >= firmaLoft.dagOere) {
-    return nej("firma_dagsloft",
-      // D84 / D94 (Ann og Anne 27/10): neutral ordlyd — samme kvote bruges af
-      // referater OG indtaling i opgaver (/api/indtaling/*). Ordret, rettes kun
-      // efter Annes ordlyd.
-      "Du har brugt optagefunktionen over hvad der er inkluderet i dit forbrug " +
-      "pr dag, optagelse er sat på pause til i morgen. Du kan stadig skrive " +
-      "teksten selv.",
-      { forbrugtOere: firmaDagOere, loftOere: firmaLoft.dagOere });
+    return nej("firma_dagsloft", tekst(pulje, "firma_dagsloft"),
+      { pulje, forbrugtOere: firmaDagOere, loftOere: firmaLoft.dagOere });
   }
 
   // Det globale månedsloft er platformens egen nødbremse, ikke en besked til
   // kunden. Han har ikke gjort noget forkert og kan ikke gøre noget ved det.
   if (globaltMaanedOere >= lofter.globaltMaanedDkk * 100) {
-    return nej("globalt_maanedsloft",
-      "Vi kan ikke behandle optagelser lige nu. Din optagelse er gemt her på " +
-      "telefonen — vi er på sagen.",
-      { forbrugtOere: globaltMaanedOere, loftOere: lofter.globaltMaanedDkk * 100 });
+    return nej("globalt_maanedsloft", tekst(pulje, "globalt_maanedsloft"),
+      { pulje, forbrugtOere: globaltMaanedOere, loftOere: lofter.globaltMaanedDkk * 100 });
   }
 
   return {
     tilladt: true,
+    pulje,
     forbrugtOere: firmaMaanedOere,
     loftOere: firmaLoft.maanedOere,
     restOere: firmaLoft.maanedOere - firmaMaanedOere,
@@ -263,17 +350,20 @@ function naesteMaaned(nu) {
 // ─── Status — til fanen, FØR han trykker optag ───────────────────────────────
 // Besluttet 29/9: han skal have besked, INDEN han har talt i to et halvt minut.
 // En databaseforespørgsel er gratis; en tabt optagelse er ikke.
-async function status({ firmId }, supabase, env) {
+async function status({ firmId, pulje = "optagelse" }, supabase, env) {
   if (!firmId) throw brugsfejl("firmId mangler");
+  const p = hentPulje(pulje);
   const lofter = hentLofter(env);
+  const puljeLoft = p.lofter ? puljeLofterOere(pulje, env) : null;
   const [forbrugtOere, forbrugtIDagOere, loft] = await Promise.all([
-    sumOere(supabase, maanedsstart(), firmId),
-    sumOere(supabase, dagsstart(), firmId),
-    firmaLofterOere(supabase, firmId, lofter),
+    sumOere(supabase, maanedsstart(), firmId, p.formaal),
+    sumOere(supabase, dagsstart(), firmId, p.formaal),
+    puljeLoft ? Promise.resolve(puljeLoft) : firmaLofterOere(supabase, firmId, lofter),
   ]);
   const loftOere = loft.maanedOere;
   const restOere = Math.max(0, loftOere - forbrugtOere);
   return {
+    pulje,
     forbrugtOere, loftOere, restOere,
     forbrugtIDagOere, dagsloftOere: loft.dagOere,
     spaerret: forbrugtOere >= loftOere || forbrugtIDagOere >= loft.dagOere,
@@ -295,6 +385,14 @@ async function status({ firmId }, supabase, env) {
 async function bogfoer({ firmId, formaal, leverandoer, model, enhed, maengde, prisOere }, supabase) {
   for (const [navn, v] of Object.entries({ firmId, formaal, leverandoer, model, enhed })) {
     if (!v) throw brugsfejl(`${navn} mangler ved bogfoering`);
+  }
+  // Regel 5: et formål uden pulje tæller ikke mod noget firmaloft. Pengene ER
+  // brugt, så rækken skrives alligevel — men det skal larme, ikke ske i stilhed.
+  if (!puljeFor(formaal)) {
+    const u = new Error("Formaal uden pulje (" + formaal + "): tilfoej det i PULJER i kvote.js");
+    u.name = "Bogfoeringsfejl";
+    console.error("❌ " + u.message);
+    try { sendError(u); } catch (_) { /* AppSignal maa aldrig vaelte svaret */ }
   }
   const { error } = await supabase.from("ai_forbrug").insert({
     firm_id: firmId, formaal, leverandoer, model, enhed,
@@ -343,7 +441,7 @@ function brugsfejl(besked) {
 
 module.exports = {
   tjek, status, bogfoer, krydsedeVarsel,
-  VARSEL_ANDEL,
+  VARSEL_ANDEL, PULJER, puljeFor,
   _hentLofter: hentLofter,
   _maanedsstart: maanedsstart,
   _dagsstart: dagsstart,
