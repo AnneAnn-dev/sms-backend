@@ -6,8 +6,7 @@
 //   node --env-file=.env maal-skrivehjaelp.js --model mistral-medium-3.5-128b,llama-3.3-70b-instruct
 //   node --env-file=.env maal-skrivehjaelp.js --kun opslag,kommentar --maks-oere 300
 //   node --env-file=.env maal-skrivehjaelp.js --id injektion --gentag 10   (samme case 10 gange)
-//   node --env-file=.env maal-skrivehjaelp.js --leverandoer syvai --model <id> --pris "ind,ud"
-//        (syv.ai: SYVAI_URL og SYVAI_API_KEY i miljøet; --pris i kroner pr. million tokens)
+//   node --env-file=.env maal-skrivehjaelp.js --saet skrivehjaelp-saet-t1b-some.json --kun opslag,kommentar
 //
 // HVAD DEN MÅLER (form, pris og tid, aldrig kvalitet. Kvaliteten er Annes dom, T1b):
 //   - pris pr. kald i øre, regnet af tekst-adapter.js' egen prisOere (ingen ny prisliste)
@@ -54,7 +53,8 @@ const PARAM = {
 };
 
 // ─── Sættet ──────────────────────────────────────────────────────────────────
-const SAET = JSON.parse(fs.readFileSync(path.join(__dirname, "skrivehjaelp-saet-t1a.json"), "utf8"));
+const SAET_FIL = vaerdi("--saet", "skrivehjaelp-saet-t1a.json");
+const SAET = JSON.parse(fs.readFileSync(path.join(__dirname, SAET_FIL), "utf8"));
 const FIRMA = SAET.firma;
 const FOERSTE_FAG = Object.fromEntries(Object.entries(PACKS).map(([k, p]) => [k, p.trades[0]]));
 
@@ -88,11 +88,11 @@ function byggCases() {
   }
   if (KUN.includes("opslag")) {
     for (const c of SAET.opslag) cases.push({ id: c.id, type: "opslag", firma: { ...FIRMA, trade: c.trade },
-      maa_ikke: c.maa_ikke, input: { idea: c.idea, goal: c.goal, platform: c.platform } });
+      maa_ikke: c.maa_ikke, tjek: c.tjek, input: { idea: c.idea, goal: c.goal, platform: c.platform } });
   }
   if (KUN.includes("kommentar")) {
     for (const c of SAET.kommentar) cases.push({ id: c.id, type: "kommentar", firma: { ...FIRMA, trade: c.trade },
-      maa_ikke: c.maa_ikke, input: { comment: c.comment, raw: c.raw } });
+      maa_ikke: c.maa_ikke, tjek: c.tjek, input: { comment: c.comment, raw: c.raw } });
   }
   const filtreret = ID_FILTER ? cases.filter(c => ID_FILTER.test(c.id)) : cases;
   if (GENTAG === 1) return filtreret;
@@ -215,21 +215,8 @@ async function main() {
       try { const k = adapter._hentKonfig(env); konf[m] = { url: k.url, noegle: k.noegle, pris: (i, u) => adapter.prisOere(i, u, env) }; }
       catch (e) { console.log(`STOP (${m}): ${e.message}`); process.exit(1); }
     }
-  } else if (LEVERANDOER === "syvai") {
-    // KUN til måling. Syv.ai er ikke i tekst-adapter.js; kommer modellen i drift, skal den
-    // derind (pris, nøgle, fail-closed) i T2 — og have en databehandleraftale (J9).
-    const url = (process.env.SYVAI_URL || "").trim().replace(/\/+$/, "");
-    const noegle = (process.env.SYVAI_API_KEY || "").trim();
-    const pris = vaerdi("--pris", "").split(",").map(Number);
-    if (!url) { console.log("STOP: SYVAI_URL mangler (OpenAI-kompatibel adresse, der ender på /v1)"); process.exit(1); }
-    if (!noegle) { console.log("STOP: SYVAI_API_KEY mangler"); process.exit(1); }
-    if (pris.length !== 2 || pris.some(x => !(x >= 0))) {
-      console.log('STOP: --pris "ind,ud" mangler: kroner pr. million tokens ind og ud, aflæst på syv.ai\'s prisside. Uden pris ingen kørsel.');
-      process.exit(1);
-    }
-    for (const m of MODELLER) konf[m] = { url, noegle, pris: (i, u) => (i * pris[0] + u * pris[1]) / 1e6 * 100 };
   } else {
-    console.log(`STOP: ukendt --leverandoer '${LEVERANDOER}'. Kendte: scaleway, syvai`); process.exit(1);
+    console.log(`STOP: ukendt --leverandoer '${LEVERANDOER}'. Kendte: scaleway`); process.exit(1);
   }
   const forste = konf[MODELLER[0]].url;
   const projekt = (forste.match(/[0-9a-f]{8}-[0-9a-f]{4}/i) || ["?"])[0];
@@ -250,7 +237,7 @@ async function main() {
       try { r = await kald(konf[m], m, p, param); }
       catch (e) { r = { ms: 0, netFejl: e.name === "TimeoutError" ? "timeout efter 120 s" : e.message }; }
 
-      const res = { model: m, id: c.id, type: c.type, input: c.input, trade: c.firma.trade, ms: r.ms, param };
+      const res = { model: m, id: c.id, type: c.type, input: c.input, trade: c.firma.trade, tjek: c.tjek, ms: r.ms, param };
       if (r.httpFejl || r.netFejl) {
         res.fejl = r.httpFejl ? `HTTP ${r.httpFejl}` : r.netFejl;
       } else {
@@ -279,8 +266,8 @@ async function main() {
 
   // ─── Sammendrag ────────────────────────────────────────────────────────────
   const linjer = [];
-  linjer.push(`# T1a Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · i alt ${r2(brugt)} øre`, "",
+  linjer.push(`# Måling Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
+    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · i alt ${r2(brugt)} øre`, "",
     "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) for (const t of ["svar", "opslag", "kommentar"]) {
@@ -300,6 +287,7 @@ async function main() {
       `**Fakta:** ${Object.entries(i.felter || {}).map(([k, v]) => `${k}=${v}`).join(" · ") || "(ingen)"}`, "");
     if (r.type === "opslag") linjer.push(`**Idé:** ${i.idea} · mål: ${i.goal} · ${i.platform}`, "");
     if (r.type === "kommentar") linjer.push("**Kommentar:** " + i.comment, "", "**Rå svar:** " + i.raw, "");
+    if (r.tjek) linjer.push("**Tjek efter:** " + r.tjek, "", "**OK?** ☐ Ja ☐ Nej ☐ Delvis · **Noter:**", "");
     if (r.fejl) linjer.push(`**FEJL:** ${r.fejl}`, "");
     if (r.raat) linjer.push("```", r.raat, "```", "");
     if (r.svar) linjer.push("**Udkast:**", "", "```", r.svar, "```", "", r.noter.length ? "**Noter:** " + r.noter.join(" · ") : "", "");
