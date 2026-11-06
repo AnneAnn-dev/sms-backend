@@ -63,6 +63,12 @@ const LEVERANDOERER = {
       "mistral-medium-3.5-128b":             { ind: 1.50, ud: 7.50 },
       "mistral-small-3.2-24b-instruct-2506": { ind: 0.15, ud: 0.35 },
       "llama-3.3-70b-instruct":              { ind: 0.90, ud: 0.90 },
+      // Fase 4 (6/11-26): to kandidater til Skrivehjælp, til måling mod mistral-medium.
+      // Læst på Scaleways prisside 6/11-26. Bekræft i konsollen, før en af dem tages i brug.
+      // gpt-oss-120b er en RÆSONNERENDE model (J9): den skal kaldes med reasoning_effort "low",
+      // og prisen skal måles pr. udkast, ikke læses af tabellen.
+      "gpt-oss-120b":                        { ind: 0.15, ud: 0.60 },
+      "gemma-3-27b-it":                      { ind: 0.25, ud: 0.50 },
     },
   },
 };
