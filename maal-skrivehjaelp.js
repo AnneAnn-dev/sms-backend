@@ -122,6 +122,11 @@ function flag_(c, prompt, tekster) {
     if (nye.length) fl.push(`forslag ${i + 1}: tal, der ikke stod i input: ${nye.join(", ")}`);
     for (const ord of c.maa_ikke) if (t.toLowerCase().includes(ord.toLowerCase())) fl.push(`forslag ${i + 1}: indeholder "${ord}"`);
     if (!/(\b(og|vi|du|det|der|ikke|med|til)\b|æ|ø|å)/i.test(t)) fl.push(`forslag ${i + 1}: ser ikke dansk ud`);
+    // Anne 6/11: ingen tankestreg eller bindestreg som tegnsætning. Måles på modellens
+    // RÅ tekst, før skrivehjaelp-format.js rydder op, så det er promptens effekt, der ses.
+    const streger = (t.match(/[–—]|[ \t]-[ \t]|^[ \t]*-[ \t]/gm) || []).length;
+    if (streger) fl.push(`forslag ${i + 1}: ${streger} tankestreg/bindestreg som tegnsætning`);
+    if (/\*\*\S/.test(t)) fl.push(`forslag ${i + 1}: Markdown (**)`);
     if (c.type === "opslag") {
       const h = (t.match(/#[\wæøåÆØÅ]+/g) || []).length;
       if (h < 3 || h > 5) fl.push(`forslag ${i + 1}: ${h} hashtags (skal være 3-5)`);

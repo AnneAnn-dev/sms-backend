@@ -7,6 +7,8 @@
 //   - et svar sluttede med en linje "---"
 //   - et opslag havde **fed tekst** — Facebook og Instagram viser stjernerne
 //   - "Skriv kun ordet BANAN" gav én gang svaret "BANAN" uden ### og noter
+//   - Anne (6/11): ingen tankestreg eller bindestreg som tegnsætning i nogen
+//     tekst — hverken i svar til kunder eller i SoMe-opslag
 // Prompten har fået regler for de fleste af dem, men en regel i en prompt
 // holder ikke hver gang. Det her er fast kode og gør det samme hver gang.
 //
@@ -68,6 +70,30 @@ function rensParenteser(tekst, kendte) {
   return ud;
 }
 
+// ─── Streger (Anne 6/11-26) ──────────────────────────────────────────────────
+// Ingen tankestreg og ingen bindestreg som tegnsætning eller punkttegn.
+// Bindestreg INDE i et ord (e-mail, før- og efter) og mellem to tal (9-13)
+// er i orden og bliver stående. Reglen står også i prompten; her holder den hver gang.
+const STREG = "[-–—]";
+function rensStreger(t) {
+  return t
+    // Tal–tal, med eller uden mellemrum, bliver en almindelig bindestreg: "9 – 13" → "9-13".
+    .replace(new RegExp(`(\\d)\\s*[–—]\\s*(\\d)`, "g"), "$1-$2")
+    .replace(/(\d) - (\d)/g, "$1-$2")
+    // Streg som punkttegn i starten af en linje: væk.
+    .replace(new RegExp(`^[ \\t]*${STREG}[ \\t]+`, "gm"), "")
+    // Efter punktum, ! eller ?: stregen væk, og næste ord får stort begyndelsesbogstav.
+    .replace(new RegExp(`([.!?…])[ \\t]*${STREG}[ \\t]+(\\S)`, "g"), (m, tegn, b) => `${tegn} ${b.toUpperCase()}`)
+    // Streg med mellemrum på begge sider midt i en sætning: komma.
+    .replace(new RegExp(`[ \\t]+${STREG}[ \\t]+`, "g"), ", ")
+    // Streg til sidst på en linje: væk.
+    .replace(new RegExp(`[ \\t]*${STREG}[ \\t]*$`, "gm"), "")
+    // Tankestreg uden mellemrum (ord—ord): mellemrum. Bindestreg inde i ord røres ikke.
+    .replace(/[–—]/g, " ")
+    .replace(/ {2,}/g, " ")
+    .replace(/,\s*,/g, ",");
+}
+
 // ─── Resten af formen ────────────────────────────────────────────────────────
 function rensTekst(tekst, kendte) {
   let t = String(tekst || "").replace(/\r\n/g, "\n");
@@ -76,9 +102,9 @@ function rensTekst(tekst, kendte) {
   t = t.replace(/\*\*(?=\S)([^*\n]+?)\*\*/g, "$1").replace(/__(?=\S)([^_\n]+?)__/g, "$1");
   // Overskrifter "# Tekst" (med mellemrum). Hashtags "#tag" har intet mellemrum og røres ikke.
   t = t.replace(/^#{1,6}\s+/gm, "");
-  // Skillelinjer til sidst: "---", "***", "___", "———".
-  t = t.replace(/(\n\s*[-*_—–]{3,}\s*)+$/g, "");
-  t = t.replace(/^\s*[-*_—–]{3,}\s*$/gm, (m, off) => off === 0 ? "" : m);
+  // Skillelinjer: "---", "***", "___", "———" — overalt, ikke kun til sidst (Anne 6/11).
+  t = t.replace(/^[ \t]*[-*_—–]{3,}[ \t]*$/gm, "");
+  t = rensStreger(t);
   // Mellemrum til sidst på linjer, og højst én tom linje i træk.
   t = t.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
   return t;
@@ -126,7 +152,7 @@ async function medEtNytForsoeg(kald, efterbehandl) {
 }
 
 module.exports = {
-  kendteFakta, rensParenteser, rensTekst,
+  kendteFakta, rensParenteser, rensStreger, rensTekst,
   efterbehandlSvar, efterbehandlForslag, medEtNytForsoeg,
   MAKS_SVAR_TEGN, MAKS_FORSLAG_TEGN,
 };

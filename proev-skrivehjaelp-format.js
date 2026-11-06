@@ -52,10 +52,25 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
     F.rensTekst("## Nyt tag\nFlot", KENDTE), "Nyt tag\nFlot");
   lig("'---' til sidst fjernes (BANAN-svaret 5/11)",
     F.rensTekst("Hej. Jeg kan desværre ikke hjælpe med det.\n\n---", KENDTE), "Hej. Jeg kan desværre ikke hjælpe med det.");
-  lig("en tankestreg midt i en sætning røres ikke",
-    F.rensTekst("Tak – vi ringer i morgen.", KENDTE), "Tak – vi ringer i morgen.");
   lig("højst én tom linje i træk",
     F.rensTekst("A\n\n\n\nB", KENDTE), "A\n\nB");
+
+  console.log("\nSTREGER — Anne 6/11: ingen tankestreg eller bindestreg som tegnsætning");
+  const R = (t) => F.rensTekst(t, KENDTE);
+  lig("tankestreg midt i sætning bliver komma (B3)",
+    R("Undskyld for forsinkelsen – vi mangler en reservedel."), "Undskyld for forsinkelsen, vi mangler en reservedel.");
+  lig("lang tankestreg bliver komma", R("Vi glæder os — og det gør du også"), "Vi glæder os, og det gør du også");
+  lig("bindestreg med mellemrum bliver komma", R("Tak - vi ringer"), "Tak, vi ringer");
+  lig("efter punktum: stregen væk og stort bogstav", R("Tak! – vi ringer i morgen."), "Tak! Vi ringer i morgen.");
+  lig("streg som punkttegn fjernes", R("Vi tilbyder:\n- Professionel montering\n– Holdbart materiale"),
+    "Vi tilbyder:\nProfessionel montering\nHoldbart materiale");
+  lig("tidsrum med tankestreg bliver bindestreg (B1)", R("Vi har åbent 9–13 lørdag"), "Vi har åbent 9-13 lørdag");
+  lig("tidsrum med mellemrum samles", R("fra kl. 9 – 13"), "fra kl. 9-13");
+  lig("bindestreg inde i ord bliver stående", R("Skriv en e-mail om før- og efter-billeder"), "Skriv en e-mail om før- og efter-billeder");
+  lig("en skillelinje midt i teksten fjernes", R("Første del\n---\nAnden del"), "Første del\n\nAnden del");
+  lig("streg til sidst på en linje fjernes", R("Vi ses snart –\nPeter"), "Vi ses snart\nPeter");
+  lig("ingen tankestreg tilbage i Annes eksempel (A2)",
+    /[–—]/.test(R("🚿 FØR OG EFTER – grønne fliser — og en total transformation")), false);
 
   console.log("\nSVAR — ### og noter kræves");
   const godt = "Hej Maria. Ring på [12 34 56 78].\n\nPeter Testesen\n###\n- Udfyld [dato]";
