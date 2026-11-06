@@ -69,6 +69,9 @@ const LEVERANDOERER = {
       // og prisen skal måles pr. udkast, ikke læses af tabellen.
       "gpt-oss-120b":                        { ind: 0.15, ud: 0.60 },
       "gemma-3-27b-it":                      { ind: 0.25, ud: 0.50 },
+      // Aflæst i Scaleways konsol 6/11-26 (Ann). Står som PREVIEW: kan ændre sig eller forsvinde
+      // uden varsel, så den må ikke låses fast i prod, før den er ude af preview.
+      "gemma-4-26b-a4b-it":                  { ind: 0.25, ud: 0.50 },
     },
   },
 };
