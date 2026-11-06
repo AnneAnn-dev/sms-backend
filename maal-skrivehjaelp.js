@@ -62,6 +62,14 @@ if (TEMP) for (const p of Object.values(PARAM)) p.temperatur = Number(TEMP.repla
 const MODEL_EKSTRA = {
   "gpt-oss-120b": { felter: { reasoning_effort: "low" }, minTokens: 3000 },
 };
+// Til forsøg (6/11: gemma-4 brugte HELE budgettet på at tænke og svarede tomt):
+//   --ekstra '{"chat_template_kwargs":{"enable_thinking":false}}'   lægges i kaldet til ALLE modeller
+//   --min-tokens 4000                                                hæver loftet for tokens
+const EKSTRA_ARG = vaerdi("--ekstra", "");
+let EKSTRA_FELTER = {};
+try { EKSTRA_FELTER = EKSTRA_ARG ? JSON.parse(EKSTRA_ARG) : {}; }
+catch { console.log("STOP: --ekstra er ikke gyldig JSON"); process.exit(1); }
+const MIN_TOKENS = Number(vaerdi("--min-tokens", "0")) || 0;
 
 // ─── Sættet ──────────────────────────────────────────────────────────────────
 const SAET_FIL = vaerdi("--saet", "skrivehjaelp-saet-t1a.json");
@@ -175,8 +183,9 @@ async function kald(konf, model, prompt, param) {
     method: "POST",
     headers: { Authorization: `Bearer ${konf.noegle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model, temperature: param.temperatur, max_tokens: Math.max(param.maksTokens, ekstra.minTokens || 0),
+      model, temperature: param.temperatur, max_tokens: Math.max(param.maksTokens, ekstra.minTokens || 0, MIN_TOKENS),
       ...(ekstra.felter || {}),
+      ...EKSTRA_FELTER,
       messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.bruger }],
     }),
     signal: AbortSignal.timeout(120000),
@@ -293,7 +302,7 @@ async function main() {
   // ─── Sammendrag ────────────────────────────────────────────────────────────
   const linjer = [];
   linjer.push(`# Måling Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}i alt ${r2(brugt)} øre`, "",
+    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}${EKSTRA_ARG ? "ekstra " + EKSTRA_ARG + " · " : ""}${MIN_TOKENS ? "min. tokens " + MIN_TOKENS + " · " : ""}i alt ${r2(brugt)} øre`, "",
     "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median | Heraf tænkning |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) for (const t of ["svar", "opslag", "kommentar"]) {
