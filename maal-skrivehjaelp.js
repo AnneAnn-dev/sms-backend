@@ -6,6 +6,8 @@
 //   node --env-file=.env maal-skrivehjaelp.js --model mistral-medium-3.5-128b,llama-3.3-70b-instruct
 //   node --env-file=.env maal-skrivehjaelp.js --kun opslag,kommentar --maks-oere 300
 //   node --env-file=.env maal-skrivehjaelp.js --id injektion --gentag 10   (samme case 10 gange)
+//   node --env-file=.env maal-skrivehjaelp.js --model mistral-medium-3.5-128b,gpt-oss-120b,gemma-3-27b-it
+//   node --env-file=.env maal-skrivehjaelp.js --temperatur 0.7       (samme temperatur til alle tre)
 //   node --env-file=.env maal-skrivehjaelp.js --saet skrivehjaelp-saet-t1b-some.json --kun opslag,kommentar
 //
 // HVAD DEN MÅLER (form, pris og tid, aldrig kvalitet. Kvaliteten er Annes dom, T1b):
@@ -50,6 +52,15 @@ const PARAM = {
   svar:      { temperatur: 0.3, maksTokens: 800 },
   opslag:    { temperatur: 0.8, maksTokens: 1500 },
   kommentar: { temperatur: 0.5, maksTokens: 800 },
+};
+// --temperatur overstyrer alle tre (til forsøget med "kedelige" tekster 6/11).
+const TEMP = vaerdi("--temperatur", "");
+if (TEMP) for (const p of Object.values(PARAM)) p.temperatur = Number(TEMP.replace(",", "."));
+
+// Modeller med egne krav. gpt-oss-120b TÆNKER, før den svarer (J9): tænkningen tæller med i
+// max_tokens og i prisen, så den kaldes med lav tænkning og et højere loft for tokens.
+const MODEL_EKSTRA = {
+  "gpt-oss-120b": { felter: { reasoning_effort: "low" }, minTokens: 3000 },
 };
 
 // ─── Sættet ──────────────────────────────────────────────────────────────────
@@ -158,12 +169,14 @@ function flag_(c, prompt, tekster) {
 
 // ─── Kald ────────────────────────────────────────────────────────────────────
 async function kald(konf, model, prompt, param) {
+  const ekstra = MODEL_EKSTRA[model] || {};
   const t0 = Date.now();
   const svar = await fetch(`${konf.url}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${konf.noegle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model, temperature: param.temperatur, max_tokens: param.maksTokens,
+      model, temperature: param.temperatur, max_tokens: Math.max(param.maksTokens, ekstra.minTokens || 0),
+      ...(ekstra.felter || {}),
       messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.bruger }],
     }),
     signal: AbortSignal.timeout(120000),
@@ -178,6 +191,7 @@ async function kald(konf, model, prompt, param) {
     slut: valg.finish_reason || "",
     ind: (raa.usage && raa.usage.prompt_tokens) || 0,
     ud: (raa.usage && raa.usage.completion_tokens) || 0,
+    taenk: (raa.usage && raa.usage.completion_tokens_details && raa.usage.completion_tokens_details.reasoning_tokens) || 0,
   };
 }
 
@@ -253,7 +267,7 @@ async function main() {
       if (r.httpFejl || r.netFejl) {
         res.fejl = r.httpFejl ? `HTTP ${r.httpFejl}` : r.netFejl;
       } else {
-        res.tokensInd = r.ind; res.tokensUd = r.ud; res.slut = r.slut;
+        res.tokensInd = r.ind; res.tokensUd = r.ud; res.slut = r.slut; res.taenkTokens = r.taenk;
         res.oere = r2(konf[m].pris(r.ind, r.ud));
         brugt += res.oere;
         if (!r.indhold.trim() && r.ud > 0) res.fejl = `tomt svar trods ${r.ud} tokens: ræsonnerende model`;
@@ -279,17 +293,17 @@ async function main() {
   // ─── Sammendrag ────────────────────────────────────────────────────────────
   const linjer = [];
   linjer.push(`# Måling Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · i alt ${r2(brugt)} øre`, "",
-    "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}i alt ${r2(brugt)} øre`, "",
+    "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median | Heraf tænkning |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) for (const t of ["svar", "opslag", "kommentar"]) {
     const rs = resultater.filter(r => r.model === m && r.type === t);
     if (!rs.length) continue;
     const ok = rs.filter(r => r.oere != null);
     linjer.push(`| ${m} | ${t} | ${rs.length} | ${rs.filter(r => r.fejl).length} | ${rs.filter(r => (r.flag && r.flag.length) || r.formFlag).length} | ` +
-      `${r2(median(ok.map(r => r.oere)))} | ${r2(Math.max(0, ...ok.map(r => r.oere)))} | ${median(ok.map(r => r.ms))} | ${Math.max(0, ...ok.map(r => r.ms))} | ${median(ok.map(r => r.tokensUd))} |`);
+      `${r2(median(ok.map(r => r.oere)))} | ${r2(Math.max(0, ...ok.map(r => r.oere)))} | ${median(ok.map(r => r.ms))} | ${Math.max(0, ...ok.map(r => r.ms))} | ${median(ok.map(r => r.tokensUd))} | ${median(ok.map(r => r.taenkTokens || 0))} |`);
   }
-  linjer.push("", "Øre pr. kald → hvad loftet rækker til: 300 øre (3 kr./dag) og 5.000 øre (50 kr./md.) divideret med medianen ovenfor.", "");
+  linjer.push("", "Øre pr. kald → hvad loftet rækker til: 200 øre (2 kr./dag) og 1.000 øre (10 kr./md.) pr. del divideret med medianen ovenfor.", "");
 
   linjer.push("## Alle kald", "");
   for (const r of resultater) {
