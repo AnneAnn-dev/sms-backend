@@ -120,8 +120,7 @@ function puljeLofterOere(pulje, env) {
 }
 
 // Teksterne pr. pulje. `optagelse` er Annes ordlyd og står ordret.
-// ANNE-ORDLYD: Skrivehjælps tekster er pladsholdere, til Anne har skrevet dem.
-// `git grep ANNE-ORDLYD` skal give 0 træf, før Skrivehjælp tændes i prod (som D88).
+// Skrivehjælps tekster er godkendt af Anne 6/11-26 ("ok" til alle fire i vurderingen af de 40 svar).
 const TEKSTER = {
   optagelse: {
     kald_for_stort: "Optagelsen er for lang til at kunne behandles i ét stykke. " +
@@ -138,12 +137,12 @@ const TEKSTER = {
       "telefonen — vi er på sagen.",
   },
   skrivehjaelp: {
-    kald_for_stort: "ANNE-ORDLYD Teksten er for lang til at kunne behandles. Gør den kortere, og prøv igen.",
-    firma_maanedsloft: "ANNE-ORDLYD Månedens forbrug af skrivehjælpen er brugt op. Skriv til os, " +
+    kald_for_stort: "Teksten er for lang til at kunne behandles. Gør den kortere, og prøv igen.",
+    firma_maanedsloft: "Månedens forbrug af skrivehjælpen er brugt op. Skriv til os, " +
       "hvis du har brug for mere denne måned.",
-    firma_dagsloft: "ANNE-ORDLYD Du har brugt dagens skrivehjælp. Du kan stadig skrive teksten selv, " +
+    firma_dagsloft: "Du har brugt dagens skrivehjælp. Du kan stadig skrive teksten selv, " +
       "eller prøve igen i morgen.",
-    globalt_maanedsloft: "ANNE-ORDLYD Skrivehjælpen kan ikke bruges lige nu. Vi er på sagen.",
+    globalt_maanedsloft: "Skrivehjælpen kan ikke bruges lige nu. Vi er på sagen.",
   },
 };
 const tekst = (pulje, aarsag) => TEKSTER[pulje === "optagelse" ? "optagelse" : "skrivehjaelp"][aarsag];

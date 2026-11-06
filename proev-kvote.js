@@ -236,7 +236,8 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   const t1 = await k.tjek({ firmId: "F1", pulje: "svar" },
     attrap({ raekker: [oere(200, IDAG, "F1", "skrivehjaelp_svar")] }), SKRIV);
   lig("svarets afvisning naevner ikke optagelse", /optag/i.test(t1.besked), false);
-  lig("svarets afvisning venter paa Annes ordlyd", /ANNE-ORDLYD/.test(t1.besked), true);
+  lig("svarets afvisning er Annes ordlyd for dagens loft (6/11)", /^Du har brugt dagens skrivehjælp\./.test(t1.besked), true);
+  lig("ingen ANNE-ORDLYD-markoer tilbage", /ANNE-ORDLYD/.test(t1.besked), false);
   lig("afvisningen fortaeller puljen", t1.pulje, "svar");
   const t2 = await k.tjek({ firmId: "F1" }, attrap({ raekker: [oere(1000, IDAG)] }), SKRIV);
   lig("optagelsens tekst er uaendret (Annes ordlyd)", /optagefunktionen/.test(t2.besked), true);

@@ -92,6 +92,23 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   lig("et forslag, der kun var '---', afvises",
     F.efterbehandlForslag(JSON.stringify({ forslag: [{ tekst: "---" }, { tekst: "ok" }] }), KENDTE).ok, false);
 
+  console.log("\nBEGGE — fire kort: to vinkler, hver til Facebook og Instagram (Ann 6/11)");
+  const B = { begge: true };
+  const fire = JSON.stringify({ forslag: [
+    { facebook: "**Nyt tag** – klik på linket", instagram: "Nyt tag. Skriv til os i en DM\n#tag #hus #hillerød" },
+    { facebook: "Ring [12 34 56 78]", instagram: "Før og efter 😊\n#før #efter #tag" }] });
+  lig("fire tekster renses og bevarer platformen", F.efterbehandlForslag(fire, KENDTE, B), { ok: true, forslag: [
+    { facebook: "Nyt tag, klik på linket", instagram: "Nyt tag. Skriv til os i en DM\n#tag #hus #hillerød" },
+    { facebook: "Ring 12 34 56 78", instagram: "Før og efter 😊\n#før #efter #tag" }] });
+  lig("mangler Instagram-teksten, afvises svaret",
+    F.efterbehandlForslag(JSON.stringify({ forslag: [{ facebook: "a" }, { facebook: "b", instagram: "c" }] }), KENDTE, B).ok, false);
+  lig("en Instagram-tekst, der kun var '---', afvises",
+    F.efterbehandlForslag(JSON.stringify({ forslag: [{ facebook: "a", instagram: "---" }, { facebook: "b", instagram: "c" }] }), KENDTE, B).ok, false);
+  lig("det gamle format med 'tekst' godtages ikke, når Begge er valgt",
+    F.efterbehandlForslag(JSON.stringify({ forslag: [{ tekst: "a" }, { tekst: "b" }] }), KENDTE, B).ok, false);
+  lig("uden Begge virker det gamle format som før",
+    F.efterbehandlForslag(JSON.stringify({ forslag: [{ tekst: "a" }, { tekst: "b" }] }), KENDTE).ok, true);
+
   console.log("\nÉT NYT FORSØG — kun ved forkert form");
   let n = 0;
   const r1 = await F.medEtNytForsoeg(async () => (++n === 1 ? "BANAN" : "Hej.\n###\n- Tjek"), r => F.efterbehandlSvar(r, KENDTE));

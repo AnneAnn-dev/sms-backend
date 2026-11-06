@@ -126,13 +126,25 @@ function efterbehandlSvar(raat, kendte) {
 }
 
 // ─── To forslag (opslag og kommentar) ────────────────────────────────────────
-function efterbehandlForslag(raat, kendte) {
-  const l = laesForslag(raat);
+// Med { begge: true } (opslag til "Begge", Ann 6/11): to forslag med hver en Facebook- og en
+// Instagram-tekst, altså fire kort. Begge tekster renses; mangler én efter rensning, afvises svaret.
+function efterbehandlForslag(raat, kendte, valg) {
+  const begge = !!(valg && valg.begge);
+  const l = laesForslag(raat, { begge });
   if (!l.ok) return { ok: false, fejl: l.fejl };
+  const tjek = (tekster) => {
+    if (tekster.some(f => !f)) return "tomt forslag efter rensning";
+    if (tekster.some(f => f.length > MAKS_FORSLAG_TEGN)) return "forslag over loftet";
+    return "";
+  };
+  if (begge) {
+    const forslag = l.forslag.map(f => ({ facebook: rensTekst(f.facebook, kendte), instagram: rensTekst(f.instagram, kendte) }));
+    const fejl = tjek(forslag.flatMap(f => [f.facebook, f.instagram]));
+    return fejl ? { ok: false, fejl } : { ok: true, forslag };
+  }
   const forslag = l.forslag.map(f => rensTekst(f, kendte));
-  if (forslag.some(f => !f)) return { ok: false, fejl: "tomt forslag efter rensning" };
-  if (forslag.some(f => f.length > MAKS_FORSLAG_TEGN)) return { ok: false, fejl: "forslag over loftet" };
-  return { ok: true, forslag };
+  const fejl = tjek(forslag);
+  return fejl ? { ok: false, fejl } : { ok: true, forslag };
 }
 
 // ─── Ét nyt forsøg ───────────────────────────────────────────────────────────

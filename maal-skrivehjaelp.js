@@ -12,7 +12,8 @@
 //
 // HVAD DEN MÅLER (form, pris og tid, aldrig kvalitet. Kvaliteten er Annes dom, T1b):
 //   - pris pr. kald i øre, regnet af tekst-adapter.js' egen prisOere (ingen ny prisliste)
-//   - svartid, og om modellen svarer i rigtig form (Svar: ### og noter. SoMe: præcis 2 forslag)
+//   - svartid, og om modellen svarer i rigtig form (Svar: ### og noter. SoMe: præcis 2 forslag,
+//     ved "Begge" hver med en Facebook- og en Instagram-tekst)
 //   - flag til læsning: tal, der ikke stod i input, forbudte ord fra sættet, SMS over 450 tegn,
 //     mail uden emne, ikke-dansk, en ræsonnerende model (tomt svar trods tokens)
 //
@@ -45,7 +46,8 @@ const MAKS_OERE = Number(vaerdi("--maks-oere", "1000"));
 const ID_FILTER = vaerdi("--id", "") ? new RegExp(vaerdi("--id", "")) : null;
 const GENTAG = Math.max(1, Number(vaerdi("--gentag", "1")) || 1);
 const UD = vaerdi("--ud", path.join(os.homedir(), "claude-arbejdstrae", "maalinger", "skrivehjaelp",
-  new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")));
+  new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
+// Sekunder med i mappenavnet: to kørsler i samme minut overskrev hinanden 6/11 (gemma-4-prøverne).
 
 // Faste kaldparametre. De står i resultatet, så en ny måling kan sammenlignes.
 const PARAM = {
@@ -140,22 +142,35 @@ function friTekst(c) {
 
 // ─── Flag til læsning ────────────────────────────────────────────────────────
 const tal = (s) => (String(s).match(/\d+(?:[.,]\d+)*/g) || []).map(x => x.replace(/[.,]/g, ""));
+// Sproglige fejl, Anne rettede i de 40 svar (6/11). Fanges som flag, så en ny prompt kan måles på dem.
+const SPROGFEJL = [
+  [/\bpas det (dig|jer)\b/i, '"Pas det dig?" (skal være "Passer det dig?")'],
+  [/\bring(?:e|er)? (?:dig|jer)\b(?! op\b)/i, '"ringe dig" uden "op"'],
+];
+// tekster: strenge, eller { navn, tekst, platform } for "Begge" (to vinkler × Facebook og Instagram).
 function flag_(c, prompt, tekster) {
   const fl = [];
   const kilde = new Set(tal(prompt.bruger + " " + prompt.system));
-  for (const [i, t] of tekster.entries()) {
+  const platformStd = c.input.platform || "";
+  const liste = tekster.map((t, i) => (typeof t === "string" ? { navn: `forslag ${i + 1}`, tekst: t, platform: platformStd } : t));
+  for (const { navn, tekst: t, platform } of liste) {
     const nye = [...new Set(tal(t).filter(n => !kilde.has(n)))];
-    if (nye.length) fl.push(`forslag ${i + 1}: tal, der ikke stod i input: ${nye.join(", ")}`);
-    for (const ord of c.maa_ikke) if (t.toLowerCase().includes(ord.toLowerCase())) fl.push(`forslag ${i + 1}: indeholder "${ord}"`);
-    if (!/(\b(og|vi|du|det|der|ikke|med|til)\b|æ|ø|å)/i.test(t)) fl.push(`forslag ${i + 1}: ser ikke dansk ud`);
+    if (nye.length) fl.push(`${navn}: tal, der ikke stod i input: ${nye.join(", ")}`);
+    for (const ord of c.maa_ikke) if (t.toLowerCase().includes(ord.toLowerCase())) fl.push(`${navn}: indeholder "${ord}"`);
+    if (!/(\b(og|vi|du|det|der|ikke|med|til)\b|æ|ø|å)/i.test(t)) fl.push(`${navn}: ser ikke dansk ud`);
     // Anne 6/11: ingen tankestreg eller bindestreg som tegnsætning. Måles på modellens
     // RÅ tekst, før skrivehjaelp-format.js rydder op, så det er promptens effekt, der ses.
     const streger = (t.match(/[–—]|[ \t]-[ \t]|^[ \t]*-[ \t]/gm) || []).length;
-    if (streger) fl.push(`forslag ${i + 1}: ${streger} tankestreg/bindestreg som tegnsætning`);
-    if (/\*\*\S/.test(t)) fl.push(`forslag ${i + 1}: Markdown (**)`);
+    if (streger) fl.push(`${navn}: ${streger} tankestreg/bindestreg som tegnsætning`);
+    if (/\*\*\S/.test(t)) fl.push(`${navn}: Markdown (**)`);
+    for (const [re, navnFejl] of SPROGFEJL) if (re.test(t)) fl.push(`${navn}: ${navnFejl}`);
+    // Ann 6/11: et link i et Instagram-opslag kan ikke klikkes.
+    // "link i bio" er i orden (Ann 6/11); det er linket i selve opslaget, der ikke virker.
+    if (platform === "Instagram" && /\b(klik|tryk|se)\b[^.\n]{0,20}\blink/i.test(t.replace(/\blink(et)? i (vores |min )?bio\b/gi, "")))
+      fl.push(`${navn}: Instagram-tekst beder om at klikke på et link`);
     if (c.type === "opslag") {
       const h = (t.match(/#[\wæøåÆØÅ]+/g) || []).length;
-      if (h < 3 || h > 5) fl.push(`forslag ${i + 1}: ${h} hashtags (skal være 3-5)`);
+      if (h < 3 || h > 5) fl.push(`${navn}: ${h} hashtags (skal være 3-5)`);
     }
   }
   if (c.type === "svar") {
@@ -287,9 +302,17 @@ async function main() {
           if (!s.noter.length) res.formFlag = "ingen ### og noter";
           res.flag = flag_(c, p, [s.svar]);
         } else {
-          const l = P.laesForslag(r.indhold);
+          const begge = c.type === "opslag" && c.input.platform === "Begge";
+          const l = P.laesForslag(r.indhold, { begge });
           if (!l.ok) { res.fejl = "form: " + l.fejl; res.raat = r.indhold.slice(0, 2000); }
-          else { res.forslag = l.forslag; res.flag = flag_(c, p, l.forslag); }
+          else {
+            res.forslag = l.forslag;
+            res.flag = flag_(c, p, begge
+              ? l.forslag.flatMap((f, n) => [
+                  { navn: `forslag ${n + 1} Facebook`, tekst: f.facebook, platform: "Facebook" },
+                  { navn: `forslag ${n + 1} Instagram`, tekst: f.instagram, platform: "Instagram" }])
+              : l.forslag);
+          }
         }
         if (r.slut === "length") (res.flag = res.flag || []).push("afskåret ved max_tokens");
       }
@@ -326,7 +349,11 @@ async function main() {
     if (r.fejl) linjer.push(`**FEJL:** ${r.fejl}`, "");
     if (r.raat) linjer.push("```", r.raat, "```", "");
     if (r.svar) linjer.push("**Udkast:**", "", "```", r.svar, "```", "", r.noter.length ? "**Noter:** " + r.noter.join(" · ") : "", "");
-    if (r.forslag) r.forslag.forEach((f, n) => linjer.push(`**Forslag ${n + 1}:**`, "", "```", f, "```", ""));
+    if (r.forslag) r.forslag.forEach((f, n) => {
+      if (typeof f === "string") linjer.push(`**Forslag ${n + 1}:**`, "", "```", f, "```", "");
+      else linjer.push(`**Forslag ${n + 1}, Facebook:**`, "", "```", f.facebook, "```", "",
+                       `**Forslag ${n + 1}, Instagram:**`, "", "```", f.instagram, "```", "");
+    });
     const alleFlag = [...(r.flag || []), ...(r.formFlag ? [r.formFlag] : [])];
     if (alleFlag.length) linjer.push("**Flag:** " + alleFlag.join(" · "), "");
     if (r.oere != null) linjer.push(`*${r.ms} ms · ${r.tokensInd} ind / ${r.tokensUd} ud · ${r.oere} øre*`, "");
