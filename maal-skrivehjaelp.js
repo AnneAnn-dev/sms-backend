@@ -70,7 +70,14 @@ function udfyldteFelter(sit) {
 
 function byggCases() {
   const cases = [];
-  if (KUN.includes("svar")) {
+  if (KUN.includes("svar") && SAET.svar) {
+    // Et sæt med egne Svar-cases (fx Annes 40 i skrivehjaelp-saet-t1b-svar.json) erstatter
+    // de cases, der ellers bygges ud fra pakkernes eksempler.
+    for (const c of SAET.svar) {
+      cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke || [], tjek: c.tjek,
+        input: { situation: c.situation, felter: c.felter || {}, andet: c.andet || "", kanal: c.kanal, tone: c.tone, besked: c.besked } });
+    }
+  } else if (KUN.includes("svar")) {
     for (const [pk, pack] of Object.entries(PACKS)) {
       for (const [sid, sit] of Object.entries(pack.situations)) {
         const firma = { ...FIRMA, trade: FOERSTE_FAG[pk] };
@@ -81,7 +88,7 @@ function byggCases() {
                    tone: sit.group === "klage" ? "imødekommende" : "venlig", besked: sit.example } });
       }
     }
-    for (const c of SAET.svar_fjendtlige) {
+    for (const c of SAET.svar_fjendtlige || []) {
       cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke,
         input: { situation: c.situation, felter: c.felter || {}, kanal: c.kanal, tone: c.tone, besked: c.besked } });
     }
@@ -289,7 +296,7 @@ async function main() {
     linjer.push(`### ${r.id} · ${r.model}`, "");
     const i = r.input;
     if (r.type === "svar") linjer.push(`Fag: ${r.trade} · situation: ${i.situation} · ${i.kanal} · ${i.tone}`, "", "**Kundens besked:**", "", "> " + i.besked.replace(/\n/g, "\n> "), "",
-      `**Fakta:** ${Object.entries(i.felter || {}).map(([k, v]) => `${k}=${v}`).join(" · ") || "(ingen)"}`, "");
+      `**Fakta:** ${Object.entries(i.felter || {}).map(([k, v]) => `${k}=${v}`).join(" · ") || "(ingen)"}${i.andet ? " · andet=" + i.andet : ""}`, "");
     if (r.type === "opslag") linjer.push(`**Idé:** ${i.idea} · mål: ${i.goal} · ${i.platform}`, "");
     if (r.type === "kommentar") linjer.push("**Kommentar:** " + i.comment, "", "**Rå svar:** " + i.raw, "");
     if (r.tjek) linjer.push("**Tjek efter:** " + r.tjek, "", "**OK?** ☐ Ja ☐ Nej ☐ Delvis · **Noter:**", "");
