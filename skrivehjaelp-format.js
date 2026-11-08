@@ -94,6 +94,13 @@ function rensStreger(t) {
     .replace(/,\s*,/g, ",");
 }
 
+// ─── Sproglige småfejl (Anne 6/11-26) ───────────────────────────────────────
+// "Jeg ringer dig" er forkert dansk. Prompten siger det, men mistral skrev det stadig i
+// Grøn 3 i tre målinger. Rettelsen er grammatik, ikke indhold: "ringer dig op" røres ikke.
+function rensSprog(t) {
+  return t.replace(/\b(ringe|ringer|ring) (dig|jer)\b(?! op\b)/gi, "$1 til $2");
+}
+
 // ─── Resten af formen ────────────────────────────────────────────────────────
 function rensTekst(tekst, kendte) {
   let t = String(tekst || "").replace(/\r\n/g, "\n");
@@ -105,6 +112,7 @@ function rensTekst(tekst, kendte) {
   // Skillelinjer: "---", "***", "___", "———" — overalt, ikke kun til sidst (Anne 6/11).
   t = t.replace(/^[ \t]*[-*_—–]{3,}[ \t]*$/gm, "");
   t = rensStreger(t);
+  t = rensSprog(t);
   // Mellemrum til sidst på linjer, og højst én tom linje i træk.
   t = t.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
   return t;
@@ -164,7 +172,7 @@ async function medEtNytForsoeg(kald, efterbehandl) {
 }
 
 module.exports = {
-  kendteFakta, rensParenteser, rensStreger, rensTekst,
+  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst,
   efterbehandlSvar, efterbehandlForslag, medEtNytForsoeg,
   MAKS_SVAR_TEGN, MAKS_FORSLAG_TEGN,
 };

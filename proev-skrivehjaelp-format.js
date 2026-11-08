@@ -72,6 +72,13 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   lig("ingen tankestreg tilbage i Annes eksempel (A2)",
     /[–—]/.test(R("🚿 FØR OG EFTER – grønne fliser — og en total transformation")), false);
 
+  console.log("\nSPROG — Anne 6/11: 'ringe dig op' / 'ringe til dig'");
+  lig("'Jeg ringer dig, når' bliver 'ringer til dig'", R("Jeg ringer dig, når vi kan komme."), "Jeg ringer til dig, når vi kan komme.");
+  lig("'ringer dig op' bliver stående", R("Vi ringer dig op i morgen."), "Vi ringer dig op i morgen.");
+  lig("'ringe jer' bliver 'ringe til jer'", R("Jeg kan ringe jer i morgen"), "Jeg kan ringe til jer i morgen");
+  lig("'ringe til dig' bliver ikke dobbelt", R("Jeg vil ringe til dig."), "Jeg vil ringe til dig.");
+  lig("'Ring gerne' røres ikke", R("Ring gerne på 12 34 56 78."), "Ring gerne på 12 34 56 78.");
+
   console.log("\nSVAR — ### og noter kræves");
   const godt = "Hej Maria. Ring på [12 34 56 78].\n\nPeter Testesen\n###\n- Udfyld [dato]";
   lig("et godt svar renses og godkendes", F.efterbehandlSvar(godt, KENDTE),
