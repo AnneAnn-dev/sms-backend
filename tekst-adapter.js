@@ -28,6 +28,12 @@
 //   5. MODELSTRENGEN LÅSES (D14). Aldrig et alias. En model, der skifter under
 //      os, gør regressionssættet værdiløst, uden at nogen opdager det.
 //
+// SKRIVEHJÆLP (Fase 4, 8/11-26): `skriv()` sender et system- og et brugerfelt og
+// returnerer modellens RÅ tekst. Formen dømmes af skrivehjaelp-format.js, ikke her.
+// Samme leverandør, adresse og nøgle som referatet, men EGEN låst modelstreng
+// (SKRIVEHJAELP_MODEL, D14), så et modelskifte i referatet ikke flytter Skrivehjælp —
+// og omvendt.
+//
 // Denne fil logger hverken transskription, referat eller prompt — kun tal.
 // Transskriptioner er persondata (CLAUDE.md, Sikkerhed).
 
@@ -82,11 +88,13 @@ const ALIASSER = ["latest", "newest", "stable", "default"];
 // ─── Konfiguration ───────────────────────────────────────────────────────────
 // Fail-closed som flags.js og asr-adapter.js: der kastes ved første kald, ikke
 // ved import, så appen kan starte uden referat konfigureret.
-function hentKonfig(env) {
+// modelVar: hvilken variabel der låser modellen. Referatet: TILBUD_REFERAT_MODEL.
+// Skrivehjælp: SKRIVEHJAELP_MODEL. Leverandør, adresse og nøgle er fælles.
+function hentKonfig(env, { modelVar = "TILBUD_REFERAT_MODEL" } = {}) {
   const e = env || process.env;
   const navn = (e.TILBUD_REFERAT_LEVERANDOER || "").trim();
   const url = (e.TILBUD_REFERAT_URL || "").trim();
-  const model = (e.TILBUD_REFERAT_MODEL || "").trim();
+  const model = (e[modelVar] || "").trim();
 
   if (!navn) throw konfigfejl("TILBUD_REFERAT_LEVERANDOER mangler");
   const lev = LEVERANDOERER[navn];
@@ -96,13 +104,13 @@ function hentKonfig(env) {
     );
   }
   if (!url) throw konfigfejl("TILBUD_REFERAT_URL mangler");
-  if (!model) throw konfigfejl("TILBUD_REFERAT_MODEL mangler");
+  if (!model) throw konfigfejl(`${modelVar} mangler`);
 
   // D14
   const lav = model.toLowerCase();
   if (ALIASSER.some((a) => lav === a || lav.endsWith(":" + a) || lav.endsWith("-" + a))) {
     throw konfigfejl(
-      `TILBUD_REFERAT_MODEL er et alias ('${model}'). Skriv det praecise modelnavn med version (D14).`
+      `${modelVar} er et alias ('${model}'). Skriv det praecise modelnavn med version (D14).`
     );
   }
 
@@ -344,8 +352,83 @@ function formfejl(fejl) {
   return f;
 }
 
+// ─── Skrivehjælp (Fase 4) ────────────────────────────────────────────────────
+// System og bruger kommer færdigbygget fra prompts/skrivehjaelp.js (S6: brugerens
+// tekst står i tags i brugerfeltet, aldrig i systemfeltet). Returnerer den RÅ tekst
+// og prisen; skrivehjaelp-format.js dømmer formen, og ruten bogfører.
+const SKRIV = { modelVar: "SKRIVEHJAELP_MODEL" };
+
+function prisOereSkrivehjaelp(tokensInd, tokensUd, env) {
+  const { pris } = hentKonfig(env, SKRIV);
+  const i = (Number(tokensInd) || 0) / 1e6;
+  const u = (Number(tokensUd) || 0) / 1e6;
+  return (i * pris.ind + u * pris.ud) * EUR_TIL_DKK * 100;
+}
+
+function skrivfejl(besked, kode, ekstra) {
+  const f = new Error("Skrivehjaelp: " + besked);
+  f.kode = kode;
+  Object.assign(f, ekstra || {});
+  return f;
+}
+
+async function skriv(
+  { system, bruger, temperatur = 0.3, maksTokens = 800, timeoutMs = 30000 },
+  env, fetchFn = fetch
+) {
+  if (typeof system !== "string" || !system.trim()) throw skrivfejl("system mangler", "skrivehjaelp_brug");
+  if (typeof bruger !== "string" || !bruger.trim()) throw skrivfejl("bruger mangler", "skrivehjaelp_brug");
+  let k;
+  try { k = hentKonfig(env, SKRIV); }
+  catch (e) { e.kode = "skrivehjaelp_konfiguration"; throw e; }
+
+  const afbryd = new AbortController();
+  const ur = setTimeout(() => afbryd.abort(), timeoutMs);
+  let svar;
+  try {
+    svar = await fetchFn(`${k.url}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${k.noegle}`, "Content-Type": "application/json" },
+      // Regel 1 (S6): to felter, aldrig én streng.
+      body: JSON.stringify({
+        model: k.model, temperature: temperatur, max_tokens: maksTokens,
+        messages: [{ role: "system", content: system }, { role: "user", content: bruger }],
+      }),
+      signal: afbryd.signal,
+    });
+  } catch (e) {
+    clearTimeout(ur);
+    throw skrivfejl(e.name === "AbortError"
+      ? `udkastet tog over ${Math.round(timeoutMs / 1000)} sekunder`
+      : `kunne ikke naa leverandoeren (${e.message})`, "skrivehjaelp_kald", { timeout: e.name === "AbortError" });
+  }
+  clearTimeout(ur);
+  if (!svar.ok) {
+    throw skrivfejl(`leverandoeren svarede ${svar.status}`, "skrivehjaelp_kald", { status: svar.status });
+  }
+  let raa;
+  try { raa = await svar.json(); }
+  catch { throw skrivfejl("leverandoeren svarede noget, der ikke er JSON", "skrivehjaelp_kald"); }
+
+  const valg = (raa.choices && raa.choices[0]) || {};
+  const indhold = (valg.message && valg.message.content) || "";
+  const tokensInd = (raa.usage && raa.usage.prompt_tokens) || 0;
+  const tokensUd = (raa.usage && raa.usage.completion_tokens) || 0;
+  const prisOere = prisOereSkrivehjaelp(tokensInd, tokensUd, env);
+  const pris = { tokensInd, tokensUd, prisOere, leverandoer: k.navn, model: k.model };
+
+  // Regel 4: tomt svar trods tokens = ræsonnerende model (J9). Prisen hænger på fejlen.
+  if (!String(indhold).trim()) {
+    throw skrivfejl(tokensUd > 0
+      ? `modellen svarede TOMT, men brugte ${tokensUd} tokens: en raesonnerende model (J9)`
+      : "modellen svarede tomt", "skrivehjaelp_tom", { ...pris, slags: tokensUd > 0 ? "raesonnerende" : "tom" });
+  }
+  return { raat: String(indhold), afskaaret: valg.finish_reason === "length", ...pris };
+}
+
 module.exports = {
   referer, prisenhed, prisOere, valider,
+  skriv, prisOereSkrivehjaelp,
   // Eksporteret til test. Kald dem ikke fra produktionskode.
   _hentKonfig: hentKonfig,
   _LEVERANDOERER: LEVERANDOERER,

@@ -121,6 +121,20 @@ const MAKS = { besked: 4000, andet: 1000, felt: 300, udkast: 3000, ide: 1000, ko
 
 class ValideringsFejl extends Error {}
 
+// ─── Det afgørende felt (lag 1 og 2, Annes bilag A, godkendt 6/11-26) ─────────
+// Feltet, firmaet SKAL udfylde, før der laves et udkast. Uden det finder modellen på
+// løfter, afslag og indrømmelser (målt 8/11: ca. halvdelen af 34 tomme cases). Appen
+// gør feltet obligatorisk (lag 1); bygSvar afviser kaldet uden det (lag 2 -> 400).
+//   null    = ingen beslutning at træffe (tak og ros)
+//   "andet" = fritekstfeltet "Andet kunden skal vide" (situationen Andet har ingen felter)
+// Samme situations-id betyder det samme felt i alle branchepakker; proev-skrivehjaelp.js
+// tjekker, at feltet findes i hver pakke.
+const AFGOERENDE = {
+  nyopgave: "take", pris: "pricetype", flyt: "can", tilbud: "answer", undervejs: "prep",
+  ros: null, andet: "andet", overtid: "reason", kvalitet: "assess", pris_klage: "why",
+  udeblevet: "cause", fastaftale: "reply", skade: "action",
+};
+
 function tekst(v, navn, maks, kraevet) {
   if (v == null || v === "") { if (kraevet) throw new ValideringsFejl(`${navn} mangler`); return ""; }
   if (typeof v !== "string") throw new ValideringsFejl(`${navn} skal være tekst`);
@@ -162,6 +176,20 @@ function bygSvar(input, firma) {
   if (!TONE[input.tone]) throw new ValideringsFejl("Ukendt tone");
 
   const felter = input.felter || {};
+  // Lag 2: det afgørende felt skal være udfyldt, ellers intet kald (og ingen udgift).
+  if (!Object.prototype.hasOwnProperty.call(AFGOERENDE, input.situation)) {
+    throw new ValideringsFejl("Situationen mangler et afgørende felt i AFGOERENDE");
+  }
+  const afg = AFGOERENDE[input.situation];
+  if (afg === "andet") {
+    if (typeof input.andet !== "string" || !input.andet.trim()) throw new ValideringsFejl("Skriv, hvad kunden skal vide");
+  } else if (afg) {
+    const v = felter[afg];
+    if (typeof v !== "string" || !v.trim()) {
+      const f = sit.fields.find((x) => x.id === afg);
+      throw new ValideringsFejl(`Udfyld: ${f ? f.label : afg}`);
+    }
+  }
   const linjer = [];
   for (const f of sit.fields) {
     let v = tekst(felter[f.id], f.label, MAKS.felt, false);
@@ -323,6 +351,6 @@ function laesForslag(raat, valg) {
 module.exports = {
   SKRIVEHJAELP_PROMPT_VERSION,
   bygSvar, bygOpslag, bygKommentar, splitAnswer, laesForslag,
-  ValideringsFejl, KANAL, TONE, MAAL, PLATFORM, MAKS,
+  ValideringsFejl, KANAL, TONE, MAAL, PLATFORM, MAKS, AFGOERENDE,
   _RULES: RULES, _TAGNAVNE: TAGNAVNE,
 };

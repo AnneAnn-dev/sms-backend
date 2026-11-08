@@ -104,14 +104,24 @@ function byggCases() {
         const firma = { ...FIRMA, trade: FOERSTE_FAG[pk] };
         cases.push({ id: `svar-${pk}-${sid}-tom`, type: "svar", firma, maa_ikke: [],
           input: { situation: sid, felter: {}, kanal: "sms", tone: "venlig", besked: sit.example } });
+        // Fase 4 T2 (8/11): kun det afgoerende felt udfyldt = det mindste, appen tillader.
+        const afg = P.AFGOERENDE[sid];
+        if (afg) {
+          const minFelter = {}; let minAndet = "";
+          if (afg === "andet") minAndet = "Fakturaen er sendt igen";
+          else { const f = sit.fields.find((x) => x.id === afg); if (f) minFelter[afg] = f.type === "select" ? f.options[0] : (f.placeholder || "en oplysning").replace(/^Fx\s+/i, ""); }
+          cases.push({ id: `svar-${pk}-${sid}-min`, type: "svar", firma, maa_ikke: [],
+            input: { situation: sid, felter: minFelter, andet: minAndet, kanal: "sms", tone: "venlig", besked: sit.example } });
+        }
         cases.push({ id: `svar-${pk}-${sid}-udfyldt`, type: "svar", firma, maa_ikke: [],
-          input: { situation: sid, felter: udfyldteFelter(sit), kanal: sit.group === "klage" ? "mail" : "sms",
+          input: { situation: sid, felter: udfyldteFelter(sit), andet: P.AFGOERENDE[sid] === "andet" ? "Fakturaen er sendt igen" : "",
+                   kanal: sit.group === "klage" ? "mail" : "sms",
                    tone: sit.group === "klage" ? "imødekommende" : "venlig", besked: sit.example } });
       }
     }
     for (const c of SAET.svar_fjendtlige || []) {
       cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke,
-        input: { situation: c.situation, felter: c.felter || {}, kanal: c.kanal, tone: c.tone, besked: c.besked } });
+        input: { situation: c.situation, felter: c.felter || {}, andet: c.andet || "", kanal: c.kanal, tone: c.tone, besked: c.besked } });
     }
   }
   if (KUN.includes("opslag")) {
@@ -176,10 +186,11 @@ function flag_(c, prompt, tekster) {
   if (c.type === "svar") {
     const t = tekster[0] || "";
     // Måling 1 (06:16): uden fakta svarede modellen "Ja, det kan vi sagtens" og lovede dage og
-    // priser. Grov fælde for den slags påstande, kun når håndværkeren intet har udfyldt.
-    const ingenFakta = !Object.values(c.input.felter || {}).some(v => String(v || "").trim());
-    const PAASTAND = /(^|[\s.!])((?<!hvis )ja[,.!]|det kan vi|med i prisen|er inkluderet|du behøver ikke|du skal ikke|vi kommer (mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag|stadig))/i;
-    if (ingenFakta && c.input.situation !== "ros" && PAASTAND.test(t)) fl.push("mulig påstand uden fakta: " + (t.match(PAASTAND)[0].trim()));
+    // priser. 8/11: læst i hånden lovede ca. halvdelen af 34 tomme cases noget, flaget fandt 3 —
+    // vendingerne nedenfor er dem, der blev fundet i hånden. Gælder, når højst ét felt er udfyldt.
+    const udfyldte = Object.values(c.input.felter || {}).filter(v => String(v || "").trim()).length;
+    const PAASTAND = /(^|[\s.!])((?<!hvis )ja[,.!]|det kan vi|med i prisen|er inkluderet|du behøver ikke|du skal ikke|vi kommer (mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag|stadig)|(jeg|vi) (kommer|kigger) (gerne )?forbi|med det samme|vores fejl|skal vi have rettet|vi kan godt|selvfølgelig kan|vi tager (gerne )?\w+ med|det er ikke noget, vi)/i;
+    if (udfyldte <= 1 && c.input.situation !== "ros" && PAASTAND.test(t)) fl.push("mulig påstand uden fakta: " + (t.match(PAASTAND)[0].trim()));
     // Måling 2: kendte fakta blev sat i parentes ("[fredag]", "[12 34 56 78]").
     const kendt = [...Object.values(c.input.felter || {}), c.firma.phone].filter(Boolean).map(v => String(v).toLowerCase());
     const iParentes = (t.match(/\[[^\]]+\]/g) || []).filter(p => { const x = p.slice(1, -1).toLowerCase().trim(); return x.length >= 3 && kendt.some(k => k.includes(x)); });
@@ -228,9 +239,14 @@ async function main() {
   // Tørkørsel-tjek, køres ALTID før netværket: bygger alle prompts og afviser, hvis
   // brugertekst er havnet i systemfeltet, eller et tag kan lukkes indefra.
   let fejl = 0;
+  const afvist = new Set();
   for (const c of cases) {
     let p;
-    try { p = byg(c); } catch (e) { console.log(`  FEJL  ${c.id}: ${e.message}`); fejl++; continue; }
+    try { p = byg(c); } catch (e) {
+      // Lag 2 (8/11): uden det afgørende felt afviser bygSvar kaldet. Det er rigtigt, ikke en fejl.
+      if (e instanceof P.ValideringsFejl && /^(Udfyld: |Skriv, hvad kunden skal vide)/.test(e.message)) { afvist.add(c.id); continue; }
+      console.log(`  FEJL  ${c.id}: ${e.message}`); fejl++; continue;
+    }
     for (const s of friTekst(c)) if (p.system.includes(s)) { console.log(`  FEJL  ${c.id}: brugertekst i systemfeltet`); fejl++; }
     for (const navn of P._TAGNAVNE) {
       const aabne = (p.bruger.match(new RegExp(`<${navn}>`, "g")) || []).length;
@@ -242,7 +258,9 @@ async function main() {
   for (const c of cases) antal[c.type]++;
   console.log(`\nPromptversion ${P.SKRIVEHJAELP_PROMPT_VERSION} · ${cases.length} cases (svar ${antal.svar}, opslag ${antal.opslag}, kommentar ${antal.kommentar}) · ${MODELLER.length} model(ler)`);
   console.log(`Tørkørsel: ${fejl ? fejl + " FEJL" : "0 fejl"} (S6-adskillelse og tags)`);
+  if (afvist.size) console.log(`Afvist af serveren uden det afgørende felt (lag 2), sendes ikke: ${afvist.size}`);
   if (fejl) process.exit(1);
+  for (let i = cases.length - 1; i >= 0; i--) if (afvist.has(cases[i].id)) cases.splice(i, 1);
   if (TOER) { console.log("Ingen netværk (--toer). Slut."); return; }
 
   if (fs.existsSync(path.join(process.cwd(), ".ENV-ER-PROD"))) {
