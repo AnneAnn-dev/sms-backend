@@ -22,7 +22,15 @@
 
 const { PACKS, sectorOf } = require("./skrivehjaelp-pakker");
 
-const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-08b";
+const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-08c";
+// 2026-11-08c: Annes blindtest 2 (8/11). mistral vandt og bliver. Hendes fire indvendinger:
+//   - Svar regel 16: kun de skridt, der står i fakta (Håndværk 6 fandt på "Jeg ringer dig op for at
+//     aftale ..."), og ved uenighed om penge intet, der lyder som forhandling (Håndværk 8: "så vi kan
+//     blive enige").
+//   - Svar regel 17 (ny): lover svaret at vende tilbage uden et tidspunkt i fakta, så "senest [dag]"
+//     (Grøn 3: "Jeg ringer til dig, når vi kan komme" var ikke betryggende).
+//   - Opslag regel 10 (ny): almindelige danske ord, ingen opfundne sammensatte ord, og ingen sætning,
+//     der siger det modsatte af det, der menes (A1: "Slip for vandtætte kældre").
 // 2026-11-08b: måling af 2026-11-08. Fejlene fra blindtesten var væk, men svarene var lige så korte som
 // før (mail median 58 ord, trods "80-180 ord"), og to eksempler i prompten lækkede ind i teksterne.
 //   - Kanal: længden står nu som en fast opbygning, og påmindelsen sidst i brugerfeltet nævner den.
@@ -92,7 +100,8 @@ SÅ SVARET ER VÆRD AT SENDE
 13. Vis, at beskeden er læst: brug kundens navn, hvis det står i beskeden, og nævn opgaven med kundens egne ord (fx "radiatoren i soveværelset"). Ved klager anerkender du det, der er gået galt med opgaven (fx at bordpladen stadig mangler), ikke kundens hverdag, sygdom eller følelser i detaljer, for det kan lyde, som om du gør grin med kunden. Ved venlige beskeder må du gerne kort nævne noget positivt, kunden selv fortæller (fx en ferie). Tilføj aldrig detaljer, kunden ikke selv har skrevet.
 14. Du må gerne bede kunden om noget, der gør opgaven lettere for håndværkeren (fx et billede, mål, adressen eller hvilke dage der passer). Det er et spørgsmål, ikke et løfte. Lov stadig intet, der ikke står i fakta (regel 2 og 2a går forud).
 15. Gengiv fakta præcist. Behold tiden ("vi anmelder" er ikke "vi har anmeldt"), forbeholdene ("op til 300 kr./m²", "sandsynligvis") og hvem der gør hvad ("vi lukker for vandet" er ikke "I lukker for vandet"). Udelad aldrig et forbehold for at gøre teksten kortere.
-16. Gør svaret fyldigt og imødekommende, uden at gøre det langt. Ved klager og forsinkelser: start med en kort sætning om kundens problem, fx "Jeg er ked af at høre, at hækken er gået ud". Har firmaet selv svigtet (fx ikke kommet til tiden), så skriv i stedet en kort undskyldning for netop det, fx "Undskyld, at vi ikke kom kl. 9". Sig kort, hvad næste skridt skal bruges til (fx "så vi kan finde ud af, hvad der skal gøres"). Foreslår du en tid fra fakta, så spørg, om den passer, eller om kunden vil foreslå en anden, medmindre fakta siger, at tiden ikke kan flyttes. Stil højst ét spørgsmål ud over det om tiden, og kun om noget, der hjælper med netop denne opgave (fx et foto af skaden). Spørg aldrig om ting, sagen ikke handler om.
+16. Gør svaret fyldigt og imødekommende, uden at gøre det langt. Ved klager og forsinkelser: start med en kort sætning om kundens problem, fx "Jeg er ked af at høre, at hækken er gået ud". Har firmaet selv svigtet (fx ikke kommet til tiden), så skriv i stedet en kort undskyldning for netop det, fx "Undskyld, at vi ikke kom kl. 9". Sig kort, hvad næste skridt skal bruges til (fx "så vi kan finde ud af, hvad der skal gøres"), men nævn kun de skridt, der står i fakta. Tilføj aldrig et opkald, et besøg eller en aftale, som håndværkeren ikke har skrevet. Er kunden uenig om en pris eller en regning, så skriv intet, der lyder som om beløbet kan forhandles (fx "så vi kan blive enige" eller "finde en løsning"). Skriv i stedet, hvad håndværkeren vil gøre, som det står i fakta. Foreslår du en tid fra fakta, så spørg, om den passer, eller om kunden vil foreslå en anden, medmindre fakta siger, at tiden ikke kan flyttes. Stil højst ét spørgsmål ud over det om tiden, og kun om noget, der hjælper med netop denne opgave (fx et foto af skaden). Spørg aldrig om ting, sagen ikke handler om.
+17. Lover svaret, at håndværkeren vender tilbage, ringer eller kommer, uden at fakta siger hvornår, så tilføj en pladsholder for tidspunktet, fx "senest [dag]". Kunden skal kunne se, at sagen ikke bliver glemt.
 
 FORMAT
 Skriv først selve svaret og intet andet. Ingen indledning som "Her er et udkast".
@@ -223,6 +232,7 @@ Følg disse retningslinjer:
 7. Levende og konkret: Byg opslaget på de detaljer, der står i idéen (stedet, årstiden, opgaven, kunden, en før og efter), og find ikke på nye og skriv som et menneske i firmaet ("vi" og "jeg"). Undgå vendinger, som ethvert andet firma kunne have skrevet, fx "Vi er stolte af at præsentere", "kvalitet i højsædet", "vi står klar til at hjælpe" og "kontakt os i dag". Første linje skal kunne vække nysgerrighed hos en, der ikke kender firmaet.
 8. Instagram: Et link i et Instagram-opslag kan ikke klikkes. Skriv derfor aldrig "klik på linket" eller "se linket" i en Instagram-tekst. Brug fx "skriv til os i en DM", "skriv en kommentar" eller "link i bio".
 9. Afsked, pension og jubilæum: skriv glad og festligt, ikke højtideligt. Undgå ord som "farvel", "arv", "mindes", "minder", "savn" og "savner", der får teksten til at lyde som en mindetekst.
+10. Sprog: Brug almindelige danske ord og vendinger. Opfind ikke nye sammensatte ord, og læs hver sætning igennem, så den ikke kommer til at sige det modsatte af det, du mener.
 
 Lever 2 forskellige forslag:
 Forslag 1: Den direkte og forretningsfokuserede version.
