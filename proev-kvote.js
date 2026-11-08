@@ -63,6 +63,7 @@ function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa 
       const byg = (filtre) => ({
         gte(_, vaerdi) { return byg([...filtre, (r) => r.created_at >= vaerdi]); },
         eq(_, vaerdi)  { return byg([...filtre, (r) => r.firm_id === vaerdi]); },
+        in(_, liste)   { return byg([...filtre, (r) => liste.includes(r.formaal)]); },
         then(res) {
           const svar = fejlPaa === "ai_forbrug"
             ? { data: null, error: { message: "nede" } }
@@ -75,7 +76,14 @@ function attrap({ raekker = [], firmaLoft = null, firmaDagsloft = null, fejlPaa 
   };
 }
 
-const oere = (n, naar, firma = "F1") => ({ firm_id: firma, created_at: naar, pris_oere: n });
+const oere = (n, naar, firma = "F1", formaal = "referat") => ({ firm_id: firma, created_at: naar, pris_oere: n, formaal });
+
+// Skrivehjaelps lofter (Ann 5/11-26): 10 kr./md. og 2 kr./dag pr. del.
+const SKRIV = {
+  ...LOFTER_DRIFT,
+  AI_SVAR_MAANEDSLOFT_DKK: "10", AI_SVAR_DAGSLOFT_DKK: "2",
+  AI_FACEBOOK_MAANEDSLOFT_DKK: "10", AI_FACEBOOK_DAGSLOFT_DKK: "2",
+};
 const IDAG = new Date().toISOString();
 // Et tidspunkt i denne maaned: maanedsstart + 1 minut. Den 1. i maaneden er
 // det I DAG - saa maa det kun bruges, hvor det er ligegyldigt, om det er i dag
@@ -185,6 +193,59 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   lig("springer forbi i ét kald", k.krydsedeVarsel(100, 6900, L), true);
   lig("uden loft varsles der ikke", k.krydsedeVarsel(100, 100, 0), false);
 
+  console.log("\nPULJER — Referat og Skrivehjaelp tager ikke af hinandens loft (Fase 4)");
+  const forventet = ["transskription", "referat", "tilbud", "notefoto", "opgave_transskription",
+    "skrivehjaelp_svar", "skrivehjaelp_opslag", "skrivehjaelp_kommentar"];
+  const alle = Object.values(k.PULJER || {}).flatMap((p) => p.formaal);
+  lig("hvert formaal i praecis én pulje", alle.length, new Set(alle).size);
+  lig("puljerne daekker CHECK-reglens formaal", [...alle].sort().join(","), [...forventet].sort().join(","));
+  lig("kommentarsvar hoerer til svar", k.puljeFor && k.puljeFor("skrivehjaelp_kommentar"), "svar");
+  lig("opslag hoerer til facebook", k.puljeFor && k.puljeFor("skrivehjaelp_opslag"), "facebook");
+  await proev("referatforbrug taeller ikke i svar", "tilladt",
+    { raekker: [oere(9000, IDAG)] }, { pulje: "svar" }, SKRIV);
+  await proev("svarforbrug taeller ikke i optagelse", "tilladt",
+    { raekker: [oere(5000, IDAG, "F1", "skrivehjaelp_svar")] }, {}, SKRIV);
+  await proev("uden pulje gaelder optagelse som foer", "firma_dagsloft",
+    { raekker: [oere(1000, IDAG)] }, {}, SKRIV);
+  await proev("svar under dagsloftet er tilladt", "tilladt",
+    { raekker: [oere(199, IDAG, "F1", "skrivehjaelp_svar")] }, { pulje: "svar" }, SKRIV);
+  await proev("svar paa dagsloftet (2 kr.) spaerrer", "firma_dagsloft",
+    { raekker: [oere(200, IDAG, "F1", "skrivehjaelp_svar")] }, { pulje: "svar" }, SKRIV);
+  await proev("kommentarsvar taeller i svar", "firma_dagsloft",
+    { raekker: [oere(200, IDAG, "F1", "skrivehjaelp_kommentar")] }, { pulje: "svar" }, SKRIV);
+  await proev("opslag taeller ikke i svar", "tilladt",
+    { raekker: [oere(200, IDAG, "F1", "skrivehjaelp_opslag")] }, { pulje: "svar" }, SKRIV);
+  await proev("opslag taeller i facebook", "firma_dagsloft",
+    { raekker: [oere(200, IDAG, "F1", "skrivehjaelp_opslag")] }, { pulje: "facebook" }, SKRIV);
+  await proev("svar paa maanedsloftet (10 kr.) spaerrer", "firma_maanedsloft",
+    { raekker: [oere(1000, TIDLIGERE, "F1", "skrivehjaelp_svar")] }, { pulje: "svar" }, SKRIV);
+  await proev("firmaets eget optageloft haever ikke svar", "firma_maanedsloft",
+    { raekker: [oere(1000, TIDLIGERE, "F1", "skrivehjaelp_svar")], firmaLoft: 200 }, { pulje: "svar" }, SKRIV);
+  await proev("et ANDET firmas svar taeller ikke", "tilladt",
+    { raekker: [oere(900, IDAG, "F2", "skrivehjaelp_svar")] }, { pulje: "svar" }, SKRIV);
+  await proev("det globale loft taeller ALLE puljer", "globalt_maanedsloft",
+    { raekker: [oere(50000, TIDLIGERE, "F2", "skrivehjaelp_opslag")] }, {}, SKRIV);
+  const udenSvarDag = { ...SKRIV, AI_SVAR_DAGSLOFT_DKK: "" };
+  await proev("manglende svar-loft afviser svar (fail-closed)", "kastede kvote_konfiguration",
+    { raekker: [] }, { pulje: "svar" }, udenSvarDag);
+  await proev("... men lukker IKKE for optagelse", "tilladt",
+    { raekker: [] }, {}, udenSvarDag);
+  await proev("... og heller ikke for facebook", "tilladt",
+    { raekker: [] }, { pulje: "facebook" }, udenSvarDag);
+  await proev("ukendt pulje afvises", "kastede kvote_brug", { raekker: [] }, { pulje: "andet" }, SKRIV);
+  const t1 = await k.tjek({ firmId: "F1", pulje: "svar" },
+    attrap({ raekker: [oere(200, IDAG, "F1", "skrivehjaelp_svar")] }), SKRIV);
+  lig("svarets afvisning naevner ikke optagelse", /optag/i.test(t1.besked), false);
+  lig("svarets afvisning er Annes ordlyd for dagens loft (6/11)", /^Du har brugt dagens skrivehjælp\./.test(t1.besked), true);
+  lig("ingen ANNE-ORDLYD-markoer tilbage", /ANNE-ORDLYD/.test(t1.besked), false);
+  lig("afvisningen fortaeller puljen", t1.pulje, "svar");
+  const t2 = await k.tjek({ firmId: "F1" }, attrap({ raekker: [oere(1000, IDAG)] }), SKRIV);
+  lig("optagelsens tekst er uaendret (Annes ordlyd)", /optagefunktionen/.test(t2.besked), true);
+  const s5 = await k.status({ firmId: "F1", pulje: "svar" },
+    attrap({ raekker: [oere(950, TIDLIGERE, "F1", "skrivehjaelp_svar"), oere(9000, IDAG)] }), SKRIV);
+  lig("status for svar ser kun svarforbrug", `${s5.pulje} ${s5.forbrugtOere} ${s5.loftOere}`, "svar 950 1000");
+  lig("status for svar: naesten opbrugt ved 95 %", s5.naestenOpbrugt, true);
+
   console.log("\nBOGFOERINGEN — en fejl skal larme i AppSignal (D86)");
   const POST = { firmId: "F-hemmelig", formaal: "referat", leverandoer: "scaleway",
     model: "m", enhed: "token", maengde: 10, prisOere: 7 };
@@ -205,6 +266,14 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   try { b3 = await k.bogfoer(POST, attrap({ insertFejl: "nede" })); } catch (_) { kastet = true; }
   sendErrorKaster = false;
   lig("AppSignal nede vaelter heller ikke svaret", `${kastet} ${b3 && b3.bogfoert}`, "false false");
+  sendt.length = 0;
+  const b4 = await k.bogfoer({ ...POST, formaal: "noget_nyt" }, attrap({}));
+  lig("formaal uden pulje bogfoeres alligevel", b4.bogfoert, true);
+  lig("... men larmer i AppSignal", sendt.length, 1);
+  lig("... og naevner formaalet", !!(sendt[0] && /noget_nyt/.test(sendt[0].message)), true);
+  sendt.length = 0;
+  await k.bogfoer({ ...POST, formaal: "skrivehjaelp_opslag" }, attrap({}));
+  lig("Skrivehjaelps formaal larmer ikke", sendt.length, 0);
 
   console.log(`\n${bestaaet} bestaaet, ${fejlet} fejlet.`);
   if (fejlet) process.exit(1);
