@@ -38,7 +38,7 @@ const ENV = {
 const BESKED = "Hej, kan I komme og kigge paa vores radiator? Mvh Kirsten Hemmeligsen";
 
 // --- Databasen ------------------------------------------------------------
-function db({ profil = { branche: "VVS", afsender_navn: "Peter", telefon: "12 34 56 78" }, moduler = ["svar", "facebook"], forbrug = [], forbrugFejl = false } = {}) {
+function db({ profil = { branche: "VVS", afsender_navn: "Peter", afsender_telefon: "12 34 56 78", telefon: "70 70 70 70" }, moduler = ["svar", "facebook"], forbrug = [], forbrugFejl = false } = {}) {
   const st = { indsat: [], opdateret: [] };
   const raekker = (tabel) => {
     if (tabel === "firma_moduler") return moduler.map((m) => ({ modul: m, fra: "2026-01-01T00:00:00Z", til: null }));
@@ -55,7 +55,7 @@ function db({ profil = { branche: "VVS", afsender_navn: "Peter", telefon: "12 34
         in(k, v) { filtre[k] = v; return o; },
         single: async () => ({ data: tabel === "firm_users" ? { firm_id: "F1" } : null, error: null }),
         maybeSingle: async () => {
-          if (tabel === "firms") return { data: { id: "F1", name: "Hansens VVS" }, error: null };
+          if (tabel === "firms") return { data: { id: "F1", name: "Hansens VVS", owner_phone: "+4512345678" }, error: null };
           if (tabel === "firma_profil") return { data: { ...profil, ai_maanedsloft_dkk: null, ai_dagsloft_dkk: null }, error: null };
           return { data: null, error: null };
         },
@@ -122,7 +122,15 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "x".repeat(61) } });
   lig("navn over 60 tegn afvises", r.status, 400);
   r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "Anl\u00e6gsgartner", afsenderNavn: "  Peter   Hansen " } });
-  lig("gyldig profil gemmes i firma_profil (mellemrum ryddet)", [r.status, r.d.opdateret], [200, [{ tabel: "firma_profil", v: { branche: "Anl\u00e6gsgartner", afsender_navn: "Peter Hansen" } }]]);
+  lig("gyldig profil uden nummer gemmes i firma_profil (mellemrum ryddet, tomt nummer = null)", [r.status, r.d.opdateret], [200, [{ tabel: "firma_profil", v: { branche: "Anl\u00e6gsgartner", afsender_navn: "Peter Hansen", afsender_telefon: null } }]]);
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", afsenderTelefon: " +45 12  34 56 78 " } });
+  lig("telefonnummeret gemmes, som firmaet skrev det (Ann 8/11)", r.d.opdateret[0].v.afsender_telefon, "+45 12 34 56 78");
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", afsenderTelefon: "ring mig" } });
+  lig("et telefonnummer uden cifre afvises", [r.status, r.data.error], [400, "ugyldigt_telefonnummer"]);
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil" });
+  lig("firmaets nummer og ejerens mobil er kun forslag; det valgte nummer staar for sig", [r.data.afsenderTelefon, r.data.telefonForslag], ["12 34 56 78", ["70 70 70 70", "+4512345678"]]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: "Peter", afsender_telefon: null, telefon: "70 70 70 70" } }), m: model([GODT]) });
+  lig("uden valgt nummer kommer hverken firmaets nummer eller ejerens mobil i prompten", [r.m.kald[0].bruger.includes("70 70 70 70"), r.m.kald[0].bruger.includes("12345678")], [false, false]);
 
   console.log("\n2. Svar: lag 2 og kvoten foer kaldet");
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: null } }) });

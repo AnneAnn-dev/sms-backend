@@ -5,7 +5,7 @@
 //   require("./skrivehjaelp-ruter")(app, supabase);
 //
 //   GET  /api/skrivehjaelp/profil     branche, afsendernavn, valgmuligheder og situationer
-//   POST /api/skrivehjaelp/profil     { branche, afsenderNavn }  (spørges ved første brug)
+//   POST /api/skrivehjaelp/profil     { branche, afsenderNavn, afsenderTelefon }  (spørges ved første brug)
 //   GET  /api/skrivehjaelp/kvote      hvad er der tilbage i puljerne svar og facebook
 //   POST /api/skrivehjaelp/svar       { situation, felter, andet, kanal, tone, besked, variant?, nuvaerendeUdkast? }
 //   POST /api/skrivehjaelp/opslag     { idea, goal, platform }
@@ -45,6 +45,8 @@ const TEGN_PR_TOKEN = 3;            // overvurderer tokens med vilje (dansk ligg
 const FORMAAL = { svar: "skrivehjaelp_svar", kommentar: "skrivehjaelp_kommentar", opslag: "skrivehjaelp_opslag" };
 const PULJE = { svar: "svar", kommentar: "svar", opslag: "facebook" };
 const MAKS_NAVN = 60;
+// Samme form som CHECK-reglen i migrationen: valgfrit +, 8-20 cifre og mellemrum.
+const TELEFON_RE = /^\+?[0-9 ]{8,20}$/;
 
 // Brancherne er fagene i Annes pakker. Den generelle pakke mangler endnu (Anne);
 // indtil da kører et ukendt fag på Håndværk-pakken (sectorOf).
@@ -72,14 +74,18 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
 
   async function hentFirma(firmId) {
     const [a, b] = await Promise.all([
-      supabase.from("firms").select("id, name").eq("id", firmId).maybeSingle(),
-      supabase.from("firma_profil").select("branche, afsender_navn, telefon").eq("firm_id", firmId).maybeSingle(),
+      supabase.from("firms").select("id, name, owner_phone").eq("id", firmId).maybeSingle(),
+      supabase.from("firma_profil").select("branche, afsender_navn, afsender_telefon, telefon").eq("firm_id", firmId).maybeSingle(),
     ]);
     if (a.error || b.error || !a.data) throw new Error("firma kunne ikke laeses");
     const pr = b.data || {};
-    // Underskriften (Ann 8/11): "Peter, Hansens VVS". Telefon kun fra firmaets profil,
-    // aldrig ejerens mobil (owner_phone) automatisk.
-    return { firm: a.data.name || "", person: pr.afsender_navn || "", phone: pr.telefon || "", trade: pr.branche || "" };
+    // Underskriften (Ann 8/11): "Peter, Hansens VVS", og det telefonnummer, firmaet selv
+    // har valgt ved første brug (afsender_telefon). Firmaets nummer og ejerens mobil er
+    // kun FORSLAG i formularen; ingen af dem havner i et svar, uden at firmaet har valgt det.
+    return {
+      firm: a.data.name || "", person: pr.afsender_navn || "", phone: pr.afsender_telefon || "", trade: pr.branche || "",
+      telefonForslag: [...new Set([pr.telefon, a.data.owner_phone].filter((x) => typeof x === "string" && x.trim()))],
+    };
   }
 
   async function harEtModul(firmId) {
@@ -97,6 +103,7 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
       res.set("Cache-Control", "no-store");
       res.json({
         firmanavn: f.firm, branche: f.trade || null, afsenderNavn: f.person || null,
+        afsenderTelefon: f.phone || null, telefonForslag: f.telefonForslag,
         profilMangler: !f.trade || !f.person,
         brancher: BRANCHER,
         situationer: f.trade ? situationerFor(f.trade) : [],
@@ -117,11 +124,16 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
     if (!navn || navn.length > MAKS_NAVN || /[<>]/.test(navn)) {
       return res.status(400).json({ error: "ugyldigt_navn", besked: `Skriv dit navn (højst ${MAKS_NAVN} tegn).` });
     }
+    // Tomt = intet nummer under svarene. Ellers et dansk eller udenlandsk nummer.
+    const tlf = typeof req.body?.afsenderTelefon === "string" ? req.body.afsenderTelefon.trim().replace(/\s+/g, " ") : "";
+    if (tlf && !TELEFON_RE.test(tlf)) {
+      return res.status(400).json({ error: "ugyldigt_telefonnummer", besked: "Skriv telefonnummeret med cifre, fx 12 34 56 78, eller lad feltet stå tomt." });
+    }
     try {
       if (!(await harEtModul(firmId))) return res.status(403).json({ error: "modul_mangler" });
-      const { error } = await supabase.from("firma_profil").update({ branche, afsender_navn: navn }).eq("firm_id", firmId);
+      const { error } = await supabase.from("firma_profil").update({ branche, afsender_navn: navn, afsender_telefon: tlf || null }).eq("firm_id", firmId);
       if (error) throw new Error(error.message);
-      res.json({ ok: true, branche, afsenderNavn: navn, situationer: situationerFor(branche) });
+      res.json({ ok: true, branche, afsenderNavn: navn, afsenderTelefon: tlf || null, situationer: situationerFor(branche) });
     } catch (e) {
       log.error("❌ POST /api/skrivehjaelp/profil:", e.message);
       res.status(503).json({ error: "profil_utilgaengelig" });
