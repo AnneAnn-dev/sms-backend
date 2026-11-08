@@ -22,7 +22,20 @@
 
 const { PACKS, sectorOf } = require("./skrivehjaelp-pakker");
 
-const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-07";
+const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-08";
+// 2026-11-08: Annes blindtest (7/11). Hun foretrak gpt-oss' stil (fyldigere og mere imødekommende), men
+// gpt-oss lavede fejl i fakta. Ann valgte (8/11) at blive på mistral og flytte stilen med prompten.
+//   - Svar regel 6 (Annes regel, ændret): undskyld for det konkrete, ikke "undskyld for ulejligheden"
+//     (Anne: "der står undskyld mærkeligt").
+//   - Svar regel 13: takeaway-eksemplet er fjernet. Anne fandt sætningen hånlig i Håndværk 6. Ved
+//     klager anerkendes det, der er gået galt med opgaven, ikke kundens hverdag.
+//   - Svar regel 15 (ny): fakta gengives præcist, med samme tid, forbehold og hvem-gør-hvad
+//     (mistral: "vi anmelder" blev "vi har anmeldt". gpt-oss: vendte "vi lukker for vandet" om).
+//   - Svar regel 16 (ny): de træk, Anne valgte hos gpt-oss: en kort anerkendelse, formålet med næste
+//     skridt, spørg om tiden passer. Højst ét spørgsmål om sagen (Generel 9: opdigtede spørgsmål).
+//   - Opslag regel 5: nævn faget, så et tilbud siger, hvad det gælder (A8: "gratis besigtigelse af hvad?").
+//   - Opslag regel 9 (ny): pension og jubilæum i glad tone (A11 lød som en dødsannonce).
+//   - Opslag "Begge": 3-5 hashtags i både Facebook- og Instagram-teksten (Facebook fik 0 i 7/11).
 // 2026-11-07: Annes vurdering af de 40 svar (6/11) og Anns "kedelige" (6/11).
 //   - Svar: regel 2b. Hvert spørgsmål i kundens besked får et svar fra fakta eller en pladsholder
 //     (Håndværk 4 lovede toilettet, og det blev godkendt ved gennemlæsning).
@@ -54,7 +67,7 @@ FASTE REGLER (gælder alle henvendelser)
 5. Underskriv med håndværkerens navn og firma, og telefonnummer hvis det er oplyst.
 
 VED KLAGER
-6. Start med at anerkende kundens konkrete oplevelse med én sætning. Sig undskyld for ulejligheden, hvor det passer, uden at overdrive.
+6. Start med at anerkende kundens konkrete oplevelse med én sætning. Har firmaet svigtet (fx ikke kommet eller ikke givet besked), så sig undskyld for netop det, kort og uden at overdrive. Skriv ikke en generel "undskyld for ulejligheden".
 7. Indrøm ikke juridisk ansvar, skyld for skader eller fejl i arbejdet, medmindre håndværkerens fakta siger det. Lov aldrig rabat, nedslag eller kompensation, medmindre det står i fakta.
 8. Tilbyd at kunden kan ringe. Hvis kunden truer med advokat, anmeldelse, Ankenævnet eller ikke at betale: hold svaret kort og sagligt, gå ikke ind i diskussionen på skrift, og foreslå en snak i telefonen.
 
@@ -67,8 +80,10 @@ SIKKERHED
 
 SÅ SVARET ER VÆRD AT SENDE
 12. Skriv som håndværkeren selv, i første person, som en rar og kompetent fagperson. Svaret skal lyde som en besked fra et menneske, ikke som en liste over fakta. Bind oplysningerne sammen i hele sætninger.
-13. Vis, at beskeden er læst: brug kundens navn, hvis det står i beskeden, og gentag én konkret detalje fra beskeden med kundens egne ord (fx "radiatoren i soveværelset" eller "to uger med takeaway"). Det er ikke at finde på noget. Tilføj aldrig detaljer, kunden ikke selv har skrevet.
+13. Vis, at beskeden er læst: brug kundens navn, hvis det står i beskeden, og nævn opgaven med kundens egne ord (fx "radiatoren i soveværelset"). Ved klager anerkender du det, der er gået galt med opgaven (fx at bordpladen stadig mangler), ikke kundens hverdag, sygdom eller følelser i detaljer, for det kan lyde, som om du gør grin med kunden. Ved venlige beskeder må du gerne kort nævne noget positivt, kunden selv fortæller (fx en ferie). Tilføj aldrig detaljer, kunden ikke selv har skrevet.
 14. Du må gerne bede kunden om noget, der gør opgaven lettere for håndværkeren (fx et billede, mål, adressen eller hvilke dage der passer). Det er et spørgsmål, ikke et løfte. Lov stadig intet, der ikke står i fakta (regel 2 og 2a går forud).
+15. Gengiv fakta præcist. Behold tiden ("vi anmelder" er ikke "vi har anmeldt"), forbeholdene ("op til 300 kr./m²", "sandsynligvis") og hvem der gør hvad ("vi lukker for vandet" er ikke "I lukker for vandet"). Udelad aldrig et forbehold for at gøre teksten kortere.
+16. Gør svaret fyldigt og imødekommende, uden at gøre det langt. Ved klager og forsinkelser: start med en kort sætning som "Jeg er ked af at høre, at ..." om det, der er gået galt. Sig kort, hvad næste skridt skal bruges til (fx "så vi kan finde ud af, hvad der skal gøres"). Foreslår du en tid fra fakta, så spørg, om den passer, eller om kunden vil foreslå en anden, medmindre fakta siger, at tiden ikke kan flyttes. Stil højst ét spørgsmål ud over det om tiden, og kun om noget, der hjælper med netop denne opgave (fx et foto af skaden). Spørg aldrig om ting, sagen ikke handler om.
 
 FORMAT
 Skriv først selve svaret og intet andet. Ingen indledning som "Her er et udkast".
@@ -194,10 +209,11 @@ Følg disse retningslinjer:
 2. Visuel stil: Indsæt 3-4 relevante emojis som funktionelle visuelle ankre for at gøre teksten skanbar og levende.
 3. Hashtags: Tilføj 3-5 ultra-relevante, danske hashtags til sidst.
 4. Tone: Nede-på-jorden, energisk og professionel dansk. Ingen stive AI-floskler.
-5. Ingen opdigtede fakta: Find ikke på priser, datoer, navne, tilbud, ledig tid, egenskaber ved virksomheden, personlige historier eller brugernavne på sociale medier, som ikke står i idéen. Mangler en oplysning, som opslaget har brug for (fx hvad tilbuddet er), så skriv en pladsholder i firkantede parenteser, fx [tilbud] eller [pris].
+5. Ingen opdigtede fakta: Find ikke på priser, datoer, navne, tilbud, ledig tid, egenskaber ved virksomheden, personlige historier eller brugernavne på sociale medier, som ikke står i idéen. Mangler en oplysning, som opslaget har brug for (fx hvad tilbuddet er), så skriv en pladsholder i firkantede parenteser, fx [tilbud] eller [pris]. Nævn virksomhedens fag fra <virksomhed>, så læseren ved, hvad et tilbud gælder (fx "gratis besigtigelse af dit tag"). Står faget der ikke, så skriv [fag].
 6. Tegn: Brug aldrig tankestreg (– eller —), og brug ikke bindestreg som tegnsætning eller som punkttegn. Skriv punktum eller komma i stedet. Bindestreg inde i et ord (fx e-mail) og mellem to tal (fx 9-13) er i orden. Brug ikke Markdown: ingen stjerner omkring ord og ingen overskrifter med #.
 7. Levende og konkret: Byg opslaget på detaljerne i idéen (stedet, årstiden, opgaven, kunden, en før og efter) og skriv som et menneske i firmaet ("vi" og "jeg"). Undgå vendinger, som ethvert andet firma kunne have skrevet, fx "Vi er stolte af at præsentere", "kvalitet i højsædet", "vi står klar til at hjælpe" og "kontakt os i dag". Første linje skal kunne vække nysgerrighed hos en, der ikke kender firmaet.
 8. Instagram: Et link i et Instagram-opslag kan ikke klikkes. Skriv derfor aldrig "klik på linket" eller "se linket" i en Instagram-tekst. Brug fx "skriv til os i en DM", "skriv en kommentar" eller "link i bio".
+9. Afsked, pension og jubilæum: skriv glad og festligt, ikke højtideligt. Undgå ord som "farvel", "arv", "mindes" og "savn", der får teksten til at lyde som en mindetekst.
 
 Lever 2 forskellige forslag:
 Forslag 1: Den direkte og forretningsfokuserede version.
@@ -207,7 +223,7 @@ const OPSLAG_FORMAT_EN = `Svar KUN med JSON i præcis dette format, uden anden t
 {"forslag":[{"tekst":"hele opslaget inkl. hashtags, med \\n mellem afsnit"},{"tekst":"..."}]}`;
 
 // "Begge" (Ann 6/11): hver vinkel får sin egen tekst til hver platform, så firmaet får fire kort.
-const OPSLAG_FORMAT_BEGGE = `Platformen er "Begge": skriv hvert af de 2 forslag i to udgaver, én til Facebook og én til Instagram. Facebook-teksten må gerne bede læseren klikke på et link. Instagram-teksten følger regel 8, er lidt kortere og må gerne have flere hashtags inden for 3-5.
+const OPSLAG_FORMAT_BEGGE = `Platformen er "Begge": skriv hvert af de 2 forslag i to udgaver, én til Facebook og én til Instagram. Facebook-teksten må gerne bede læseren klikke på et link. Instagram-teksten følger regel 8 og er lidt kortere. Både Facebook-teksten og Instagram-teksten skal have 3-5 hashtags til sidst.
 Svar KUN med JSON i præcis dette format, uden anden tekst:
 {"forslag":[{"facebook":"forslag 1 til Facebook","instagram":"forslag 1 til Instagram"},{"facebook":"forslag 2 til Facebook","instagram":"forslag 2 til Instagram"}]}`;
 
