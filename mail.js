@@ -135,7 +135,19 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 // Modulernes navne staar ET sted: kataloget (T8b, 31/10 - foer stod de ogsaa her).
 const { KATALOG } = require("./frisbii-katalog");
 const MODUL_NAVNE = Object.fromEntries(Object.entries(KATALOG.MODUL_ADDONS).map(([m, a]) => [m, a.navn]));
-const modulTekst = (moduler) => (moduler || []).map((m) => MODUL_NAVNE[m] || m).join(", ") || "Dit Digitale Kontor";
+// Har kunden alle moduler i en pakke (Fase 4: svar og facebook), skrives pakkens navn
+// én gang i stedet for to modulnavne.
+const modulTekst = (moduler) => {
+  let rest = [...(moduler || [])];
+  const navne = [];
+  for (const p of Object.values(KATALOG.PAKKER || {})) {
+    if (p.moduler.every((m) => rest.includes(m))) {
+      navne.push(p.navn);
+      rest = rest.filter((m) => !p.moduler.includes(m));
+    }
+  }
+  return navne.concat(rest.map((m) => MODUL_NAVNE[m] || m)).join(", ") || "Dit Digitale Kontor";
+};
 const ramme = (indhold) => `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
         ${indhold}
@@ -366,4 +378,4 @@ async function sendAdminAlert({ subject, text }) {
   });
 }
 
-module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE };
+module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE, modulTekst };

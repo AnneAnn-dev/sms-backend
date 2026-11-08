@@ -35,7 +35,7 @@
 "use strict";
 
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG } = require("./frisbii-katalog");
+const { KATALOG, varer } = require("./frisbii-katalog");
 const { firmIdFromToken } = require("./auth");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
@@ -44,9 +44,11 @@ const API = "https://api.frisbii.com/v1";
 
 const addOnHandle = (x) => (x && typeof x.add_on === "object" ? x.add_on && x.add_on.handle : x && x.add_on);
 
+// Handle -> vare-noegle. En vare er et modul eller en pakke (Fase 4: "Kundehenvendelser
+// og SoMe" er ét add-on med to moduler). Din pakke viser, koeber og stopper varer.
 function handleTilModul(katalog = KATALOG) {
   const m = {};
-  for (const [modul, a] of Object.entries(katalog.MODUL_ADDONS)) m[a.handle] = modul;
+  for (const v of varer(katalog)) m[v.handle] = v.noegle;
   return m;
 }
 
@@ -109,7 +111,8 @@ function visning(t, katalog = KATALOG) {
   const vent = new Set(t.ventendeStop);
   const moduler = [];
   let nu = 0, fraNaeste = 0;
-  for (const [modul, a] of Object.entries(katalog.MODUL_ADDONS)) {
+  for (const a of varer(katalog)) {
+    const modul = a.noegle;
     const inst = t.instanser[modul] || [];
     const aktiv = inst.length > 0;
     const stopper = aktiv && inst.every((h) => vent.has(h));
@@ -143,7 +146,7 @@ function planlaeg(handling, modul, t, { sub, katalog = KATALOG, nyHandle } = {})
   if (handling === "genindfoer") return t.opsagt ? { kald: [{ metode: "POST", sti: `${s}/uncancel`, krop: {} }] } : { fejl: "ikke_opsagt", status: 409 };
   if (t.opsagt) return { fejl: "opsagt", status: 409 };
 
-  const a = katalog.MODUL_ADDONS[modul];
+  const a = varer(katalog).find((v) => v.noegle === modul);
   if (!a) return { fejl: "ukendt_modul", status: 400 };
   const inst = t.instanser[modul] || [];
   const vent = new Set(t.ventendeStop);
