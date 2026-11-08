@@ -45,6 +45,14 @@ const TEGN_PR_TOKEN = 3;            // overvurderer tokens med vilje (dansk ligg
 const FORMAAL = { svar: "skrivehjaelp_svar", kommentar: "skrivehjaelp_kommentar", opslag: "skrivehjaelp_opslag" };
 const PULJE = { svar: "svar", kommentar: "svar", opslag: "facebook" };
 const MAKS_NAVN = 60;
+// Ann 8/11: en besked ÉN gang, når et udkast får dagens forbrug i puljen over 90 %.
+// Krydsningen regnes ud af forbruget før kaldet og prisen bagefter; intet gemmes.
+const DAGSVARSEL_ANDEL = 0.9;
+function krydsedeDagsvarsel(foerOere, prisOere, loftOere) {
+  if (!(loftOere > 0)) return false;
+  const g = loftOere * DAGSVARSEL_ANDEL;
+  return foerOere < g && foerOere + Number(prisOere || 0) >= g;
+}
 // Samme form som CHECK-reglen i migrationen: valgfrit +, 8-20 cifre og mellemrum.
 const TELEFON_RE = /^\+?[0-9 ]{8,20}$/;
 
@@ -84,8 +92,18 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
     // kun FORSLAG i formularen; ingen af dem havner i et svar, uden at firmaet har valgt det.
     return {
       firm: a.data.name || "", person: pr.afsender_navn || "", phone: pr.afsender_telefon || "", trade: pr.branche || "",
-      telefonForslag: [...new Set([pr.telefon, a.data.owner_phone].filter((x) => typeof x === "string" && x.trim()))],
+      telefonForslag: telefonForslag(pr.telefon, a.data.owner_phone),
     };
+  }
+
+  // Forslag til skærmen: firmaets nummer og ejerens mobil, hver med sin betegnelse.
+  // Er de ens (Ann 8/11: ofte), vises de som ét valg.
+  function telefonForslag(firma, ejer) {
+    const ren = (x) => (typeof x === "string" ? x.trim() : "");
+    const cifre = (x) => ren(x).replace(/[^0-9]/g, "").replace(/^45(?=\d{8}$)/, "");
+    const f = ren(firma), e = ren(ejer);
+    if (f && e && cifre(f) === cifre(e)) return [{ nummer: f, hvad: "Firmaets nummer og dit nummer" }];
+    return [f && { nummer: f, hvad: "Firmaets nummer" }, e && { nummer: e, hvad: "Dit nummer" }].filter(Boolean);
   }
 
   async function harEtModul(firmId) {
@@ -246,14 +264,15 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
       return res.status(502).json({ error: "udkast_ubrugeligt", besked: "Udkastet kom tilbage i en form, vi ikke kunne bruge. Prøv igen." });
     }
 
+    const varsel = krydsedeDagsvarsel(dom.forbrugtIDagOere, brugtOere, dom.dagsloftOere) ? "dag90" : null;
     if (kvote.krydsedeVarsel(dom.forbrugtOere, brugtOere, dom.loftOere)) {
       const v = new Error(`Kvotevarsel: firmaet har passeret ${kvote.VARSEL_ANDEL * 100} % af puljen ${PULJE[type]}`);
       v.name = "Kvotevarsel";
       meld(v);
     }
     res.set("Cache-Control", "no-store");
-    if (type === "svar") return res.json({ svar: r.svar, noter: r.noter, forsoeg: r.forsoeg.length });
-    return res.json({ forslag: r.forslag, begge, forsoeg: r.forsoeg.length });
+    if (type === "svar") return res.json({ svar: r.svar, noter: r.noter, forsoeg: r.forsoeg.length, varsel });
+    return res.json({ forslag: r.forslag, begge, forsoeg: r.forsoeg.length, varsel });
   }
 
   for (const type of ["svar", "opslag", "kommentar"]) {

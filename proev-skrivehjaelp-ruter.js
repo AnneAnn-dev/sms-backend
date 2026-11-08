@@ -128,7 +128,11 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", afsenderTelefon: "ring mig" } });
   lig("et telefonnummer uden cifre afvises", [r.status, r.data.error], [400, "ugyldigt_telefonnummer"]);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil" });
-  lig("firmaets nummer og ejerens mobil er kun forslag; det valgte nummer staar for sig", [r.data.afsenderTelefon, r.data.telefonForslag], ["12 34 56 78", ["70 70 70 70", "+4512345678"]]);
+  lig("firmaets nummer og ejerens mobil er kun forslag, hver med betegnelse; det valgte nummer staar for sig", [r.data.afsenderTelefon, r.data.telefonForslag],
+    ["12 34 56 78", [{ nummer: "70 70 70 70", hvad: "Firmaets nummer" }, { nummer: "+4512345678", hvad: "Dit nummer" }]]);
+  const ens = db({ profil: { branche: "VVS", afsender_navn: "Peter", afsender_telefon: null, telefon: "12 34 56 78" } });
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: ens });
+  lig("samme nummer (+45 eller ej) vises som eet valg (Ann 8/11)", r.data.telefonForslag, [{ nummer: "12 34 56 78", hvad: "Firmaets nummer og dit nummer" }]);
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: "Peter", afsender_telefon: null, telefon: "70 70 70 70" } }), m: model([GODT]) });
   lig("uden valgt nummer kommer hverken firmaets nummer eller ejerens mobil i prompten", [r.m.kald[0].bruger.includes("70 70 70 70"), r.m.kald[0].bruger.includes("12345678")], [false, false]);
 
@@ -165,6 +169,13 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, m: model([Object.assign(new Error("500"), { kode: "skrivehjaelp_kald", status: 500 }), GODT]) });
   lig("leverandoerfejl uden pris: 502, ikke bogfoert, ikke proevet igen", [r.status, r.data.error, forbrugt(r.d), r.m.kald.length], [502, "udkast_fejlede", [], 1]);
   lig("ingen kundetekst i loggen", r.logget.some((l) => l.includes("Kirsten") || l.includes("radiator")), false);
+
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ forbrug: [{ formaal: "skrivehjaelp_svar", pris_oere: 178 }] }), m: model([GODT]) });
+  lig("udkastet, der krydser 90 % af dagens loft, siger det (Ann 8/11)", [r.status, r.data.varsel], [200, "dag90"]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ forbrug: [{ formaal: "skrivehjaelp_svar", pris_oere: 185 }] }), m: model([GODT]) });
+  lig("... men kun det udkast: er man allerede over 90 %, siges det ikke igen", r.data.varsel, null);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, m: model([GODT]) });
+  lig("langt fra 90 %: ingen besked", r.data.varsel, null);
 
   console.log("\n4. Opslag og kommentar");
   const BEGGE = JSON.stringify({ forslag: [{ facebook: "FB 1 #a #b #c", instagram: "IG 1 #a #b #c" }, { facebook: "FB 2 #a #b #c", instagram: "IG 2 #a #b #c" }] });

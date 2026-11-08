@@ -527,10 +527,65 @@
     .indtal-tekst-knap:disabled, #new-lead-opret:disabled { opacity: .55; cursor: default; }
     #indtal-tip-bg { z-index: 200; align-items: flex-end; }
     #indtal-tip-bg .modal { padding: 20px; margin: auto auto 0; }
+    /* ── Fase 4, T2 (8/11-26): Vaerktoejer / Skrivehjaelp. DASHBOARD-STIL og skitse 4
+       (godkendt af Ann 8/11): siden har skrivefelter og er derfor svagt lyseblaa med hvide
+       felter; listen over vaerktoejer er hvide raekker med kant; een blaa knap pr. skaerm,
+       alle andre hvide med kant; ingen groen, ingen roed. Alt indhold med textContent (S33). */
+    #page-skriv.active { background: #FAFCFE; margin: -24px -16px -90px; padding: 24px 16px 90px; min-height: 100vh; }
+    .vk { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+    .vk p, .vk .vk-tekst { font-size: 16px; line-height: 1.4; color: var(--ink); }
+    .vk .vk-hjaelp { font-size: 16px; color: var(--ink-muted); }
+    .vk-hoved { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+    .vk-hoved h2 { font-size: 17px; font-weight: 800; color: var(--ink); }
+    .vk-tilbage { background: none; border: none; color: var(--steel); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; padding: 8px 4px; cursor: pointer; }
+    .vk-felt > label { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); margin: 0 0 6px; display: block; }
+    .vk-felt > label .vk-skal { text-transform: none; letter-spacing: 0; color: var(--steel); }
+    .vk-felt input, .vk-felt select, .vk-felt textarea { width: 100%; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; min-height: 48px; padding: 12px; font-size: 16px; font-family: inherit; color: var(--ink); -webkit-appearance: none; appearance: none; }
+    .vk-felt select { background-image: linear-gradient(45deg, transparent 50%, var(--steel) 50%), linear-gradient(135deg, var(--steel) 50%, transparent 50%); background-position: calc(100% - 20px) 21px, calc(100% - 14px) 21px; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 36px; }
+    .vk-felt textarea { min-height: 120px; resize: vertical; line-height: 1.4; }
+    .vk-felt input:focus, .vk-felt select:focus, .vk-felt textarea:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(44,107,158,.15); }
+    .vk-felt.krav input, .vk-felt.krav select, .vk-felt.krav textarea { border-color: var(--steel); }
+    .vk-liste { display: flex; flex-direction: column; gap: 10px; }
+    .vk-raekke { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; text-align: left; width: 100%; font: inherit; color: inherit; cursor: pointer; }
+    .vk-raekke .vk-ikon { width: 40px; height: 40px; border-radius: 10px; background: var(--tint); color: var(--steel); display: flex; align-items: center; justify-content: center; flex: 0 0 40px; }
+    .vk-raekke .vk-ikon .ti { width: 22px; height: 22px; }
+    .vk-raekke .tekst { flex: 1; min-width: 0; }
+    .vk-raekke .navn { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); }
+    .vk-raekke .linje2 { font-size: 16px; color: var(--ink-muted); }
+    .vk-raekke .vk-pil { color: var(--steel); font-size: 22px; line-height: 1; }
+    .vk-valg { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; width: 100%; text-align: left; font: inherit; color: inherit; }
+    .vk-valg .vk-cirkel { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: 0 0 22px; }
+    .vk-valg .vk-nr { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; }
+    .vk-valg .vk-hvad { font-size: 16px; color: var(--ink-muted); }
+    .vk-valg.valgt { border: 2px solid var(--steel); }
+    .vk-valg.valgt .vk-cirkel { border: 7px solid var(--steel); }
+    .vk-to { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .vk-tre { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .vk-knap { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; min-height: 48px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--steel); cursor: pointer; width: 100%; }
+    .vk-knap.blaa { background: var(--steel); border-color: var(--steel); color: #fff; }
+    .vk-knap.valgt { border: 2px solid var(--steel); }
+    .vk-knap:disabled { opacity: .55; cursor: default; }
+    .vk-forvisning { font-size: 16px; color: var(--ink-muted); }
+    .vk-forvisning strong { display: block; color: var(--ink); font-family: 'Nunito', sans-serif; font-weight: 800; }
+    .vk-laes { border-left: 4px solid var(--steel); padding: 2px 0 2px 12px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; color: var(--ink); }
+    .vk-besked { background: var(--tint); border-left: 4px solid var(--steel); border-radius: 8px; padding: 12px 14px; font-size: 16px; line-height: 1.4; }
+    .vk-besked b { font-family: 'Nunito', sans-serif; font-weight: 800; }
+    .vk-udkast { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 16px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+    .vk-tjek { background: var(--tint); border-radius: 12px; padding: 12px 14px; font-size: 16px; line-height: 1.4; }
+    .vk-tjek .vk-etiket, .vk-kort .vk-etiket { display: block; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); margin-bottom: 4px; }
+    .vk-kort { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .vk-kort .vk-kort-hoved { display: flex; justify-content: space-between; align-items: center; }
+    .vk-kort .vk-kort-hoved .vk-etiket { margin: 0; }
+    .vk-kort .vk-tx { font-size: 16px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
+    .vk-kopier { background: none; border: none; color: var(--steel); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; padding: 6px 2px; cursor: pointer; }
+    .vk-vinkel { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); margin-top: 4px; }
+    .vk-fejl { font-size: 16px; color: var(--danger); }
+    .vk-ph { background: #FDF3E3; border-radius: 4px; padding: 0 3px; }
+    .vk-lille { font-size: 16px; color: var(--ink-muted); text-align: center; }
   </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></symbol><symbol id="i-photo-plus" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"/></symbol><symbol id="i-user-circle" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M10 14l11 -11"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2"/></symbol><symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"/><path d="M9 12l.01 0"/><path d="M13 12l2 0"/><path d="M9 16l.01 0"/><path d="M13 16l2 0"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></symbol><symbol id="i-photo-plus" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"/></symbol><symbol id="i-user-circle" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M10 14l11 -11"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2"/></symbol><symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"/><path d="M9 12l.01 0"/><path d="M13 12l2 0"/><path d="M9 16l.01 0"/><path d="M13 16l2 0"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/></symbol><symbol id="i-tool" viewBox="0 0 24 24"><path d="M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6 -6a6 6 0 0 1 -8 -8l3.5 3.5"/></symbol><symbol id="i-message" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h6"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"/></symbol><symbol id="i-photo" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12z"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"/></symbol><symbol id="i-messages" viewBox="0 0 24 24"><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10"/><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2"/></symbol></svg>
 
 
 <!-- Login -->
@@ -800,6 +855,13 @@
     <div class="pk" id="pakke-indhold"></div>
     </details>
 
+    <!-- Fase 4, T2 (8/11-26): Skrivehjaelpens afsender og branche. Skjult uden modulet
+         svar eller facebook. Indholdet bygges af vkProfilPunkt() med textContent. -->
+    <details class="profil-punkt" id="profil-skrivehjaelp" hidden>
+    <summary>Skrivehjælp</summary>
+    <div class="pk" id="skrivehjaelp-indhold"></div>
+    </details>
+
     <!-- D94 trin 1c: Din telefonpasser samler besked, viderestilling,
          VIP-numre og notifikationer. -->
     <details class="profil-punkt" id="profil-telefonpasser" open>
@@ -951,10 +1013,10 @@
     <iframe id="kunder-ramme" title="Kunder" style="position:fixed;left:0;right:0;width:100%;border:0;background:var(--white)"></iframe>
   </div>
 
-  <!-- Side: Skrivehjælp (Fase 1c: kun skallen; modulerne svar/facebook kommer i Fase 4) -->
+  <!-- Side: Vaerktoejer (Fase 4, T2, 8/11-26). Skrivehjaelp er det foerste vaerktoej;
+       indholdet bygges af vkStart() og de oevrige vk-funktioner med textContent (S33). -->
   <div class="page" id="page-skriv">
-    <div class="section-title" style="margin-bottom:16px">Skrivehjælp</div>
-    <div class="empty">Skrivehjælpen er på vej.</div>
+    <div class="vk" id="vk"><div class="section-title">Værktøjer</div></div>
   </div>
 
   <!-- Side: Tips og tricks -->
@@ -991,8 +1053,8 @@
     Kunder
   </button>
   <button class="nav-item" id="nav-skriv" onclick="setFane('skriv')" style="display:none">
-    <svg class="ti" aria-hidden="true"><use href="#i-send"/></svg>
-    Skrivehjælp
+    <svg class="ti" aria-hidden="true"><use href="#i-tool"/></svg>
+    Værktøjer
   </button>
   <button class="nav-item active skjul-ved-faner" id="nav-opgaver" onclick="setPage('opgaver')">
     <svg class="ti" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
@@ -2574,7 +2636,7 @@ function leadKort(lead) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     document.getElementById('nav-' + page)?.classList.add('active');
-    if (page === 'profil') hentPakke();
+    if (page === 'profil') { hentPakke(); vkProfilPunkt(); }
   }
 
   // ── T9b (31/10-26): Din pakke ────────────────────────────────────────────
@@ -2719,6 +2781,357 @@ function leadKort(lead) {
     }
   }
 
+  // ── Vaerktoejer / Skrivehjaelp (Fase 4, T2, 8/11-26) ─────────────────────
+  // Skitse 4, godkendt af Ann 8/11. Serveren (/api/skrivehjaelp, skrivehjaelp-ruter.js)
+  // bygger prompten, tjekker kvoten og doemmer formen; her vises felterne og svaret.
+  // Lag 1: det afgoerende felt markeres "skal udfyldes" og tjekkes, foer der sendes
+  // (serveren afviser det ogsaa: lag 2). Alt indhold saettes med textContent (S33):
+  // kundens besked og modellens udkast er tekst, aldrig HTML.
+  // Svarer ruten 404 (SKRIVEHJAELP_AKTIV slukket), vises "Skrivehjaelpen er paa vej."
+  const vk = { profil: null, moduler: [], formular: {}, formStatus: {} };
+  const vkEl = pkEl;
+  function vkBoks() { return document.getElementById('vk'); }
+  function vkVis(...dele) { vkBoks().replaceChildren(...dele.filter(Boolean)); window.scrollTo(0, 0); }
+
+  async function vkKald(sti, krop) {
+    const opt = { headers: { ...(await authHeader()) } };
+    if (krop !== undefined) { opt.method = 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(krop); }
+    const r = await fetch(sti, opt);
+    let data = {};
+    try { data = await r.json(); } catch (e) { data = {}; }
+    return { status: r.status, ok: r.ok, data };
+  }
+
+  function vkIkon(navn) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(ns, 'svg'); s.setAttribute('class', 'ti'); s.setAttribute('aria-hidden', 'true');
+    const u = document.createElementNS(ns, 'use'); u.setAttribute('href', '#' + navn); s.appendChild(u); return s;
+  }
+  function vkKnap(tekst, blaa, onclick, cls) {
+    const b = vkEl('button', 'vk-knap' + (blaa ? ' blaa' : '') + (cls ? ' ' + cls : ''), tekst);
+    b.type = 'button'; if (onclick) b.onclick = onclick; return b;
+  }
+  function vkHoved(titel, tilbageTekst, tilbage) {
+    const h = vkEl('div', 'vk-hoved');
+    if (tilbage) { const t = vkEl('button', 'vk-tilbage', '‹ ' + tilbageTekst); t.type = 'button'; t.onclick = tilbage; h.appendChild(t); }
+    h.appendChild(vkEl('h2', null, titel));
+    return h;
+  }
+  function vkFelt(etiket, element, skal) {
+    const f = vkEl('div', 'vk-felt' + (skal ? ' krav' : ''));
+    const l = vkEl('label', null, etiket);
+    if (skal) l.appendChild(vkEl('span', 'vk-skal', ' · skal udfyldes'));
+    f.appendChild(l); f.appendChild(element); return f;
+  }
+  function vkTekstfelt(maks, pladsholder, flere) {
+    const e = document.createElement(flere ? 'textarea' : 'input');
+    if (!flere) e.type = 'text';
+    if (maks) e.maxLength = maks;
+    if (pladsholder) e.placeholder = pladsholder;
+    return e;
+  }
+  function vkVaelger(muligheder, tom) {
+    const s = document.createElement('select');
+    if (tom) { const o = vkEl('option', null, tom); o.value = ''; s.appendChild(o); }
+    for (const m of muligheder) { const o = vkEl('option', null, m); o.value = m; s.appendChild(o); }
+    return s;
+  }
+  function vkFejlFelt() { return vkEl('div', 'vk-fejl'); }
+
+  // Kaldes fra setFane('skriv'). Henter profilen foerste gang; derefter bliver
+  // han, hvor han var (en formular, han er i gang med, forsvinder ikke ved et faneskift).
+  async function vkStart(tving) {
+    if (vk.profil && !tving) return;
+    vkVis(vkEl('p', 'vk-hjaelp', 'Henter …'));
+    let r;
+    try { r = await vkKald('/api/skrivehjaelp/profil'); }
+    catch (e) { return vkVis(vkEl('div', 'section-title', 'Værktøjer'), vkEl('p', null, 'Skrivehjælpen kan ikke nås lige nu. Prøv igen om lidt.')); }
+    if (r.status === 404) return vkVis(vkEl('div', 'section-title', 'Værktøjer'), vkEl('p', 'vk-hjaelp', 'Skrivehjælpen er på vej.'));
+    if (r.status === 403) return vkVis(vkEl('div', 'section-title', 'Værktøjer'), vkEl('p', null, 'Dit abonnement omfatter ikke Skrivehjælp. Du kan tilføje den under Profil.'));
+    if (!r.ok) return vkVis(vkEl('div', 'section-title', 'Værktøjer'), vkEl('p', null, 'Skrivehjælpen kan ikke nås lige nu. Prøv igen om lidt.'));
+    vk.profil = r.data;
+    if (r.data.profilMangler) vkVisProfil(); else vkVisStart();
+  }
+
+  // ── Skaerm 1: afsender og branche (foerste gang, og fra Profil) ───────────
+  function vkVisProfil() {
+    const p = vk.profil;
+    const fejl = vkFejlFelt();
+    const navn = vkTekstfelt(60, 'Fx Peter'); navn.autocomplete = 'given-name'; navn.value = p.afsenderNavn || '';
+    let valgtTlf = p.afsenderTelefon || '';
+    const forslag = (p.telefonForslag || []).slice();
+    if (valgtTlf && !forslag.some((f) => f.nummer === valgtTlf)) forslag.unshift({ nummer: valgtTlf, hvad: 'Dit nuværende valg' });
+    if (!p.afsenderNavn && !valgtTlf && forslag.length) valgtTlf = forslag[0].nummer;   // foerste gang: foreslaa det foerste
+    const andetFelt = vkTekstfelt(20, 'Fx 12 34 56 78'); andetFelt.type = 'tel'; andetFelt.inputMode = 'tel';
+    let andet = false;
+    const liste = vkEl('div', 'vk-liste');
+    const forvisning = vkEl('div', 'vk-forvisning', 'Dine svar slutter sådan:');
+    const linje = vkEl('strong'); forvisning.appendChild(linje);
+    function tlfNu() { return andet ? andetFelt.value.trim() : valgtTlf; }
+    function opdater() {
+      const n = navn.value.trim() || 'Dit navn';
+      const t = tlfNu();
+      linje.textContent = n + ', ' + (p.firmanavn || 'dit firma') + (t ? ', tlf. ' + t : '');
+    }
+    function valgRaekke(nr, hvad, erValgt, vaelg) {
+      const b = vkEl('button', 'vk-valg' + (erValgt ? ' valgt' : '')); b.type = 'button';
+      b.appendChild(vkEl('span', 'vk-cirkel'));
+      const t = vkEl('span'); t.appendChild(vkEl('div', 'vk-nr', nr)); if (hvad) t.appendChild(vkEl('div', 'vk-hvad', hvad));
+      b.appendChild(t); b.onclick = vaelg; return b;
+    }
+    function tegnListe() {
+      liste.replaceChildren();
+      for (const f of forslag) liste.appendChild(valgRaekke(f.nummer, f.hvad, !andet && valgtTlf === f.nummer, () => { andet = false; valgtTlf = f.nummer; tegnListe(); opdater(); }));
+      liste.appendChild(valgRaekke('Et andet nummer', null, andet, () => { andet = true; tegnListe(); opdater(); andetFelt.focus(); }));
+      if (andet) liste.appendChild(andetFelt);
+      liste.appendChild(valgRaekke('Intet nummer', null, !andet && !valgtTlf, () => { andet = false; valgtTlf = ''; tegnListe(); opdater(); }));
+    }
+    navn.oninput = opdater; andetFelt.oninput = opdater;
+    tegnListe(); opdater();
+
+    const branche = document.createElement('select');
+    const tom = vkEl('option', null, 'Vælg din branche'); tom.value = ''; branche.appendChild(tom);
+    for (const g of (p.brancher || [])) {
+      const og = document.createElement('optgroup'); og.label = g.gruppe;
+      for (const fag of g.fag) { const o = vkEl('option', null, fag); o.value = fag; og.appendChild(o); }
+      branche.appendChild(og);
+    }
+    branche.value = p.branche || '';
+    const brancheFelt = vkFelt('Din branche', branche);
+    brancheFelt.appendChild(vkEl('div', 'vk-hjaelp', 'Så kender vi de situationer, du typisk skal svare på.'));
+
+    const gem = vkKnap('Gem', true, async () => {
+      fejl.textContent = '';
+      if (!navn.value.trim()) { fejl.textContent = 'Skriv dit navn.'; return navn.focus(); }
+      if (andet && !andetFelt.value.trim()) { fejl.textContent = 'Skriv telefonnummeret, eller vælg Intet nummer.'; return andetFelt.focus(); }
+      if (!branche.value) { fejl.textContent = 'Vælg din branche.'; return branche.focus(); }
+      gem.disabled = true; gem.textContent = 'Gemmer …';
+      try {
+        const r = await vkKald('/api/skrivehjaelp/profil', { branche: branche.value, afsenderNavn: navn.value, afsenderTelefon: tlfNu() });
+        if (!r.ok) { fejl.textContent = r.data.besked || 'Det blev ikke gemt. Prøv igen.'; return; }
+        const skiftetBranche = vk.profil.branche !== r.data.branche;
+        Object.assign(vk.profil, { branche: r.data.branche, afsenderNavn: r.data.afsenderNavn, afsenderTelefon: r.data.afsenderTelefon,
+          situationer: r.data.situationer, profilMangler: false });
+        if (skiftetBranche) delete vk.formular.svar;   // situationerne er andre
+        vkProfilPunkt();
+        vkVisStart();
+      } catch (e) { fejl.textContent = 'Det blev ikke gemt. Prøv igen.'; }
+      finally { gem.disabled = false; gem.textContent = 'Gem'; }
+    });
+    vkVis(
+      vk.profil.profilMangler ? vkEl('div', 'section-title', 'Skrivehjælp') : vkHoved('Afsender og branche', 'Tilbage', vkVisStart),
+      vkEl('p', null, 'Hvordan ser afsenderen på dine smser ud? Du kan altid ændre det under Profil.'),
+      vkFelt('Dit navn', navn),
+      vkFelt('Telefonnummer', liste),
+      forvisning,
+      brancheFelt,
+      fejl,
+      gem
+    );
+  }
+
+  // ── Skaerm 2: Vaerktoejer ─────────────────────────────────────────────────
+  function vkVisStart() {
+    const raekke = (ikon, navn, linje2, onclick) => {
+      const b = vkEl('button', 'vk-raekke'); b.type = 'button';
+      const i = vkEl('span', 'vk-ikon'); i.appendChild(vkIkon(ikon)); b.appendChild(i);
+      const t = vkEl('span', 'tekst'); t.appendChild(vkEl('div', 'navn', navn)); t.appendChild(vkEl('div', 'linje2', linje2)); b.appendChild(t);
+      b.appendChild(vkEl('span', 'vk-pil', '›')); b.onclick = onclick; return b;
+    };
+    const svar = vk.moduler.includes('svar'), fb = vk.moduler.includes('facebook');
+    const liste = vkEl('div', 'vk-liste');
+    if (svar) liste.appendChild(raekke('i-message', 'Svar til en kunde', 'SMS eller mail ud fra kundens besked', () => vkVisFormular('svar')));
+    if (fb) liste.appendChild(raekke('i-photo', 'Opslag til Facebook og Instagram', 'To forslag ud fra din idé', () => vkVisFormular('opslag')));
+    if (fb) liste.appendChild(raekke('i-messages', 'Svar på en kommentar', 'Et kort og et længere svar', () => vkVisFormular('kommentar')));
+    const etiket = vkEl('div', 'vk-felt'); etiket.appendChild(vkEl('label', null, 'Skrivehjælp'));
+    vkVis(vkEl('div', 'section-title', 'Værktøjer'), etiket, liste);
+  }
+
+  // ── Skaerm 3: formularerne. Bygges een gang og genbruges, saa "‹ Ret" bevarer det skrevne.
+  const VK_TITLER = { svar: 'Svar til en kunde', opslag: 'Opslag til Facebook og Instagram', kommentar: 'Svar på en kommentar' };
+  function vkVisFormular(type) {
+    if (!vk.formular[type]) vk.formular[type] = vkByg[type]();
+    vkVis(vkHoved(VK_TITLER[type], 'Tilbage', vkVisStart), vk.formular[type].el);
+  }
+
+  function vkSendKnap(type, samle) {
+    const fejl = vkFejlFelt();
+    const knap = vkKnap('Skriv udkast', true, () => {
+      fejl.textContent = '';
+      const r = samle();
+      if (r.fejl) { fejl.textContent = r.fejl; if (r.fokus) r.fokus.focus(); return; }
+      vkSkriv(type, r.krop, knap, fejl);
+    });
+    return { knap, fejl };
+  }
+
+  const vkByg = {
+    svar() {
+      const p = vk.profil;
+      const el = vkEl('div', 'vk');
+      const besked = vkTekstfelt(4000, 'Sæt kundens sms eller mail ind her', true);
+      const situation = document.createElement('select');
+      const tom = vkEl('option', null, 'Vælg'); tom.value = ''; situation.appendChild(tom);
+      for (const s of (p.situationer || [])) { const o = vkEl('option', null, s.label); o.value = s.id; situation.appendChild(o); }
+      const felter = vkEl('div', 'vk'); felter.style.gap = '14px';
+      const andet = vkTekstfelt(1000, 'Fx en oplysning, kunden skal have', true); andet.style.minHeight = '80px';
+      let kanal = 'sms';
+      const sms = vkKnap('SMS', false, () => { kanal = 'sms'; sms.classList.add('valgt'); mail.classList.remove('valgt'); }, 'valgt');
+      const mail = vkKnap('Mail', false, () => { kanal = 'mail'; mail.classList.add('valgt'); sms.classList.remove('valgt'); });
+      const kanaler = vkEl('div', 'vk-to'); kanaler.append(sms, mail);
+      let indtast = {};
+      function sit() { return (p.situationer || []).find((s) => s.id === situation.value) || null; }
+      function tegnFelter() {
+        felter.replaceChildren(); indtast = {};
+        const s = sit(); if (!s) return;
+        for (const f of s.felter) {
+          const e = f.type === 'select' ? vkVaelger(f.options || [], 'Vælg') : vkTekstfelt(300, f.placeholder || '');
+          indtast[f.id] = e;
+          felter.appendChild(vkFelt(f.label, e, s.afgoerende === f.id));
+        }
+        felter.appendChild(vkFelt('Andet kunden skal vide', andet, s.afgoerende === 'andet'));
+      }
+      situation.onchange = tegnFelter;
+      const send = vkSendKnap('svar', () => {
+        if (!besked.value.trim()) return { fejl: 'Sæt kundens besked ind.', fokus: besked };
+        const s = sit(); if (!s) return { fejl: 'Vælg, hvad det drejer sig om.', fokus: situation };
+        const v = {}; for (const [id, e] of Object.entries(indtast)) if (e.value.trim()) v[id] = e.value.trim();
+        if (s.afgoerende === 'andet' && !andet.value.trim()) return { fejl: 'Skriv, hvad kunden skal vide.', fokus: andet };
+        if (s.afgoerende && s.afgoerende !== 'andet' && !v[s.afgoerende]) {
+          const f = s.felter.find((x) => x.id === s.afgoerende);
+          return { fejl: 'Udfyld: ' + (f ? f.label : 'det markerede felt'), fokus: indtast[s.afgoerende] };
+        }
+        return { krop: { situation: s.id, felter: v, andet: andet.value.trim(), kanal, tone: 'venlig', besked: besked.value } };
+      });
+      el.append(vkFelt('Kundens besked', besked), vkFelt('Hvad drejer det sig om?', situation), felter, vkFelt('Svar som', kanaler), send.fejl, send.knap);
+      return { el };
+    },
+    opslag() {
+      const p = vk.profil;
+      const el = vkEl('div', 'vk');
+      const ide = vkTekstfelt(1000, 'Fx vi har lige lagt nyt tag på et hus i Hillerød', true);
+      const maal = vkVaelger(p.maal || [], 'Vælg');
+      let platform = 'Begge';
+      const pk = {};
+      const plat = vkEl('div', 'vk-tre');
+      for (const navn of (p.platforme || ['Facebook', 'Instagram', 'Begge'])) {
+        pk[navn] = vkKnap(navn, false, () => { platform = navn; for (const [k, b] of Object.entries(pk)) b.classList.toggle('valgt', k === navn); }, navn === platform ? 'valgt' : '');
+        plat.appendChild(pk[navn]);
+      }
+      const send = vkSendKnap('opslag', () => {
+        if (!ide.value.trim()) return { fejl: 'Skriv, hvad opslaget skal handle om.', fokus: ide };
+        if (!maal.value) return { fejl: 'Vælg, hvad opslaget skal gøre.', fokus: maal };
+        return { krop: { idea: ide.value, goal: maal.value, platform } };
+      });
+      el.append(vkFelt('Hvad vil du fortælle?', ide), vkFelt('Hvad skal opslaget gøre?', maal), vkFelt('Hvor skal det slås op?', plat), send.fejl, send.knap);
+      return { el };
+    },
+    kommentar() {
+      const el = vkEl('div', 'vk');
+      const kommentar = vkTekstfelt(2000, 'Sæt kommentaren ind her', true);
+      const raa = vkTekstfelt(1000, 'Fx tak, vi åbner kl. 7', true); raa.style.minHeight = '80px';
+      const send = vkSendKnap('kommentar', () => {
+        if (!kommentar.value.trim()) return { fejl: 'Sæt kommentaren ind.', fokus: kommentar };
+        if (!raa.value.trim()) return { fejl: 'Skriv kort, hvad du vil svare.', fokus: raa };
+        return { krop: { comment: kommentar.value, raw: raa.value } };
+      });
+      el.append(vkFelt('Kommentaren', kommentar), vkFelt('Det vil du svare', raa), send.fejl, send.knap);
+      return { el };
+    },
+  };
+
+  async function vkSkriv(type, krop, knap, fejl) {
+    const tekst = knap.textContent;
+    knap.disabled = true; knap.textContent = 'Skriver udkast …';
+    try {
+      const r = await vkKald('/api/skrivehjaelp/' + type, krop);
+      if (r.status === 409 && r.data.error === 'profil_mangler') { vk.profil.profilMangler = true; return vkVisProfil(); }
+      if (!r.ok) { fejl.textContent = r.data.besked || 'Vi kunne ikke skrive et udkast lige nu. Prøv igen om lidt.'; return; }
+      vkVisUdkast(type, krop, r.data);
+    } catch (e) {
+      fejl.textContent = 'Vi kunne ikke skrive et udkast lige nu. Prøv igen om lidt.';
+    } finally { knap.disabled = false; knap.textContent = tekst; }
+  }
+
+  async function vkKopier(tekst, knap) {
+    let ok = false;
+    try { await navigator.clipboard.writeText(tekst); ok = true; }
+    catch (e) {
+      const t = document.createElement('textarea'); t.value = tekst; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select(); try { ok = document.execCommand('copy'); } catch (_) { ok = false; } t.remove();
+    }
+    const foer = knap.textContent;
+    knap.textContent = ok ? 'Kopieret' : 'Kunne ikke kopiere';
+    setTimeout(() => { knap.textContent = foer; }, 2000);
+  }
+
+  // ── Skaerm 4-6: udkastet ──────────────────────────────────────────────────
+  function vkVisUdkast(type, krop, data) {
+    const dele = [];
+    const titel = type === 'svar' ? 'Udkast' : (data.begge ? 'Fire forslag' : 'To forslag');
+    dele.push(vkHoved(titel, 'Ret', () => vkVisFormular(type)));
+    if (data.varsel === 'dag90') {
+      const b = vkEl('div', 'vk-besked'); b.appendChild(vkEl('b', null, 'Du har nu brugt 90 % af din dagsrate.'));
+      b.appendChild(document.createElement('br')); b.appendChild(document.createTextNode('Du kan stadig lave et par udkast i dag. I morgen starter du forfra.'));
+      dele.push(b);
+    }
+    const fejl = vkFejlFelt();
+    if (type === 'svar') {
+      dele.push(vkEl('div', 'vk-laes', 'Læs udkastet, før du sender det. Det er dit svar.'));
+      dele.push(vkEl('div', 'vk-udkast', data.svar));
+      if ((data.noter || []).length) {
+        const t = vkEl('div', 'vk-tjek'); t.appendChild(vkEl('span', 'vk-etiket', 'Tjek før du sender')); t.appendChild(document.createTextNode(data.noter.join(' · ')));
+        dele.push(t);
+      }
+      const kopier = vkKnap('Kopiér svaret', true, () => vkKopier(data.svar, kopier));
+      dele.push(kopier);
+      const nyt = vkKnap('Nyt forslag', false, () => vkSkriv('svar', { ...krop, variant: 'nyt' }, nyt, fejl));
+      const kort = vkKnap('Kortere', false, () => vkSkriv('svar', { ...krop, variant: 'kortere', nuvaerendeUdkast: data.svar }, kort, fejl));
+      const to = vkEl('div', 'vk-to'); to.append(nyt, kort); dele.push(to, fejl);
+      if (/\[[^\]]+\]/.test(data.svar)) {
+        const l = vkEl('p', 'vk-lille', 'Står noget i '); l.appendChild(vkEl('span', 'vk-ph', '[firkantede parenteser]')); l.appendChild(document.createTextNode(', skal du selv udfylde det.'));
+        dele.push(l);
+      }
+    } else {
+      dele.push(vkEl('div', 'vk-laes', type === 'opslag' ? 'Læs teksterne, før du slår dem op.' : 'Læs svaret, før du lægger det ud.'));
+      const navne = type === 'opslag' ? ['Vinkel 1: direkte', 'Vinkel 2: historien'] : ['Forslag A: kort', 'Forslag B: inviterer til mere'];
+      const kort = (etiket, tekst) => {
+        const k = vkEl('div', 'vk-kort'); const h = vkEl('div', 'vk-kort-hoved');
+        h.appendChild(vkEl('span', 'vk-etiket', etiket));
+        const kb = vkEl('button', 'vk-kopier', 'Kopiér'); kb.type = 'button'; kb.onclick = () => vkKopier(tekst, kb); h.appendChild(kb);
+        k.appendChild(h); k.appendChild(vkEl('div', 'vk-tx', tekst)); return k;
+      };
+      (data.forslag || []).forEach((f, i) => {
+        if (typeof f === 'string') { dele.push(kort(navne[i] || 'Forslag', f)); return; }
+        dele.push(vkEl('div', 'vk-vinkel', navne[i] || 'Forslag'));
+        dele.push(kort('Facebook', f.facebook), kort('Instagram', f.instagram));
+      });
+      const igen = vkKnap('Nye forslag', false, () => vkSkriv(type, krop, igen, fejl));
+      dele.push(igen, fejl);
+    }
+    vkVis(...dele);
+  }
+
+  // ── Profil: "Du kan altid aendre det under Profil" ───────────────────────
+  async function vkProfilPunkt() {
+    const punkt = document.getElementById('profil-skrivehjaelp');
+    if (!punkt) return;
+    if (!(vk.moduler.includes('svar') || vk.moduler.includes('facebook'))) { punkt.hidden = true; return; }
+    try {
+      if (!vk.profil) {
+        const r = await vkKald('/api/skrivehjaelp/profil');
+        if (!r.ok) { punkt.hidden = true; return; }
+        vk.profil = r.data;
+      }
+      const p = vk.profil;
+      const linje = p.profilMangler ? 'Ikke udfyldt endnu'
+        : p.afsenderNavn + ', ' + p.firmanavn + (p.afsenderTelefon ? ', tlf. ' + p.afsenderTelefon : '') + ' · ' + p.branche;
+      document.getElementById('skrivehjaelp-indhold').replaceChildren(
+        pkRaekke('Afsender og branche', linje, pkKnap('Ret', false, () => { setFane('skriv'); vkVisProfil(); })));
+      punkt.hidden = false;
+    } catch (e) { punkt.hidden = true; }
+  }
+
   // ── Faner (Fase 1c, 13/10-26) ───────────────────────────────────────────
   // Fanerne Nye / I gang / Kunder / Skrivehjaelp vises KUN, naar serveren
   // siger tilbudAktiv:true. Svarer /api/moduler ikke — fordi migrationen
@@ -2747,6 +3160,7 @@ function leadKort(lead) {
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
+    vk.moduler = moduler.slice();
     // D94 trin 1c: profilen som oversigt — alt lukket, undtagen telefonpasseren.
     document.querySelectorAll('#page-profil details.profil-punkt').forEach(d => { d.open = d.id === 'profil-telefonpasser'; });
     setFane('alle');
@@ -2774,6 +3188,7 @@ function leadKort(lead) {
       placerKunderRamme();
     } else if (fane === 'skriv') {
       setPage('skriv');
+      vkStart();
     } else {
       // Fra Kunder kan der vaere oprettet opgaver: hent listen igen.
       if (fra === 'kunder') loadData();
