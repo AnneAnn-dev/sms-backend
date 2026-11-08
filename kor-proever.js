@@ -58,6 +58,7 @@ const KOERES = [
   "proev-servergraense.js",
   "proev-skrivehjaelp-format.js",
   "proev-skrivehjaelp.js",
+  "proev-skrivehjaelp-ruter.js",
   "proev-tekst-adapter.js",
   "proev-telefon-nummer.js",
   "proev-ventetid.js",

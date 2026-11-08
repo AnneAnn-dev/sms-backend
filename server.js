@@ -5,7 +5,7 @@ const webpush = require("web-push");
 const { firmIdFromToken } = require("./auth");
 const { gyldigtSmsNummer, kundeNoegle } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV, FORMULAR_UDLOEB_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV, FORMULAR_UDLOEB_AKTIV, SKRIVEHJAELP_AKTIV } = require("./flags");
 const { knytKunde } = require("./kundematch");
 const { hentEgenRaekke } = require("./ejerskab");
 const billeder = require("./billeder");
@@ -156,6 +156,18 @@ if (TILBUD_AKTIV) {
   app.use("/api/tilbud/referater", kraevModul(supabase, "referat", { kunSkrivning: true }));
   require("./routes/tilbud")(app, supabase);
   app.use("/tilbud", express.static("tilbud"));
+}
+
+// Fase 4, T2 (8/11-26): Skrivehjaelp. Samme moenster som Tilbud: flaget slukket betyder,
+// at ruterne slet ikke registreres (404). Modulspaerren FOER ruterne: svar kraever modulet
+// svar, opslag og kommentarsvar kraever facebook (pakken "Kundehenvendelser og SoMe" giver
+// begge). Profil og kvote tjekker selv, at firmaet har mindst et af de to.
+// Migrationen 20261108120000_firma_profil_skrivehjaelp.sql skal vaere koert FOER flaget
+// taendes, og 20261105120000_ai_forbrug_skrivehjaelp.sql foer det foerste kald bogfoeres.
+if (SKRIVEHJAELP_AKTIV) {
+  app.use("/api/skrivehjaelp/svar", kraevModul(supabase, "svar"));
+  app.use(["/api/skrivehjaelp/opslag", "/api/skrivehjaelp/kommentar"], kraevModul(supabase, "facebook"));
+  require("./skrivehjaelp-ruter")(app, supabase);
 }
 
 // bygAdresse(), renTitel() og MAX_TITEL bor i opgave-felter.js (D2 T3, 2/11-26) -
@@ -790,7 +802,8 @@ const server = app.listen(PORT, () => {
     "\n  Dit Digitale Kontor" +
     `\n  Port:              ${PORT}` +
     `\n  Supabase-projekt:  ${supabaseRef}` +
-    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}\n`
+    `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}` +
+    `\n  Skrivehjaelp:      ${SKRIVEHJAELP_AKTIV ? "TAENDT" : "SLUKKET"}\n`
   );
 });
 
