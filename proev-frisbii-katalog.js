@@ -90,6 +90,30 @@ lig("de aftalte navne og priser (Ann 31/10)",
 lig("Hele pakken giver stadig alle moduler, hvis et gammelt abonnement har den",
   modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle]).moduler, [...MODULER].sort());
 
+console.log("\n4b. Pakken \"Kundehenvendelser og SoMe\" (Fase 4, Ann 8/11)");
+const PK = KATALOG.PAKKER["svar-some"];
+lig("handle, navn, pris og moduler", [PK.handle, PK.navn, PK.prisOere, PK.moduler],
+  ["modul-svar-some", "Kundehenvendelser og SoMe", 20000, ["svar", "facebook"]]);
+lig("pakken saelges ikke endnu, men vises som kommer", [PK.saelges, PK.kommer], [false, true]);
+lig("svar og facebook vises ikke for sig (hverken saelges eller kommer)",
+  ["svar", "facebook"].map((m) => [!!KATALOG.MODUL_ADDONS[m].saelges, !!KATALOG.MODUL_ADDONS[m].kommer]), [[false, false], [false, false]]);
+lig("pakken giver svar og facebook",
+  modulerFraHandles(P, [PK.handle]), { moduler: ["facebook", "svar"], ukendte: [], dobbelt: false });
+lig("pakken + Telefonpasser: tre moduler, ikke dobbelt",
+  modulerFraHandles(P, [PK.handle, A("telefon")]), { moduler: ["facebook", "svar", "telefon"], ukendte: [], dobbelt: false });
+lig("pakken + modul-svar: kunden betaler to gange for svar",
+  modulerFraHandles(P, [PK.handle, A("svar")]).dobbelt, true);
+lig("Hele pakken + pakken: dobbelt",
+  modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle, PK.handle]).dobbelt, true);
+lig("varer: moduler og pakken, Hele pakken ikke",
+  kat.varer().map((v) => v.noegle), ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook", "svar-some"]);
+lig("handleForVare kender baade modul og pakke",
+  [kat.handleForVare("referat"), kat.handleForVare("svar-some"), kat.handleForVare("findes-ikke")], ["modul-referat", "modul-svar-some", null]);
+lig("pakken oprettes ikke i Frisbii, foer den saelges", produkterTilSalg().addOns.some((a) => a.handle === PK.handle), false);
+const kp = kopi(); kp.PAKKER["svar-some"].saelges = true;
+lig("... og kommer med, naar den saelges", produkterTilSalg(kp).addOns.filter((a) => a.pakke).map((a) => [a.pakke, a.handle, a.prisOere]),
+  [["svar-some", "modul-svar-some", 20000]]);
+
 console.log("\n5. Roedt med vilje: tjekKatalog skal se et oedelagt katalog");
 let k = kopi(); delete k.MODUL_ADDONS.svar;
 tjekKatalog(k).length ? ok("et modul mangler i kataloget -> fejl", tjekKatalog(k)[0]) : nej("et modul mangler -> fejl", "ingen fejl fundet");
@@ -101,6 +125,14 @@ k = kopi(); k.MODUL_ADDONS.telefon.handle = "Modul Telefon";
 tjekKatalog(k).some((f) => f.includes("ugyldigt handle")) ? ok("handle med stort bogstav og mellemrum -> fejl") : nej("ugyldigt handle -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.GAMLE_PLANER["abonnement-standard"] = ["telefonpasser"];
 tjekKatalog(k).some((f) => f.includes("ukendt modul")) ? ok("gammel plan med ukendt modulnavn -> fejl") : nej("gammel plan ukendt modul -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].moduler = ["svar", "findes-ikke"];
+tjekKatalog(k).some((f) => f.includes("ukendt modul findes-ikke")) ? ok("pakke med ukendt modul -> fejl") : nej("pakke ukendt modul -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].handle = k.MODUL_ADDONS.svar.handle;
+tjekKatalog(k).some((f) => f.includes("to gange")) ? ok("pakke med et moduls handle -> fejl") : nej("pakke-handle to gange -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["svar", "referat"], saelges: false };
+tjekKatalog(k).some((f) => f.includes("i to pakker")) ? ok("et modul i to pakker -> fejl") : nej("modul i to pakker -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER.referat = { handle: "modul-x", navn: "X", prisOere: 100, moduler: ["svar", "facebook"], saelges: false };
+tjekKatalog(k).some((f) => f.includes("samme som et modul")) ? ok("pakke med et moduls navn -> fejl") : nej("pakke med modulnavn -> fejl", JSON.stringify(tjekKatalog(k)));
 lig("et katalog med et modul, MODULER ikke kender -> fejl",
   tjekKatalog(KATALOG, MODULER.filter((m) => m !== "facebook")).length > 0, true);
 

@@ -12,7 +12,8 @@
 //
 // HVAD DEN MÅLER (form, pris og tid, aldrig kvalitet. Kvaliteten er Annes dom, T1b):
 //   - pris pr. kald i øre, regnet af tekst-adapter.js' egen prisOere (ingen ny prisliste)
-//   - svartid, og om modellen svarer i rigtig form (Svar: ### og noter. SoMe: præcis 2 forslag)
+//   - svartid, og om modellen svarer i rigtig form (Svar: ### og noter. SoMe: præcis 2 forslag,
+//     ved "Begge" hver med en Facebook- og en Instagram-tekst)
 //   - flag til læsning: tal, der ikke stod i input, forbudte ord fra sættet, SMS over 450 tegn,
 //     mail uden emne, ikke-dansk, en ræsonnerende model (tomt svar trods tokens)
 //
@@ -45,7 +46,8 @@ const MAKS_OERE = Number(vaerdi("--maks-oere", "1000"));
 const ID_FILTER = vaerdi("--id", "") ? new RegExp(vaerdi("--id", "")) : null;
 const GENTAG = Math.max(1, Number(vaerdi("--gentag", "1")) || 1);
 const UD = vaerdi("--ud", path.join(os.homedir(), "claude-arbejdstrae", "maalinger", "skrivehjaelp",
-  new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")));
+  new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
+// Sekunder med i mappenavnet: to kørsler i samme minut overskrev hinanden 6/11 (gemma-4-prøverne).
 
 // Faste kaldparametre. De står i resultatet, så en ny måling kan sammenlignes.
 const PARAM = {
@@ -62,6 +64,14 @@ if (TEMP) for (const p of Object.values(PARAM)) p.temperatur = Number(TEMP.repla
 const MODEL_EKSTRA = {
   "gpt-oss-120b": { felter: { reasoning_effort: "low" }, minTokens: 3000 },
 };
+// Til forsøg (6/11: gemma-4 brugte HELE budgettet på at tænke og svarede tomt):
+//   --ekstra '{"chat_template_kwargs":{"enable_thinking":false}}'   lægges i kaldet til ALLE modeller
+//   --min-tokens 4000                                                hæver loftet for tokens
+const EKSTRA_ARG = vaerdi("--ekstra", "");
+let EKSTRA_FELTER = {};
+try { EKSTRA_FELTER = EKSTRA_ARG ? JSON.parse(EKSTRA_ARG) : {}; }
+catch { console.log("STOP: --ekstra er ikke gyldig JSON"); process.exit(1); }
+const MIN_TOKENS = Number(vaerdi("--min-tokens", "0")) || 0;
 
 // ─── Sættet ──────────────────────────────────────────────────────────────────
 const SAET_FIL = vaerdi("--saet", "skrivehjaelp-saet-t1a.json");
@@ -94,14 +104,24 @@ function byggCases() {
         const firma = { ...FIRMA, trade: FOERSTE_FAG[pk] };
         cases.push({ id: `svar-${pk}-${sid}-tom`, type: "svar", firma, maa_ikke: [],
           input: { situation: sid, felter: {}, kanal: "sms", tone: "venlig", besked: sit.example } });
+        // Fase 4 T2 (8/11): kun det afgoerende felt udfyldt = det mindste, appen tillader.
+        const afg = P.AFGOERENDE[sid];
+        if (afg) {
+          const minFelter = {}; let minAndet = "";
+          if (afg === "andet") minAndet = "Fakturaen er sendt igen";
+          else { const f = sit.fields.find((x) => x.id === afg); if (f) minFelter[afg] = f.type === "select" ? f.options[0] : (f.placeholder || "en oplysning").replace(/^Fx\s+/i, ""); }
+          cases.push({ id: `svar-${pk}-${sid}-min`, type: "svar", firma, maa_ikke: [],
+            input: { situation: sid, felter: minFelter, andet: minAndet, kanal: "sms", tone: "venlig", besked: sit.example } });
+        }
         cases.push({ id: `svar-${pk}-${sid}-udfyldt`, type: "svar", firma, maa_ikke: [],
-          input: { situation: sid, felter: udfyldteFelter(sit), kanal: sit.group === "klage" ? "mail" : "sms",
+          input: { situation: sid, felter: udfyldteFelter(sit), andet: P.AFGOERENDE[sid] === "andet" ? "Fakturaen er sendt igen" : "",
+                   kanal: sit.group === "klage" ? "mail" : "sms",
                    tone: sit.group === "klage" ? "imødekommende" : "venlig", besked: sit.example } });
       }
     }
     for (const c of SAET.svar_fjendtlige || []) {
       cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke,
-        input: { situation: c.situation, felter: c.felter || {}, kanal: c.kanal, tone: c.tone, besked: c.besked } });
+        input: { situation: c.situation, felter: c.felter || {}, andet: c.andet || "", kanal: c.kanal, tone: c.tone, besked: c.besked } });
     }
   }
   if (KUN.includes("opslag")) {
@@ -132,31 +152,45 @@ function friTekst(c) {
 
 // ─── Flag til læsning ────────────────────────────────────────────────────────
 const tal = (s) => (String(s).match(/\d+(?:[.,]\d+)*/g) || []).map(x => x.replace(/[.,]/g, ""));
+// Sproglige fejl, Anne rettede i de 40 svar (6/11). Fanges som flag, så en ny prompt kan måles på dem.
+const SPROGFEJL = [
+  [/\bpas det (dig|jer)\b/i, '"Pas det dig?" (skal være "Passer det dig?")'],
+  [/\bring(?:e|er)? (?:dig|jer)\b(?! op\b)/i, '"ringe dig" uden "op"'],
+];
+// tekster: strenge, eller { navn, tekst, platform } for "Begge" (to vinkler × Facebook og Instagram).
 function flag_(c, prompt, tekster) {
   const fl = [];
   const kilde = new Set(tal(prompt.bruger + " " + prompt.system));
-  for (const [i, t] of tekster.entries()) {
+  const platformStd = c.input.platform || "";
+  const liste = tekster.map((t, i) => (typeof t === "string" ? { navn: `forslag ${i + 1}`, tekst: t, platform: platformStd } : t));
+  for (const { navn, tekst: t, platform } of liste) {
     const nye = [...new Set(tal(t).filter(n => !kilde.has(n)))];
-    if (nye.length) fl.push(`forslag ${i + 1}: tal, der ikke stod i input: ${nye.join(", ")}`);
-    for (const ord of c.maa_ikke) if (t.toLowerCase().includes(ord.toLowerCase())) fl.push(`forslag ${i + 1}: indeholder "${ord}"`);
-    if (!/(\b(og|vi|du|det|der|ikke|med|til)\b|æ|ø|å)/i.test(t)) fl.push(`forslag ${i + 1}: ser ikke dansk ud`);
+    if (nye.length) fl.push(`${navn}: tal, der ikke stod i input: ${nye.join(", ")}`);
+    for (const ord of c.maa_ikke) if (t.toLowerCase().includes(ord.toLowerCase())) fl.push(`${navn}: indeholder "${ord}"`);
+    if (!/(\b(og|vi|du|det|der|ikke|med|til)\b|æ|ø|å)/i.test(t)) fl.push(`${navn}: ser ikke dansk ud`);
     // Anne 6/11: ingen tankestreg eller bindestreg som tegnsætning. Måles på modellens
     // RÅ tekst, før skrivehjaelp-format.js rydder op, så det er promptens effekt, der ses.
     const streger = (t.match(/[–—]|[ \t]-[ \t]|^[ \t]*-[ \t]/gm) || []).length;
-    if (streger) fl.push(`forslag ${i + 1}: ${streger} tankestreg/bindestreg som tegnsætning`);
-    if (/\*\*\S/.test(t)) fl.push(`forslag ${i + 1}: Markdown (**)`);
+    if (streger) fl.push(`${navn}: ${streger} tankestreg/bindestreg som tegnsætning`);
+    if (/\*\*\S/.test(t)) fl.push(`${navn}: Markdown (**)`);
+    for (const [re, navnFejl] of SPROGFEJL) if (re.test(t)) fl.push(`${navn}: ${navnFejl}`);
+    // Ann 6/11: et link i et Instagram-opslag kan ikke klikkes.
+    // "link i bio" er i orden (Ann 6/11); det er linket i selve opslaget, der ikke virker.
+    if (platform === "Instagram" && /\b(klik|tryk|se)\b[^.\n]{0,20}\blink/i.test(t.replace(/\blink(et)? i (vores |min )?bio\b/gi, "")))
+      fl.push(`${navn}: Instagram-tekst beder om at klikke på et link`);
     if (c.type === "opslag") {
       const h = (t.match(/#[\wæøåÆØÅ]+/g) || []).length;
-      if (h < 3 || h > 5) fl.push(`forslag ${i + 1}: ${h} hashtags (skal være 3-5)`);
+      if (h < 3 || h > 5) fl.push(`${navn}: ${h} hashtags (skal være 3-5)`);
     }
   }
   if (c.type === "svar") {
     const t = tekster[0] || "";
     // Måling 1 (06:16): uden fakta svarede modellen "Ja, det kan vi sagtens" og lovede dage og
-    // priser. Grov fælde for den slags påstande, kun når håndværkeren intet har udfyldt.
-    const ingenFakta = !Object.values(c.input.felter || {}).some(v => String(v || "").trim());
-    const PAASTAND = /(^|[\s.!])((?<!hvis )ja[,.!]|det kan vi|med i prisen|er inkluderet|du behøver ikke|du skal ikke|vi kommer (mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag|stadig))/i;
-    if (ingenFakta && c.input.situation !== "ros" && PAASTAND.test(t)) fl.push("mulig påstand uden fakta: " + (t.match(PAASTAND)[0].trim()));
+    // priser. 8/11: læst i hånden lovede ca. halvdelen af 34 tomme cases noget, flaget fandt 3 —
+    // vendingerne nedenfor er dem, der blev fundet i hånden. Gælder, når højst ét felt er udfyldt.
+    const udfyldte = Object.values(c.input.felter || {}).filter(v => String(v || "").trim()).length;
+    const PAASTAND = /(^|[\s.!])((?<!hvis )ja[,.!]|det kan vi|med i prisen|er inkluderet|du behøver ikke|du skal ikke|vi kommer (mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag|stadig)|(jeg|vi) (kommer|kigger) (gerne )?forbi|med det samme|vores fejl|skal vi have rettet|vi kan godt|selvfølgelig kan|vi tager (gerne )?\w+ med|det er ikke noget, vi)/i;
+    if (udfyldte <= 1 && c.input.situation !== "ros" && PAASTAND.test(t)) fl.push("mulig påstand uden fakta: " + (t.match(PAASTAND)[0].trim()));
     // Måling 2: kendte fakta blev sat i parentes ("[fredag]", "[12 34 56 78]").
     const kendt = [...Object.values(c.input.felter || {}), c.firma.phone].filter(Boolean).map(v => String(v).toLowerCase());
     const iParentes = (t.match(/\[[^\]]+\]/g) || []).filter(p => { const x = p.slice(1, -1).toLowerCase().trim(); return x.length >= 3 && kendt.some(k => k.includes(x)); });
@@ -175,8 +209,9 @@ async function kald(konf, model, prompt, param) {
     method: "POST",
     headers: { Authorization: `Bearer ${konf.noegle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model, temperature: param.temperatur, max_tokens: Math.max(param.maksTokens, ekstra.minTokens || 0),
+      model, temperature: param.temperatur, max_tokens: Math.max(param.maksTokens, ekstra.minTokens || 0, MIN_TOKENS),
       ...(ekstra.felter || {}),
+      ...EKSTRA_FELTER,
       messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.bruger }],
     }),
     signal: AbortSignal.timeout(120000),
@@ -204,9 +239,14 @@ async function main() {
   // Tørkørsel-tjek, køres ALTID før netværket: bygger alle prompts og afviser, hvis
   // brugertekst er havnet i systemfeltet, eller et tag kan lukkes indefra.
   let fejl = 0;
+  const afvist = new Set();
   for (const c of cases) {
     let p;
-    try { p = byg(c); } catch (e) { console.log(`  FEJL  ${c.id}: ${e.message}`); fejl++; continue; }
+    try { p = byg(c); } catch (e) {
+      // Lag 2 (8/11): uden det afgørende felt afviser bygSvar kaldet. Det er rigtigt, ikke en fejl.
+      if (e instanceof P.ValideringsFejl && /^(Udfyld: |Skriv, hvad kunden skal vide)/.test(e.message)) { afvist.add(c.id); continue; }
+      console.log(`  FEJL  ${c.id}: ${e.message}`); fejl++; continue;
+    }
     for (const s of friTekst(c)) if (p.system.includes(s)) { console.log(`  FEJL  ${c.id}: brugertekst i systemfeltet`); fejl++; }
     for (const navn of P._TAGNAVNE) {
       const aabne = (p.bruger.match(new RegExp(`<${navn}>`, "g")) || []).length;
@@ -218,7 +258,9 @@ async function main() {
   for (const c of cases) antal[c.type]++;
   console.log(`\nPromptversion ${P.SKRIVEHJAELP_PROMPT_VERSION} · ${cases.length} cases (svar ${antal.svar}, opslag ${antal.opslag}, kommentar ${antal.kommentar}) · ${MODELLER.length} model(ler)`);
   console.log(`Tørkørsel: ${fejl ? fejl + " FEJL" : "0 fejl"} (S6-adskillelse og tags)`);
+  if (afvist.size) console.log(`Afvist af serveren uden det afgørende felt (lag 2), sendes ikke: ${afvist.size}`);
   if (fejl) process.exit(1);
+  for (let i = cases.length - 1; i >= 0; i--) if (afvist.has(cases[i].id)) cases.splice(i, 1);
   if (TOER) { console.log("Ingen netværk (--toer). Slut."); return; }
 
   if (fs.existsSync(path.join(process.cwd(), ".ENV-ER-PROD"))) {
@@ -278,9 +320,17 @@ async function main() {
           if (!s.noter.length) res.formFlag = "ingen ### og noter";
           res.flag = flag_(c, p, [s.svar]);
         } else {
-          const l = P.laesForslag(r.indhold);
+          const begge = c.type === "opslag" && c.input.platform === "Begge";
+          const l = P.laesForslag(r.indhold, { begge });
           if (!l.ok) { res.fejl = "form: " + l.fejl; res.raat = r.indhold.slice(0, 2000); }
-          else { res.forslag = l.forslag; res.flag = flag_(c, p, l.forslag); }
+          else {
+            res.forslag = l.forslag;
+            res.flag = flag_(c, p, begge
+              ? l.forslag.flatMap((f, n) => [
+                  { navn: `forslag ${n + 1} Facebook`, tekst: f.facebook, platform: "Facebook" },
+                  { navn: `forslag ${n + 1} Instagram`, tekst: f.instagram, platform: "Instagram" }])
+              : l.forslag);
+          }
         }
         if (r.slut === "length") (res.flag = res.flag || []).push("afskåret ved max_tokens");
       }
@@ -293,7 +343,7 @@ async function main() {
   // ─── Sammendrag ────────────────────────────────────────────────────────────
   const linjer = [];
   linjer.push(`# Måling Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}i alt ${r2(brugt)} øre`, "",
+    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}${EKSTRA_ARG ? "ekstra " + EKSTRA_ARG + " · " : ""}${MIN_TOKENS ? "min. tokens " + MIN_TOKENS + " · " : ""}i alt ${r2(brugt)} øre`, "",
     "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median | Heraf tænkning |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) for (const t of ["svar", "opslag", "kommentar"]) {
@@ -317,7 +367,11 @@ async function main() {
     if (r.fejl) linjer.push(`**FEJL:** ${r.fejl}`, "");
     if (r.raat) linjer.push("```", r.raat, "```", "");
     if (r.svar) linjer.push("**Udkast:**", "", "```", r.svar, "```", "", r.noter.length ? "**Noter:** " + r.noter.join(" · ") : "", "");
-    if (r.forslag) r.forslag.forEach((f, n) => linjer.push(`**Forslag ${n + 1}:**`, "", "```", f, "```", ""));
+    if (r.forslag) r.forslag.forEach((f, n) => {
+      if (typeof f === "string") linjer.push(`**Forslag ${n + 1}:**`, "", "```", f, "```", "");
+      else linjer.push(`**Forslag ${n + 1}, Facebook:**`, "", "```", f.facebook, "```", "",
+                       `**Forslag ${n + 1}, Instagram:**`, "", "```", f.instagram, "```", "");
+    });
     const alleFlag = [...(r.flag || []), ...(r.formFlag ? [r.formFlag] : [])];
     if (alleFlag.length) linjer.push("**Flag:** " + alleFlag.join(" · "), "");
     if (r.oere != null) linjer.push(`*${r.ms} ms · ${r.tokensInd} ind / ${r.tokensUd} ud · ${r.oere} øre*`, "");

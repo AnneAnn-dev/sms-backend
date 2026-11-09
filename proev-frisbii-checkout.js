@@ -83,6 +83,10 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   lig("Hele pakken saelges ikke (Ann 31/10)", m.vaelgModuler("hele-pakken").fejl, "ukendt_modul");
   lig("tom liste -> afvist", m.vaelgModuler([]).fejl, "ingen_moduler");
   lig("objekt -> afvist", m.vaelgModuler({ a: 1 }).fejl, "ugyldige_moduler");
+  lig("pakken \"Kundehenvendelser og SoMe\" saelges ikke endnu (Fase 4)", m.vaelgModuler("svar-some").fejl, "ukendt_modul");
+  const KP = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KP.PAKKER["svar-some"].saelges = true;
+  lig("naar den saelges, kan pakken vaelges i checkout", m.vaelgModuler("telefon,svar-some", KP), { ok: true, moduler: ["svar-some", "telefon"] });
+  lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some"), [{ modul: "svar-some", navn: "Kundehenvendelser og SoMe", prisOere: 20000 }]);
   lig("koerende abonnement -> har konto", m.harKoerendeKonto([{ status: "active", frisbii_subscription: "sub-1" }]), true);
   lig("opsagt, ikke udloebet -> har konto", m.harKoerendeKonto([{ status: "active", billing_status: "cancelled", frisbii_subscription: "sub-1" }]), true);
   lig("udloebet firma -> maa koebe (genoplives, T8a)", m.harKoerendeKonto([{ status: "inactive", frisbii_subscription: "sub-1" }]), false);

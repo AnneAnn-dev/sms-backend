@@ -44,7 +44,7 @@
 const path = require("path");
 const { opretLoft, klientIp } = require("./ratelimit");
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG, handleForModul } = require("./frisbii-katalog");
+const { KATALOG, varer, handleForVare } = require("./frisbii-katalog");
 const { firmaerMedEmail } = require("./frisbii-kunde");
 
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
@@ -93,10 +93,11 @@ function maskerEmail(s) {
 }
 
 // ─── T8b: de moduler, der kan koebes nu (kataloget: saelges = true) ─────────
+// Varer = moduler og pakker (Fase 4: "Kundehenvendelser og SoMe"). modul er varens noegle.
 function tilSalg(katalog = KATALOG) {
-  return Object.entries(katalog.MODUL_ADDONS)
-    .filter(([, a]) => a.saelges)
-    .map(([modul, a]) => ({ modul, navn: a.navn, prisOere: a.prisOere }));
+  return varer(katalog)
+    .filter((a) => a.saelges)
+    .map((a) => ({ modul: a.noegle, navn: a.navn, prisOere: a.prisOere }));
 }
 
 // Kundens valg -> { ok, moduler } eller { ok: false, fejl }. Tager en liste
@@ -280,7 +281,7 @@ function checkoutModul(app, supabase) {
       prepare_subscription: {
         // T8b: basisplanen + et add-on pr. valgt modul. Slukket flag: den gamle plan.
         plan: valg ? KATALOG.BASISPLAN : PLAN_HANDLE,
-        ...(valg ? { add_ons: valg.moduler.map((m) => ({ add_on: handleForModul(m) })) } : {}),
+        ...(valg ? { add_ons: valg.moduler.map((m) => ({ add_on: handleForVare(m) })) } : {}),
         ...(kode ? { coupon_codes: [kode] } : {}),
         // ⚠️ Ø6: abonnementet skal have SIT EGET handle. `generate_handle` inde i
         // create_customer gælder kun kundens handle — uden denne linje afviser
