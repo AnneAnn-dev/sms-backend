@@ -32,6 +32,7 @@ const { PACKS, sectorOf } = require("./prompts/skrivehjaelp-pakker");
 const F = require("./skrivehjaelp-format");
 const standardTekstmodel = require("./tekst-adapter");
 const kvote = require("./kvote");
+const { visDanskTlf } = require("./phone");
 
 // Faste kaldparametre, som i T1-målingen (maal-skrivehjaelp.js). "Begge" giver fire tekster.
 const PARAM = {
@@ -187,6 +188,10 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
     if (!firma.trade || !firma.person) {
       return res.status(409).json({ error: "profil_mangler", besked: "Fortæl først din branche og dit navn." });
     }
+    // Underskriften viser nummeret, som en dansker skriver det: "26 84 17 20", ikke
+    // "+4526841720" (Ann 10/11-26). Det gemte nummer røres ikke (Ann 8/11: det gemmes,
+    // som firmaet skrev det). Prompten og efterbehandlingen ser begge denne form.
+    firma = { ...firma, phone: visDanskTlf(firma.phone) };
 
     const input = req.body && typeof req.body === "object" ? req.body : {};
     let prompt;

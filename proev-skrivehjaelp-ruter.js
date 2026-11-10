@@ -10,6 +10,7 @@
 //  - HVERT kald bogfoeres, ogsaa et betalt kald med forkert form; et nyt forsoeg hoejst
 //  - en leverandoerfejl uden pris bogfoeres ikke og proeves ikke igen
 //  - ingen kundetekst i loggen
+//  - underskriften viser et dansk nummer uden +45 (10/11-26)
 // Ren ASCII.
 "use strict";
 
@@ -135,6 +136,12 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   lig("samme nummer (+45 eller ej) vises som eet valg (Ann 8/11)", r.data.telefonForslag, [{ nummer: "12 34 56 78", hvad: "Firmaets nummer og dit nummer" }]);
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: "Peter", afsender_telefon: null, telefon: "70 70 70 70" } }), m: model([GODT]) });
   lig("uden valgt nummer kommer hverken firmaets nummer eller ejerens mobil i prompten", [r.m.kald[0].bruger.includes("70 70 70 70"), r.m.kald[0].bruger.includes("12345678")], [false, false]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: "Peter", afsender_telefon: "+4512345678", telefon: null } }), m: model([GODT]) });
+  lig("underskriften faar nummeret uden +45 (Ann 10/11), det gemte nummer roeres ikke", [r.status, r.m.kald[0].bruger.includes("tlf. 12 34 56 78"), r.m.kald[0].bruger.includes("+45"), r.d.opdateret], [200, true, false, []]);
+  const { visDanskTlf } = require("./phone");
+  lig("visDanskTlf: danske numre i par uden +45, alt andet uaendret",
+    ["+4526841720", "0045 26841720", "26841720", "+45 26 84 17 20", "+46 70 123 45 67", "", null].map(visDanskTlf),
+    ["26 84 17 20", "26 84 17 20", "26 84 17 20", "26 84 17 20", "+46 70 123 45 67", "", ""]);
 
   console.log("\n2. Svar: lag 2 og kvoten foer kaldet");
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { branche: "VVS", afsender_navn: null } }) });

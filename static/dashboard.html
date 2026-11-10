@@ -537,7 +537,8 @@
     .vk .vk-hjaelp { font-size: 16px; color: var(--ink-muted); }
     .vk-hoved { display: flex; align-items: center; gap: 12px; min-height: 40px; }
     .vk-hoved h2 { font-size: 17px; font-weight: 800; color: var(--ink); }
-    .vk-tilbage { background: none; border: none; color: var(--steel); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; padding: 8px 4px; cursor: pointer; }
+    .vk-tilbage { background: none; border: none; color: var(--steel); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px; padding: 8px 4px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    .vk-ryd { align-self: center; background: none; border: none; color: var(--steel); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 16px; min-height: 44px; padding: 8px 12px; text-decoration: underline; cursor: pointer; }
     .vk-felt > label { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); margin: 0 0 6px; display: block; }
     .vk-felt > label .vk-skal { text-transform: none; letter-spacing: 0; color: var(--steel); }
     .vk-felt input, .vk-felt select, .vk-felt textarea { width: 100%; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; min-height: 48px; padding: 12px; font-size: 16px; font-family: inherit; color: var(--ink); -webkit-appearance: none; appearance: none; }
@@ -2871,7 +2872,7 @@ function leadKort(lead) {
     function opdater() {
       const n = navn.value.trim() || 'Dit navn';
       const t = tlfNu();
-      linje.textContent = n + ', ' + (p.firmanavn || 'dit firma') + (t ? ', tlf. ' + t : '');
+      linje.textContent = n + ', ' + (p.firmanavn || 'dit firma') + (t ? ', tlf. ' + visNummer(t) : '');
     }
     function valgRaekke(nr, hvad, erValgt, vaelg) {
       const b = vkEl('button', 'vk-valg' + (erValgt ? ' valgt' : '')); b.type = 'button';
@@ -2881,7 +2882,7 @@ function leadKort(lead) {
     }
     function tegnListe() {
       liste.replaceChildren();
-      for (const f of forslag) liste.appendChild(valgRaekke(f.nummer, f.hvad, !andet && valgtTlf === f.nummer, () => { andet = false; valgtTlf = f.nummer; tegnListe(); opdater(); }));
+      for (const f of forslag) liste.appendChild(valgRaekke(visNummer(f.nummer), f.hvad, !andet && valgtTlf === f.nummer, () => { andet = false; valgtTlf = f.nummer; tegnListe(); opdater(); }));
       liste.appendChild(valgRaekke('Et andet nummer', null, andet, () => { andet = true; tegnListe(); opdater(); andetFelt.focus(); }));
       if (andet) liste.appendChild(andetFelt);
       liste.appendChild(valgRaekke('Intet nummer', null, !andet && !valgtTlf, () => { andet = false; valgtTlf = ''; tegnListe(); opdater(); }));
@@ -2962,7 +2963,11 @@ function leadKort(lead) {
       if (r.fejl) { fejl.textContent = r.fejl; if (r.fokus) r.fokus.focus(); return; }
       vkSkriv(type, r.krop, knap, fejl);
     });
-    return { knap, fejl };
+    // "Ryd felter" (Ann 10/11-26): formularen bygges forfra, som foerste gang.
+    // Profilen (afsender og branche) roeres ikke.
+    const ryd = vkEl('button', 'vk-ryd', 'Ryd felter'); ryd.type = 'button';
+    ryd.onclick = () => { delete vk.formular[type]; vkVisFormular(type); };
+    return { knap, fejl, ryd };
   }
 
   const vkByg = {
@@ -3003,7 +3008,7 @@ function leadKort(lead) {
         }
         return { krop: { situation: s.id, felter: v, andet: andet.value.trim(), kanal, tone: 'venlig', besked: besked.value } };
       });
-      el.append(vkFelt('Kundens besked', besked), vkFelt('Hvad drejer det sig om?', situation), felter, vkFelt('Svar som', kanaler), send.fejl, send.knap);
+      el.append(vkFelt('Kundens besked', besked), vkFelt('Hvad drejer det sig om?', situation), felter, vkFelt('Svar som', kanaler), send.fejl, send.knap, send.ryd);
       return { el };
     },
     opslag() {
@@ -3023,7 +3028,7 @@ function leadKort(lead) {
         if (!maal.value) return { fejl: 'Vælg, hvad opslaget skal gøre.', fokus: maal };
         return { krop: { idea: ide.value, goal: maal.value, platform } };
       });
-      el.append(vkFelt('Hvad vil du fortælle?', ide), vkFelt('Hvad skal opslaget gøre?', maal), vkFelt('Hvor skal det slås op?', plat), send.fejl, send.knap);
+      el.append(vkFelt('Hvad vil du fortælle?', ide), vkFelt('Hvad skal opslaget gøre?', maal), vkFelt('Hvor skal det slås op?', plat), send.fejl, send.knap, send.ryd);
       return { el };
     },
     kommentar() {
@@ -3035,7 +3040,7 @@ function leadKort(lead) {
         if (!raa.value.trim()) return { fejl: 'Skriv kort, hvad du vil svare.', fokus: raa };
         return { krop: { comment: kommentar.value, raw: raa.value } };
       });
-      el.append(vkFelt('Kommentaren', kommentar), vkFelt('Det vil du svare', raa), send.fejl, send.knap);
+      el.append(vkFelt('Kommentaren', kommentar), vkFelt('Det vil du svare', raa), send.fejl, send.knap, send.ryd);
       return { el };
     },
   };
@@ -3125,7 +3130,7 @@ function leadKort(lead) {
       }
       const p = vk.profil;
       const linje = p.profilMangler ? 'Ikke udfyldt endnu'
-        : p.afsenderNavn + ', ' + p.firmanavn + (p.afsenderTelefon ? ', tlf. ' + p.afsenderTelefon : '') + ' · ' + p.branche;
+        : p.afsenderNavn + ', ' + p.firmanavn + (p.afsenderTelefon ? ', tlf. ' + visNummer(p.afsenderTelefon) : '') + ' · ' + p.branche;
       document.getElementById('skrivehjaelp-indhold').replaceChildren(
         pkRaekke('Afsender og branche', linje, pkKnap('Ret', false, () => { setFane('skriv'); vkVisProfil(); })));
       punkt.hidden = false;
@@ -3698,8 +3703,10 @@ function leadKort(lead) {
 
   // +4512345678 -> 12 34 56 78. Udenlandske numre vises uaendret.
   // Serveren laegger +45 paa igen, naar et rettet nummer gemmes (normalizePhone).
+  // 10/11-26: ogsaa "+45 12 34 56 78", "0045 12345678" og "12345678" (Skrivehjaelp
+  // gemmer nummeret, som firmaet skrev det). Soester til visDanskTlf() i phone.js.
   function visNummer(n) {
-    const m = /^\+45(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(n || '');
+    const m = /^(?:\+45|0045|45)?(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(n || '').replace(/\s+/g, ''));
     return m ? `${m[1]} ${m[2]} ${m[3]} ${m[4]}` : (n || '');
   }
 
