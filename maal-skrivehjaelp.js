@@ -14,7 +14,7 @@
 //   - pris pr. kald i øre, regnet af tekst-adapter.js' egen prisOere (ingen ny prisliste)
 //   - svartid, og om modellen svarer i rigtig form (Svar: ### og noter. SoMe: præcis 2 forslag,
 //     ved "Begge" hver med en Facebook- og en Instagram-tekst)
-//   - flag til læsning: tal, der ikke stod i input, forbudte ord fra sættet, SMS over 450 tegn,
+//   - flag til læsning: tal, der ikke stod i input, forbudte ord fra sættet, SMS over 560 tegn,
 //     mail uden emne, ikke-dansk, en ræsonnerende model (tomt svar trods tokens)
 //
 // Bruger SAMME nøgle, adresse og leverandør som referatet (TILBUD_REFERAT_URL,
@@ -195,7 +195,8 @@ function flag_(c, prompt, tekster) {
     const kendt = [...Object.values(c.input.felter || {}), c.firma.phone].filter(Boolean).map(v => String(v).toLowerCase());
     const iParentes = (t.match(/\[[^\]]+\]/g) || []).filter(p => { const x = p.slice(1, -1).toLowerCase().trim(); return x.length >= 3 && kendt.some(k => k.includes(x)); });
     if (iParentes.length) fl.push("kendt fakta i parentes: " + iParentes.join(" "));
-    if (c.input.kanal === "sms" && [...t].length > 450) fl.push(`SMS på ${[...t].length} tegn (over 450)`);
+    if (c.input.kanal === "sms" && [...t].length > 560) fl.push(`SMS på ${[...t].length} tegn (over 560)`);
+    if (/[^\u0000-\u00ff€\n]/.test(t.replace(/[–—]/g, ""))) fl.push("tegn uden for SMS-tegnsættet (emoji, pæne anførselstegn el.lign.)");
     if (c.input.kanal === "mail" && !/^\s*Emne:/i.test(t)) fl.push("mail uden 'Emne:'");
   }
   return fl;
