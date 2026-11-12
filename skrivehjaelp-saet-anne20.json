@@ -1,0 +1,357 @@
+{
+  "_om": "Annes 20 eksempler med eget svar som facit (12/11-26). 10 håndværk/service i den rigtige pakke, 10 uden for håndværk med det rigtige fag som trade (falder tilbage til Håndværk-pakken via sectorOf, til den generelle pakke findes; de fleste kører derfor som 'Andet'). Det, Annes svar lover på firmaets vegne, står i felterne eller i 'andet', så modellen ikke belønnes for at finde på (Ann 12/11). 'facit' og 'tjek' sendes ALDRIG til modellen; de bruges kun til læsningen. Annes facit bryder to regler (tankestreg i generel-10, punktopstilling i haandvaerk-8): reglerne gælder (Ann 12/11). Kanal: mail ved klager og ved fotograf og revisor, ellers SMS. Tone: venlig (fast i appen).",
+  "firma": {
+    "person": "Peter Testesen",
+    "firm": "Testfirma ApS",
+    "phone": "12 34 56 78",
+    "city": "Hillerød",
+    "reviewLink": ""
+  },
+  "svar": [
+    {
+      "id": "anne20-haandvaerk-1-vinduer",
+      "trade": "Tømrer",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se den først"
+      },
+      "andet": "Send gerne billeder af de nuværende vinduer. Spørg, hvornår det passer at vi kommer forbi.",
+      "besked": "Hej. Vi vil gerne have skiftet 4 gamle vinduer i vores hus. Det er trævinduer, og vi vil gerne have nogle nye i træ/alu. Kan I komme ud og kigge på opgaven og give et tilbud? Vi bor i Hillerød.",
+      "tjek": "Svaret må ikke: Nævne en pris. Love en leveringstid eller en dato.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din henvendelse.\n\nDet vil vi meget gerne hjælpe jer med. Vi kommer gerne ud og kigger på vinduerne, så vi kan få en snak om mulighederne og finde den rigtige løsning.\n\nHar I eventuelt nogle billeder af de eksisterende vinduer, som I kan sende til os? Og hvornår vil det passe jer bedst, at vi kommer forbi?\n\nVi glæder os til at høre fra jer.\n\nVenlig hilsen\nTømreren"
+    },
+    {
+      "id": "anne20-haandvaerk-2-vvs",
+      "trade": "VVS",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se den først"
+      },
+      "andet": "Luk for vandet til installationen, indtil vi har set på det. Send gerne et billede af røret og fortæl, hvor I bor. Prisen afhænger af, hvad der skal repareres. Vi prøver at finde en tid hurtigst muligt.",
+      "besked": "Hej, vi har opdaget, at der drypper vand fra et rør under køkkenvasken. Det er ikke voldsomt, men vi er nødt til at sætte en spand under. Har I mulighed for at komme forbi i dag eller i morgen? Hvad koster det cirka?",
+      "tjek": "Svaret må ikke: Love at komme i dag eller i morgen. Nævne en pris. Gætte på fejlen.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak fordi du kontakter os.\n\nDet vil vi gerne hjælpe med. Hvis det er muligt, vil vi anbefale, at I lukker for vandet til installationen, indtil vi har fået set på problemet.\n\nKan du sende et billede af røret og eventuelt fortælle, hvor i Huset I bor? Så kan vi bedre vurdere opgaven.\n\nVi vil gerne undersøge, om vi kan finde en tid til jer hurtigst muligt. Prisen afhænger af, hvad der skal repareres.\n\nVenlig hilsen\nVVS-firmaet"
+    },
+    {
+      "id": "anne20-haandvaerk-3-anlaeg",
+      "trade": "Anlægsgartner",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se haven først"
+      },
+      "andet": "Send gerne billeder af haven allerede nu. Så aftaler vi et tidspunkt, hvor vi kommer forbi og ser på projektet.",
+      "besked": "Hej. Vi har overtaget et hus med en meget forsømt have. Vi kunne godt tænke os en ny terrasse, lidt ny beplantning og at få gjort haven mere overskuelig. Vi ved ikke helt, hvor vi skal starte. Tilbyder I at komme ud og rådgive og eventuelt give et samlet tilbud?",
+      "tjek": "Svaret må ikke: Nævne en pris. Love en start eller en dato.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tillykke med det nye hus!\n\nDet lyder som et spændende projekt, og vi hjælper gerne med at få haven til at blive et sted, I kan nyde.\n\nVi tilbyder gerne at komme ud og se på haven og tage en snak om jeres ønsker og mulighederne. Har I nogle billeder af haven, må I meget gerne sende dem allerede nu.\n\nSå kan vi aftale et tidspunkt, hvor vi kommer forbi og ser nærmere på projektet.\n\nVi glæder os til at høre fra jer.\n\nVenlig hilsen\nAnlægsgartneren"
+    },
+    {
+      "id": "anne20-haandvaerk-4-maler",
+      "trade": "Maler",
+      "situation": "pris",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "pricetype": "Det kræver, at jeg ser opgaven"
+      },
+      "andet": "Spørg, om der skal spartles eller repareres huller, eller om vægge og lofter er klar til maling. Bed om billeder af rummene. Vi undersøger, om vi kan nå opgaven inden indflytningen om tre uger.",
+      "besked": "Hej. Hvad vil det koste at få malet en lejlighed på cirka 95 m2? Den er tom og skal males inden vi flytter ind om tre uger. Der er tale om vægge og lofter i alle rum. Vi kan selv købe malingen, hvis det gør det billigere.",
+      "tjek": "Svaret må ikke: Nævne et beløb. Love at nå det inden indflytningen. Svare på, om det er billigere selv at købe malingen.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din forespørgsel.\n\nDet vil vi gerne give et tilbud på. Det lyder som en opgave, vi godt kan hjælpe med.\n\nFor at kunne beregne en pris vil vi gerne vide lidt mere om lejlighedens stand. Skal der eksempelvis spartles eller repareres huller, eller er vægge og lofter klar til at blive malet?\n\nDu må også meget gerne sende nogle billeder af rummene.\n\nVi vil naturligvis også gerne undersøge, om vi kan nå opgaven inden jeres indflytning om tre uger.\n\nVenlig hilsen\nMalerfirmaet"
+    },
+    {
+      "id": "anne20-haandvaerk-5-elektriker",
+      "trade": "Elektriker",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, send gerne billeder, så giver jeg en pris"
+      },
+      "andet": "Vi kan rådgive om valg af ladeboks og står for installationen. I behøver ikke købe ladeboksen, før vi har talt sammen. Spørg, om det er en almindelig eltavle eller en nyere installation, og om der er plads til en ekstra gruppe. Bed om et billede af eltavlen. Vi undersøger, om vi kan nå det inden jul.",
+      "besked": "Hej. Vi har lige købt en elbil og skal have installeret en ladeboks ved vores carport. Der er cirka 12 meter fra eltavlen til carporten. Kan I stå for installationen, og skal vi selv købe ladeboksen først? Vi vil gerne have det lavet inden jul.",
+      "tjek": "Svaret må ikke: Love at nå det inden jul. Nævne en pris.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tillykke med den nye elbil!\n\nVi hjælper gerne med installation af en ladeboks ved jeres carport.\n\nVi kan både rådgive om valg af ladeboks og stå for selve installationen. I behøver derfor ikke købe noget, inden vi har talt sammen.\n\nFor at kunne vurdere opgaven vil vi gerne vide, om I har en almindelig eltavle eller en nyere installation, og om der allerede er plads til en ekstra gruppe.\n\nSend gerne et billede af eltavlen, så kan vi tage den derfra.\n\nVi vil også undersøge mulighederne for at få opgaven udført inden jul.\n\nVenlig hilsen\nElektrikeren"
+    },
+    {
+      "id": "anne20-haandvaerk-6-rengoering",
+      "trade": "Rengøring",
+      "situation": "pris",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "pricetype": "Det kræver, at jeg ser stedet"
+      },
+      "andet": "Vi tilbyder gerne en fast rengøringsaftale. Spørg, hvor kontoret ligger, og om de vil have rengøring morgen, eftermiddag eller aften. Vi kommer gerne forbi og ser lokalerne, før vi giver et tilbud.",
+      "besked": "Hej. Jeg søger et rengøringsfirma til vores kontor på cirka 180 m2. Vi er 12 medarbejdere, og vi ønsker rengøring to gange om ugen. Det drejer sig om støvsugning, gulvvask, toiletter og køkken. Kan I give en pris på en fast månedlig aftale?",
+      "tjek": "Svaret må ikke: Nævne et beløb.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din henvendelse.\n\nDet lyder som en opgave, vi meget gerne vil se nærmere på.\n\nVi tilbyder gerne en fast rengøringsaftale, der passer til jeres behov og ønsker.\n\nFor at kunne give jer en præcis pris vil vi gerne vide, hvor virksomheden ligger, og om I ønsker rengøring morgen, eftermiddag eller aften.\n\nVi kommer også gerne forbi og ser lokalerne, inden vi udarbejder et tilbud.\n\nVi ser frem til at høre fra jer.\n\nVenlig hilsen\nRengøringsfirmaet"
+    },
+    {
+      "id": "anne20-haandvaerk-7-skadedyr",
+      "trade": "Skadedyrsbekæmpelse",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se stedet først"
+      },
+      "andet": "Hold afstand til området, og prøv ikke selv at fjerne boet. Send adressen og gerne et billede af, hvor boet sidder. Vi undersøger, om vi kan komme i denne uge.",
+      "besked": "Hej. Vi har opdaget et stort hvepsebo under taget ved vores terrasse. Der er rigtig mange hvepse, og vi har små børn, så vi vil gerne have det fjernet hurtigst muligt. Kan I komme ud i denne uge, og hvad koster det?",
+      "tjek": "Svaret må ikke: Love at komme i denne uge. Nævne en pris. Sige at hvepsene er ufarlige.",
+      "maa_ikke": [
+        "kr.",
+        "ufarlig",
+        "–"
+      ],
+      "facit": "Hej, og tak for din henvendelse.\n\nDet lyder bestemt som noget, vi skal have kigget på hurtigst muligt, især når der er børn i nærheden.\n\nVi vil gerne undersøge, om vi kan komme ud og hjælpe jer i denne uge.\n\nKan du sende os adressen og gerne et billede af, hvor hvepseboet sidder? Så kan vi bedre vurdere opgaven og give dig en pris.\n\nIndtil vi har været der, vil vi anbefale, at I holder afstand til området og undgår at forsøge at fjerne boet selv.\n\nVenlig hilsen\nSkadedyrsbekæmperen"
+    },
+    {
+      "id": "anne20-haandvaerk-8-flytning",
+      "trade": "Flytteservice",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Spørg om flyttedatoen, hvor der flyttes fra og til, om der er trapper begge steder, og om vi også skal pakke ned eller kun stå for transporten. Så giver vi et tilbud.",
+      "besked": "Hej. Vi skal flytte fra vores lejlighed til et hus i næste måned og vil gerne høre, hvad I tager for en flytning. Vi har en del møbler, sofa, senge, spisebord og en masse flyttekasser. Vi bor på 2. sal uden elevator. Kan I hjælpe?",
+      "tjek": "Svaret må ikke: Nævne et beløb. Bruge punktopstilling i en SMS.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din forespørgsel.\n\nDet vil vi meget gerne hjælpe jer med.\n\nFor at kunne give jer en pris på flytningen vil vi gerne vide lidt mere:\n\n* Hvilken dato skal I flytte?\n* Hvor skal I flytte fra og til?\n* Er der trapper ved begge adresser?\n* Skal vi også hjælpe med nedpakning eller kun transport?\n\nNår vi har de oplysninger, kan vi bedre beregne omfanget af flytningen og give jer et tilbud.\n\nVi glæder os til at høre fra jer.\n\nVenlig hilsen\nFlyttefirmaet"
+    },
+    {
+      "id": "anne20-haandvaerk-9-laasesmed",
+      "trade": "Låsesmed",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se stedet først"
+      },
+      "andet": "Spørg, hvilken type lås der sidder i døren, og hvor kunden bor. Bed om et billede af låsen. Vi vender tilbage med mulighederne og et tidspunkt, hvor vi kan komme.",
+      "besked": "Hej. Jeg har desværre mistet mine nøgler, og jeg er lidt bekymret for, om nogen kan finde dem og koble dem til min adresse. Jeg vil derfor gerne have skiftet låsen i min hoveddør. Kan I hjælpe med det, og hvor hurtigt kan det lade sig gøre?",
+      "tjek": "Svaret må ikke: Love en tid. Nævne en pris. Sige at der ikke er nogen risiko.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din henvendelse.\n\nDet kan vi selvfølgelig hjælpe dig med. Det er en god idé at få vurderet, om låsen bør udskiftes, når nøglerne er blevet væk.\n\nKan du fortælle os, hvilken type lås du har i døren, og hvor i området du bor?\n\nDu må også meget gerne sende et billede af låsen, så vi kan se, hvilken løsning der passer til døren.\n\nSå vender vi tilbage med mulighederne og et tidspunkt, hvor vi kan komme forbi.\n\nVenlig hilsen\nLåsesmeden"
+    },
+    {
+      "id": "anne20-haandvaerk-10-terrasse",
+      "trade": "Tømrer",
+      "situation": "kvalitet",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {
+        "assess": "Jeg har ikke set det endnu",
+        "next": "Vi ser på billederne og kontakter kunden for at aftale en tid, hvor vi kommer forbi"
+      },
+      "andet": "Send gerne et par billeder af hjørnet, hvor vandet samler sig.",
+      "besked": "Hej. I var ude hos os for cirka 3 uger siden og lavede vores nye terrasse. Vi har nu opdaget, at der samler sig vand i et hjørne, når det regner. Det virker som om, at hældningen ikke er helt rigtig. Vi er ikke tilfredse med resultatet og vil gerne have, at I kommer og kigger på det. Hvornår kan I komme?",
+      "tjek": "Svaret må ikke: Indrømme at hældningen er forkert. Love gratis udbedring. Love en dato.",
+      "maa_ikke": [
+        "–"
+      ],
+      "facit": "Hej, og tak fordi du gør os opmærksom på det.\n\nDet er selvfølgelig ikke meningen, at der skal være problemer med den nye terrasse, og vi vil meget gerne undersøge det nærmere.\n\nVi beklager, at I har oplevet dette, og vi vil gerne finde en løsning.\n\nKan du sende os et par billeder af det område, hvor vandet samler sig? Så tager vi et kig på det og kontakter dig for at aftale et tidspunkt, hvor vi kan komme forbi.\n\nVi vender naturligvis tilbage hurtigst muligt.\n\nVenlig hilsen\nTømreren"
+    },
+    {
+      "id": "anne20-generel-1-maegler",
+      "trade": "Ejendomsmægler",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Vi vil gerne arrangere en fremvisning i weekenden. Spørg, hvilket tidspunkt lørdag eller søndag der passer bedst. Vi vender tilbage med en bekræftelse.",
+      "besked": "Hej. Jeg har set jeres opslag på huset på Birkevej 14. Vi er meget interesserede og vil gerne høre, om det stadig er til salg? Vi vil også gerne vide, om der er mulighed for en fremvisning i weekenden. Vi har allerede solgt vores egen bolig og er klar til at flytte inden for de næste par måneder.",
+      "tjek": "Svaret må ikke: Sige at huset stadig er til salg. Love en bestemt tid. Nævne en pris.",
+      "maa_ikke": [
+        "–"
+      ],
+      "facit": "Hej, og tak for din interesse i boligen på Birkevej 14.\n\nDet er dejligt at høre, at huset har fanget jeres interesse.\n\nVi hjælper gerne med at arrangere en fremvisning. Jeg vil foreslå, at vi finder et tidspunkt i weekenden, der passer jer.\n\nHar I et bestemt tidspunkt lørdag eller søndag, der passer bedst?\n\nSå undersøger vi mulighederne og vender tilbage med en bekræftelse.\n\nVenlig hilsen\nEjendomsmægleren"
+    },
+    {
+      "id": "anne20-generel-2-frisoer",
+      "trade": "Frisør",
+      "situation": "pris",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "pricetype": "Det kræver, at jeg ser opgaven"
+      },
+      "andet": "Prisen på striber afhænger af hårets længde, tykkelse og behandlingen. Send gerne et billede af håret, så kan vi vejlede bedre. Vi undersøger, om vi har en ledig tid fredag eftermiddag.",
+      "besked": "Hej. Jeg vil gerne bestille tid til klipning og eventuelt nogle lyse striber. Mit hår er skulderlangt, og jeg har ikke fået farvet det i cirka 8 måneder. Hvad vil det koste, og har I en ledig tid fredag eftermiddag?",
+      "tjek": "Svaret må ikke: Nævne et beløb. Love en tid fredag.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din besked.\n\nDet vil vi meget gerne hjælpe dig med.\n\nPrisen på striber afhænger blandt andet af hårets længde, tykkelse og hvilken behandling du ønsker. Derfor vil vi gerne se dit hår, inden vi giver dig en endelig pris.\n\nDu er meget velkommen til at sende et billede af dit hår, så vi bedre kan vejlede dig.\n\nVi undersøger også gerne, om vi har en ledig tid fredag eftermiddag.\n\nVi glæder os til at høre fra dig.\n\nVenlig hilsen\nFrisørsalonen"
+    },
+    {
+      "id": "anne20-generel-3-revisor",
+      "trade": "Revisor",
+      "situation": "pris",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {
+        "pricetype": "Det kræver, at jeg ser opgaven"
+      },
+      "andet": "Vi tager gerne en uforpligtende snak om, hvordan bogføringen klares i dag, og hvilken hjælp der er brug for. Spørg, hvor mange bilag kunden cirka har om måneden, og hvilket regnskabsprogram kunden bruger.",
+      "besked": "Hej. Jeg har startet en enkeltmandsvirksomhed for cirka et halvt år siden. Jeg har indtil videre selv stået for bogføringen, men jeg synes efterhånden, det er blevet lidt uoverskueligt. Jeg vil gerne høre, hvad det koster at få hjælp til bogføring og momsregnskab. Tager I nye kunder ind?",
+      "tjek": "Svaret må ikke: Nævne et beløb eller en timepris. Love at de tager nye kunder ind.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tillykke med din virksomhed.\n\nVi hjælper gerne med at finde en løsning, der passer til din virksomhed og dine behov.\n\nVi tager gerne en uforpligtende snak om, hvordan du håndterer bogføringen i dag, og hvilken hjælp du har brug for fremover.\n\nFor at kunne give dig en idé om prisen vil det være relevant at vide, hvor mange bilag du cirka har om måneden, og hvilket regnskabsprogram du bruger.\n\nDu er meget velkommen til at vende tilbage med lidt flere oplysninger, så tager vi den derfra.\n\nVenlig hilsen\nRevisionsfirmaet"
+    },
+    {
+      "id": "anne20-generel-4-webshop",
+      "trade": "Webshop",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Vi har noteret ordrenummer 45821 og undersøger, hvor langt ordren er. Vi vender tilbage, så snart vi ved mere. Når jakken ikke frem i tide, hjælper vi med at se på annullering efter vores handelsbetingelser.",
+      "besked": "Hej. Jeg bestilte en jakke hos jer i sidste uge, men jeg har endnu ikke modtaget den. Jeg skal bruge den på lørdag, så jeg vil gerne høre, om I kan se, hvornår den bliver leveret? Hvis den ikke når frem, vil jeg gerne annullere ordren. Mit ordrenummer er 45821.",
+      "tjek": "Svaret må ikke: Love levering inden lørdag. Sige at pakken er sendt. Love annullering uden forbehold.",
+      "maa_ikke": [
+        "–"
+      ],
+      "facit": "Hej, og tak for din besked.\n\nDet beklager vi selvfølgelig, at du endnu ikke har modtaget din jakke.\n\nVi vil gerne undersøge, hvor langt din ordre er i leveringsprocessen, så vi kan give dig et mere præcist svar.\n\nVi har noteret dit ordrenummer 45821 og vender tilbage, så snart vi har undersøgt sagen.\n\nHvis jakken ikke når frem i tide, hjælper vi dig naturligvis med at se på mulighederne for annullering i henhold til vores handelsbetingelser.\n\nVenlig hilsen\nKundeservice"
+    },
+    {
+      "id": "anne20-generel-5-fotograf",
+      "trade": "Fotograf",
+      "situation": "andet",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Vi sender gerne information om vores bryllupspakker og eksempler på tidligere bryllupsfotograferinger. Spørg om datoen, og hvor vielsen og festen skal være, så vi kan se, om datoen er ledig.",
+      "besked": "Hej. Vi skal giftes næste sommer og leder efter en fotograf, der kan være med hele dagen. Vi forventer cirka 60 gæster. Vi vil gerne have billeder fra vielsen, receptionen og festen frem til brudevalsen. Kan I sende os nogle priser og eventuelt eksempler på tidligere bryllupsbilleder?",
+      "tjek": "Svaret må ikke: Nævne en pris. Love at datoen er ledig.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og stort tillykke med det kommende bryllup!\n\nDet lyder som en rigtig dejlig opgave, og vi vil meget gerne høre mere om jeres planer.\n\nVi sender gerne information om vores bryllupspakker og eksempler på tidligere bryllupsfotograferinger.\n\nFor at kunne finde den rette løsning vil vi gerne vide, hvilken dato I skal giftes, og hvor vielsen og festen skal foregå.\n\nSå kan vi også undersøge, om datoen er ledig.\n\nVi glæder os til at høre fra jer!\n\nVenlig hilsen\nFotografen"
+    },
+    {
+      "id": "anne20-generel-6-hotel",
+      "trade": "Hotel",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Vi undersøger, om der er et ledigt dobbeltværelse 27.-29. december, og om der er prisforskel. Vi vender tilbage, så snart vi ved det.",
+      "besked": "Hej. Vi har booket et dobbeltværelse hos jer fra den 20.-22. december. Vi har desværre fået ændret vores planer og vil gerne høre, om det er muligt at ændre reservationen til den 27.-29. december i stedet. Reservationen står i navnet Jensen.",
+      "tjek": "Svaret må ikke: Bekræfte ændringen. Nævne en pris eller et gebyr.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din besked.\n\nDet vil vi gerne hjælpe med at undersøge.\n\nVi har noteret, at I ønsker at ændre jeres reservation fra den 20.-22. december til den 27.-29. december.\n\nVi skal først undersøge, om vi har et ledigt dobbeltværelse i den ønskede periode, og om der eventuelt er prisforskel på opholdet.\n\nVi vender tilbage, så snart vi har undersøgt mulighederne.\n\nVenlig hilsen\nHotellets reception"
+    },
+    {
+      "id": "anne20-generel-7-koereskole",
+      "trade": "Køreskole",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Vi sender gerne information om priser og kommende holdstarter. Vi undersøger, om vi har teori om aftenen. Spørg, om kunden vil begynde hurtigst muligt eller har en bestemt måned i tankerne.",
+      "besked": "Hej. Jeg vil gerne begynde at tage kørekort til bil. Jeg er 18 år og har aldrig kørt før. Jeg vil gerne vide, hvad det koster hos jer, hvor lang tid det tager, og hvornår næste hold starter. Jeg arbejder til kl. 16 hver dag, så jeg skal helst kunne tage teori om aftenen.",
+      "tjek": "Svaret må ikke: Nævne en pris, en varighed eller en dato for holdstart. Love teori om aftenen.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din interesse i vores køreskole!\n\nVi hjælper dig gerne godt i gang med kørekortet.\n\nVi tilbyder undervisning for nye elever, og vi vil gerne finde et hold, der passer til din hverdag.\n\nVi sender dig gerne information om vores priser og kommende holdstarter.\n\nDa du helst vil have teoriundervisning om aftenen, vil vi undersøge, hvilke muligheder vi har.\n\nEr du interesseret i at begynde hurtigst muligt, eller har du en bestemt måned i tankerne?\n\nVi glæder os til at høre fra dig.\n\nVenlig hilsen\nKøreskolen"
+    },
+    {
+      "id": "anne20-generel-8-fitness",
+      "trade": "Fitnesscenter",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Når man starter, får man en introduktion, hvor vi viser rundt og gennemgår maskinerne. Vi undersøger, om der er mulighed for en prøvetime. Spørg, om kunden kan komme forbi en eftermiddag eller aften i løbet af ugen.",
+      "besked": "Hej. Jeg overvejer at melde mig ind hos jer, men jeg vil gerne vide, om man kan få en prøvetime først. Jeg har aldrig trænet i et fitnesscenter før, og jeg er lidt usikker på, hvordan maskinerne fungerer. Kan man få en introduktion, når man starter?",
+      "tjek": "Svaret må ikke: Love en prøvetime. Nævne en pris.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din interesse i vores fitnesscenter!\n\nDu skal være meget velkommen hos os.\n\nDet er helt naturligt at være lidt usikker, når man skal i gang med at træne i et fitnesscenter for første gang.\n\nVi vil meget gerne tilbyde dig en introduktion, hvor vi viser dig rundt og gennemgår de forskellige maskiner, så du føler dig tryg ved at komme i gang.\n\nVi undersøger også gerne muligheden for en prøvetime.\n\nHar du mulighed for at komme forbi en eftermiddag eller aften i løbet af ugen?\n\nVi glæder os til at møde dig!\n\nVenlig hilsen\nFitnesscenteret"
+    },
+    {
+      "id": "anne20-generel-9-it",
+      "trade": "IT-support",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {},
+      "andet": "Spørg, om kunden har haft et Microsoft 365-abonnement eller købt en Office-licens for sig, og bed om et billede af fejlbeskeden, når Word åbnes. Så kan vi vurdere, hvad det skyldes.",
+      "besked": "Hej. Jeg har købt en ny computer, og efter jeg har flyttet mine filer over fra den gamle, kan jeg ikke længere åbne mine dokumenter i Word. Jeg får en besked om, at jeg ikke har en licens. Jeg troede, at mit Office fulgte med over på den nye computer. Kan I hjælpe mig med det?",
+      "tjek": "Svaret må ikke: Sige at licensen følger med eller ikke følger med. Love at det kan løses. Nævne en pris.",
+      "maa_ikke": [
+        "kr.",
+        "–"
+      ],
+      "facit": "Hej, og tak for din henvendelse.\n\nDet vil vi selvfølgelig gerne hjælpe dig med.\n\nDet lyder umiddelbart som om, der kan være et problem med aktiveringen af din Office-licens på den nye computer.\n\nFor at vi kan hjælpe dig bedst muligt, vil vi gerne vide, om du tidligere har haft et Microsoft 365-abonnement, eller om du har købt en Office-licens separat.\n\nDu må også gerne sende et billede af den fejlmeddelelse, du får, når du åbner Word.\n\nSå kan vi bedre vurdere, hvad problemet skyldes, og hvordan vi får det løst.\n\nVenlig hilsen\nIT-support"
+    },
+    {
+      "id": "anne20-generel-10-restaurant",
+      "trade": "Restaurant",
+      "situation": "kvalitet",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {
+        "assess": "Jeg har ikke set det endnu",
+        "next": "Bed om navnet på reservationen, så vi kan finde besøget og følge op"
+      },
+      "andet": "",
+      "besked": "Hej. Vi var 6 personer hos jer i lørdags og havde bestilt bord til kl. 19.30. Vi måtte vente næsten 40 minutter på vores bord, og da vi endelig fik maden, var to af retterne kolde. Det var faktisk en ret skuffende oplevelse, især fordi vi havde glædet os til at fejre min mands fødselsdag hos jer. Jeg synes egentlig, at I bør gøre noget ved det.",
+      "tjek": "Svaret må ikke: Love kompensation, rabat eller gavekort. Skyde skylden på andre.",
+      "maa_ikke": [
+        "kr.",
+        "gavekort",
+        "–"
+      ],
+      "facit": "Hej, og tak fordi du tager dig tid til at skrive til os.\n\nFørst og fremmest vil vi gerne beklage, at jeres besøg hos os ikke levede op til forventningerne.\n\nDet er selvfølgelig ikke den oplevelse, vi ønsker at give vores gæster – og slet ikke når I besøger os for at fejre en særlig anledning.\n\nVi er kede af både ventetiden og problemerne med maden.\n\nVi vil meget gerne undersøge, hvad der er sket, og høre lidt mere om jeres oplevelse.\n\nHvis du vil oplyse navnet på reservationen, kan vi finde jeres besøg i vores system og følge op på sagen.\n\nTak fordi du gjorde os opmærksomme på det.\n\nVenlig hilsen\nRestaurantens ledelse"
+    }
+  ]
+}
