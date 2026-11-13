@@ -203,6 +203,8 @@ const PACKS = {
 // det samme i alle pakker, så teksterne gælder alle brancher. Serveren giver modellen
 // netop den valgte situations tekst (regel 18 og 19 i prompts/skrivehjaelp.js).
 // afslutning null = ingen fast afslutning (ved ros er takken nok). Anne ejer teksterne.
+// Klager (13/11): "senest [dag]" er sat ind i Annes "Vi vender tilbage, så snart vi har undersøgt sagen",
+// fordi modellen ikke tilføjede tiden selv (regel 17 og 19).
 // proev-skrivehjaelp.js tjekker, at hver situation i hver pakke har begge nøgler.
 const SPROG = {
   aabning: {
@@ -229,11 +231,11 @@ const SPROG = {
     fastaftale: "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     ros:        null,
     andet:      "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
-    overtid:    "Vi vender tilbage, så snart vi har undersøgt sagen.",
-    kvalitet:   "Vi vender tilbage, så snart vi har undersøgt sagen.",
-    pris_klage: "Vi vender tilbage, så snart vi har undersøgt sagen.",
+    overtid:    "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
+    kvalitet:   "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
+    pris_klage: "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
     udeblevet:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
-    skade:      "Vi vender tilbage, så snart vi har undersøgt sagen.",
+    skade:      "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
   },
 };
 
