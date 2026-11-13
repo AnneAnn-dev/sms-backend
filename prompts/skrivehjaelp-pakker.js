@@ -198,9 +198,48 @@ const PACKS = {
     }
   }
 };
+// ===== SPROGLIG GRUNDPAKKE (Anne 13/11-26) =====
+// Annes standardindledninger og -afslutninger pr. situation. Samme situations-id betyder
+// det samme i alle pakker, så teksterne gælder alle brancher. Serveren giver modellen
+// netop den valgte situations tekst (regel 18 og 19 i prompts/skrivehjaelp.js).
+// afslutning null = ingen fast afslutning (ved ros er takken nok). Anne ejer teksterne.
+// proev-skrivehjaelp.js tjekker, at hver situation i hver pakke har begge nøgler.
+const SPROG = {
+  aabning: {
+    nyopgave:   "Tak for din henvendelse.",
+    pris:       "Tak for din forespørgsel.",
+    flyt:       "Tak for din besked.",
+    tilbud:     "Tak for dit spørgsmål.",
+    undervejs:  "Tak for dit spørgsmål.",
+    fastaftale: "Tak for din besked.",
+    ros:        "Tusind tak for de pæne ord.",
+    andet:      "Tak for din besked.",
+    overtid:    "Tak fordi du gør os opmærksomme på det.",
+    kvalitet:   "Tak fordi du gør os opmærksomme på det.",
+    pris_klage: "Tak fordi du gør os opmærksomme på det.",
+    udeblevet:  "Tak for din besked.",
+    skade:      "Tak fordi du gør os opmærksomme på det.",
+  },
+  afslutning: {
+    nyopgave:   "Vi glæder os til at høre fra dig.",
+    pris:       "Vi ser frem til at høre fra dig.",
+    flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    tilbud:     "Du er meget velkommen til at kontakte os, hvis du har spørgsmål.",
+    undervejs:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    fastaftale: "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    ros:        null,
+    andet:      "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    overtid:    "Vi vender tilbage, så snart vi har undersøgt sagen.",
+    kvalitet:   "Vi vender tilbage, så snart vi har undersøgt sagen.",
+    pris_klage: "Vi vender tilbage, så snart vi har undersøgt sagen.",
+    udeblevet:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    skade:      "Vi vender tilbage, så snart vi har undersøgt sagen.",
+  },
+};
+
 function sectorOf(trade){
   for (const [k, p] of Object.entries(PACKS)) if (p.trades.includes(trade)) return k;
   return "haandvaerk";
 }
 
-module.exports = { PACKS, sectorOf };
+module.exports = { PACKS, SPROG, sectorOf };

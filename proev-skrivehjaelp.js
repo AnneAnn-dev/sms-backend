@@ -51,6 +51,16 @@ const FAG = { haandvaerk: "Toemrer", groen: "Anlaegsgartner", service: "Rengoeri
     }
   }
   lig("alle situationer i alle pakker har et afgoerende felt, der findes", mangler, []);
+  const { SPROG } = require("./prompts/skrivehjaelp-pakker");
+  const udenSprog = [];
+  for (const [pk, pack] of Object.entries(PACKS)) for (const sid of Object.keys(pack.situations)) {
+    if (typeof SPROG.aabning[sid] !== "string" || !SPROG.aabning[sid].trim()) udenSprog.push(`${pk}/${sid}: ingen indledning`);
+    if (!Object.prototype.hasOwnProperty.call(SPROG.afslutning, sid)) udenSprog.push(`${pk}/${sid}: ingen afslutning (null = bevidst ingen)`);
+  }
+  lig("Annes grundpakke: hver situation har en indledning og en afslutning (13/11)", udenSprog, []);
+  const sp = P.bygSvar({ situation: "pris", felter: { pricetype: "Fast pris" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer" });
+  lig("indledning og afslutning staar i systemfeltet, ikke i brugerfeltet (S6)",
+    [sp.system.includes("INDLEDNING: " + SPROG.aabning.pris), sp.system.includes("AFSLUTNING: " + SPROG.afslutning.pris), sp.bruger.includes("INDLEDNING")], [true, true, false]);
   ok(`${situationer} situationer: ${afvist} afvist uden feltet, ${godkendt} godkendt med det (eller uden beslutning)`);
   lig("fejlbeskeden naevner feltets navn (vises i appen)",
     kaster(() => P.bygSvar({ situation: "nyopgave", felter: {}, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer" })).message,
