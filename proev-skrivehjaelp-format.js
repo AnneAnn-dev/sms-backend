@@ -98,6 +98,9 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
     F.fjernAfslutningEfterSpoergsmaal("Passer mandag kl. 7? Vi glæder os til at høre fra dig.\nPeter"), "Passer mandag kl. 7?\nPeter");
   lig("som eget afsnit: fjernes også",
     F.fjernAfslutningEfterSpoergsmaal("Passer mandag kl. 7?\n\nJeg glæder mig til at høre fra dig.\n\nPeter"), "Passer mandag kl. 7?\n\nPeter");
+  lig("uden punktum (staging 16/11, vi-form): fjernes også",
+    F.efterbehandlSvar("Hej Ann\nTak for din henvendelse.\n\nVi kommer gerne forbi. Passer det dig?\n\nVi glæder os til at høre fra dig\nPeter, Nillis NixBix\n###\n- Tjek", KENDTE).svar,
+    "Hej Ann\nTak for din henvendelse.\n\nVi kommer gerne forbi. Passer det dig?\nPeter, Nillis NixBix");
   lig("efter et punktum: bliver stående",
     F.fjernAfslutningEfterSpoergsmaal("Jeg kommer mandag kl. 7. Jeg glæder mig til at høre fra dig.\nPeter"), "Jeg kommer mandag kl. 7. Jeg glæder mig til at høre fra dig.\nPeter");
   lig("en anden sætning efter spørgsmålet røres ikke",
@@ -112,6 +115,9 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
     "Hej, og tak for din henvendelse.\n\nJeg kommer gerne.\n\nJeg glæder mig til at høre fra dig.\nPeter");
   const allerede = "Emne: X\n\nHej, og tak for din forespørgsel.\n\nJeg ser på det.\n\nVi ser frem til at høre fra dig.\n\nMed venlig hilsen\nPeter";
   lig("har svaret allerede afsnit, ændres intet", F.saetAfsnit(allerede), allerede);
+  lig("afslutning uden punktum efter et punktum: får sit punktum igen og eget afsnit",
+    F.saetAfsnit("Hej. Tak for din besked. Jeg kommer kl. 7. Vi glæder os til at høre fra dig\nPeter"),
+    "Hej. Tak for din besked.\n\nJeg kommer kl. 7.\n\nVi glæder os til at høre fra dig.\nPeter");
   lig("uden Annes tekster ændres intet", F.saetAfsnit("Hej Jens. Jeg kommer kl. 7.\nPeter"), "Hej Jens. Jeg kommer kl. 7.\nPeter");
   const ordFoer = (x) => x.replace(/\s+/g, " ").trim();
   const lang = "Hej. Tak for dit spørgsmål. Materialer er med. Du er meget velkommen til at kontakte mig, hvis du har spørgsmål. Peter";

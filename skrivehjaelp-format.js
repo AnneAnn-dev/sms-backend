@@ -112,13 +112,24 @@ const AFSLUTNINGER = unik(Object.values(SPROG).flatMap((s) => Object.values(s.af
 // stå bagefter. Prompten siger det, men mistral skrev "… passer det dig? Vi glæder os
 // til at høre fra dig." i appen 13/11. Kun Annes egne afslutninger, ordret, og kun lige
 // efter et spørgsmålstegn, fjernes. Alt andet i teksten røres ikke.
+// Staging 16/11: "Passer det dig?\n\nVi glæder os til at høre fra dig" uden punktum slap igennem,
+// fordi kun den ordrette tekst med punktum blev fundet. Nu findes den med og uden punktum.
+function findAfslutning(t, a) {
+  const kerne = a.replace(/[.!]$/, "");
+  const i = t.indexOf(kerne);
+  if (i < 0) return null;
+  let slut = i + kerne.length;
+  const harTegn = /[.!]/.test(t[slut] || "");
+  if (harTegn) slut++;
+  return { i, slut, harTegn };
+}
 function fjernAfslutningEfterSpoergsmaal(t) {
   for (const a of AFSLUTNINGER) {
-    const i = t.indexOf(a);
-    if (i < 0) continue;
-    const foer = t.slice(0, i).replace(/[ \t\n]+$/, "");
+    const f = findAfslutning(t, a);
+    if (!f) continue;
+    const foer = t.slice(0, f.i).replace(/[ \t\n]+$/, "");
     if (!foer.endsWith("?")) continue;
-    const efter = t.slice(i + a.length);
+    const efter = t.slice(f.slut);
     return (foer + (efter.startsWith("\n") ? "" : "\n") + efter).replace(/\n{3,}/g, "\n\n").trim();
   }
   return t;
@@ -140,11 +151,12 @@ function saetAfsnit(t) {
     break;
   }
   for (const a of AFSLUTNINGER) {
-    const i = t.indexOf(a);
-    if (i <= 0) continue;
-    const foer = t.slice(0, i).replace(/[ \t\n]+$/, "");
-    let efter = t.slice(i + a.length);
+    const f = findAfslutning(t, a);
+    if (!f || f.i <= 0) continue;
+    const foer = t.slice(0, f.i).replace(/[ \t\n]+$/, "");
+    let efter = t.slice(f.slut);
     if (/^[ \t]+\S/.test(efter)) efter = "\n" + efter.replace(/^[ \t]+/, "");
+    // Mangler punktummet, sættes Annes eget tegn igen (formen, ikke indholdet).
     t = foer + "\n\n" + a + efter;
     break;
   }

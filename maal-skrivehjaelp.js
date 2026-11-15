@@ -205,7 +205,7 @@ function flag_(c, prompt, tekster) {
     if (c.input.kanal === "mail" && !/^\s*Emne:/i.test(t)) fl.push("mail uden 'Emne:'");
     // 13/11 (case 21): en fast afslutning lige efter et spørgsmål. Fjernes af skrivehjaelp-format.js;
     // her ses, hvor tit modellen selv bryder regel 19.
-    if (AFSLUTNINGER.some((a) => new RegExp("\\?\\s*" + a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(t)))
+    if (AFSLUTNINGER.some((a) => new RegExp("\\?\\s*" + a.replace(/[.!]$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(t)))
       fl.push("afslutning efter et spørgsmål (regel 19; fjernes af skrivehjaelp-format.js)");
     // 15/11: jeg eller vi. Underskriften og citater fra kunden kan give falske fund; læs efter.
     const forkert = FORM === "vi" ? /\b(jeg|mig|min|mit|mine)\b/i : /\b(vi|os|vores)\b/i;
