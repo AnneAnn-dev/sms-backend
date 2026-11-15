@@ -15,6 +15,28 @@ TEST-tilstand — rigtige kort afvises; live kræver indløsningsaftalen.
 
 ---
 
+## Fra 2/11-26: piloterne køber selv gennem `/bestil` (Fase 3)
+
+*Tilføjet 6/11-26. Fase 3 er i prod, så afsnittene længere nede (formular og manuel provisionering) er historik fra før Frisbii LIVE. Brug dem ikke til nye piloter.*
+
+**Vilkårene (Ann 1/11 og 6/11):** en pilot er gratis, så længe han vil arbejde med os. Når han ikke vil længere, får han kvartalet ud. Han giver kort ved købet, også ved 0 kr.
+
+**Pr. pilot (Ann):**
+
+1. **Linket:** `https://opgave.ditdigitalekontor.dk/bestil?moduler=telefon,referat` (eller via hjemmesidens `betaling.html`). Uden rabatkode: kuponer kræver Frisbii Growth (2.500 kr./md.), som vi ikke har.
+2. **Samme dag, inden de 7 prøvedage er gået:** i Frisbii LIVE på pilotens abonnement:
+    - særpris 0 kr. på begge moduler (som DB Tømrer)
+    - betalingsdatoen flyttet ud (første pilot `sub-0082`: 11/11-2027)
+3. **Afstemningen mod prod:** `.\skift-prod.ps1` → `node afstem-frisbii.js` → `.\skift-staging.ps1`. Det nye firma skal stå som OK med sine moduler.
+4. **Notér** piloten i pilotoversigten og betalingsdatoen i årshjulet.
+
+**Når en pilot stopper:**
+
+- **Vil han fortsætte og betale:** fjern særprisen i Frisbii, og sæt betalingsdatoen til den dag, han skal begynde at betale. Abonnement og firma er de samme.
+- **Vil han ikke fortsætte:** han får kvartalet ud. Ved kvartalets udgang: luk abonnementet i Frisbii. Webhooken lukker firmaet; nummeret går i karantæne i 30 dage, fordi det har været verificeret (D95), og opgaver og kunder gemmes i 3 måneder (D89). Kør afstemningen bagefter. **Det sker ikke af sig selv:** læg datoen i kalenderen, når piloten siger stop.
+
+---
+
 ## Forudsætninger (Ann — tjekkes ÉN gang før første pilot)
 
 - [ ] **Prod-nummerpuljen:** nok ubundne numre til pilot-ambitionen (tjek

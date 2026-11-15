@@ -554,7 +554,7 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 
 *Baggrund: registret **D92** og **D15**. Frisbii gensender aldrig et event af sig selv (målt 29/10): vi svarer 200 før behandlingen, og Frisbii bogfører COMPLETED efter ét forsøg. Et event i dead-letter bliver liggende, til et menneske ser det.*
 
-**Hvad den er.** `natlig-frisbii.js` kører som sin egen Railway-service, `natlig-frisbii` — cron `0 3 * * *` (UTC), start `node natlig-frisbii.js`, Restart Policy *Never*. Indtil videre kun i **staging** (bygger fra `staging`); prod oprettes, før `FASE3_SYNK` tændes i prod. Den **læser kun**: hverken Frisbii eller databasen ændres. Hver nat sender den **én mail** via `sendAdminAlert` — også når alt er grønt.
+**Hvad den er.** `natlig-frisbii.js` kører som sin egen Railway-service, `natlig-frisbii` — cron `0 3 * * *` (UTC), start `node natlig-frisbii.js`, Restart Policy *Never*. Kører i **begge miljøer**: staging bygger fra `staging`, prod fra `main`. Prod-servicen blev oprettet 2/11-26, før `FASE3_SYNK` blev tændt i prod; første mail samme aften: `GROENT`. Den **læser kun**: hverken Frisbii eller databasen ændres. Hver nat sender den **én mail** via `sendAdminAlert` — også når alt er grønt.
 
 **Mailen**
 
@@ -564,10 +564,11 @@ De tre huskeregler, når du sætter det: enkelte anførselstegn (dobbelte lader 
 | `N i dead-letter` | Events med tom `processed_at`, ældre end 15 min | Ret årsagen (fejlteksten siger hvad). Gensend eventet i Frisbii (Webhooks) — så kører hele behandlingen igen. Kun moduler: `node gensynk-firma.js <abonnement>` (tørkørsel), derefter `--skriv` |
 | `afstemning uenig` | Frisbii og databasen siger forskelligt | `node afstem-frisbii.js` for hele billedet; ret med `gensynk-firma.js` |
 | `afstemning fejlede` | Afstemningen kunne ikke køre | Kør `node afstem-frisbii.js` lokalt og læs fejlen |
+| `venter paa nummer over et doegn` | Et firma har Telefonpasser, men intet nummer (puljen var tom) | Læg numre i `phone_numbers` (`RUNBOOK-numre.md`), og kør `node gensynk-firma.js <abonnement> --skriv` — det tildeler nummeret og sender "Dit nummer er klar". **Er firmaet udløbet,** venter det ikke på noget: dets telefon-række står bare åben. Ret med `gensynk-firma.js <abonnement>` (tørkørsel), derefter `--skriv` — det lukker rækken (sådan blev `sub-0077` ryddet i prod 2/11) |
 
 **Kommer der ingen mail**, har kontrollen ikke kørt, eller mailen blev ikke sendt — **ingen mail er aldrig grønt.** Railway → `natlig-frisbii` → Cron Runs → loggen. Exit 1 = blandet miljø, database nede eller mailen blokeret.
 
-**Kendte røde i staging (30/10):** `sub-0124` (måle-add-on'et `fase3-maaling-a`, til efter målingen 2/11) og `sub-0122` (D93).
+**Kendte røde i staging (pr. 6/11):** `sub-0122` (D93) og testabonnementer uden firma fra Fase 3-målingerne (`sub-0124`, `0125`, `0130`–`0132`). Måle-add-on'et på `sub-0124` blev fjernet 2/11. **I prod:** ingen (2/11).
 
 **Kør i hånden:** `node natlig-frisbii.js --ingen-mail` skriver mailen i terminalen (profilen afgør miljøet). Railway → Cron Runs → **Run now** sender den.
 

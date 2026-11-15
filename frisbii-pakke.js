@@ -25,6 +25,16 @@
 //     kun saettes paa ddk-basis. Kunden skriver til os (Ann 31/10, valg C).
 //   - Efter hver aendring synkes firmaet straks, saa appen viser det nye.
 //     Webhooken synker ogsaa og tildeler et nummer, hvis Telefonpasser koebes.
+//   - Tilkoeb straks uden for proeven (MAALT 8/11-26, staging): standarden
+//     (ingen compensation_method = prorated_refund) refunderer de ubrugte dage
+//     paa den betalte faktura og fakturerer alle moduler for resten af
+//     perioden - kunden betaler netto kun det nye modul (sub-0145: kreditnota
+//     624,90 kr. paa inv-33, ny faktura 1.124,82 kr.). Men paa et abonnement
+//     med 100 % rabat afviser Frisbii med 400 code 215 "Compensation method
+//     not allowed" (sub-0143), ogsaa med prorated_credit. Saa sendes kaldet
+//     igen med compensation_method "none" - det fakturerer alle moduler igen
+//     uden refusion, hvilket kun er ufarligt, fordi alle linjer er 0 kr. med
+//     rabatten. Kun ved code 215 og kun ved et tilkoeb straks.
 //   - Rabat (1/11-26, Ann: "summen skal vaere 0" for en pilot): har
 //     abonnementet rabatter (subscription_discounts), hentes de med
 //     GET /subscription/{h}/discount. En aktiv rabat, der gaelder alt eller
@@ -35,7 +45,7 @@
 "use strict";
 
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG } = require("./frisbii-katalog");
+const { KATALOG, varer } = require("./frisbii-katalog");
 const { firmIdFromToken } = require("./auth");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
@@ -44,9 +54,11 @@ const API = "https://api.frisbii.com/v1";
 
 const addOnHandle = (x) => (x && typeof x.add_on === "object" ? x.add_on && x.add_on.handle : x && x.add_on);
 
+// Handle -> vare-noegle. En vare er et modul eller en pakke (Fase 4: "Kundehenvendelser
+// og SoMe" er ét add-on med to moduler). Din pakke viser, koeber og stopper varer.
 function handleTilModul(katalog = KATALOG) {
   const m = {};
-  for (const [modul, a] of Object.entries(katalog.MODUL_ADDONS)) m[a.handle] = modul;
+  for (const v of varer(katalog)) m[v.handle] = v.noegle;
   return m;
 }
 
@@ -109,7 +121,8 @@ function visning(t, katalog = KATALOG) {
   const vent = new Set(t.ventendeStop);
   const moduler = [];
   let nu = 0, fraNaeste = 0;
-  for (const [modul, a] of Object.entries(katalog.MODUL_ADDONS)) {
+  for (const a of varer(katalog)) {
+    const modul = a.noegle;
     const inst = t.instanser[modul] || [];
     const aktiv = inst.length > 0;
     const stopper = aktiv && inst.every((h) => vent.has(h));
@@ -143,7 +156,7 @@ function planlaeg(handling, modul, t, { sub, katalog = KATALOG, nyHandle } = {})
   if (handling === "genindfoer") return t.opsagt ? { kald: [{ metode: "POST", sti: `${s}/uncancel`, krop: {} }] } : { fejl: "ikke_opsagt", status: 409 };
   if (t.opsagt) return { fejl: "opsagt", status: 409 };
 
-  const a = katalog.MODUL_ADDONS[modul];
+  const a = varer(katalog).find((v) => v.noegle === modul);
   if (!a) return { fejl: "ukendt_modul", status: 400 };
   const inst = t.instanser[modul] || [];
   const vent = new Set(t.ventendeStop);
@@ -173,6 +186,17 @@ function planlaeg(handling, modul, t, { sub, katalog = KATALOG, nyHandle } = {})
     return { kald: [genStop(tilbage)] };
   }
   return { fejl: "ukendt_handling", status: 400 };
+}
+
+// Skal et afvist kald proeves igen uden kompensation? Ren funktion.
+// Kun et tilkoeb straks (timing immediate med add_ons), kun ved code 215, og
+// kun hvis kaldet ikke allerede havde en compensation_method.
+function igenUdenKompensation(kald, svar) {
+  const k = kald && kald.krop;
+  if (!k || k.timing !== "immediate" || !Array.isArray(k.add_ons) || !k.add_ons.length) return null;
+  if (k.compensation_method !== undefined) return null;
+  if (!svar || svar.ok || svar.status !== 400 || !svar.data || svar.data.code !== 215) return null;
+  return { ...kald, krop: { ...k, compensation_method: "none" } };
 }
 
 function lavFrisbiiSkriv(noegle, fetchFn = fetch) {
@@ -236,7 +260,12 @@ function pakkeModul(app, supabase, { noegle = process.env.FRISBII_PRIVATE_KEY, f
         const p = planlaeg(handling, modul, f.t, { sub: f.sub });
         if (p.fejl) return res.status(p.status).json({ error: p.fejl });
         for (const k of p.kald) {
-          const r = await skriv(k);
+          let r = await skriv(k);
+          const igen = igenUdenKompensation(k, r);
+          if (igen) {
+            log.log(`ℹ️  /api/pakke/${handling}: Frisbii afviste kompensationen (code 215, rabat paa 100 %?) - proever igen uden (${f.sub})`);
+            r = await skriv(igen);
+          }
           if (!r.ok) {
             log.error(`❌ /api/pakke/${handling}: Frisbii afviste ${k.metode} ${k.sti} (${r.status}):`, JSON.stringify(r.data));
             return res.status(502).json({ error: "frisbii_afviste" });
@@ -265,3 +294,4 @@ module.exports.visning = visning;
 module.exports.planlaeg = planlaeg;
 module.exports.virkendeRabatter = virkendeRabatter;
 module.exports.efterRabat = efterRabat;
+module.exports.igenUdenKompensation = igenUdenKompensation;

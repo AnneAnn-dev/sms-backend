@@ -59,4 +59,9 @@ module.exports = {
   // (Ann 29/10). Slukket = linket virker som foer, uanset alder. Gaelder alle
   // kunder — derfor eget flag og rollback i Railway. Se formular-engangs.js.
   FORMULAR_UDLOEB_AKTIV: flag("FORMULAR_UDLOEB_AKTIV"),
+
+  // Fase 4, T2 (8/11-26): Skrivehjaelp - /api/skrivehjaelp/* (svar, opslag, kommentar,
+  // profil, kvote). Slukket = ruterne findes ikke (404). true i staging, false i prod,
+  // til Anne har lavet QA og migrationen 20261108120000 er koert. Se skrivehjaelp-ruter.js.
+  SKRIVEHJAELP_AKTIV: flag("SKRIVEHJAELP_AKTIV"),
 };

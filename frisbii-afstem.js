@@ -49,7 +49,7 @@ function sammenlignFirma({ sub, saet, firma, raekker, nu }) {
 
   // 2) Ukendte produkter og dobbelt betaling
   if (saet.ukendte && saet.ukendte.length) uenig.push(`ukendt hos Frisbii: ${saet.ukendte.join(", ")}`);
-  if (saet.dobbelt) uenig.push("Hele pakken OG enkeltmoduler - kunden betaler to gange");
+  if (saet.dobbelt) uenig.push("en pakke OG moduler, den allerede giver (fx Hele pakken og et enkeltmodul) - kunden betaler to gange");
 
   // 3) Status (D15 begge veje)
   if (sub && firma) {

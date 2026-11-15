@@ -1,10 +1,12 @@
 # Fotosættet — hvad hvert billede indeholder
 
-*15 fotos af 13 håndskrevne sedler. Ti af Ann (kuglepen, linjeret notesbog, iPhone
-16e, 27/9 og 19/10) og tre af Anne (blyant, ternet papir, iPhone 13, 28/9 ifølge filerne). Originalerne
-ligger i `C:\Users\Bruger\proevebaenk\referatfoto\`.*
+*Sættet fra 6/11: **11 fotos af 11 sedler fra fire skrivere** — fire af Ann (kuglepen,
+kursiv), tre af Anne (blyant, trykbogstaver), tre af ven A (blyant, svagt lys) og én af
+ven B (kuglepen). Ann fjernede 6/11 syv af sine egne sedler (otte fotos). De står stadig
+i tabellen, fordi runde 1 og 2 brugte dem, og er listet under den. Originalerne ligger i
+`C:\Users\Bruger\proevebaenk\referatfoto\`.*
 
-**Facit udfyldt 19/10 og rettet af Ann og Anne, der har skrevet sedlerne.** Det skal
+**Facit udfyldt 19/10 og rettet af Ann og Anne, der har skrevet sedlerne. Ven A's tal er bekræftet 6/11 mod de scenarier, sedlerne er skrevet efter.** Det skal
 komme fra den, der skrev sedlen, ikke fra en model. Se afsnittet om rettelser nedenfor.
 
 Dokumentet har samme rolle som `SAETTET.md` har for lyden. Uden det er filerne bare
@@ -94,19 +96,29 @@ tekst.**
 | IMG_0797 | 8 | Ann | Anlægsgartner | samme seddel, anden vinkel | som IMG_0796 | |
 | IMG_0798 | 9 | Ann | Køkken | overstregninger | torsdag kl. 13 · Søndergade 58 · 2 skuffefronter · 1 hængsel · fredag kl. 10 | |
 | IMG_0800 | 10 | Ann | Ventilation | **to overstregninger (tid, enhed)** · spøgelse | mandag **09.30** · Fabriksvej 4 · 2 mødelokaler · **450 m³** (lokale 2) · **380 m³** (lokale 3) · torsdag · fredag · mandag kl. 9 | |
+| 48051.jpg | 4 | Ven A | Gulv | blyant · svagt lys · lav opløsning · **afskåret kant** | Møllehuset · 85 m² · torsdag kl. 14 · Havnegade 12 · korn 40, 80, 120 · 3 dage · mandag/tirsdag/onsdag · fredag — **og intet klokkeslæt for det afskårne** | |
+| 79808.jpg | 5 | Ven A | Murer | blyant · svagt lys · lav opløsning | fredag kl. 8 · Nørrebrogade 46 · 2 vinduer · 18 m² · 1 m² · tirsdag kl. 13 | |
+| 77369.jpg | 6 | Ven A | Stillads | blyant · svagt lys · lav opløsning | mandag kl. 7 · Skovvej 22 · **ingen** oplagring · onsdag 15 | |
+| 84167.jpg | 1 | Ven B | VVS, fjernvarme | kuglepen · overstregning | tirsdag kl. 8:30 · Industrivej 18 · 62 · 41 · onsdag · fredag kl. 10 | |
+
+*Fjernet af Ann 6/11 og ikke længere i sættet (brugt i runde 1–2): IMG_0680, IMG_0794,
+IMG_0795, IMG_0796, IMG_0797, IMG_0798, IMG_0800, IMG_0994.*
 
 ## Dækningstjek
 
 Kig ned ad hver kolonne. **En kolonne med kun én værdi er et hul.**
 
-- **Delvist lukket 19/10: to håndskrifter.** Anne har skrevet tre sedler med blyant på
+- **Delvist lukket 6/11: fire håndskrifter.** To venner har skrevet fire sedler
+  (blyant og kuglepen). Stadig ingen håndværker. *(19/10: to håndskrifter.)*
+- **Tidligere, 19/10: to håndskrifter.** Anne har skrevet tre sedler med blyant på
   ternet papir, fotograferet med en anden telefon. Det er stadig **to medstiftere og
   ingen håndværker**. Sættet kan sammenligne vision-modeller, men det kan ikke afgøre,
   om kvaliteten er god nok til en rigtig håndværkers håndskrift.
   **Lukkes med:** et par sedler fra pilotkunden, gerne blyant, skæve linjer og papir
   fra en mappe i bagagerummet.
 - **Delvist lukket 19/10: blyant.** Annes tre sedler er skrevet med blyant.
-- **Åbent: lyset.** Alle er fotograferet indendørs i dagslys. Ingen er taget i en mørk
+- **Delvist lukket 6/11: lyset.** Ven A's tre er taget i svagt, gulligt lys. Stadig ingen i skarp sol. *(19/10: alle i dagslys.)*
+- **Tidligere: lyset.** Alle var fotograferet indendørs i dagslys. Ingen er taget i en mørk
   kælder eller i skarp sol, som er de to virkelige yderpunkter.
 - **Åbent: beløb.** Ingen af sedlerne har et beløb i kr. Den farligste fejl ifølge D36
   (et forkert beløb) indgår altså ikke i sættet.
@@ -350,3 +362,91 @@ Nedløbsrøret skal kontrolleres for tilstopning.
 Blikkenslageren tager mål torsdag.
 Materialer bestilles fredag.
 ```
+
+## Facit, de nye sedler (6/11)
+
+### 48051.jpg — referat 4 (gulv), ven A, blyant, svagt lys
+```
+Restaurant Møllehuset
+Renovering af trægulv 85 m²
+torsdag kl. 14⁰⁰   Havnegade 12.
+restaurantchef + byggeleder
+Stand:
+dybe ridser i gangarealet.
+korn 40, 80, 120
+revner spartles efter 1. slib[ning?]
+slut Matlak.
+3 dage max lukketid
+mandag slibning
+tirsdag lak
+onsdag tørretid.
+→ send plan for slibning senest fredag 1[afskåret]
+```
+Skal overleve: Møllehuset · 85 m² · torsdag kl. 14 · Havnegade 12 · korn 40, 80, 120 · 3 dage · mandag/tirsdag/onsdag · fredag — **og intet klokkeslæt for det afskårne** (scenariet siger kl. 12, men det står ikke på fotoet)
+
+### 77369.jpg — referat 6 (stillads), ven A, blyant, svagt lys
+```
+Sikkerhedsmøde mandag kl. 7⁰⁰
+Skovvej 22
+Stilladsformand, byggeleder, arbejdsmiljøansv.
+Hvad:
+opstilling af stillads fra
+terræn til tagfod
+- rækværk
+- fodlister
+- stilladstrappe til adgang
+- forankring i facaden
+- afdækning på Nordsiden.
+OBS.
+Belastningsklasse tjek ved lev[ering?]
+Ingen oplagring af materiale på platforme
+- Daglig kontrol/gennemgang af
+Stilladsformanden
+Klar onsdag d. 15⁰⁰  *(scenariet: onsdag kl. 15.00)*
+```
+Skal overleve: mandag kl. 7 · Skovvej 22 · **Ingen** oplagring · onsdag 15
+
+### 79808.jpg — referat 5 (murer), ven A, blyant, svagt lys
+```
+Fredag kl. 8⁰⁰          Byggeleder
+Nørrebrogade 46.        ejerforeningens formand
+                        Murer
+Reparation af revner & løs puds
+Stand:
+- flere steder lodrette revner på facaden
+  mod gården
+- puds løs ved 2 vinduer
+- ca. 18 m² skader i alt.
+plan:
+- løs puds fjernes
+- etablering af armeringsnet på større
+  felter.
+- grundpuds & slutpuds
+- slut silikatmaling
+- Murer laver prøvefelt 1 m²
+- Gennemgås tirsdag kl 13⁰⁰
+Plan igangsættes efter godkendelse
+af [prøve]feld[t] [?]
+```
+Skal overleve: fredag kl. 8 · Nørrebrogade 46 · 2 vinduer · 18 m² · 1 m² · tirsdag kl. 13
+
+### 84167.jpg — referat 1 (fjernvarme), ven B, kuglepen, dagslys
+```
+Byggemøde   Fjernvarmeanlæg
+Tirsdag kl 8:30
+Industrivej 18 - teknikrum.
+Deltagere: Formand, VVS, ~~Bygherre~~ [?]
+Ejendomsinspektør.
+Problem: 1. sal er kold om
+morgenen.
+Fremløb = 62
+Retur = 41
+Kontroller Cirk. pumpe, mål
+differenstryk.
+Rens Filtret, Kontroller Reg. ventil.
+Anlæg undersøges onsdag og
+melder retur.
+Kun ny pumpe ved defekt.
+Næste kontrol Fredag kl. 10.
+```
+Skal overleve: tirsdag kl. 8:30 · Industrivej 18 · 62 · 41 · onsdag · fredag kl. 10

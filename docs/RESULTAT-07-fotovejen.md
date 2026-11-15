@@ -11,6 +11,12 @@ klokkeslæt, forkert enhed, et opfundet navn og en aftale, hvis betydning blev v
 Rå fotos (teksten på siden) er markant dårligere for alle modeller. **Konsekvens (Ann
 19/10): fotovejen er udskudt fra første prod-udgivelse.** Se D36.
 
+**Tilføjet 12/11:** Runde 2 og 3 målte **Mistral OCR** (Frankrig), den eneste europæiske
+kandidat efter Anns modelpolitik 6/11 (europæisk, så amerikansk, aldrig kinesisk —
+qwen3.8 er dermed ude). Den læser en fremmed håndskrift (92 %) og trykbogstaver (100 %)
+godt og Anns kursiv dårligt (62 %). **Håndskriften betyder mere end modellen.** Se
+afsnit 9 og 10.
+
 ---
 
 ## 1. Metode
@@ -116,7 +122,7 @@ tages op igen, før vejen genoptages.
 Det stemmer med læsningen 27/9, hvor en vision-model (Claude) tog fejl i tre af fem
 sedler, alle i tal og enheder (rettet i `FOTOSAETTET.md`).
 
-## 7. Næste kandidater (ikke målt)
+## 7. Næste kandidater (Mistral OCR målt 20/10 og 6/11, se afsnit 9–10)
 
 Begge de første er bygget til håndskrift. Det er Scaleways generelle modeller ikke.
 
@@ -139,3 +145,50 @@ Samme 15 fotos, samme facit og samme skema. Kun kaldet i scriptet skal skiftes.
   altså én stikprøve pr. seddel.
 - Scorerne er talt i hånden mod facit ("skal overleve"-kolonnen). Råsvarene ligger i
   `resultater\*.json` til efterprøvning.
+
+## 9. Runde 2 — Mistral OCR (20/10)
+
+`mistral-ocr-2512` via `https://api.mistral.ai/v1/ocr`, script `b7-mistral-ocr.js`, samme
+30 billeder og facit. **30/30 svar, 0,9–1,4 s pr. kald, ingen tænke-tokens, ca. 2 USD pr.
+1.000 sider.** OCR har ingen prompt: den kan ikke bedes om `[?]`, `[afskåret]` eller at
+springe overstreget tekst over.
+
+| Skriver | Mistral OCR | qwen3.8 (runde 1) |
+|---|---|---|
+| Ann, kursiv (71 værdier) | **44/71 = 62 %** | 51/71 = 72 % |
+| Anne, trykbogstaver (17 værdier) | **17/17 = 100 %** | 15/17 = 88 % |
+
+Mistrals fejl på kursiv er af den farlige slags: **18 kvm → "18 km"**, **65 kvm → "65 km"**,
+**1,8 m → "18 m"**, **2 skuffefronter → "22"**, **kl. 15 → "kl 10:00"**, et eurotegn i
+"40,80 € 120" og et overstreget ord læst som "403". **Rotation betød næsten intet** for
+OCR-modellen; for de generelle modeller i runde 1 betød den meget.
+
+## 10. Runde 3 — fire skrivere (6/11)
+
+Ann fjernede syv af sine egne fotos fra sættet og tilføjede fire fra to venner
+(`FOTOSAETTET.md`). 11 billeder, alle ret op. Ven A's tre er skrevet med blyant og taget i
+svagt, gulligt lys i lav opløsning (1080 × 1920, sendt via besked-app). Ven A's tal er
+bekræftet mod de scenarier, sedlerne er skrevet efter (Ann 6/11).
+
+| Seddel | Mistral OCR | qwen3.8 (kun sammenligning) |
+|---|---|---|
+| Ven A, referat 4 (gulv) | 7/8 — **ved den afskårne kant: "fredag 1…" → "fredag kl. 1."**, et klokkeslæt, der ikke står der | 7/8 — **tirsdag → "torsdag"** |
+| Ven A, referat 6 (stillads) | **4/4** | 4/4 |
+| Ven A, referat 5 (murer) | 5/6 — "ved 2 vinduer" → "vedkvinder" (tallet forsvandt) | 3/6 — **tirsdag → "torsdag"**, Nørrebrogade → "Nordre brogade" |
+| Ven B, referat 1 (fjernvarme) | **6/6** | 5/6 |
+| **I alt** | **22/24 = 92 %** | 19/24 = 79 % |
+
+**Hvad runde 2 og 3 viser:**
+
+1. **Håndskriften betyder mere end modellen.** Mistral OCR: 62 % på Anns kursiv, 92 % på
+   to fremmede håndskrifter, 100 % på trykbogstaver.
+2. **Afskåret tekst bliver fyldt ud, ikke markeret** — hos qwen3.8 i runde 1 ("1400",
+   "1000") og hos Mistral OCR i runde 3 ("kl. 1."). Bygges fotovejen, skal klienten sikre,
+   at hele sedlen er i billedet, eller der skal være et værn mod det.
+3. **Mistral OCR er den eneste målte europæiske kandidat og den bedste på alt andet end
+   Anns kursiv.** Den er ikke godkendt: Mistrals DPA, behandlingssted og underleverandører
+   er ikke bekræftet (J9).
+4. **Stadig ingen håndværker.** Fire sedler fra to venner er en stikprøve; rigtige sedler
+   fra pilotkunden afgør, om fotovejen kan genoptages.
+
+Råsvar: `resultater\mistral-ocr-2512.json`, `resultater\billeder-3-*.json`.

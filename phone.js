@@ -246,8 +246,22 @@ function smsModtager(leadTelefon, opkaldNummer) {
   return g ? { nummer: g, kilde, grund: null } : { nummer: null, kilde, grund: "udenlandsk" };
 }
 
+// ─── VISNING ─────────────────────────────────────────────────────────────────
+// visDanskTlf(): et dansk nummer, som en dansker skriver det, uden +45 (Ann 10/11-26):
+//   "+4526841720" / "0045 26841720" / "26841720"  →  "26 84 17 20"
+// Alt andet (fx "+46 70 123 45 67") gives tilbage, som det blev skrevet. Kun til
+// VISNING: gem og sammenlign med normalizePhone(). Serverens søster til visNummer()
+// i static/dashboard.html; de to skal give samme resultat for et dansk nummer.
+function visDanskTlf(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+  const m = /^\+45(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(normalizePhone(raw) || "");
+  return m ? `${m[1]} ${m[2]} ${m[3]} ${m[4]}` : raw;
+}
+
 module.exports = {
   normalizePhone,
+  visDanskTlf,
   gyldigtSmsNummer,
   kundeNoegle,
   opgavensNummer,

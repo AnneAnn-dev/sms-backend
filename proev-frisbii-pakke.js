@@ -5,12 +5,13 @@
 //
 //   node proev-frisbii-pakke.js
 //
-// 31/10-26. Rabat (pilot-gratis, maalt 1/11 paa sub-0140) tilfoejet 1/11-26. Ren ASCII.
+// 31/10-26. Rabat (pilot-gratis, maalt 1/11 paa sub-0140) tilfoejet 1/11-26.
+// Kompensation ved tilkoeb (code 215, maalt 8/11 paa sub-0143/sub-0145) 8/11-26. Ren ASCII.
 "use strict";
 
 process.env.FASE3_SYNK = "true";
 const pakke = require("./frisbii-pakke");
-const { tilstand, visning, planlaeg, virkendeRabatter, efterRabat } = pakke;
+const { tilstand, visning, planlaeg, virkendeRabatter, efterRabat, igenUdenKompensation } = pakke;
 const { KATALOG } = require("./frisbii-katalog");
 
 let bestaaet = 0, fejlet = 0;
@@ -39,7 +40,7 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   lig("instanser pr. modul", t.instanser, { referat: ["modul-referat"], telefon: ["modul-telefon"] });
   let v = visning(t);
   lig("to aktive moduler, prisen nu 900 kr.", [v.moduler.filter((m) => m.status === "aktiv").map((m) => m.modul), v.prisNuOere, v.prisFraNaesteOere], [["telefon", "referat"], 90000, 90000]);
-  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke", v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar", "facebook"]);
+  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke", v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar-some"]);
   lig("proeveperioden og stop-datoen", [v.proeveTil, v.stopDato], ["2026-11-07T10:59:59.791+00:00", "2026-11-07T10:59:59.791+00:00"]);
   v = visning(tilstand(SUB(STOP_REF), BEGGE));
   lig("ventende stop: Referat 'stopper', 500 kr. fra naeste periode", [v.moduler.find((m) => m.modul === "referat").status, v.prisFraNaesteOere], ["stopper", 50000]);
@@ -91,6 +92,31 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   v = visning(tilstand(SUB(), BEGGE));
   lig("uden rabat: som foer (900 kr., ingen rabatlinje)", [v.rabatter, v.prisNuOere, v.prisFraNaesteOere], [[], 90000, 90000]);
 
+  console.log("\n3b. Pakken \"Kundehenvendelser og SoMe\" (Fase 4, Ann 8/11): en vare, to moduler");
+  const MED_PAKKE = A(["modul-telefon", "modul-telefon"], ["modul-svar-some-1", "modul-svar-some"]);
+  v = visning(tilstand(SUB(), MED_PAKKE));
+  lig("pakken er en linje med pakkens navn og pris", v.moduler.filter((m) => m.modul === "svar-some").map((m) => [m.navn, m.prisOere, m.status]),
+    [["Kundehenvendelser og SoMe", 20000, "aktiv"]]);
+  lig("svar og facebook vises ikke for sig", v.moduler.some((m) => m.modul === "svar" || m.modul === "facebook"), false);
+  lig("prisen: Telefonpasser + pakken = 700 kr.", v.prisNuOere, 70000);
+  lig("stop pakken: hele pakken stoppes", P("stop", "svar-some", SUB(), MED_PAKKE).kald[0].krop, { timing: "renewal", remove_add_ons: ["modul-svar-some-1"] });
+  lig("koeb pakken: saelges ikke endnu", P("koeb", "svar-some", SUB(), BEGGE).fejl, "saelges_ikke");
+  const KP = JSON.parse(JSON.stringify(KATALOG)); KP.PAKKER["svar-some"].saelges = true;
+  lig("naar den saelges: tilkoeb med pakkens handle",
+    planlaeg("koeb", "svar-some", tilstand(SUB(), BEGGE, KP), { sub: "sub-0139", katalog: KP, nyHandle: "ny-1" }).kald[0].krop,
+    { timing: "immediate", add_ons: [{ add_on: "modul-svar-some", handle: "ny-1" }] });
+  lig("kan ikke stoppe enkeltmodulet svar, naar man kun har pakken", P("stop", "svar", SUB(), MED_PAKKE).fejl, "har_ikke_modulet");
+
+  console.log("\n3c. Tilkoeb og kompensation (maalt 8/11: code 215 ved 100 % rabat)");
+  const KOEB = { metode: "PUT", sti: S, krop: { timing: "immediate", add_ons: [{ add_on: "modul-referat", handle: "ny-1" }] } };
+  const AFVIST = { ok: false, status: 400, data: { code: 215, error: "Compensation method not allowed" } };
+  lig("code 215 paa tilkoeb straks: proev igen med compensation_method none", igenUdenKompensation(KOEB, AFVIST).krop,
+    { timing: "immediate", add_ons: [{ add_on: "modul-referat", handle: "ny-1" }], compensation_method: "none" });
+  lig("anden fejl (400 code 99, 500): ingen ny proeve", [igenUdenKompensation(KOEB, { ok: false, status: 400, data: { code: 99 } }), igenUdenKompensation(KOEB, { ok: false, status: 500, data: {} })], [null, null]);
+  lig("stop ved fornyelse med code 215: ingen ny proeve", igenUdenKompensation({ metode: "PUT", sti: S, krop: { timing: "renewal", remove_add_ons: ["x"] } }, AFVIST), null);
+  lig("allerede uden kompensation: ingen ny proeve (ingen loekke)", igenUdenKompensation({ ...KOEB, krop: { ...KOEB.krop, compensation_method: "none" } }, AFVIST), null);
+  lig("lykkedes: ingen ny proeve", igenUdenKompensation(KOEB, { ok: true, status: 200, data: {} }), null);
+
   console.log("\n4. planlaeg - opsig, genindfoer, spaerrer");
   lig("opsig", P("opsig", null, SUB(), BEGGE).kald, [{ metode: "POST", sti: S + "/cancel", krop: {} }]);
   const OPSAGT = SUB({ is_cancelled: true, expires: "2026-11-07T10:59:59.791+00:00" });
@@ -100,12 +126,17 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   lig("ukendt add-on paa abonnementet: afvises", P("stop", "referat", SUB(), A(["modul-telefon", "modul-telefon"], ["modul-referat", "modul-referat"], ["x", "fremmed"])).fejl, "saerligt_abonnement");
 
   console.log("\n5. Ruterne mod falsk Frisbii og database");
-  const sendt = [], hentet = [];
+  const sendt = [], hentet = [], putSvar = [];
   let rabatNede = false;
   let frisbiiSub = SUB(), frisbiiAdd = BEGGE;
   const fetchFn = async (url, opt = {}) => {
     const sti = url.replace("https://api.frisbii.com/v1", "");
-    if (opt.method && opt.method !== "GET") { sendt.push({ metode: opt.method, sti, krop: JSON.parse(opt.body) }); return { ok: true, status: 200, json: async () => ({}) }; }
+    if (opt.method && opt.method !== "GET") {
+      sendt.push({ metode: opt.method, sti, krop: JSON.parse(opt.body) });
+      const svar = putSvar.shift();
+      if (svar) return { ok: false, status: svar.status, json: async () => svar.data };
+      return { ok: true, status: 200, json: async () => ({}) };
+    }
     hentet.push(sti);
     if (sti.endsWith("/discount")) return rabatNede ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, status: 200, json: async () => [PILOT] };
     const d = sti.endsWith("/add_on") ? frisbiiAdd : frisbiiSub;
@@ -152,6 +183,15 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   r = await kald("GET /api/pakke");
   lig("rabatterne svarer ikke: 502 (aldrig en forkert sum)", [r.status, r.data.error], [502, "frisbii_utilgaengelig"]);
   rabatNede = false;
+  frisbiiSub = SUB(); frisbiiAdd = A(["modul-telefon", "modul-telefon"]); sendt.length = 0;
+  putSvar.push({ status: 400, data: { code: 215, error: "Compensation method not allowed" } });
+  r = await kald("POST /api/pakke/koeb", { modul: "referat" });
+  lig("POST koeb, Frisbii svarer 215: proeves igen uden kompensation, svaret er OK",
+    [r.status, sendt.length, sendt.map((k) => k.krop.compensation_method)], [200, 2, [undefined, "none"]]);
+  sendt.length = 0; putSvar.push({ status: 400, data: { code: 215 } }, { status: 400, data: { code: 215 } });
+  r = await kald("POST /api/pakke/koeb", { modul: "referat" });
+  lig("POST koeb, 215 ogsaa uden kompensation: 502, kun to kald", [r.status, r.data.error, sendt.length], [502, "frisbii_afviste", 2]);
+  putSvar.length = 0; frisbiiAdd = BEGGE;
   lig("ruterne findes", Object.keys(ruter).sort(), ["GET /api/pakke", "POST /api/pakke/fortryd", "POST /api/pakke/genindfoer", "POST /api/pakke/koeb", "POST /api/pakke/opsig", "POST /api/pakke/stop"]);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
