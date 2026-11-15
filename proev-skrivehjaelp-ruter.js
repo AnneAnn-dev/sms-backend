@@ -11,6 +11,7 @@
 //  - en leverandoerfejl uden pris bogfoeres ikke og proeves ikke igen
 //  - ingen kundetekst i loggen
 //  - underskriften viser et dansk nummer uden +45 (10/11-26)
+//  - jeg-form som standard, vi-form naar firmaet har valgt det (15/11-26)
 // Ren ASCII.
 "use strict";
 
@@ -128,6 +129,23 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   lig("telefonnummeret gemmes, som firmaet skrev det (Ann 8/11)", r.d.opdateret[0].v.afsender_telefon, "+45 12 34 56 78");
   r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", afsenderTelefon: "ring mig" } });
   lig("et telefonnummer uden cifre afvises", [r.status, r.data.error], [400, "ugyldigt_telefonnummer"]);
+  // Jeg eller vi (Ann og Anne 15/11): jeg er standard, vi kan vaelges under Profil.
+  const P0 = { branche: "VVS", afsender_navn: "Peter", afsender_telefon: null, telefon: null };
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: P0 }) });
+  lig("intet valg gemt: skriveForm er jeg", r.data.skriveForm, "jeg");
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: { ...P0, skrive_form: "vi" } }) });
+  lig("vi gemt: skriveForm er vi", r.data.skriveForm, "vi");
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", skriveForm: "vi" } });
+  lig("POST med skriveForm vi: gemmes i skrive_form", [r.status, r.data.skriveForm, r.d.opdateret[0].v.skrive_form], [200, "vi", "vi"]);
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter" } });
+  lig("POST uden skriveForm: valget roeres ikke (en gammel app nulstiller intet)", [r.status, "skrive_form" in r.d.opdateret[0].v, "skriveForm" in r.data], [200, false, false]);
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "VVS", afsenderNavn: "Peter", skriveForm: "os" } });
+  lig("ukendt form: 400, intet gemt", [r.status, r.data.error, r.d.opdateret.length], [400, "ugyldig_form", 0]);
+  const sysAf = (x) => JSON.stringify(x.m.kald[0] || {});
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: P0 }), m: model([GODT]) });
+  lig("udkast uden valg: jeg-form i prompten", [r.status, sysAf(r).includes("FORM: jeg-form")], [200, true]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { ...P0, skrive_form: "vi" } }), m: model([GODT]) });
+  lig("udkast med vi: vi-form i prompten", [r.status, sysAf(r).includes("FORM: vi-form")], [200, true]);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil" });
   lig("firmaets nummer og ejerens mobil er kun forslag, hver med betegnelse; det valgte nummer staar for sig", [r.data.afsenderTelefon, r.data.telefonForslag],
     ["12 34 56 78", [{ nummer: "70 70 70 70", hvad: "Firmaets nummer" }, { nummer: "+4512345678", hvad: "Dit nummer" }]]);

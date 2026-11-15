@@ -2889,6 +2889,18 @@ function leadKort(lead) {
     navn.oninput = opdater; andetFelt.oninput = opdater;
     tegnListe(); opdater();
 
+    // Jeg eller vi (Ann og Anne 15/11): jeg er standard, for det er én person, der skriver.
+    let form = p.skriveForm === 'vi' ? 'vi' : 'jeg';
+    const formListe = vkEl('div', 'vk-liste');
+    function tegnForm() {
+      formListe.replaceChildren(
+        valgRaekke('Jeg', 'Fx "Jeg kommer mandag kl. 7"', form === 'jeg', () => { form = 'jeg'; tegnForm(); }),
+        valgRaekke('Vi', 'Fx "Vi kommer mandag kl. 7"', form === 'vi', () => { form = 'vi'; tegnForm(); }));
+    }
+    tegnForm();
+    const formFelt = vkFelt('Skriv som', formListe);
+    formFelt.appendChild(vkEl('div', 'vk-hjaelp', 'Gælder alle tekster fra Skrivehjælp: svar til kunder, opslag og kommentarer.'));
+
     const branche = document.createElement('select');
     const tom = vkEl('option', null, 'Vælg din branche'); tom.value = ''; branche.appendChild(tom);
     for (const g of (p.brancher || [])) {
@@ -2907,11 +2919,11 @@ function leadKort(lead) {
       if (!branche.value) { fejl.textContent = 'Vælg din branche.'; return branche.focus(); }
       gem.disabled = true; gem.textContent = 'Gemmer …';
       try {
-        const r = await vkKald('/api/skrivehjaelp/profil', { branche: branche.value, afsenderNavn: navn.value, afsenderTelefon: tlfNu() });
+        const r = await vkKald('/api/skrivehjaelp/profil', { branche: branche.value, afsenderNavn: navn.value, afsenderTelefon: tlfNu(), skriveForm: form });
         if (!r.ok) { fejl.textContent = r.data.besked || 'Det blev ikke gemt. Prøv igen.'; return; }
         const skiftetBranche = vk.profil.branche !== r.data.branche;
         Object.assign(vk.profil, { branche: r.data.branche, afsenderNavn: r.data.afsenderNavn, afsenderTelefon: r.data.afsenderTelefon,
-          situationer: r.data.situationer, profilMangler: false });
+          skriveForm: r.data.skriveForm || form, situationer: r.data.situationer, profilMangler: false });
         if (skiftetBranche) delete vk.formular.svar;   // situationerne er andre
         vkProfilPunkt();
         vkVisStart();
@@ -2924,6 +2936,7 @@ function leadKort(lead) {
       vkFelt('Dit navn', navn),
       vkFelt('Telefonnummer', liste),
       forvisning,
+      formFelt,
       brancheFelt,
       fejl,
       gem
@@ -3128,7 +3141,8 @@ function leadKort(lead) {
       }
       const p = vk.profil;
       const linje = p.profilMangler ? 'Ikke udfyldt endnu'
-        : p.afsenderNavn + ', ' + p.firmanavn + (p.afsenderTelefon ? ', tlf. ' + visNummer(p.afsenderTelefon) : '') + ' · ' + p.branche;
+        : p.afsenderNavn + ', ' + p.firmanavn + (p.afsenderTelefon ? ', tlf. ' + visNummer(p.afsenderTelefon) : '') + ' · ' + p.branche
+          + ' · skriver som "' + (p.skriveForm === 'vi' ? 'vi' : 'jeg') + '"';
       document.getElementById('skrivehjaelp-indhold').replaceChildren(
         pkRaekke('Afsender og branche', linje, pkKnap('Ret', false, () => { setFane('skriv'); vkVisProfil(); })));
       punkt.hidden = false;

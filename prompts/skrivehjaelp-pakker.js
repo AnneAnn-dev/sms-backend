@@ -145,7 +145,7 @@ const PACKS = {
       nyopgave: {group:"andet", label:"Ny opgave",
         example:"Hej. Vi søger fast rengøring hver anden uge i et hus på ca. 140 m2 i Hillerød. Har I plads til en ny kunde?\nMvh Sofie",
         fields:[
-          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se stedet først","Ja, her er en pris","Nej, vi har ikke plads lige nu","Nej, det ligger uden for vores område"]},
+          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se stedet først","Ja, men jeg skal bruge nogle billeder for at kunne give et tilbud","Ja, her er en pris","Nej, vi har ikke plads lige nu","Nej, det ligger uden for vores område"]},
           {id:"visit", label:"Forslag til tid", type:"text", placeholder:"Fx mandag kl. 16 til et kort besøg"}]},
       pris: {group:"andet", label:"Hvad koster det?",
         example:"Hej. Hvad koster en flytterengøring af en lejlighed på 85 m2? Vi skal aflevere d. 1. december.\nVh Emil",
@@ -205,8 +205,46 @@ const PACKS = {
 // afslutning null = ingen fast afslutning (ved ros er takken nok). Anne ejer teksterne.
 // Klager (13/11): "senest [dag]" er sat ind i Annes "Vi vender tilbage, så snart vi har undersøgt sagen",
 // fordi modellen ikke tilføjede tiden selv (regel 17 og 19).
-// proev-skrivehjaelp.js tjekker, at hver situation i hver pakke har begge nøgler.
-const SPROG = {
+// proev-skrivehjaelp.js tjekker, at hver situation i hver pakke har begge nøgler, i begge former.
+//
+// JEG ELLER VI (Ann og Anne 15/11): svaret skrives som standard i jeg-form, for det er én person,
+// der skriver. Firmaet kan skifte til vi-form under Profil -> Skrivehjælp (firma_profil.skrive_form).
+// SPROG_VI er Annes tekster, som hun skrev dem. SPROG_JEG er de samme tekster i jeg-form.
+// skrivehjaelp-format.js kender begge former (afslutningen efter et spørgsmål og afsnittene).
+const SPROG_JEG = {
+  aabning: {
+    nyopgave:   "Tak for din henvendelse.",
+    pris:       "Tak for din forespørgsel.",
+    flyt:       "Tak for din besked.",
+    tilbud:     "Tak for dit spørgsmål.",
+    undervejs:  "Tak for dit spørgsmål.",
+    fastaftale: "Tak for din besked.",
+    ros:        "Tusind tak for de pæne ord.",
+    andet:      "Tak for din besked.",
+    overtid:    "Tak fordi du gør mig opmærksom på det.",
+    kvalitet:   "Tak fordi du gør mig opmærksom på det.",
+    pris_klage: "Tak fordi du gør mig opmærksom på det.",
+    udeblevet:  "Tak for din besked.",
+    skade:      "Tak fordi du gør mig opmærksom på det.",
+  },
+  afslutning: {
+    nyopgave:   "Jeg glæder mig til at høre fra dig.",
+    pris:       "Jeg ser frem til at høre fra dig.",
+    flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    tilbud:     "Du er meget velkommen til at kontakte mig, hvis du har spørgsmål.",
+    undervejs:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    fastaftale: "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    ros:        null,
+    andet:      "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    overtid:    "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
+    kvalitet:   "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
+    pris_klage: "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
+    udeblevet:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    skade:      "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
+  },
+};
+
+const SPROG_VI = {
   aabning: {
     nyopgave:   "Tak for din henvendelse.",
     pris:       "Tak for din forespørgsel.",
@@ -239,9 +277,14 @@ const SPROG = {
   },
 };
 
+const SPROG = { jeg: SPROG_JEG, vi: SPROG_VI };
+const FORMER = ["jeg", "vi"];
+// Alt andet end "vi" er jeg-form: standarden, også når kolonnen mangler eller er tom.
+function sprogFor(form) { return form === "vi" ? SPROG_VI : SPROG_JEG; }
+
 function sectorOf(trade){
   for (const [k, p] of Object.entries(PACKS)) if (p.trades.includes(trade)) return k;
   return "haandvaerk";
 }
 
-module.exports = { PACKS, SPROG, sectorOf };
+module.exports = { PACKS, SPROG, FORMER, sprogFor, sectorOf };

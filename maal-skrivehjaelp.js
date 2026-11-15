@@ -9,6 +9,7 @@
 //   node --env-file=.env maal-skrivehjaelp.js --model mistral-medium-3.5-128b,gpt-oss-120b,gemma-3-27b-it
 //   node --env-file=.env maal-skrivehjaelp.js --temperatur 0.7       (samme temperatur til alle tre)
 //   node --env-file=.env maal-skrivehjaelp.js --saet skrivehjaelp-saet-t1b-some.json --kun opslag,kommentar
+//   node --env-file=.env maal-skrivehjaelp.js --saet skrivehjaelp-saet-anne20.json --kun svar --form vi   (vi-form; standard er jeg)
 //
 // HVAD DEN MÅLER (form, pris og tid, aldrig kvalitet. Kvaliteten er Annes dom, T1b):
 //   - pris pr. kald i øre, regnet af tekst-adapter.js' egen prisOere (ingen ny prisliste)
@@ -31,7 +32,7 @@ const os = require("os");
 const path = require("path");
 
 const P = require("./prompts/skrivehjaelp");
-const { PACKS } = require("./prompts/skrivehjaelp-pakker");
+const { PACKS, SPROG, FORMER } = require("./prompts/skrivehjaelp-pakker");
 
 // ─── Argumenter ──────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -76,7 +77,11 @@ const MIN_TOKENS = Number(vaerdi("--min-tokens", "0")) || 0;
 // ─── Sættet ──────────────────────────────────────────────────────────────────
 const SAET_FIL = vaerdi("--saet", "skrivehjaelp-saet-t1a.json");
 const SAET = JSON.parse(fs.readFileSync(path.join(__dirname, SAET_FIL), "utf8"));
-const FIRMA = SAET.firma;
+// Jeg eller vi (15/11): firmaets valg under Profil. Standard er jeg, som i appen.
+const FORM = vaerdi("--form", "jeg");
+if (!FORMER.includes(FORM)) { console.log(`STOP: --form skal være ${FORMER.join(" eller ")}`); process.exit(1); }
+const FIRMA = { ...SAET.firma, form: FORM };
+const AFSLUTNINGER = [...new Set(Object.values(SPROG).flatMap((s) => Object.values(s.afslutning)).filter(Boolean))];
 const FOERSTE_FAG = Object.fromEntries(Object.entries(PACKS).map(([k, p]) => [k, p.trades[0]]));
 
 function udfyldteFelter(sit) {
@@ -95,7 +100,7 @@ function byggCases() {
     // Et sæt med egne Svar-cases (fx Annes 40 i skrivehjaelp-saet-t1b-svar.json) erstatter
     // de cases, der ellers bygges ud fra pakkernes eksempler.
     for (const c of SAET.svar) {
-      cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke || [], tjek: c.tjek,
+      cases.push({ id: c.id, type: "svar", firma: { ...FIRMA, trade: c.trade }, maa_ikke: c.maa_ikke || [], skal_med: c.skal_med || [], tjek: c.tjek,
         input: { situation: c.situation, felter: c.felter || {}, andet: c.andet || "", kanal: c.kanal, tone: c.tone, besked: c.besked } });
     }
   } else if (KUN.includes("svar")) {
@@ -198,6 +203,18 @@ function flag_(c, prompt, tekster) {
     if (c.input.kanal === "sms" && [...t].length > 560) fl.push(`SMS på ${[...t].length} tegn (over 560)`);
     if (/[^\u0000-\u00ff€\n]/.test(t.replace(/[–—]/g, ""))) fl.push("tegn uden for SMS-tegnsættet (emoji, pæne anførselstegn el.lign.)");
     if (c.input.kanal === "mail" && !/^\s*Emne:/i.test(t)) fl.push("mail uden 'Emne:'");
+    // 13/11 (case 21): en fast afslutning lige efter et spørgsmål. Fjernes af skrivehjaelp-format.js;
+    // her ses, hvor tit modellen selv bryder regel 19.
+    if (AFSLUTNINGER.some((a) => new RegExp("\\?\\s*" + a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(t)))
+      fl.push("afslutning efter et spørgsmål (regel 19; fjernes af skrivehjaelp-format.js)");
+    // 15/11: jeg eller vi. Underskriften og citater fra kunden kan give falske fund; læs efter.
+    const forkert = FORM === "vi" ? /\b(jeg|mig|min|mit|mine)\b/i : /\b(vi|os|vores)\b/i;
+    const fund = t.split("\n").filter((l) => forkert.test(l)).map((l) => l.match(forkert)[0]);
+    if (fund.length) fl.push(`${FORM === "vi" ? "jeg-form i et vi-svar" : "vi-form i et jeg-svar"}: ${[...new Set(fund.map((x) => x.toLowerCase()))].join(", ")}`);
+    // Annes sag 5 og 14 (14/11): en oplysning eller et forbehold fra fakta faldt ud.
+    for (const ord of c.skal_med || []) if (!t.toLowerCase().includes(ord.toLowerCase())) fl.push(`mangler "${ord}" fra fakta`);
+    // Annes sag 19 (14/11): ét langt stykke. Afsnittene sættes af skrivehjaelp-format.js.
+    if (c.input.kanal === "sms" && !/\n\s*\n/.test(t)) fl.push("ingen afsnit (sættes af skrivehjaelp-format.js)");
   }
   return fl;
 }
@@ -257,7 +274,7 @@ async function main() {
   }
   const antal = { svar: 0, opslag: 0, kommentar: 0 };
   for (const c of cases) antal[c.type]++;
-  console.log(`\nPromptversion ${P.SKRIVEHJAELP_PROMPT_VERSION} · ${cases.length} cases (svar ${antal.svar}, opslag ${antal.opslag}, kommentar ${antal.kommentar}) · ${MODELLER.length} model(ler)`);
+  console.log(`\nPromptversion ${P.SKRIVEHJAELP_PROMPT_VERSION} · ${FORM}-form · ${cases.length} cases (svar ${antal.svar}, opslag ${antal.opslag}, kommentar ${antal.kommentar}) · ${MODELLER.length} model(ler)`);
   console.log(`Tørkørsel: ${fejl ? fejl + " FEJL" : "0 fejl"} (S6-adskillelse og tags)`);
   if (afvist.size) console.log(`Afvist af serveren uden det afgørende felt (lag 2), sendes ikke: ${afvist.size}`);
   if (fejl) process.exit(1);
@@ -344,7 +361,7 @@ async function main() {
   // ─── Sammendrag ────────────────────────────────────────────────────────────
   const linjer = [];
   linjer.push(`# Måling Skrivehjælp · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}${EKSTRA_ARG ? "ekstra " + EKSTRA_ARG + " · " : ""}${MIN_TOKENS ? "min. tokens " + MIN_TOKENS + " · " : ""}i alt ${r2(brugt)} øre`, "",
+    `Promptversion \`${P.SKRIVEHJAELP_PROMPT_VERSION}\` · ${FORM}-form · sæt \`${SAET_FIL}\` · ${TEMP ? "temperatur " + TEMP + " (overstyret) · " : ""}${EKSTRA_ARG ? "ekstra " + EKSTRA_ARG + " · " : ""}${MIN_TOKENS ? "min. tokens " + MIN_TOKENS + " · " : ""}i alt ${r2(brugt)} øre`, "",
     "| Model | Type | Kald | Fejl | Med flag | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Tokens ud median | Heraf tænkning |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) for (const t of ["svar", "opslag", "kommentar"]) {
@@ -378,7 +395,7 @@ async function main() {
     if (r.oere != null) linjer.push(`*${r.ms} ms · ${r.tokensInd} ind / ${r.tokensUd} ud · ${r.oere} øre*`, "");
   }
 
-  fs.writeFileSync(path.join(UD, "resultat.json"), JSON.stringify({ promptVersion: P.SKRIVEHJAELP_PROMPT_VERSION, modeller: MODELLER, resultater }, null, 2));
+  fs.writeFileSync(path.join(UD, "resultat.json"), JSON.stringify({ promptVersion: P.SKRIVEHJAELP_PROMPT_VERSION, form: FORM, modeller: MODELLER, resultater }, null, 2));
   fs.writeFileSync(path.join(UD, "oversigt.md"), linjer.join("\n"));
   console.log(`\nI alt ${r2(brugt)} øre. Skrevet: ${path.join(UD, "oversigt.md")}`);
 }

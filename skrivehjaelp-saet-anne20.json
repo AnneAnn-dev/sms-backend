@@ -1,5 +1,5 @@
 {
-  "_om": "Annes 20 eksempler med eget svar som facit (12/11-26). 10 håndværk/service i den rigtige pakke, 10 uden for håndværk med det rigtige fag som trade (falder tilbage til Håndværk-pakken via sectorOf, til den generelle pakke findes; de fleste kører derfor som 'Andet'). Det, Annes svar lover på firmaets vegne, står i felterne eller i 'andet', så modellen ikke belønnes for at finde på (Ann 12/11). 'facit' og 'tjek' sendes ALDRIG til modellen; de bruges kun til læsningen. Annes facit bryder to regler (tankestreg i generel-10, punktopstilling i haandvaerk-8): reglerne gælder (Ann 12/11). Kanal: mail ved klager og ved fotograf og revisor, ellers SMS. Tone: venlig (fast i appen).",
+  "_om": "Annes 20 eksempler med eget svar som facit (12/11-26). 10 håndværk/service i den rigtige pakke, 10 uden for håndværk med det rigtige fag som trade (falder tilbage til Håndværk-pakken via sectorOf, til den generelle pakke findes; de fleste kører derfor som 'Andet'). Det, Annes svar lover på firmaets vegne, står i felterne eller i 'andet', så modellen ikke belønnes for at finde på (Ann 12/11). 'facit' og 'tjek' sendes ALDRIG til modellen; de bruges kun til læsningen. Annes facit bryder to regler (tankestreg i generel-10, punktopstilling i haandvaerk-8): reglerne gælder (Ann 12/11). Kanal: mail ved klager og ved fotograf og revisor, ellers SMS. Tone: venlig (fast i appen). 15/11 (Annes gennemgang 14/11): sag 7 og 9 bruger Annes nye svar i Service-pakken (billeder er nok, man behøver ikke se stedet). skal_med: ord fra fakta, der skal stå i svaret (sag 5 \"rådgive\", sag 14 \"handelsbetingelser\"), og som maal-skrivehjaelp.js flager, når de mangler. Case 21: beskeden fra Anns test i appen 13/11, hvor svaret satte en afslutning efter spørgsmålet. Ingen facit fra Anne.",
   "firma": {
     "person": "Peter Testesen",
     "firm": "Testfirma ApS",
@@ -96,7 +96,10 @@
         "kr.",
         "–"
       ],
-      "facit": "Hej, og tillykke med den nye elbil!\n\nVi hjælper gerne med installation af en ladeboks ved jeres carport.\n\nVi kan både rådgive om valg af ladeboks og stå for selve installationen. I behøver derfor ikke købe noget, inden vi har talt sammen.\n\nFor at kunne vurdere opgaven vil vi gerne vide, om I har en almindelig eltavle eller en nyere installation, og om der allerede er plads til en ekstra gruppe.\n\nSend gerne et billede af eltavlen, så kan vi tage den derfra.\n\nVi vil også undersøge mulighederne for at få opgaven udført inden jul.\n\nVenlig hilsen\nElektrikeren"
+      "facit": "Hej, og tillykke med den nye elbil!\n\nVi hjælper gerne med installation af en ladeboks ved jeres carport.\n\nVi kan både rådgive om valg af ladeboks og stå for selve installationen. I behøver derfor ikke købe noget, inden vi har talt sammen.\n\nFor at kunne vurdere opgaven vil vi gerne vide, om I har en almindelig eltavle eller en nyere installation, og om der allerede er plads til en ekstra gruppe.\n\nSend gerne et billede af eltavlen, så kan vi tage den derfra.\n\nVi vil også undersøge mulighederne for at få opgaven udført inden jul.\n\nVenlig hilsen\nElektrikeren",
+      "skal_med": [
+        "rådgive"
+      ]
     },
     {
       "id": "anne20-haandvaerk-6-rengoering",
@@ -123,7 +126,7 @@
       "kanal": "sms",
       "tone": "venlig",
       "felter": {
-        "take": "Ja, jeg vil gerne se stedet først"
+        "take": "Ja, men jeg skal bruge nogle billeder for at kunne give et tilbud"
       },
       "andet": "Hold afstand til området, og prøv ikke selv at fjerne boet. Send adressen og gerne et billede af, hvor boet sidder. Vi undersøger, om vi kan komme i denne uge.",
       "besked": "Hej. Vi har opdaget et stort hvepsebo under taget ved vores terrasse. Der er rigtig mange hvepse, og vi har små børn, så vi vil gerne have det fjernet hurtigst muligt. Kan I komme ud i denne uge, og hvad koster det?",
@@ -158,7 +161,7 @@
       "kanal": "sms",
       "tone": "venlig",
       "felter": {
-        "take": "Ja, jeg vil gerne se stedet først"
+        "take": "Ja, men jeg skal bruge nogle billeder for at kunne give et tilbud"
       },
       "andet": "Spørg, hvilken type lås der sidder i døren, og hvor kunden bor. Bed om et billede af låsen. Vi vender tilbage med mulighederne og et tidspunkt, hvor vi kan komme.",
       "besked": "Hej. Jeg har desværre mistet mine nøgler, og jeg er lidt bekymret for, om nogen kan finde dem og koble dem til min adresse. Jeg vil derfor gerne have skiftet låsen i min hoveddør. Kan I hjælpe med det, og hvor hurtigt kan det lade sig gøre?",
@@ -251,7 +254,10 @@
       "maa_ikke": [
         "–"
       ],
-      "facit": "Hej, og tak for din besked.\n\nDet beklager vi selvfølgelig, at du endnu ikke har modtaget din jakke.\n\nVi vil gerne undersøge, hvor langt din ordre er i leveringsprocessen, så vi kan give dig et mere præcist svar.\n\nVi har noteret dit ordrenummer 45821 og vender tilbage, så snart vi har undersøgt sagen.\n\nHvis jakken ikke når frem i tide, hjælper vi dig naturligvis med at se på mulighederne for annullering i henhold til vores handelsbetingelser.\n\nVenlig hilsen\nKundeservice"
+      "facit": "Hej, og tak for din besked.\n\nDet beklager vi selvfølgelig, at du endnu ikke har modtaget din jakke.\n\nVi vil gerne undersøge, hvor langt din ordre er i leveringsprocessen, så vi kan give dig et mere præcist svar.\n\nVi har noteret dit ordrenummer 45821 og vender tilbage, så snart vi har undersøgt sagen.\n\nHvis jakken ikke når frem i tide, hjælper vi dig naturligvis med at se på mulighederne for annullering i henhold til vores handelsbetingelser.\n\nVenlig hilsen\nKundeservice",
+      "skal_med": [
+        "handelsbetingelser"
+      ]
     },
     {
       "id": "anne20-generel-5-fotograf",
@@ -352,6 +358,25 @@
         "–"
       ],
       "facit": "Hej, og tak fordi du tager dig tid til at skrive til os.\n\nFørst og fremmest vil vi gerne beklage, at jeres besøg hos os ikke levede op til forventningerne.\n\nDet er selvfølgelig ikke den oplevelse, vi ønsker at give vores gæster – og slet ikke når I besøger os for at fejre en særlig anledning.\n\nVi er kede af både ventetiden og problemerne med maden.\n\nVi vil meget gerne undersøge, hvad der er sket, og høre lidt mere om jeres oplevelse.\n\nHvis du vil oplyse navnet på reservationen, kan vi finde jeres besøg i vores system og følge op på sagen.\n\nTak fordi du gjorde os opmærksomme på det.\n\nVenlig hilsen\nRestaurantens ledelse"
+    },
+    {
+      "id": "anne20-ekstra-21-tag",
+      "trade": "Tømrer",
+      "situation": "nyopgave",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "take": "Ja, jeg vil gerne se den først",
+        "visit": "Mandag kl 7"
+      },
+      "andet": "",
+      "besked": "Hej Brian\nDu har tidligere hjulpet mig med mit tag. Og nu er den gal igen.\nJeg sidder her i min stue og det drypper i min sofa. Det er ikke rart. Har du tid til at komme forbi og kigge på det?",
+      "tjek": "Svaret må ikke: Slutte med en fast afslutning efter spørgsmålet om tiden. Blande jeg og vi. Gætte på årsagen. Indrømme, at det tidligere arbejde var forkert.",
+      "maa_ikke": [
+        "–",
+        "kr."
+      ],
+      "facit": ""
     }
   ]
 }

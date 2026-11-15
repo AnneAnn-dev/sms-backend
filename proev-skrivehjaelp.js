@@ -51,16 +51,30 @@ const FAG = { haandvaerk: "Toemrer", groen: "Anlaegsgartner", service: "Rengoeri
     }
   }
   lig("alle situationer i alle pakker har et afgoerende felt, der findes", mangler, []);
-  const { SPROG } = require("./prompts/skrivehjaelp-pakker");
+  const { SPROG, sprogFor } = require("./prompts/skrivehjaelp-pakker");
   const udenSprog = [];
-  for (const [pk, pack] of Object.entries(PACKS)) for (const sid of Object.keys(pack.situations)) {
-    if (typeof SPROG.aabning[sid] !== "string" || !SPROG.aabning[sid].trim()) udenSprog.push(`${pk}/${sid}: ingen indledning`);
-    if (!Object.prototype.hasOwnProperty.call(SPROG.afslutning, sid)) udenSprog.push(`${pk}/${sid}: ingen afslutning (null = bevidst ingen)`);
+  for (const form of ["jeg", "vi"]) for (const [pk, pack] of Object.entries(PACKS)) for (const sid of Object.keys(pack.situations)) {
+    const sp = SPROG[form];
+    if (typeof sp.aabning[sid] !== "string" || !sp.aabning[sid].trim()) udenSprog.push(`${form}/${pk}/${sid}: ingen indledning`);
+    if (!Object.prototype.hasOwnProperty.call(sp.afslutning, sid)) udenSprog.push(`${form}/${pk}/${sid}: ingen afslutning (null = bevidst ingen)`);
   }
-  lig("Annes grundpakke: hver situation har en indledning og en afslutning (13/11)", udenSprog, []);
+  lig("Annes grundpakke: hver situation har en indledning og en afslutning, i jeg- og vi-form (13/11, 15/11)", udenSprog, []);
   const sp = P.bygSvar({ situation: "pris", felter: { pricetype: "Fast pris" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer" });
   lig("indledning og afslutning staar i systemfeltet, ikke i brugerfeltet (S6)",
-    [sp.system.includes("INDLEDNING: " + SPROG.aabning.pris), sp.system.includes("AFSLUTNING: " + SPROG.afslutning.pris), sp.bruger.includes("INDLEDNING")], [true, true, false]);
+    [sp.system.includes("INDLEDNING: " + SPROG.jeg.aabning.pris), sp.system.includes("AFSLUTNING: " + SPROG.jeg.afslutning.pris), sp.bruger.includes("INDLEDNING")], [true, true, false]);
+
+  console.log("\n1b. Jeg eller vi (Ann og Anne 15/11)");
+  const kl = (form) => P.bygSvar({ situation: "kvalitet", felter: { assess: "Jeg har ikke set det endnu" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer", form });
+  const sj = kl(undefined).system, sv = kl("vi").system, sx = kl("os").system;
+  lig("uden valg: jeg-form (standard)", [sj.includes("FORM: jeg-form"), sj.includes("jeg-form hele vejen"), sj.includes("AFSLUTNING: Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.")], [true, true, true]);
+  lig("vi: vi-form og Annes egne tekster", [sv.includes("FORM: vi-form"), sv.includes("vi-form hele vejen"), sv.includes("INDLEDNING: Tak fordi du gør os opmærksomme på det."), sv.includes("Det beklager vi selvfølgelig.")], [true, true, true, true]);
+  lig("en ukendt værdi giver jeg-form", sx === sj, true);
+  lig("ingen vi-vending i jeg-reglerne og omvendt", [sj.includes("Det beklager vi selvfølgelig."), sv.includes("Det beklager jeg selvfølgelig.")], [false, false]);
+  lig("sprogFor: kun 'vi' giver vi-form", [sprogFor("vi") === SPROG.vi, sprogFor("jeg") === SPROG.jeg, sprogFor(null) === SPROG.jeg], [true, true, true]);
+  lig("ingen ${ tilbage i reglerne", [/\$\{/.test(sj), /\$\{/.test(sv)], [false, false]);
+  const op = (form) => P.bygOpslag({ idea: "ny terrasse", goal: "Salg", platform: "Facebook" }, { ...FIRMA, form }).system;
+  const ko = (form) => P.bygKommentar({ comment: "flot", raw: "tak" }, { ...FIRMA, form }).system;
+  lig("opslag og kommentar faar formen i systemfeltet", [op().includes("FORM: jeg-form"), op("vi").includes("FORM: vi-form"), ko().includes("FORM: jeg-form"), ko("vi").includes("FORM: vi-form")], [true, true, true, true]);
   ok(`${situationer} situationer: ${afvist} afvist uden feltet, ${godkendt} godkendt med det (eller uden beslutning)`);
   lig("fejlbeskeden naevner feltets navn (vises i appen)",
     kaster(() => P.bygSvar({ situation: "nyopgave", felter: {}, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer" })).message,
