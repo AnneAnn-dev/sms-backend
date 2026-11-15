@@ -5,7 +5,8 @@
 //   require("./skrivehjaelp-ruter")(app, supabase);
 //
 //   GET  /api/skrivehjaelp/profil     branche, afsendernavn, valgmuligheder og situationer
-//   POST /api/skrivehjaelp/profil     { branche, afsenderNavn, afsenderTelefon }  (spørges ved første brug)
+//   POST /api/skrivehjaelp/profil     { branche, afsenderNavn, afsenderTelefon, skriveForm? }  (spørges ved første brug)
+//                                     skriveForm "jeg" eller "vi" (Ann 15/11). Uden feltet røres valget ikke.
 //   GET  /api/skrivehjaelp/kvote      hvad er der tilbage i puljerne svar og facebook
 //   POST /api/skrivehjaelp/svar       { situation, felter, andet, kanal, tone, besked, variant?, nuvaerendeUdkast? }
 //   POST /api/skrivehjaelp/opslag     { idea, goal, platform }
@@ -28,7 +29,7 @@ const { sendError } = require("@appsignal/nodejs");
 const { firmIdFromToken } = require("./auth");
 const { aktiveModuler } = require("./moduler");
 const P = require("./prompts/skrivehjaelp");
-const { PACKS, sectorOf } = require("./prompts/skrivehjaelp-pakker");
+const { PACKS, FORMER, sectorOf } = require("./prompts/skrivehjaelp-pakker");
 const F = require("./skrivehjaelp-format");
 const standardTekstmodel = require("./tekst-adapter");
 const kvote = require("./kvote");
@@ -84,7 +85,7 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
   async function hentFirma(firmId) {
     const [a, b] = await Promise.all([
       supabase.from("firms").select("id, name, owner_phone").eq("id", firmId).maybeSingle(),
-      supabase.from("firma_profil").select("branche, afsender_navn, afsender_telefon, telefon").eq("firm_id", firmId).maybeSingle(),
+      supabase.from("firma_profil").select("branche, afsender_navn, afsender_telefon, telefon, skrive_form").eq("firm_id", firmId).maybeSingle(),
     ]);
     if (a.error || b.error || !a.data) throw new Error("firma kunne ikke laeses");
     const pr = b.data || {};
@@ -93,6 +94,8 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
     // kun FORSLAG i formularen; ingen af dem havner i et svar, uden at firmaet har valgt det.
     return {
       firm: a.data.name || "", person: pr.afsender_navn || "", phone: pr.afsender_telefon || "", trade: pr.branche || "",
+      // Jeg eller vi (Ann og Anne 15/11): jeg-form er standard. Kun et gemt "vi" giver vi-form.
+      form: pr.skrive_form === "vi" ? "vi" : "jeg",
       telefonForslag: telefonForslag(pr.telefon, a.data.owner_phone),
     };
   }
@@ -122,7 +125,7 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
       res.set("Cache-Control", "no-store");
       res.json({
         firmanavn: f.firm, branche: f.trade || null, afsenderNavn: f.person || null,
-        afsenderTelefon: f.phone || null, telefonForslag: f.telefonForslag,
+        afsenderTelefon: f.phone || null, telefonForslag: f.telefonForslag, skriveForm: f.form,
         profilMangler: !f.trade || !f.person,
         brancher: BRANCHER,
         situationer: f.trade ? situationerFor(f.trade) : [],
@@ -148,11 +151,19 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
     if (tlf && !TELEFON_RE.test(tlf)) {
       return res.status(400).json({ error: "ugyldigt_telefonnummer", besked: "Skriv telefonnummeret med cifre, fx 12 34 56 78, eller lad feltet stå tomt." });
     }
+    // Jeg eller vi (Ann 15/11). Feltet er valgfrit, så en app, der endnu ikke kender det,
+    // ikke nulstiller firmaets valg, når den gemmer navn og nummer.
+    const form = req.body?.skriveForm;
+    if (form !== undefined && !FORMER.includes(form)) {
+      return res.status(400).json({ error: "ugyldig_form", besked: "Vælg jeg eller vi." });
+    }
     try {
       if (!(await harEtModul(firmId))) return res.status(403).json({ error: "modul_mangler" });
-      const { error } = await supabase.from("firma_profil").update({ branche, afsender_navn: navn, afsender_telefon: tlf || null }).eq("firm_id", firmId);
+      const opdater = { branche, afsender_navn: navn, afsender_telefon: tlf || null };
+      if (form !== undefined) opdater.skrive_form = form;
+      const { error } = await supabase.from("firma_profil").update(opdater).eq("firm_id", firmId);
       if (error) throw new Error(error.message);
-      res.json({ ok: true, branche, afsenderNavn: navn, afsenderTelefon: tlf || null, situationer: situationerFor(branche) });
+      res.json({ ok: true, branche, afsenderNavn: navn, afsenderTelefon: tlf || null, ...(form !== undefined ? { skriveForm: form } : {}), situationer: situationerFor(branche) });
     } catch (e) {
       log.error("❌ POST /api/skrivehjaelp/profil:", e.message);
       res.status(503).json({ error: "profil_utilgaengelig" });

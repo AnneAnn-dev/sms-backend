@@ -26,6 +26,7 @@
 "use strict";
 
 const { splitAnswer, laesForslag } = require("./prompts/skrivehjaelp");
+const { SPROG } = require("./prompts/skrivehjaelp-pakker");
 
 const MAKS_SVAR_TEGN = 3000;
 const MAKS_FORSLAG_TEGN = 3000;
@@ -101,6 +102,55 @@ function rensSprog(t) {
   return t.replace(/\b(ringe|ringer|ring) (dig|jer)\b(?! op\b)/gi, "$1 til $2");
 }
 
+// ─── Annes faste tekster, i begge former (jeg og vi) ────────────────────────
+const unik = (a) => [...new Set(a.filter(Boolean))];
+const AABNINGER = unik(Object.values(SPROG).flatMap((s) => Object.values(s.aabning)));
+const AFSLUTNINGER = unik(Object.values(SPROG).flatMap((s) => Object.values(s.afslutning)));
+
+// ─── Afslutning efter et spørgsmål (Ann 13/11-26) ───────────────────────────
+// Regel 19: slutter svaret med et spørgsmål til kunden, skal der ingen fast afslutning
+// stå bagefter. Prompten siger det, men mistral skrev "… passer det dig? Vi glæder os
+// til at høre fra dig." i appen 13/11. Kun Annes egne afslutninger, ordret, og kun lige
+// efter et spørgsmålstegn, fjernes. Alt andet i teksten røres ikke.
+function fjernAfslutningEfterSpoergsmaal(t) {
+  for (const a of AFSLUTNINGER) {
+    const i = t.indexOf(a);
+    if (i < 0) continue;
+    const foer = t.slice(0, i).replace(/[ \t\n]+$/, "");
+    if (!foer.endsWith("?")) continue;
+    const efter = t.slice(i + a.length);
+    return (foer + (efter.startsWith("\n") ? "" : "\n") + efter).replace(/\n{3,}/g, "\n\n").trim();
+  }
+  return t;
+}
+
+// ─── Afsnit (Anne 14/11, sag 19) ─────────────────────────────────────────────
+// En SMS stod i ét langt stykke. Prompten beder om tre afsnit; her sker det hver gang:
+// en tom linje efter Annes indledning og før Annes afslutning, og underskriften på sin
+// egen linje efter afslutningen. Kun linjeskift flyttes, ingen ord. Har modellen allerede
+// lavet afsnittene, ændrer det intet.
+function saetAfsnit(t) {
+  const lille = t.toLowerCase();
+  for (const a of AABNINGER) {
+    const i = lille.indexOf(a.toLowerCase());
+    if (i < 0 || i > 200) continue;
+    const slut = i + a.length;
+    const m = /^[ \t]*\n?[ \t]*(?=\S)/.exec(t.slice(slut));
+    if (m && !m[0].includes("\n\n")) t = t.slice(0, slut) + "\n\n" + t.slice(slut + m[0].length);
+    break;
+  }
+  for (const a of AFSLUTNINGER) {
+    const i = t.indexOf(a);
+    if (i <= 0) continue;
+    const foer = t.slice(0, i).replace(/[ \t\n]+$/, "");
+    let efter = t.slice(i + a.length);
+    if (/^[ \t]+\S/.test(efter)) efter = "\n" + efter.replace(/^[ \t]+/, "");
+    t = foer + "\n\n" + a + efter;
+    break;
+  }
+  return t.replace(/\n{3,}/g, "\n\n");
+}
+
 // ─── Resten af formen ────────────────────────────────────────────────────────
 function rensTekst(tekst, kendte) {
   let t = String(tekst || "").replace(/\r\n/g, "\n");
@@ -126,7 +176,7 @@ function efterbehandlSvar(raat, kendte) {
   if (!t.trim()) return { ok: false, fejl: "tomt svar" };
   if (!/\n\s*###/.test("\n" + t)) return { ok: false, fejl: "ingen ### og noter" };
   const { svar, noter } = splitAnswer(t);
-  const rent = rensTekst(svar, kendte);
+  const rent = saetAfsnit(fjernAfslutningEfterSpoergsmaal(rensTekst(svar, kendte)));
   if (!rent) return { ok: false, fejl: "tomt svar" };
   if (!noter.length) return { ok: false, fejl: "ingen noter efter ###" };
   if (rent.length > MAKS_SVAR_TEGN) return { ok: false, fejl: `svar paa ${rent.length} tegn` };
@@ -172,7 +222,7 @@ async function medEtNytForsoeg(kald, efterbehandl) {
 }
 
 module.exports = {
-  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst,
+  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst, fjernAfslutningEfterSpoergsmaal, saetAfsnit,
   efterbehandlSvar, efterbehandlForslag, medEtNytForsoeg,
   MAKS_SVAR_TEGN, MAKS_FORSLAG_TEGN,
 };

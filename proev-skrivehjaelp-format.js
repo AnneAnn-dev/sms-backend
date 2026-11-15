@@ -90,6 +90,33 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   lig("for langt svar afvises", F.efterbehandlSvar("x".repeat(3001) + "\n###\n- n", KENDTE).ok, false);
   lig("CRLF fra modellen virker", F.efterbehandlSvar("Hej.\r\n###\r\n- Tjek", KENDTE).ok, true);
 
+  console.log("\nAFSLUTNING EFTER ET SPØRGSMÅL — fjernes (Ann 13/11, regel 19)");
+  const efterSp = "Hej, og tak for din henvendelse. Jeg kan komme mandag kl. 7, passer det dig? Jeg glæder mig til at høre fra dig.\nPeter, Hansens VVS\n###\n- Tjek tiden";
+  lig("jeg-form: afslutningen efter et spørgsmål fjernes, underskriften bliver",
+    F.efterbehandlSvar(efterSp, KENDTE).svar, "Hej, og tak for din henvendelse.\n\nJeg kan komme mandag kl. 7, passer det dig?\nPeter, Hansens VVS");
+  lig("vi-form: fjernes også",
+    F.fjernAfslutningEfterSpoergsmaal("Passer mandag kl. 7? Vi glæder os til at høre fra dig.\nPeter"), "Passer mandag kl. 7?\nPeter");
+  lig("som eget afsnit: fjernes også",
+    F.fjernAfslutningEfterSpoergsmaal("Passer mandag kl. 7?\n\nJeg glæder mig til at høre fra dig.\n\nPeter"), "Passer mandag kl. 7?\n\nPeter");
+  lig("efter et punktum: bliver stående",
+    F.fjernAfslutningEfterSpoergsmaal("Jeg kommer mandag kl. 7. Jeg glæder mig til at høre fra dig.\nPeter"), "Jeg kommer mandag kl. 7. Jeg glæder mig til at høre fra dig.\nPeter");
+  lig("en anden sætning efter spørgsmålet røres ikke",
+    F.fjernAfslutningEfterSpoergsmaal("Passer det? Send gerne et billede.\nPeter"), "Passer det? Send gerne et billede.\nPeter");
+
+  console.log("\nAFSNIT — indledning, svar og afslutning hver for sig (Anne 14/11, sag 19)");
+  lig("én lang SMS bliver til tre afsnit, underskriften på egen linje",
+    F.saetAfsnit("Hej. Tak for din besked. Jeg kan godt forstå det. Send et billede. Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål. Peter, Testfirma"),
+    "Hej. Tak for din besked.\n\nJeg kan godt forstå det. Send et billede.\n\nDu er altid velkommen til at skrive igen, hvis der opstår spørgsmål.\nPeter, Testfirma");
+  lig("'Hej, og tak for ...' (lille t) findes også",
+    F.saetAfsnit("Hej, og tak for din henvendelse. Jeg kommer gerne. Jeg glæder mig til at høre fra dig.\nPeter"),
+    "Hej, og tak for din henvendelse.\n\nJeg kommer gerne.\n\nJeg glæder mig til at høre fra dig.\nPeter");
+  const allerede = "Emne: X\n\nHej, og tak for din forespørgsel.\n\nJeg ser på det.\n\nVi ser frem til at høre fra dig.\n\nMed venlig hilsen\nPeter";
+  lig("har svaret allerede afsnit, ændres intet", F.saetAfsnit(allerede), allerede);
+  lig("uden Annes tekster ændres intet", F.saetAfsnit("Hej Jens. Jeg kommer kl. 7.\nPeter"), "Hej Jens. Jeg kommer kl. 7.\nPeter");
+  const ordFoer = (x) => x.replace(/\s+/g, " ").trim();
+  const lang = "Hej. Tak for dit spørgsmål. Materialer er med. Du er meget velkommen til at kontakte mig, hvis du har spørgsmål. Peter";
+  lig("kun linjeskift flyttes, ingen ord", ordFoer(F.saetAfsnit(lang)), ordFoer(lang));
+
   console.log("\nFORSLAG — præcis to, renset");
   const json = JSON.stringify({ forslag: [{ tekst: "**Ny bil!**\n#Hillerød" }, { tekst: "Ring [12 34 56 78] 😊" }] });
   lig("to forslag renses", F.efterbehandlForslag(json, KENDTE),
