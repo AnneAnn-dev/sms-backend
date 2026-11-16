@@ -287,7 +287,7 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
       meld(v);
     }
     res.set("Cache-Control", "no-store");
-    if (type === "svar") return res.json({ svar: r.svar, noter: r.noter, forsoeg: r.forsoeg.length, varsel });
+    if (type === "svar") return res.json({ svar: r.svar, ...(r.emne ? { emne: r.emne } : {}), noter: r.noter, forsoeg: r.forsoeg.length, varsel });
     return res.json({ forslag: r.forslag, begge, forsoeg: r.forsoeg.length, varsel });
   }
 

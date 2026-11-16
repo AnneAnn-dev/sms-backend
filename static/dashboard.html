@@ -3094,6 +3094,14 @@ function leadKort(lead) {
     const fejl = vkFejlFelt();
     if (type === 'svar') {
       dele.push(vkEl('div', 'vk-laes', 'Læs udkastet, før du sender det. Det er dit svar.'));
+      // Mail: emnet står for sig med sin egen knap (16/11). Står "Emne:" først i den kopierede
+      // tekst, læser iPhone den som en adresse, og Mail sætter den ind URL-kodet.
+      if (data.emne) {
+        const k = vkEl('div', 'vk-kort'); const h = vkEl('div', 'vk-kort-hoved');
+        h.appendChild(vkEl('span', 'vk-etiket', 'Emne'));
+        const kb = vkEl('button', 'vk-kopier', 'Kopiér'); kb.type = 'button'; kb.onclick = () => vkKopier(data.emne, kb); h.appendChild(kb);
+        k.appendChild(h); k.appendChild(vkEl('div', 'vk-tx', data.emne)); dele.push(k);
+      }
       dele.push(vkEl('div', 'vk-udkast', data.svar));
       if ((data.noter || []).length) {
         const t = vkEl('div', 'vk-tjek'); t.appendChild(vkEl('span', 'vk-etiket', 'Tjek før du sender')); t.appendChild(document.createTextNode(data.noter.join(' · ')));

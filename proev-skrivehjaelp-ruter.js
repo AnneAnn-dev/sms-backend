@@ -146,6 +146,10 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   lig("udkast uden valg: jeg-form i prompten", [r.status, sysAf(r).includes("FORM: jeg-form")], [200, true]);
   r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: { ...P0, skrive_form: "vi" } }), m: model([GODT]) });
   lig("udkast med vi: vi-form i prompten", [r.status, sysAf(r).includes("FORM: vi-form")], [200, true]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: { ...SVAR, kanal: "mail" }, d: db({ profil: P0 }), m: model(["Emne: Radiatoren\n\nHej Kirsten, og tak for din henvendelse.\n\nPeter\n###\n- Tjek"]) });
+  lig("mail: emnet kommer for sig, svaret begynder med hilsenen (16/11)", [r.status, r.data.emne, r.data.svar.startsWith("Hej Kirsten\nTak for")], [200, "Radiatoren", true]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: SVAR, d: db({ profil: P0 }), m: model([GODT]) });
+  lig("SMS: intet emne i svaret", "emne" in r.data, false);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil" });
   lig("firmaets nummer og ejerens mobil er kun forslag, hver med betegnelse; det valgte nummer staar for sig", [r.data.afsenderTelefon, r.data.telefonForslag],
     ["12 34 56 78", [{ nummer: "70 70 70 70", hvad: "Firmaets nummer" }, { nummer: "+4512345678", hvad: "Dit nummer" }]]);

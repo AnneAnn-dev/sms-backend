@@ -163,6 +163,27 @@ function saetAfsnit(t) {
   return t.replace(/\n{3,}/g, "\n\n");
 }
 
+// ─── Hilsen på sin egen linje (Ann 16/11-26) ─────────────────────────────────
+// "Hej, og tak for din henvendelse." / "Hej Ann. Tak for ..." / "Hej Ann,\nTak ..." bliver til
+// "Hej Ann\nTak for din henvendelse." Kun når hilsenen står først og følges af Annes tak.
+// Ord flyttes ikke og findes ikke på: komma, "og" og punktum efter hilsenen fjernes, og "tak" får stort T.
+const HILSEN_RE = /^(Hej(?:\s+[A-ZÆØÅ][\wæøåÆØÅ-]*){0,2})\s*(?:,\s*og\s+|[,.!]\s*|\n\s*)(tusind tak|tak)\b/i;
+function saetHilsen(t) {
+  const m = HILSEN_RE.exec(t);
+  if (!m) return t;
+  const tak = m[2].charAt(0).toUpperCase() + m[2].slice(1);
+  return m[1] + "\n" + tak + t.slice(m[0].length);
+}
+
+// ─── Emnelinjen i en mail (16/11-26) ─────────────────────────────────────────
+// En tekst, der begynder med "Emne:", læser iPhone som en adresse ("Emne:" ligner "mailto:"),
+// så Mail satte hele svaret ind URL-kodet (Ann 16/11). Emnet løftes derfor ud og vises for sig.
+function delEmne(t) {
+  const m = /^\s*Emne:[ \t]*([^\n]*)\n?/i.exec(t);
+  if (!m) return { emne: "", tekst: t };
+  return { emne: m[1].trim(), tekst: t.slice(m[0].length).replace(/^\s+/, "") };
+}
+
 // ─── Resten af formen ────────────────────────────────────────────────────────
 function rensTekst(tekst, kendte) {
   let t = String(tekst || "").replace(/\r\n/g, "\n");
@@ -188,11 +209,14 @@ function efterbehandlSvar(raat, kendte) {
   if (!t.trim()) return { ok: false, fejl: "tomt svar" };
   if (!/\n\s*###/.test("\n" + t)) return { ok: false, fejl: "ingen ### og noter" };
   const { svar, noter } = splitAnswer(t);
-  const rent = saetAfsnit(fjernAfslutningEfterSpoergsmaal(rensTekst(svar, kendte)));
+  const { emne, tekst } = delEmne(rensTekst(svar, kendte));
+  const rent = saetAfsnit(fjernAfslutningEfterSpoergsmaal(saetHilsen(tekst)));
   if (!rent) return { ok: false, fejl: "tomt svar" };
   if (!noter.length) return { ok: false, fejl: "ingen noter efter ###" };
   if (rent.length > MAKS_SVAR_TEGN) return { ok: false, fejl: `svar paa ${rent.length} tegn` };
-  return { ok: true, svar: rent, noter: noter.map(n => rensTekst(n, kendte)).filter(Boolean) };
+  const ud = { ok: true, svar: rent, noter: noter.map(n => rensTekst(n, kendte)).filter(Boolean) };
+  if (emne) ud.emne = emne;
+  return ud;
 }
 
 // ─── To forslag (opslag og kommentar) ────────────────────────────────────────
@@ -234,7 +258,7 @@ async function medEtNytForsoeg(kald, efterbehandl) {
 }
 
 module.exports = {
-  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst, fjernAfslutningEfterSpoergsmaal, saetAfsnit,
+  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst, fjernAfslutningEfterSpoergsmaal, saetAfsnit, saetHilsen, delEmne,
   efterbehandlSvar, efterbehandlForslag, medEtNytForsoeg,
   MAKS_SVAR_TEGN, MAKS_FORSLAG_TEGN,
 };
