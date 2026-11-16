@@ -93,7 +93,7 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   console.log("\nAFSLUTNING EFTER ET SPØRGSMÅL — fjernes (Ann 13/11, regel 19)");
   const efterSp = "Hej, og tak for din henvendelse. Jeg kan komme mandag kl. 7, passer det dig? Jeg glæder mig til at høre fra dig.\nPeter, Hansens VVS\n###\n- Tjek tiden";
   lig("jeg-form: afslutningen efter et spørgsmål fjernes, underskriften bliver",
-    F.efterbehandlSvar(efterSp, KENDTE).svar, "Hej, og tak for din henvendelse.\n\nJeg kan komme mandag kl. 7, passer det dig?\nPeter, Hansens VVS");
+    F.efterbehandlSvar(efterSp, KENDTE).svar, "Hej\nTak for din henvendelse.\n\nJeg kan komme mandag kl. 7, passer det dig?\nPeter, Hansens VVS");
   lig("vi-form: fjernes også",
     F.fjernAfslutningEfterSpoergsmaal("Passer mandag kl. 7? Vi glæder os til at høre fra dig.\nPeter"), "Passer mandag kl. 7?\nPeter");
   lig("som eget afsnit: fjernes også",
@@ -110,9 +110,9 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   lig("én lang SMS bliver til tre afsnit, underskriften på egen linje",
     F.saetAfsnit("Hej. Tak for din besked. Jeg kan godt forstå det. Send et billede. Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål. Peter, Testfirma"),
     "Hej. Tak for din besked.\n\nJeg kan godt forstå det. Send et billede.\n\nDu er altid velkommen til at skrive igen, hvis der opstår spørgsmål.\nPeter, Testfirma");
-  lig("'Hej, og tak for ...' (lille t) findes også",
-    F.saetAfsnit("Hej, og tak for din henvendelse. Jeg kommer gerne. Jeg glæder mig til at høre fra dig.\nPeter"),
-    "Hej, og tak for din henvendelse.\n\nJeg kommer gerne.\n\nJeg glæder mig til at høre fra dig.\nPeter");
+  lig("'Hej\\nTak for ...' findes også",
+    F.saetAfsnit("Hej\nTak for din henvendelse. Jeg kommer gerne. Jeg glæder mig til at høre fra dig.\nPeter"),
+    "Hej\nTak for din henvendelse.\n\nJeg kommer gerne.\n\nJeg glæder mig til at høre fra dig.\nPeter");
   const allerede = "Emne: X\n\nHej, og tak for din forespørgsel.\n\nJeg ser på det.\n\nVi ser frem til at høre fra dig.\n\nMed venlig hilsen\nPeter";
   lig("har svaret allerede afsnit, ændres intet", F.saetAfsnit(allerede), allerede);
   lig("afslutning uden punktum efter et punktum: får sit punktum igen og eget afsnit",
@@ -122,6 +122,25 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
   const ordFoer = (x) => x.replace(/\s+/g, " ").trim();
   const lang = "Hej. Tak for dit spørgsmål. Materialer er med. Du er meget velkommen til at kontakte mig, hvis du har spørgsmål. Peter";
   lig("kun linjeskift flyttes, ingen ord", ordFoer(F.saetAfsnit(lang)), ordFoer(lang));
+
+  console.log("\nHILSEN PÅ SIN EGEN LINJE (Ann 16/11)");
+  lig("'Hej, og tak for ...' bliver to linjer", F.saetHilsen("Hej, og tak for din henvendelse. Jeg kommer."), "Hej\nTak for din henvendelse. Jeg kommer.");
+  lig("med navn", F.saetHilsen("Hej Ann, og tak for din henvendelse."), "Hej Ann\nTak for din henvendelse.");
+  lig("'Hej Ann. Tak for' bliver to linjer", F.saetHilsen("Hej Ann. Tak for din besked."), "Hej Ann\nTak for din besked.");
+  lig("'Hej Ann,' og linjeskift: kommaet væk", F.saetHilsen("Hej Ann,\nTak for din besked."), "Hej Ann\nTak for din besked.");
+  lig("står den rigtigt, ændres intet", F.saetHilsen("Hej Ann\nTak for din besked."), "Hej Ann\nTak for din besked.");
+  lig("'Tusind tak' ved ros", F.saetHilsen("Hej Jens, og tusind tak for de pæne ord."), "Hej Jens\nTusind tak for de pæne ord.");
+  lig("uden tak efter hilsenen ændres intet", F.saetHilsen("Hej Ann. Jeg kommer kl. 7."), "Hej Ann. Jeg kommer kl. 7.");
+  lig("hele svaret: hilsen, tak, tom linje",
+    F.efterbehandlSvar("Hej Ann, og tak for din henvendelse. Jeg kommer gerne forbi. Jeg glæder mig til at høre fra dig.\nPeter\n###\n- Tjek", KENDTE).svar,
+    "Hej Ann\nTak for din henvendelse.\n\nJeg kommer gerne forbi.\n\nJeg glæder mig til at høre fra dig.\nPeter");
+
+  console.log("\nEMNE I EN MAIL — for sig, ikke i svaret (16/11)");
+  const mail = F.efterbehandlSvar("Emne: Tagproblemer\n\nHej Ann, og tak for din henvendelse.\n\nJeg kommer torsdag.\n\nMed venlig hilsen\nPeter\n###\n- Tjek", KENDTE);
+  lig("emnet løftes ud", mail.emne, "Tagproblemer");
+  lig("svaret begynder med hilsenen, ikke 'Emne:'", mail.svar.startsWith("Hej Ann\nTak for din henvendelse."), true);
+  lig("SMS uden emne: intet emne-felt", "emne" in F.efterbehandlSvar("Hej.\n###\n- Tjek", KENDTE), false);
+  lig("'Emne:' midt i teksten røres ikke", F.delEmne("Hej\nEmne: x").emne, "");
 
   console.log("\nFORSLAG — præcis to, renset");
   const json = JSON.stringify({ forslag: [{ tekst: "**Ny bil!**\n#Hillerød" }, { tekst: "Ring [12 34 56 78] 😊" }] });
