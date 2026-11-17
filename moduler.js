@@ -22,7 +22,10 @@
 
 const { firmIdFromToken } = require("./auth");
 
-const MODULER = ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook"];
+// "kunder" (Fase 4 salg, 17/11-26): Kunder og Opgaver for et firma, der ikke
+// har dem gennem et andet modul. Saelges ikke for sig; foelger med pakken
+// "Skrivehjaelp og SoMe med kunder" (frisbii-katalog.js).
+const MODULER = ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook", "kunder"];
 
 // Aktiv = fra <= nu og (til tom eller til > nu). Filtreres her og ikke i
 // forespørgslen, så tidsreglen står ét sted og kan læses.

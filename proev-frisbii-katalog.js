@@ -86,33 +86,54 @@ lig("priserne ekskl. moms: 500 og 400 kr.",
 lig("de aftalte navne og priser (Ann 31/10)",
   Object.entries(KATALOG.MODUL_ADDONS).filter(([m]) => m !== "booking").map(([m, x]) => [m, x.navn, x.prisOere]),
   [["telefon", "Telefonpasser", 50000], ["referat", "Referat", 40000], ["tilbud", "Tilbud", 50000], ["faktura", "Faktura", 50000],
-   ["svar", "Kundehenvendelser", 20000], ["facebook", "SoMe-v\u00e6rkt\u00f8j", 20000]]);
+   ["svar", "Kundehenvendelser", 20000], ["facebook", "SoMe-v\u00e6rkt\u00f8j", 20000], ["kunder", "Kunder og opgaver", 20000]]);
 lig("Hele pakken giver stadig alle moduler, hvis et gammelt abonnement har den",
   modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle]).moduler, [...MODULER].sort());
 
-console.log("\n4b. Pakken \"Kundehenvendelser og SoMe\" (Fase 4, Ann 8/11)");
+console.log("\n4b. Pakken \"Skrivehjaelp og SoMe med kunder\" (Fase 4 8/11, salg 17/11)");
 const PK = KATALOG.PAKKER["svar-some"];
 lig("handle, navn, pris og moduler", [PK.handle, PK.navn, PK.prisOere, PK.moduler],
-  ["modul-svar-some", "Kundehenvendelser og SoMe", 20000, ["svar", "facebook"]]);
+  ["modul-svar-some", "Skrivehj\u00e6lp og SoMe med kunder", 20000, ["svar", "facebook", "kunder"]]);
 lig("pakken saelges ikke endnu, men vises som kommer", [PK.saelges, PK.kommer], [false, true]);
-lig("svar og facebook vises ikke for sig (hverken saelges eller kommer)",
-  ["svar", "facebook"].map((m) => [!!KATALOG.MODUL_ADDONS[m].saelges, !!KATALOG.MODUL_ADDONS[m].kommer]), [[false, false], [false, false]]);
-lig("pakken giver svar og facebook",
-  modulerFraHandles(P, [PK.handle]), { moduler: ["facebook", "svar"], ukendte: [], dobbelt: false });
-lig("pakken + Telefonpasser: tre moduler, ikke dobbelt",
-  modulerFraHandles(P, [PK.handle, A("telefon")]), { moduler: ["facebook", "svar", "telefon"], ukendte: [], dobbelt: false });
+lig("svar, facebook og kunder vises ikke for sig (hverken saelges eller kommer)",
+  ["svar", "facebook", "kunder"].map((m) => [!!KATALOG.MODUL_ADDONS[m].saelges, !!KATALOG.MODUL_ADDONS[m].kommer]), [[false, false], [false, false], [false, false]]);
+lig("pakken giver svar, facebook og kunder",
+  modulerFraHandles(P, [PK.handle]), { moduler: ["facebook", "kunder", "svar"], ukendte: [], dobbelt: false });
+lig("pakken + Telefonpasser: fire moduler, ikke dobbelt",
+  modulerFraHandles(P, [PK.handle, A("telefon")]), { moduler: ["facebook", "kunder", "svar", "telefon"], ukendte: [], dobbelt: false });
 lig("pakken + modul-svar: kunden betaler to gange for svar",
   modulerFraHandles(P, [PK.handle, A("svar")]).dobbelt, true);
 lig("Hele pakken + pakken: dobbelt",
   modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle, PK.handle]).dobbelt, true);
 lig("varer: moduler og pakken, Hele pakken ikke",
-  kat.varer().map((v) => v.noegle), ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook", "svar-some"]);
+  kat.varer().map((v) => v.noegle), ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook", "kunder", "svar-some", "svar-some-uden-kunder"]);
 lig("handleForVare kender baade modul og pakke",
   [kat.handleForVare("referat"), kat.handleForVare("svar-some"), kat.handleForVare("findes-ikke")], ["modul-referat", "modul-svar-some", null]);
 lig("pakken oprettes ikke i Frisbii, foer den saelges", produkterTilSalg().addOns.some((a) => a.handle === PK.handle), false);
 const kp = kopi(); kp.PAKKER["svar-some"].saelges = true;
 lig("... og kommer med, naar den saelges", produkterTilSalg(kp).addOns.filter((a) => a.pakke).map((a) => [a.pakke, a.handle, a.prisOere]),
   [["svar-some", "modul-svar-some", 20000]]);
+
+console.log("\n4c. Pakken \"Skrivehjaelp og SoMe uden kunder\" (Fase 4 salg, Ann 17/11)");
+const PU = KATALOG.PAKKER["svar-some-uden-kunder"];
+lig("handle, navn, pris og moduler", [PU.handle, PU.navn, PU.prisOere, PU.moduler],
+  ["modul-svar-some-uden-kunder", "Skrivehj\u00e6lp og SoMe uden kunder", 20000, ["svar", "facebook"]]);
+lig("saelges ikke endnu, men vises som kommer", [PU.saelges, PU.kommer], [false, true]);
+lig("giver svar og facebook, ikke kunder",
+  modulerFraHandles(P, [PU.handle]), { moduler: ["facebook", "svar"], ukendte: [], dobbelt: false });
+lig("+ Telefonpasser: tre moduler, ikke dobbelt",
+  modulerFraHandles(P, [PU.handle, A("telefon")]), { moduler: ["facebook", "svar", "telefon"], ukendte: [], dobbelt: false });
+lig("begge udgaver paa samme abonnement: kunden betaler to gange",
+  modulerFraHandles(P, [PK.handle, PU.handle]).dobbelt, true);
+lig("samme udgave to gange er ikke to pakker (som samme modul to gange)",
+  modulerFraHandles(P, [PU.handle, PU.handle]).dobbelt, false);
+lig("+ modul-facebook: dobbelt", modulerFraHandles(P, [PU.handle, A("facebook")]).dobbelt, true);
+lig("Hele pakken giver ogsaa kunder", modulerFraHandles(P, [KATALOG.HELE_PAKKEN.handle]).moduler.includes("kunder"), true);
+lig("handleForVare kender udgaven", kat.handleForVare("svar-some-uden-kunder"), "modul-svar-some-uden-kunder");
+lig("modulet kunder oprettes aldrig i Frisbii", produkterTilSalg().addOns.some((a) => a.handle === "modul-kunder"), false);
+const ku = kopi(); ku.PAKKER["svar-some"].saelges = true; ku.PAKKER["svar-some-uden-kunder"].saelges = true;
+lig("naar begge saelges: to add-ons a 200 kr.", produkterTilSalg(ku).addOns.filter((a) => a.pakke).map((a) => [a.handle, a.prisOere]),
+  [["modul-svar-some", 20000], ["modul-svar-some-uden-kunder", 20000]]);
 
 console.log("\n5. Roedt med vilje: tjekKatalog skal se et oedelagt katalog");
 let k = kopi(); delete k.MODUL_ADDONS.svar;
@@ -130,7 +151,9 @@ tjekKatalog(k).some((f) => f.includes("ukendt modul findes-ikke")) ? ok("pakke m
 k = kopi(); k.PAKKER["svar-some"].handle = k.MODUL_ADDONS.svar.handle;
 tjekKatalog(k).some((f) => f.includes("to gange")) ? ok("pakke med et moduls handle -> fejl") : nej("pakke-handle to gange -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["svar", "referat"], saelges: false };
-tjekKatalog(k).some((f) => f.includes("i to pakker")) ? ok("et modul i to pakker -> fejl") : nej("modul i to pakker -> fejl", JSON.stringify(tjekKatalog(k)));
+lig("et modul i flere pakker er tilladt (Fase 4 salg)", tjekKatalog(k), []);
+k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["facebook", "svar"], saelges: false };
+tjekKatalog(k).some((f) => f.includes("de samme moduler")) ? ok("to pakker med de samme moduler -> fejl") : nej("to pakker samme moduler -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.PAKKER.referat = { handle: "modul-x", navn: "X", prisOere: 100, moduler: ["svar", "facebook"], saelges: false };
 tjekKatalog(k).some((f) => f.includes("samme som et modul")) ? ok("pakke med et moduls navn -> fejl") : nej("pakke med modulnavn -> fejl", JSON.stringify(tjekKatalog(k)));
 lig("et katalog med et modul, MODULER ikke kender -> fejl",
