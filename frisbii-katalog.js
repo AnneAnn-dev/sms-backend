@@ -29,6 +29,17 @@
 // (kommer: false) og oprettes ikke i Frisbii (saelges: false). En pakkes handle bliver
 // staaende i Frisbii for altid. Hele pakken er IKKE en pakke her: den foelger MODULER.
 //
+// TO UDGAVER (Fase 4 salg, Ann og Anne 16-17/11-26, docs/fase4-salg-byggeplan.md):
+//  - "Skrivehjaelp og SoMe med kunder" (modul-svar-some): svar, facebook og kunder.
+//    Til haandvaerkere, saelges paa ditdigitalekontor.dk.
+//  - "Skrivehjaelp og SoMe uden kunder" (modul-svar-some-uden-kunder): svar og
+//    facebook. Til virksomheder uden for haandvaerket.
+//  Begge 200 kr./md. Handles er endelige; navnene kan rettes her.
+//  Et modul maa derfor gerne vaere i flere pakker. To pakker med samme modul paa
+//  ét abonnement er dobbelt betaling og meldes af modulerFraHandles.
+//  Modulet kunder saelges ikke for sig og oprettes ikke i Frisbii; prisen (200 kr.,
+//  Ann 17/11) er der kun, fordi tjekKatalog kraever en.
+//
 // Rene funktioner, ingen netvaerk, ingen miljoevariabler. Proeves af
 // proev-frisbii-katalog.js, som ogsaa tjekker, at kataloget, MODULER og
 // CHECK-reglen i databasen naevner de samme moduler.
@@ -53,10 +64,13 @@ const MODUL_ADDONS = {
   booking:  { handle: "modul-booking",  navn: "Booking",           prisOere: 40000, saelges: false },
   svar:     { handle: "modul-svar",     navn: "Kundehenvendelser", prisOere: 20000, saelges: false },
   facebook: { handle: "modul-facebook", navn: "SoMe-værktøj",      prisOere: 20000, saelges: false },
+  kunder:   { handle: "modul-kunder",   navn: "Kunder og opgaver", prisOere: 20000, saelges: false },
 };
 
 const PAKKER = {
-  "svar-some": { handle: "modul-svar-some", navn: "Kundehenvendelser og SoMe", prisOere: 20000,
+  "svar-some": { handle: "modul-svar-some", navn: "Skrivehjælp og SoMe med kunder", prisOere: 20000,
+                 moduler: ["svar", "facebook", "kunder"], saelges: false, kommer: true },
+  "svar-some-uden-kunder": { handle: "modul-svar-some-uden-kunder", navn: "Skrivehjælp og SoMe uden kunder", prisOere: 20000,
                  moduler: ["svar", "facebook"], saelges: false, kommer: true },
 };
 
@@ -82,14 +96,15 @@ function vare(noegle, katalog = KATALOG) {
 //  - moduler: sorteret, uden dubletter
 //  - ukendte: handles, kataloget ikke kender. Kalderen SKAL behandle dem som
 //    fejl (alarm + dead-letter), aldrig som "ingen moduler" (byggeplanen T1).
-//  - dobbelt: Hele pakken OG andre add-ons, eller en pakke OG et modul, den
-//    allerede giver, paa samme abonnement - kunden betaler to gange.
-//    Afstemningen melder det.
+//  - dobbelt: Hele pakken OG andre add-ons, en pakke OG et modul, den
+//    allerede giver, eller to forskellige pakker, der giver samme modul, paa
+//    samme abonnement - kunden betaler to gange. Afstemningen melder det.
 function modulerFraHandles(planHandle, addOnHandles, katalog = KATALOG, moduler = MODULER) {
   const saet = new Set();
   const ukendte = [];
   let pakke = false, enkelte = false;
   const fraModul = new Set(), fraPakke = new Set();
+  const pakkerPrModul = {}; // modul -> de pakke-handles, der giver det
 
   if (planHandle === katalog.BASISPLAN) {
     // basis giver intet modul i sig selv
@@ -114,12 +129,16 @@ function modulerFraHandles(planHandle, addOnHandles, katalog = KATALOG, moduler 
       fraModul.add(handleTilModul[h]);
     } else if (handleTilPakke[h]) {
       enkelte = true;
-      handleTilPakke[h].moduler.forEach((m) => { saet.add(m); fraPakke.add(m); });
+      handleTilPakke[h].moduler.forEach((m) => {
+        saet.add(m); fraPakke.add(m);
+        (pakkerPrModul[m] = pakkerPrModul[m] || new Set()).add(h);
+      });
     } else {
       ukendte.push(`add-on:${h}`);
     }
   }
-  const overlap = [...fraModul].some((m) => fraPakke.has(m));
+  const overlap = [...fraModul].some((m) => fraPakke.has(m))
+    || Object.values(pakkerPrModul).some((hs) => hs.size > 1);
   return { moduler: [...saet].sort(), ukendte, dobbelt: (pakke && enkelte) || overlap };
 }
 
@@ -169,15 +188,18 @@ function tjekKatalog(katalog = KATALOG, moduler = MODULER) {
     if (typeof a.saelges !== "boolean") fejl.push(`${m}: saelges skal vaere true eller false`);
     if (!a.navn) fejl.push(`${m}: navn mangler`);
   }
-  const iEnPakke = {};
+  const saetTilPakke = {};
   for (const [p, a] of Object.entries(pakker)) {
     if (Object.prototype.hasOwnProperty.call(katalog.MODUL_ADDONS, p)) fejl.push(`pakken ${p} hedder det samme som et modul`);
     if (!Array.isArray(a.moduler) || a.moduler.length < 2) fejl.push(`pakken ${p} skal give mindst to moduler`);
     for (const m of a.moduler || []) {
       if (!moduler.includes(m)) fejl.push(`pakken ${p} giver ukendt modul ${m}`);
-      if (iEnPakke[m]) fejl.push(`modulet ${m} er i to pakker (${iEnPakke[m]} og ${p})`);
-      iEnPakke[m] = p;
     }
+    // Et modul maa gerne vaere i flere pakker (Fase 4 salg), men to pakker, der
+    // giver PRAECIS de samme moduler, er den samme vare under to handles.
+    const saet = JSON.stringify([...new Set(a.moduler || [])].sort());
+    if (saetTilPakke[saet]) fejl.push(`pakkerne ${saetTilPakke[saet]} og ${p} giver de samme moduler`);
+    saetTilPakke[saet] = p;
   }
   for (const [plan, ms] of Object.entries(katalog.GAMLE_PLANER)) {
     for (const m of ms) if (!moduler.includes(m)) fejl.push(`gammel plan ${plan} giver ukendt modul ${m}`);

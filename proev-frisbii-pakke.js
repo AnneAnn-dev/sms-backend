@@ -40,7 +40,7 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   lig("instanser pr. modul", t.instanser, { referat: ["modul-referat"], telefon: ["modul-telefon"] });
   let v = visning(t);
   lig("to aktive moduler, prisen nu 900 kr.", [v.moduler.filter((m) => m.status === "aktiv").map((m) => m.modul), v.prisNuOere, v.prisFraNaesteOere], [["telefon", "referat"], 90000, 90000]);
-  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke", v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar-some"]);
+  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke", v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar-some", "svar-some-uden-kunder"]);
   lig("proeveperioden og stop-datoen", [v.proeveTil, v.stopDato], ["2026-11-07T10:59:59.791+00:00", "2026-11-07T10:59:59.791+00:00"]);
   v = visning(tilstand(SUB(STOP_REF), BEGGE));
   lig("ventende stop: Referat 'stopper', 500 kr. fra naeste periode", [v.moduler.find((m) => m.modul === "referat").status, v.prisFraNaesteOere], ["stopper", 50000]);
@@ -96,7 +96,7 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   const MED_PAKKE = A(["modul-telefon", "modul-telefon"], ["modul-svar-some-1", "modul-svar-some"]);
   v = visning(tilstand(SUB(), MED_PAKKE));
   lig("pakken er en linje med pakkens navn og pris", v.moduler.filter((m) => m.modul === "svar-some").map((m) => [m.navn, m.prisOere, m.status]),
-    [["Kundehenvendelser og SoMe", 20000, "aktiv"]]);
+    [["Skrivehj\u00e6lp og SoMe med kunder", 20000, "aktiv"]]);
   lig("svar og facebook vises ikke for sig", v.moduler.some((m) => m.modul === "svar" || m.modul === "facebook"), false);
   lig("prisen: Telefonpasser + pakken = 700 kr.", v.prisNuOere, 70000);
   lig("stop pakken: hele pakken stoppes", P("stop", "svar-some", SUB(), MED_PAKKE).kald[0].krop, { timing: "renewal", remove_add_ons: ["modul-svar-some-1"] });
