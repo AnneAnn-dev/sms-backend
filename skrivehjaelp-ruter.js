@@ -261,7 +261,7 @@ module.exports = function skrivehjaelpRuter(app, supabase, { tekstmodel = standa
       return r.raat;
     };
     const kendte = F.kendteFakta(input, firma);
-    const efterbehandl = type === "svar" ? (raat) => F.efterbehandlSvar(raat, kendte) : (raat) => F.efterbehandlForslag(raat, kendte, { begge });
+    const efterbehandl = type === "svar" ? (raat) => F.efterbehandlSvar(raat, kendte, { besked: input.besked }) : (raat) => F.efterbehandlForslag(raat, kendte, { begge });
 
     let r;
     try {
