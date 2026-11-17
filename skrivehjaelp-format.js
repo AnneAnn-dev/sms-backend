@@ -175,6 +175,20 @@ function saetHilsen(t) {
   return m[1] + "\n" + tak + t.slice(m[0].length);
 }
 
+// ─── Håndværkerens navn i hilsenen (17/11-26) ────────────────────────────────
+// Kunden skriver "Hej Brian" til håndværkeren; modellen svarede "Hej Brian" (case 21, 3 af 3).
+// Står samme navn efter "Hej" i begge, fjernes det fra svaret. Kun et navn fjernes, intet tilføjes.
+function modtagerNavn(besked) {
+  const m = /^\s*(?:hej|hejsa|goddag|kære|hi)\s+([A-ZÆØÅ][\wæøåÆØÅ-]*)/i.exec(String(besked || ""));
+  return m ? m[1] : "";
+}
+function fjernModtagerNavn(t, besked) {
+  const navn = modtagerNavn(besked);
+  if (!navn) return t;
+  const re = new RegExp("^(Hej)\\s+" + navn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=[\\s,.!]|$)");
+  return t.replace(re, "$1");
+}
+
 // ─── Emnelinjen i en mail (16/11-26) ─────────────────────────────────────────
 // En tekst, der begynder med "Emne:", læser iPhone som en adresse ("Emne:" ligner "mailto:"),
 // så Mail satte hele svaret ind URL-kodet (Ann 16/11). Emnet løftes derfor ud og vises for sig.
@@ -204,13 +218,13 @@ function rensTekst(tekst, kendte) {
 // ─── Svar (Svarhjælp) ────────────────────────────────────────────────────────
 // Kræver ### og mindst én note. Det er sådan, "BANAN" bliver fanget: et svar,
 // der har fulgt en instruktion i kundens besked, har ikke fulgt formatet.
-function efterbehandlSvar(raat, kendte) {
+function efterbehandlSvar(raat, kendte, valg) {
   const t = String(raat || "").replace(/\r\n/g, "\n");
   if (!t.trim()) return { ok: false, fejl: "tomt svar" };
   if (!/\n\s*###/.test("\n" + t)) return { ok: false, fejl: "ingen ### og noter" };
   const { svar, noter } = splitAnswer(t);
   const { emne, tekst } = delEmne(rensTekst(svar, kendte));
-  const rent = saetAfsnit(fjernAfslutningEfterSpoergsmaal(saetHilsen(tekst)));
+  const rent = saetAfsnit(fjernAfslutningEfterSpoergsmaal(saetHilsen(fjernModtagerNavn(tekst, valg && valg.besked))));
   if (!rent) return { ok: false, fejl: "tomt svar" };
   if (!noter.length) return { ok: false, fejl: "ingen noter efter ###" };
   if (rent.length > MAKS_SVAR_TEGN) return { ok: false, fejl: `svar paa ${rent.length} tegn` };
@@ -258,7 +272,7 @@ async function medEtNytForsoeg(kald, efterbehandl) {
 }
 
 module.exports = {
-  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst, fjernAfslutningEfterSpoergsmaal, saetAfsnit, saetHilsen, delEmne,
+  kendteFakta, rensParenteser, rensStreger, rensSprog, rensTekst, fjernAfslutningEfterSpoergsmaal, saetAfsnit, saetHilsen, delEmne, fjernModtagerNavn,
   efterbehandlSvar, efterbehandlForslag, medEtNytForsoeg,
   MAKS_SVAR_TEGN, MAKS_FORSLAG_TEGN,
 };

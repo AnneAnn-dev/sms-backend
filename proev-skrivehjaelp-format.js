@@ -135,6 +135,18 @@ const KENDTE = F.kendteFakta({ felter: { cause: "Bilproblemer", newtime: "fredag
     F.efterbehandlSvar("Hej Ann, og tak for din henvendelse. Jeg kommer gerne forbi. Jeg glæder mig til at høre fra dig.\nPeter\n###\n- Tjek", KENDTE).svar,
     "Hej Ann\nTak for din henvendelse.\n\nJeg kommer gerne forbi.\n\nJeg glæder mig til at høre fra dig.\nPeter");
 
+  console.log("\nHÅNDVÆRKERENS NAVN I HILSENEN — fjernes (17/11, case 21)");
+  const tilBrian = "Hej Brian\nDu har tidligere hjulpet mig med mit tag.";
+  lig("'Hej Brian' i både besked og svar: navnet væk",
+    F.efterbehandlSvar("Hej Brian\nTak for din henvendelse.\n\nJeg kommer mandag kl. 7. Passer det dig?\nPeter\n###\n- Tjek", KENDTE, { besked: tilBrian }).svar,
+    "Hej\nTak for din henvendelse.\n\nJeg kommer mandag kl. 7. Passer det dig?\nPeter");
+  lig("'Hej Brian, og tak' bliver 'Hej' / 'Tak'",
+    F.efterbehandlSvar("Hej Brian, og tak for din henvendelse. Jeg kommer.\nPeter\n###\n- Tjek", KENDTE, { besked: tilBrian }).svar.split("\n").slice(0, 2), ["Hej", "Tak for din henvendelse."]);
+  lig("kundens eget navn bliver stående", F.fjernModtagerNavn("Hej Maria\nTak", "Hej Brian. Mvh Maria"), "Hej Maria\nTak");
+  lig("uden navn i beskeden ændres intet", F.fjernModtagerNavn("Hej Brian\nTak", "Hej. Kan I komme?"), "Hej Brian\nTak");
+  lig("et navn, der kun begynder ens, røres ikke", F.fjernModtagerNavn("Hej Briana\nTak", "Hej Brian"), "Hej Briana\nTak");
+  lig("uden valg (gamle kaldere) virker som før", F.efterbehandlSvar("Hej Brian\nTak for din besked.\n###\n- x", KENDTE).svar.startsWith("Hej Brian"), true);
+
   console.log("\nEMNE I EN MAIL — for sig, ikke i svaret (16/11)");
   const mail = F.efterbehandlSvar("Emne: Tagproblemer\n\nHej Ann, og tak for din henvendelse.\n\nJeg kommer torsdag.\n\nMed venlig hilsen\nPeter\n###\n- Tjek", KENDTE);
   lig("emnet løftes ud", mail.emne, "Tagproblemer");
