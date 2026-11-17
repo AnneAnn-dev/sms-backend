@@ -27,6 +27,18 @@ const { firmIdFromToken } = require("./auth");
 // "Skrivehjaelp og SoMe med kunder" (frisbii-katalog.js).
 const MODULER = ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook", "kunder"];
 
+// Har firmaet Kunder og Opgaver? (Fase 4 salg T3, 17/11-26.) Alle moduler
+// undtagen Skrivehjaelpens to giver dem; "kunder" findes netop for det firma,
+// der ellers kun har svar og facebook ("Skrivehjaelp og SoMe med kunder").
+// Reglen staar KUN her: appen faar svaret fra /api/moduler (harKunder), og
+// velkomstmailen (T5) spoerger samme funktion. Et nyt modul skal tilfoejes
+// her eller i UDEN_KUNDER - proev-frisbii-katalog.js bliver roed, hvis ikke.
+const GIVER_KUNDER = ["telefon", "referat", "tilbud", "faktura", "booking", "kunder"];
+const UDEN_KUNDER = ["svar", "facebook"];
+function harKunder(moduler) {
+  return (moduler || []).some((m) => GIVER_KUNDER.includes(m));
+}
+
 // Aktiv = fra <= nu og (til tom eller til > nu). Filtreres her og ikke i
 // forespørgslen, så tidsreglen står ét sted og kan læses.
 async function aktiveModuler(supabase, firmId) {
@@ -68,13 +80,15 @@ function kraevModul(supabase, modul, { kunSkrivning = false } = {}) {
 
 // GET /api/moduler — hvad appen skal vise. tilbudAktiv er den globale
 // nødbremse (TILBUD_AKTIV): slukket betyder, at referat og tilbud ikke
-// findes på serveren, uanset firmaets rækker.
+// findes på serveren, uanset firmaets rækker. harKunder (T3): false skjuler
+// Opgaver og Kunder i appen (se harKunder ovenfor).
 function registrerModulRuter(app, supabase, { tilbudAktiv }) {
   app.get("/api/moduler", async (req, res) => {
     const firmId = await firmIdFromToken(supabase, req);
     if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
     try {
-      res.json({ moduler: await aktiveModuler(supabase, firmId), tilbudAktiv });
+      const moduler = await aktiveModuler(supabase, firmId);
+      res.json({ moduler, tilbudAktiv, harKunder: harKunder(moduler) });
     } catch (err) {
       console.error("❌ /api/moduler:", err.message);
       res.status(503).json({ error: "moduler_utilgaengelige" });
@@ -82,4 +96,4 @@ function registrerModulRuter(app, supabase, { tilbudAktiv }) {
   });
 }
 
-module.exports = { MODULER, aktiveModuler, kraevModul, registrerModulRuter };
+module.exports = { MODULER, GIVER_KUNDER, UDEN_KUNDER, harKunder, aktiveModuler, kraevModul, registrerModulRuter };

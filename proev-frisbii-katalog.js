@@ -159,6 +159,21 @@ tjekKatalog(k).some((f) => f.includes("samme som et modul")) ? ok("pakke med et 
 lig("et katalog med et modul, MODULER ikke kender -> fejl",
   tjekKatalog(KATALOG, MODULER.filter((m) => m !== "facebook")).length > 0, true);
 
+console.log("\n6. Har firmaet Kunder og Opgaver? (moduler.js, Fase 4 salg T3)");
+const mod = require("./moduler");
+lig("hvert modul staar i GIVER_KUNDER eller UDEN_KUNDER - og kun i den ene",
+  [...mod.GIVER_KUNDER, ...mod.UDEN_KUNDER].sort(), [...MODULER].sort());
+lig("kun svar og facebook giver ikke kunder", [...mod.UDEN_KUNDER].sort(), ["facebook", "svar"]);
+lig("uden kunder (svar + facebook): nej", mod.harKunder(["facebook", "svar"]), false);
+lig("med kunder (svar + facebook + kunder): ja", mod.harKunder(["facebook", "kunder", "svar"]), true);
+lig("Telefonpasser alene: ja", mod.harKunder(["telefon"]), true);
+lig("Referat alene: ja", mod.harKunder(["referat"]), true);
+lig("uden kunder + Referat: ja (tilkoeb giver fanerne)", mod.harKunder(["facebook", "referat", "svar"]), true);
+lig("ingen moduler: nej", mod.harKunder([]), false);
+lig("udefineret: nej", mod.harKunder(undefined), false);
+lig("de to udgaver i kataloget giver hhv. ja og nej",
+  [mod.harKunder(KATALOG.PAKKER["svar-some"].moduler), mod.harKunder(KATALOG.PAKKER["svar-some-uden-kunder"].moduler)], [true, false]);
+
 console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
 console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);
 process.exit(fejlet ? 1 : 0);

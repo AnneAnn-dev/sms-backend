@@ -203,6 +203,12 @@
     .kun-faner { display: none !important; }
     body.faner .kun-faner { display: flex !important; }
     body.faner .skjul-ved-faner { display: none !important; }
+    /* Fase 4 salg T3 (17/11-26): "Skrivehjaelp og SoMe uden kunder" har hverken
+       Opgaver eller Kunder. Kun naar /api/moduler svarer harKunder:false OG
+       firmaet har Vaerktoejer - ellers ser alt ud som foer. Id-vaelgerne vinder
+       over .kun-faner (hoejere specificitet, begge !important). */
+    body.faner.uden-kunder #nav-alle, body.faner.uden-kunder #nav-kunder,
+    body.faner.uden-kunder #top-ny-opgave, body.faner.uden-kunder #opgave-soeg-blok { display: none !important; }
     .topbar-profil { background: none; border: none; color: var(--ink-muted); padding: 6px; cursor: pointer; line-height: 0; }
     .topbar-profil .ti { width: 26px; height: 26px; }
     .topbar-hoejre { display: flex; align-items: center; gap: 8px; }
@@ -759,7 +765,7 @@
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
   <div class="topbar-hoejre">
-  <button class="btn-sm" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
+  <button class="btn-sm" id="top-ny-opgave" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
   <button class="topbar-profil kun-faner" onclick="setPage('profil')" aria-label="Profil"><svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg></button>
   </div>
 </div>
@@ -3171,7 +3177,7 @@ function leadKort(lead) {
       if (!r.ok) return;
       const svar = await r.json();
       if (svar.tilbudAktiv !== true) return;
-      aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : []);
+      aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : [], svar.harKunder);
       // Indtal ny opgave foelger TILBUD_AKTIV (Ann 16/10) — men intet modul:
       // alle firmaer faar mikrofonen.
       aktiverIndtaling();
@@ -3180,15 +3186,19 @@ function leadKort(lead) {
     }
   }
 
-  function aktiverFaner(moduler) {
+  function aktiverFaner(moduler, harKunder) {
     document.body.classList.add('faner');
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
+    // T3: uden Kunder og Opgaver kun Vaerktoejer (+ Profil i toppen). Kun ved et
+    // udtrykkeligt false fra serveren; mangler feltet (aeldre server), som foer.
+    const udenKunder = harKunder === false && skriv;
+    document.body.classList.toggle('uden-kunder', udenKunder);
     vk.moduler = moduler.slice();
     // D94 trin 1c: profilen som oversigt — alt lukket, undtagen telefonpasseren.
     document.querySelectorAll('#page-profil details.profil-punkt').forEach(d => { d.open = d.id === 'profil-telefonpasser'; });
-    setFane('alle');
+    setFane(udenKunder ? 'skriv' : 'alle');
   }
 
   let forrigeFane = null;
@@ -3204,6 +3214,9 @@ function leadKort(lead) {
   });
 
   function setFane(fane) {
+    // T3: et firma uden Kunder og Opgaver har kun Vaerktoejer - ogsaa naar en
+    // anden vej (fx et link fra opgavevinduet) beder om en skjult fane.
+    if (document.body.classList.contains('uden-kunder')) fane = 'skriv';
     const fra = forrigeFane;
     forrigeFane = fane;
     if (fane === 'kunder') {
