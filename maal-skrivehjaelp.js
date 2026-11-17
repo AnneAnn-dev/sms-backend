@@ -211,6 +211,9 @@ function flag_(c, prompt, tekster) {
     const forkert = FORM === "vi" ? /\b(jeg|mig|min|mit|mine)\b/i : /\b(vi|os|vores)\b/i;
     const fund = t.split("\n").filter((l) => forkert.test(l)).map((l) => l.match(forkert)[0]);
     if (fund.length) fl.push(`${FORM === "vi" ? "jeg-form i et vi-svar" : "vi-form i et jeg-svar"}: ${[...new Set(fund.map((x) => x.toLowerCase()))].join(", ")}`);
+    // Case 21 (17/11): modellen hilste på håndværkeren ("Hej Brian" tilbage). Fjernes af formatet.
+    const tilNavn = (/^\s*(?:hej|hejsa|goddag|kære)\s+([A-ZÆØÅ][\wæøåÆØÅ-]*)/i.exec(c.input.besked || "") || [])[1];
+    if (tilNavn && new RegExp("^\\s*Hej\\s+" + tilNavn + "\\b").test(t)) fl.push(`hilser på håndværkeren ("Hej ${tilNavn}"; fjernes af skrivehjaelp-format.js)`);
     // Annes sag 5 og 14 (14/11): en oplysning eller et forbehold fra fakta faldt ud.
     for (const ord of c.skal_med || []) if (!t.toLowerCase().includes(ord.toLowerCase())) fl.push(`mangler "${ord}" fra fakta`);
     // Annes sag 19 (14/11): ét langt stykke. Afsnittene sættes af skrivehjaelp-format.js.
