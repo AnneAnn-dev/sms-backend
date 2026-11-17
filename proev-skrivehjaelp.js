@@ -72,6 +72,9 @@ const FAG = { haandvaerk: "Toemrer", groen: "Anlaegsgartner", service: "Rengoeri
   lig("ingen vi-vending i jeg-reglerne og omvendt", [sj.includes("Det beklager vi selvfølgelig."), sv.includes("Det beklager jeg selvfølgelig.")], [false, false]);
   lig("sprogFor: kun 'vi' giver vi-form", [sprogFor("vi") === SPROG.vi, sprogFor("jeg") === SPROG.jeg, sprogFor(null) === SPROG.jeg], [true, true, true]);
   lig("ingen ${ tilbage i reglerne", [/\$\{/.test(sj), /\$\{/.test(sv)], [false, false]);
+  const af = P.bygSvar({ situation: "nyopgave", felter: { take: "Ja, jeg vil gerne se den først" }, andet: "Jeg kommer kl. 7. Vi kan rådgive om valg. Ring på 12 34 56 78.", kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Toemrer" }).bruger;
+  lig("Andet kunden skal vide: én linje pr. sætning, 'kl. 7' deles ikke (17/11)",
+    [af.includes("  - Jeg kommer kl. 7."), af.includes("  - Vi kan rådgive om valg."), af.includes("  - Ring på 12 34 56 78.")], [true, true, true]);
   const op = (form) => P.bygOpslag({ idea: "ny terrasse", goal: "Salg", platform: "Facebook" }, { ...FIRMA, form }).system;
   const ko = (form) => P.bygKommentar({ comment: "flot", raw: "tak" }, { ...FIRMA, form }).system;
   lig("opslag og kommentar faar formen i systemfeltet", [op().includes("FORM: jeg-form"), op("vi").includes("FORM: vi-form"), ko().includes("FORM: jeg-form"), ko("vi").includes("FORM: vi-form")], [true, true, true, true]);
