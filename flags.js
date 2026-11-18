@@ -64,4 +64,13 @@ module.exports = {
   // profil, kvote). Slukket = ruterne findes ikke (404). true i staging, false i prod,
   // til Anne har lavet QA og migrationen 20261108120000 er koert. Se skrivehjaelp-ruter.js.
   SKRIVEHJAELP_AKTIV: flag("SKRIVEHJAELP_AKTIV"),
+
+  // Fase 4 salg (18/11-26, Ann): de to Skrivehjaelp-pakker ("med kunder" og
+  // "uden kunder") saelges. Styrer saelges i frisbii-katalog.js og dermed
+  // checkout, Din pakke (koeb og skift) og opret-frisbii-produkter.js.
+  // Slukket = pakkerne vises som "Kommer snart" og kan ikke koebes.
+  // true i staging (T7), false i prod, til salget er besluttet - saa taendes
+  // det i Railway uden deploy. Add-ons'ene skal findes i Frisbii FOER flaget
+  // taendes i et miljoe (opret-frisbii-produkter.js --vare ...).
+  SKRIVEHJAELP_SALG: flag("SKRIVEHJAELP_SALG"),
 };

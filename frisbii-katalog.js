@@ -35,6 +35,8 @@
 //  - "Skrivehjaelp og SoMe uden kunder" (modul-svar-some-uden-kunder): svar og
 //    facebook. Til virksomheder uden for haandvaerket.
 //  Begge 200 kr./md. Handles er endelige; navnene kan rettes her.
+//  Om de saelges, styres af flaget SKRIVEHJAELP_SALG (flags.js, Ann 18/11) -
+//  ikke af en vaerdi her, saa salget kan taendes i Railway pr. miljoe.
 //  Et modul maa derfor gerne vaere i flere pakker. To pakker med samme modul paa
 //  ét abonnement er dobbelt betaling og meldes af modulerFraHandles.
 //  Modulet kunder saelges ikke for sig og oprettes ikke i Frisbii; prisen (200 kr.,
@@ -47,6 +49,7 @@
 "use strict";
 
 const { MODULER } = require("./moduler");
+const { SKRIVEHJAELP_SALG } = require("./flags");
 
 const BASISPLAN = "ddk-basis";
 const PROEVEDAGE = 7;
@@ -69,9 +72,9 @@ const MODUL_ADDONS = {
 
 const PAKKER = {
   "svar-some": { handle: "modul-svar-some", navn: "Skrivehjælp og SoMe med kunder", prisOere: 20000,
-                 moduler: ["svar", "facebook", "kunder"], saelges: false, kommer: true },
+                 moduler: ["svar", "facebook", "kunder"], saelges: SKRIVEHJAELP_SALG, kommer: true },
   "svar-some-uden-kunder": { handle: "modul-svar-some-uden-kunder", navn: "Skrivehjælp og SoMe uden kunder", prisOere: 20000,
-                 moduler: ["svar", "facebook"], saelges: false, kommer: true },
+                 moduler: ["svar", "facebook"], saelges: SKRIVEHJAELP_SALG, kommer: true },
 };
 
 const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere: 150000, saelges: false };
