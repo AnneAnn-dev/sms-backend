@@ -22,7 +22,14 @@
 
 const { PACKS, sprogFor, sectorOf } = require("./skrivehjaelp-pakker");
 
-const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-17";
+const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-18";
+// 2026-11-18: Annes generelle branchepakke (Fase 4 T8). Reglerne her er uændrede, men en virksomhed
+//   uden egen pakke får nu den generelle pakkes situationer, felter og REGLER FOR BRANCHEN i stedet
+//   for Håndværks. Pakkens regel siger, at virksomheden ikke nødvendigvis er en håndværker, og at den
+//   aldrig må kaldes det over for kunden. Regel 1 kalder stadig afsenderen "håndværkeren" som rolle
+//   i prompten; måles på skrivehjaelp-saet-generel8.json (maa_ikke: "håndværk"), før T8 går i prod.
+//   Nye situationer: status (levering, ordre, kundeservice) og support. Det afgørende felt kan nu
+//   sættes pr. situation i pakken (afgoerendeFor); ellers gælder AFGOERENDE som før.
 // 2026-11-17: modelsammenligningen 17/11 (anne20 ×3, fire modeller; mistral-medium bliver).
 //   - Regel 13 og 18: navnet efter "Hej" øverst i kundens besked er håndværkerens, ikke kundens
 //     (case 21: "Hej Brian" blev til "Hej Brian" tilbage, 3 af 3). Kundens navn står under beskeden.
@@ -199,13 +206,26 @@ class ValideringsFejl extends Error {}
 // gør feltet obligatorisk (lag 1); bygSvar afviser kaldet uden det (lag 2 -> 400).
 //   null    = ingen beslutning at træffe (tak og ros)
 //   "andet" = fritekstfeltet "Andet kunden skal vide" (situationen Andet har ingen felter)
-// Samme situations-id betyder det samme felt i alle branchepakker; proev-skrivehjaelp.js
-// tjekker, at feltet findes i hver pakke.
+// AFGOERENDE er standarden: samme situations-id betyder det samme felt i alle branchepakker.
+// En situation i en pakke kan sætte sit eget (sit.afgoerende, T8 18/11-26): den generelle
+// pakkes spørgsmål 1 hedder "handle" i nyopgave og andet. Brug ALTID afgoerendeFor, så
+// prompten, ruterne, målingen og prøverne er enige. proev-skrivehjaelp.js tjekker, at
+// feltet findes i hver situation i hver pakke.
 const AFGOERENDE = {
   nyopgave: "take", pris: "pricetype", flyt: "can", tilbud: "answer", undervejs: "prep",
   ros: null, andet: "andet", overtid: "reason", kvalitet: "assess", pris_klage: "why",
   udeblevet: "cause", fastaftale: "reply", skade: "action",
+  status: "state", support: "handle",
 };
+
+// Feltets id, null (intet at beslutte), "andet" (fritekstfeltet) eller undefined (ingen regel:
+// bygSvar afviser kaldet, og proev-skrivehjaelp.js fejler).
+function afgoerendeFor(pack, id) {
+  const sit = pack && pack.situations ? pack.situations[id] : undefined;
+  if (sit && Object.prototype.hasOwnProperty.call(sit, "afgoerende")) return sit.afgoerende;
+  if (Object.prototype.hasOwnProperty.call(AFGOERENDE, id)) return AFGOERENDE[id];
+  return undefined;
+}
 
 function tekst(v, navn, maks, kraevet) {
   if (v == null || v === "") { if (kraevet) throw new ValideringsFejl(`${navn} mangler`); return ""; }
@@ -249,10 +269,10 @@ function bygSvar(input, firma) {
 
   const felter = input.felter || {};
   // Lag 2: det afgørende felt skal være udfyldt, ellers intet kald (og ingen udgift).
-  if (!Object.prototype.hasOwnProperty.call(AFGOERENDE, input.situation)) {
+  const afg = afgoerendeFor(pack, input.situation);
+  if (afg === undefined) {
     throw new ValideringsFejl("Situationen mangler et afgørende felt i AFGOERENDE");
   }
-  const afg = AFGOERENDE[input.situation];
   if (afg === "andet") {
     if (typeof input.andet !== "string" || !input.andet.trim()) throw new ValideringsFejl("Skriv, hvad kunden skal vide");
   } else if (afg) {
@@ -438,6 +458,6 @@ function laesForslag(raat, valg) {
 module.exports = {
   SKRIVEHJAELP_PROMPT_VERSION,
   bygSvar, bygOpslag, bygKommentar, splitAnswer, laesForslag,
-  ValideringsFejl, KANAL, TONE, MAAL, PLATFORM, MAKS, AFGOERENDE,
+  ValideringsFejl, KANAL, TONE, MAAL, PLATFORM, MAKS, AFGOERENDE, afgoerendeFor,
   _RULES: RULES, _regler: regler, _TAGNAVNE: TAGNAVNE,
 };

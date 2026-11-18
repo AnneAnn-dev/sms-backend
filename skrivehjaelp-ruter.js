@@ -58,8 +58,9 @@ function krydsedeDagsvarsel(foerOere, prisOere, loftOere) {
 // Samme form som CHECK-reglen i migrationen: valgfrit +, 8-20 cifre og mellemrum.
 const TELEFON_RE = /^\+?[0-9 ]{8,20}$/;
 
-// Brancherne er fagene i Annes pakker. Den generelle pakke mangler endnu (Anne);
-// indtil da kører et ukendt fag på Håndværk-pakken (sectorOf).
+// Brancherne er fagene i Annes fire pakker, i pakkernes rækkefølge. Rullemenuen i appen
+// bygges herfra, så et nyt fag i en pakke kommer med af sig selv. Et fag uden egen pakke
+// kører på den generelle pakke (sectorOf, T8 18/11-26; før Håndværk).
 const BRANCHER = Object.values(PACKS).map((p) => ({ gruppe: p.label, fag: [...p.trades] }));
 const ALLE_FAG = BRANCHER.flatMap((b) => b.fag);
 
@@ -74,7 +75,8 @@ function situationerFor(fag) {
   const pack = PACKS[sectorOf(fag)];
   return Object.entries(pack.situations).map(([id, s]) => ({
     id, label: s.label, gruppe: s.group || null,
-    afgoerende: Object.prototype.hasOwnProperty.call(P.AFGOERENDE, id) ? P.AFGOERENDE[id] : null,
+    // Samme regel som bygSvar (lag 2): pakkens eget felt, ellers standarden.
+    afgoerende: P.afgoerendeFor(pack, id) === undefined ? null : P.afgoerendeFor(pack, id),
     felter: s.fields.map((f) => ({ id: f.id, label: f.label, type: f.type, options: f.options || null, placeholder: f.placeholder || null })),
   }));
 }

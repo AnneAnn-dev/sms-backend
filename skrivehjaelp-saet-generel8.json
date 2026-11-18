@@ -1,0 +1,183 @@
+{
+  "_om": "Annes otte eksempler til den generelle branchepakke (Fase 4 T8, 18/11-26), ét pr. situation. Beskederne er Annes, ordret fra Generel_branchepakke.docx. Fag, felter og tjek er Claudes udkast og skal godkendes af Anne: valgene dækker forskellige svar på spørgsmål 1, så pakken prøves bredt, og de tre tekstfelter (Ny tid, Pris eller link, link til anmeldelse) er med mindst én gang. Generel8-8 har faget 'Konsulent', der ikke står på listen, så tilbagefaldet i sectorOf også bliver målt. 'andet' er tom med vilje: svaret må kun bygge på Annes rullemenuer, og maal-skrivehjaelp.js flager det, der er fundet på. maa_ikke har 'håndværk' i hver case: pakken siger, at virksomheden aldrig må kaldes en håndværker, og selve prompten kalder stadig afsenderen 'håndværkeren' (regel 1). Kanal: mail ved klagen og ved fotografen, ellers SMS. Tone: venlig (fast i appen). Ingen facit endnu: Anne læser udkastene (--kun svar, evt. --form vi). 'tjek' sendes ALDRIG til modellen; det bruges kun til læsningen. Flere cases uden for håndværk står i skrivehjaelp-saet-anne20.json (generel-1 til -10).",
+  "firma": {
+    "person": "Peter Testesen",
+    "firm": "Testfirma ApS",
+    "phone": "12 34 56 78",
+    "city": "Hillerød",
+    "reviewLink": ""
+  },
+  "svar": [
+    {
+      "id": "generel8-1-forespoergsel",
+      "trade": "Fotograf",
+      "situation": "nyopgave",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {
+        "handle": "Jeg vil gerne sende information om vores ydelser eller produkter.",
+        "next": "Jeg vil gerne aftale en samtale eller et møde."
+      },
+      "andet": "",
+      "besked": "Hej. Jeg har fundet jeres virksomhed på nettet og vil gerne høre lidt mere om, hvad I tilbyder. Jeg overvejer at blive kunde hos jer, men vil gerne vide lidt mere om mulighederne først.",
+      "tjek": "Svaret må ikke: Nævne en pris. Love en ledig tid eller dato. Kalde virksomheden en håndværker. Skal: Sige, at der kommer information, og foreslå en samtale eller et møde.",
+      "maa_ikke": [
+        "kr.",
+        "besigtig",
+        "–",
+        "håndværk"
+      ]
+    },
+    {
+      "id": "generel8-2-booking",
+      "trade": "Frisør",
+      "situation": "flyt",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "can": "Jeg kan tilbyde et andet tidspunkt.",
+        "confirm": "Jeg bekræfter aftalen, når tidspunktet er aftalt.",
+        "newslot": "mandag kl. 10 eller tirsdag kl. 14"
+      },
+      "andet": "",
+      "besked": "Hej. Jeg har en aftale hos jer på torsdag, men jeg er desværre blevet forhindret. Kan vi flytte den til fredag eller en anden dag i næste uge?",
+      "tjek": "Svaret må ikke: Bekræfte fredag eller en ny tid som aftalt. Skal: Tilbyde mandag kl. 10 eller tirsdag kl. 14 og sige, at aftalen bekræftes, når tiden er på plads.",
+      "maa_ikke": [
+        "kr.",
+        "–",
+        "håndværk"
+      ],
+      "skal_med": [
+        "mandag kl. 10",
+        "tirsdag kl. 14"
+      ]
+    },
+    {
+      "id": "generel8-3-pris",
+      "trade": "Fitness",
+      "situation": "pris",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "pricetype": "Jeg kan give en startpris eller vejledende pris.",
+        "next": "Jeg sender kunden vores prisliste.",
+        "amount": "fra 249 kr. om måneden"
+      },
+      "andet": "",
+      "besked": "Hej. Jeg vil gerne høre, hvad det koster at benytte jeres service. Jeg har kigget lidt på jeres hjemmeside, men kan ikke helt gennemskue priserne. Kan I hjælpe mig?",
+      "tjek": "Svaret må ikke: Gøre startprisen til en fast pris. Nævne andre beløb end 249 kr. Skal: Sige 'fra 249 kr. om måneden' og at prislisten bliver sendt.",
+      "maa_ikke": [
+        "–",
+        "håndværk"
+      ],
+      "skal_med": [
+        "249 kr."
+      ]
+    },
+    {
+      "id": "generel8-4-status",
+      "trade": "Webshop",
+      "situation": "status",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "state": "Jeg skal undersøge sagen nærmere.",
+        "next": "Jeg vender tilbage, når jeg har undersøgt sagen."
+      },
+      "andet": "",
+      "besked": "Hej. Jeg bestilte en vare hos jer for nogle dage siden, men har endnu ikke modtaget den. Jeg vil gerne høre, hvornår jeg kan forvente at modtage den. Mit ordrenummer er 12345.",
+      "tjek": "Svaret må ikke: Sige at varen er sendt eller nævne en leveringsdato. Love at den er fremme til en bestemt dag. Skal: Nævne ordrenummeret og vende tilbage senest [dag].",
+      "maa_ikke": [
+        "kr.",
+        "–",
+        "håndværk"
+      ],
+      "skal_med": [
+        "12345"
+      ]
+    },
+    {
+      "id": "generel8-5-support",
+      "trade": "IT-support",
+      "situation": "support",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "handle": "Jeg vil guide kunden gennem nogle trin.",
+        "next": "Jeg sender en vejledning."
+      },
+      "andet": "",
+      "besked": "Hej. Jeg har problemer med at logge ind på min konto. Jeg har prøvet at nulstille min adgangskode, men det virker stadig ikke. Kan I hjælpe mig?",
+      "tjek": "Svaret må ikke: Finde på trin eller årsager (ingen står i fakta). Love at problemet bliver løst. Skal: Sige, at der kommer en vejledning.",
+      "maa_ikke": [
+        "kr.",
+        "–",
+        "håndværk"
+      ]
+    },
+    {
+      "id": "generel8-6-ros",
+      "trade": "Restaurant",
+      "situation": "ros",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "reply": "Jeg vil gerne opfordre kunden til at anbefale os eller skrive en anmeldelse.",
+        "link": "https://g.page/r/eksempel/review"
+      },
+      "andet": "",
+      "besked": "Hej. Jeg vil bare lige sige tak for en rigtig god oplevelse hos jer. Det hele fungerede super godt, og jeg er meget tilfreds. Jeg vil helt sikkert anbefale jer til andre.",
+      "tjek": "Svaret må ikke: Love rabat eller noget til næste besøg. Skal: Takke varmt og kort og bede om en anmeldelse i én sætning med linket.",
+      "maa_ikke": [
+        "kr.",
+        "rabat",
+        "–",
+        "håndværk"
+      ],
+      "skal_med": [
+        "https://g.page/r/eksempel/review"
+      ]
+    },
+    {
+      "id": "generel8-7-klage",
+      "trade": "Hotel",
+      "situation": "kvalitet",
+      "kanal": "mail",
+      "tone": "venlig",
+      "felter": {
+        "assess": "Jeg er ikke enig i kundens vurdering.",
+        "next": "Jeg vil gerne finde en løsning sammen med kunden."
+      },
+      "andet": "",
+      "besked": "Hej. Jeg er desværre ikke tilfreds med den service, jeg har fået hos jer. Jeg havde forventet noget andet, og jeg synes ikke, at det lever op til det, vi aftalte. Jeg vil gerne høre, hvad I vil gøre ved det.",
+      "tjek": "Svaret må ikke: Give kunden ret eller indrømme en fejl. Love kompensation, rabat eller refusion. Afvise kunden koldt. Skal: Anerkende oplevelsen, sige at virksomheden ser anderledes på det, og foreslå at finde en løsning sammen.",
+      "maa_ikke": [
+        "kr.",
+        "rabat",
+        "gavekort",
+        "refusion",
+        "–",
+        "håndværk"
+      ]
+    },
+    {
+      "id": "generel8-8-andet",
+      "trade": "Konsulent",
+      "situation": "andet",
+      "kanal": "sms",
+      "tone": "venlig",
+      "felter": {
+        "handle": "Jeg skal sende kunden videre til den rette person.",
+        "next": "Jeg henviser kunden til den relevante information eller kontaktperson."
+      },
+      "andet": "",
+      "besked": "Hej. Jeg har et spørgsmål, som jeg ikke helt kan finde svar på på jeres hjemmeside. Jeg vil gerne høre, om I kan hjælpe mig med at finde ud af, hvordan det fungerer hos jer.",
+      "tjek": "Svaret må ikke: Finde på et navn, en mail eller et telefonnummer på kontaktpersonen. Skal: Skrive en pladsholder for kontaktpersonen.",
+      "maa_ikke": [
+        "kr.",
+        "–",
+        "håndværk"
+      ]
+    }
+  ]
+}
