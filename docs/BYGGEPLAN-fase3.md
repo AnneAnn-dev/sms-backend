@@ -1,6 +1,6 @@
 # Fase 3 byggeplan: betaling og pakker i Frisbii
 
-*Udskrift af Claude Doc'en »Fase 3 byggeplan: betaling og pakker i Frisbii« (rev 24, 17/11-26), lagt i repoet 18/11-26. Oprettet 28/10-26 af Ann. Registret er facit; denne plan er kortet.*
+*Udskrift af Claude Doc'en »Fase 3 byggeplan: betaling og pakker i Frisbii« (rev 24, 17/11-26), lagt i repoet 18/11-26. Oprettet 28/10-26 af Ann. Registret er facit; denne plan er kortet. Rettet i repoet 18/11-26 (T10 løst, målt); Claude Doc'en er ikke rettet tilsvarende.*
 
 ## Kort fortalt
 
@@ -53,11 +53,11 @@ Trinene tages i rækkefølge; hvert bygger på det forrige. T1–T3 læser kun o
 
 ## Efter prod: det, der står tilbage (pr. 17/11)
 
-T1–T9 er i prod siden 2/11. Tilbage er ét tog med det, der ligger klar i staging, to små visningsfejl og fem ting, der venter på en beslutning eller en anden chat. Intet her blokerer piloterne.
+T1–T9 er i prod siden 2/11, og T10 er løst (målt 18/11): det, der ventede på et tog, er allerede på `main`. Tilbage er to små visningsfejl og fem ting, der venter på en beslutning eller en anden chat. Fase 3 har intet, der venter i staging. Intet her blokerer piloterne.
 
 | Trin | Hvad | Bevis | Hvem og hvornår | Størrelse |
 | --- | --- | --- | --- | --- |
-| **T10 Næste tog** | Til `main`: Køb i Din pakke ved rabat på 100 % (`2026-11-08-koeb-kompensation`, bevist på `sub-0146`), Dependabot-opdateringerne (`dotenv` 18, #88, #45, actions v7) og D2 T2/T3. Er Fase 4 flettet ind i staging, skal den være slukket bag sit flag | `git log origin/main..origin/staging` gennemgået, migrationer målt, røgtest 13/13 før og efter, ny `sw.js`-version i prod | Ann, efter kl. 17. Venter på gennemgangen af listen | S |
+| **T10 Næste tog** ✅ Løst | ~~Til `main`: Køb i Din pakke ved rabat på 100 % (`2026-11-08-koeb-kompensation`), Dependabot-opdateringerne (`dotenv` 18, #88, #45, actions v7) og D2 T2/T3.~~ Alle tre nåede `main` med de senere tog, uden et særskilt Fase 3-tog. Det, der nu ligger i `origin/main..origin/staging`, er Fase 4 salgs (T1–T4, `navn-raad`, registerposter og migrationen `20261117120000_firma_moduler_kunder.sql`); det tog følger `docs/fase4-salg-byggeplan.md` og er ikke Fase 3's | Målt 18/11 på `origin/main` = `1d5a07e`: `compensation_method: "none"` ved code 215 i `frisbii-pakke.js` og `proev-frisbii-pakke.js` · `"dotenv": "^18.0.9"` i `package.json` · `kunde-sms.js` og `proev-kunde-sms.js` findes. Hvilket tog der bar dem, er ikke målt (sandsynligvis PR #114, 15/11). Actions v7 og D2 T3 er ikke målt hver for sig | Lukket 18/11 | S |
 | **T11 Din pakke: to visningsfejl** | Gammel plan viser ikke »Telefonpasser – Dit nuværende abonnement« (telefonen kommer fra planen, ikke fra et add-on). Et udløbet abonnement vises som aktivt med knapper og sum; skal i stedet sige »Dit abonnement er udløbet« | `proev-frisbii-pakke.js` rød før, grøn efter; Din pakke vist for DB Tømrer og et udløbet testfirma | Ann 8/11: vi lever med det. Med et senere tog | S |
 | **T12 Kataloget: én pakke** | »Kundehenvendelser og SoMe« som ét add-on til 200 kr., der giver modulrækkerne `svar` og `facebook` (som Hele pakken). Står som »kommer snart«, til Fase 4 er klar | Katalog-, checkout-, pakke- og synk-prøverne grønne; Din pakke viser én grå linje | Fase 4-chatten (overlevering givet 8/11) | M |
 | **T13 Afstemningen udvides** | Særpriser (D15), dobbelte eksemplarer af samme modul og første betalingsdato. Det samme i den natlige kontrol | Rød på en kendt særpris og et kendt dobbelt eksemplar i staging, grøn ellers | Ann 6/11: senere | M |
