@@ -105,7 +105,7 @@
     <section>
       <span class="etiket">Vælg moduler</span>
       <div class="produkter" id="produkter"></div>
-      <p class="gratis">Opgaver og kunde-CRM er gratis med i alle moduler.</p>
+      <p class="gratis">Opgaver og kunde-CRM er gratis med i alle moduler – undtagen Skrivehjælp og SoMe uden kunder.</p>
     </section>
 
     <section style="margin-top:28px">
@@ -194,7 +194,15 @@
         var lab = document.createElement("label"); lab.className = "produkt";
         var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = p.modul;
         cb.checked = valgtFraLink.length ? valgtFraLink.indexOf(p.modul) !== -1 : p.modul === "telefon";
-        cb.addEventListener("change", opdaterSum);
+        // To udgaver af samme pakke (Fase 4 salg): kun én ad gangen. Fra linket vinder den første.
+        if (cb.checked && (p.udelukker || []).some(function (u) { return valgte().indexOf(u) !== -1; })) cb.checked = false;
+        cb.addEventListener("change", function () {
+          if (cb.checked) (p.udelukker || []).forEach(function (u) {
+            var anden = document.querySelector('#produkter input[value="' + u + '"]');
+            if (anden) anden.checked = false;
+          });
+          opdaterSum();
+        });
         var navn = document.createElement("span"); navn.className = "navn"; navn.textContent = p.navn;
         var pris = document.createElement("span"); pris.className = "pris"; pris.textContent = kr(p.prisOere) + "/md.";
         lab.appendChild(cb); lab.appendChild(navn); lab.appendChild(pris); liste.appendChild(lab);
@@ -213,6 +221,7 @@
     kode_utilgaengelig: ["kode", "Vi kunne ikke tjekke rabatkoden lige nu. Prøv igen om lidt."],
     ingen_moduler: [null, "Vælg mindst ét modul."],
     ukendt_modul: [null, "Et af modulerne kan ikke købes lige nu. Genindlæs siden og prøv igen."],
+    to_udgaver: [null, "Vælg én af de to udgaver af Skrivehjælp og SoMe."],
   };
 
   $("form").addEventListener("submit", function (e) {

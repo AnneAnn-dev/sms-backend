@@ -44,7 +44,7 @@
 const path = require("path");
 const { opretLoft, klientIp } = require("./ratelimit");
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG, varer, handleForVare } = require("./frisbii-katalog");
+const { KATALOG, varer, handleForVare, udgaver } = require("./frisbii-katalog");
 const { firmaerMedEmail } = require("./frisbii-kunde");
 
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
@@ -94,10 +94,16 @@ function maskerEmail(s) {
 
 // ─── T8b: de moduler, der kan koebes nu (kataloget: saelges = true) ─────────
 // Varer = moduler og pakker (Fase 4: "Kundehenvendelser og SoMe"). modul er varens noegle.
+// udelukker (Fase 4 salg, 18/11): de udgaver, der ikke kan koebes sammen med
+// varen - bestillingssiden fjerner fluebenet i den anden, naar den ene vaelges.
 function tilSalg(katalog = KATALOG) {
-  return varer(katalog)
-    .filter((a) => a.saelges)
-    .map((a) => ({ modul: a.noegle, navn: a.navn, prisOere: a.prisOere }));
+  const tilgaengelig = varer(katalog).filter((a) => a.saelges);
+  return tilgaengelig.map((a) => {
+    const p = { modul: a.noegle, navn: a.navn, prisOere: a.prisOere };
+    const u = udgaver(a.noegle, katalog).filter((k) => tilgaengelig.some((x) => x.noegle === k));
+    if (u.length) p.udelukker = u;
+    return p;
+  });
 }
 
 // Kundens valg -> { ok, moduler } eller { ok: false, fejl }. Tager en liste
@@ -114,6 +120,8 @@ function vaelgModuler(input, katalog = KATALOG) {
   const salg = new Set(tilSalg(katalog).map((p) => p.modul));
   const ukendte = valgt.filter((m) => !salg.has(m));
   if (ukendte.length) return { ok: false, fejl: "ukendt_modul", ukendte };
+  // Aldrig to udgaver af samme pakke i ét koeb - kunden ville betale for begge.
+  if (valgt.some((m) => udgaver(m, katalog).some((u) => valgt.includes(u)))) return { ok: false, fejl: "to_udgaver" };
   return { ok: true, moduler: valgt.sort() };
 }
 

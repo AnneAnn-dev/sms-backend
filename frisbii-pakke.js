@@ -58,7 +58,7 @@
 "use strict";
 
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG, varer } = require("./frisbii-katalog");
+const { KATALOG, varer, udgaver } = require("./frisbii-katalog");
 const { firmIdFromToken } = require("./auth");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
@@ -76,15 +76,7 @@ function handleTilModul(katalog = KATALOG) {
   return m;
 }
 
-// Udgaver: de andre pakker, der deler et modul med pakken. Ren funktion.
-// Afledt af kataloget - ingen liste at holde ved lige.
-function udgaver(noegle, katalog = KATALOG) {
-  const p = katalog.PAKKER[noegle];
-  if (!p) return [];
-  return Object.entries(katalog.PAKKER)
-    .filter(([k, a]) => k !== noegle && (a.moduler || []).some((m) => p.moduler.includes(m)))
-    .map(([k]) => k);
-}
+// udgaver() bor i frisbii-katalog.js (bruges ogsaa af bestillingen).
 
 // Modulerne bag en vare (en pakke giver flere). Ren funktion.
 function modulerAf(noegle, katalog = KATALOG) {
@@ -177,6 +169,12 @@ function visning(t, katalog = KATALOG) {
       raekke.faarKunder = !foer && efter;
     }
     moduler.push(raekke);
+  }
+  // Rækkefølge (Ann 18/11): "Skift"-rækken står lige under den udgave, kunden har.
+  for (const r of moduler.filter((m) => m.status === "kan-skiftes")) {
+    moduler.splice(moduler.indexOf(r), 1);
+    const i = moduler.findIndex((m) => m.modul === r.skiftFra.modul);
+    moduler.splice(i + 1, 0, r);
   }
   const aktive = moduler.filter((m) => m.status === "aktiv").length;
   return {

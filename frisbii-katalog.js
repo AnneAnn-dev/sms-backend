@@ -81,6 +81,18 @@ const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere
 
 const KATALOG = { BASISPLAN, PROEVEDAGE, GAMLE_PLANER, MODUL_ADDONS, PAKKER, HELE_PAKKEN };
 
+// Udgaver (Fase 4 salg): de andre pakker, der deler et modul med pakken - fx
+// "Skrivehjaelp og SoMe med kunder" og "... uden kunder". Man har hoejst den
+// ene; begge er dobbelt betaling. Bruges af Din pakke (skift) og bestillingen
+// (aldrig begge i samme koeb). Afledt af kataloget - ingen liste at vedligeholde.
+function udgaver(noegle, katalog = KATALOG) {
+  const p = (katalog.PAKKER || {})[noegle];
+  if (!p) return [];
+  return Object.entries(katalog.PAKKER)
+    .filter(([k, a]) => k !== noegle && (a.moduler || []).some((m) => p.moduler.includes(m)))
+    .map(([k]) => k);
+}
+
 // Alle varer, man kan have et eksemplar af i Din pakke: hvert modul og hver pakke.
 // noegle er det, appen og /api/pakke bruger ({ modul: noegle }); moduler er det,
 // varen giver. Hele pakken er ikke med (den saelges ikke og foelger MODULER).
@@ -211,4 +223,4 @@ function tjekKatalog(katalog = KATALOG, moduler = MODULER) {
   return fejl;
 }
 
-module.exports = { KATALOG, varer, vare, modulerFraHandles, handleForModul, handleForVare, produkterTilSalg, tjekKatalog };
+module.exports = { KATALOG, varer, udgaver, vare, modulerFraHandles, handleForModul, handleForVare, produkterTilSalg, tjekKatalog };
