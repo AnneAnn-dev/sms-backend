@@ -10,6 +10,7 @@
 //   POST /api/pakke/fortryd      { modul }  fortryd et stop
 //   POST /api/pakke/opsig        opsig hele abonnementet (periodens slut)
 //   POST /api/pakke/genindfoer   fortryd opsigelsen
+//   POST /api/pakke/skift        { modul }  skift til en anden udgave (Fase 4 salg T4)
 //
 // Reglerne (Ann 25/10 + 28/10 + 31/10) og MAALINGERNE 31/10 (staging, sub-0139),
 // som de rene funktioner herunder er bygget paa:
@@ -41,14 +42,27 @@
 //     add-ons, vises som en linje og traekkes fra summerne. Maalt 1/11
 //     (sub-0140): pilot-gratis, percentage 100, apply_to ["all"]. Modulernes
 //     egne priser er uaendrede (prisen paa en raekke er listeprisen).
+//   - UDGAVER (Fase 4 salg T4, 17-18/11-26, docs/fase4-salg-byggeplan.md): to
+//     pakker, der deler et modul, er udgaver af det samme ("Skrivehjaelp og SoMe
+//     med/uden kunder"). Man har hoejst den ene: begge paa abonnementet er
+//     dobbelt betaling. Har firmaet den ene, vises den anden som "kan-skiftes",
+//     og skift = ÉT straks-kald, der tilfoejer den nye og fjerner den gamle.
+//     Et koeb af en udgave, mens den anden er der, bliver til et skift.
+//     IKKE MAALT ENDNU: at Frisbii tager add_ons og remove_add_ons i samme
+//     straks-kald, og hvordan kompensationen ser ud. Maales i T7 (staging,
+//     Frisbii test), foer pakkerne saelges.
+//   - En udgave uden Kunder og Opgaver vises ikke, naar firmaet allerede har
+//     dem fra et andet modul (fx Telefonpasser): den giver intet ekstra.
+//     Reglen for "har kunder" staar i moduler.js (harKunder).
 // -----------------------------------------------------------------------------
 "use strict";
 
 const { FASE3_SYNK } = require("./flags");
-const { KATALOG, varer } = require("./frisbii-katalog");
+const { KATALOG, varer, udgaver } = require("./frisbii-katalog");
 const { firmIdFromToken } = require("./auth");
 const { synkFirma } = require("./frisbii-synk");
 const { lavFrisbiiGet } = require("./frisbii-miljoe");
+const { harKunder } = require("./moduler");
 
 const API = "https://api.frisbii.com/v1";
 
@@ -60,6 +74,13 @@ function handleTilModul(katalog = KATALOG) {
   const m = {};
   for (const v of varer(katalog)) m[v.handle] = v.noegle;
   return m;
+}
+
+// udgaver() bor i frisbii-katalog.js (bruges ogsaa af bestillingen).
+
+// Modulerne bag en vare (en pakke giver flere). Ren funktion.
+function modulerAf(noegle, katalog = KATALOG) {
+  return katalog.PAKKER[noegle] ? katalog.PAKKER[noegle].moduler.slice() : [noegle];
 }
 
 // De rabatter, der rammer modulerne: aktive, ikke opbrugte, og gaelder "all"
@@ -121,17 +142,39 @@ function visning(t, katalog = KATALOG) {
   const vent = new Set(t.ventendeStop);
   const moduler = [];
   let nu = 0, fraNaeste = 0;
+  const harVare = (k) => (t.instanser[k] || []).length > 0;
+  // Modulerne fra de varer, firmaet har nu (undtagen dem i "uden").
+  const modulerNu = (uden = []) => Object.keys(t.instanser).filter((k) => harVare(k) && !uden.includes(k)).flatMap((k) => modulerAf(k, katalog));
   for (const a of varer(katalog)) {
     const modul = a.noegle;
     const inst = t.instanser[modul] || [];
     const aktiv = inst.length > 0;
     const stopper = aktiv && inst.every((h) => vent.has(h));
     if (!aktiv && !a.saelges && !a.kommer) continue;
-    let status = aktiv ? (stopper ? "stopper" : "aktiv") : (a.saelges ? "kan-koebes" : "kommer");
+    const alt = udgaver(modul, katalog);
+    // T4: en udgave uden Kunder og Opgaver giver intet, naar et andet modul giver dem.
+    if (!aktiv && alt.length && !harKunder(modulerAf(modul, katalog)) && harKunder(modulerNu([modul, ...alt]))) continue;
+    const fra = !aktiv && !t.opsagt ? alt.find(harVare) : null;
+    let status = aktiv ? (stopper ? "stopper" : "aktiv") : (a.saelges ? (fra ? "kan-skiftes" : "kan-koebes") : "kommer");
     if (t.opsagt && aktiv) status = "stopper";
     nu += aktiv ? a.prisOere * inst.length : 0;
     if (aktiv && !stopper && !t.opsagt) fraNaeste += a.prisOere * inst.length;
-    moduler.push({ modul, navn: a.navn, prisOere: a.prisOere, status, dobbelt: inst.length > 1 });
+    const raekke = { modul, navn: a.navn, prisOere: a.prisOere, status, dobbelt: inst.length > 1 };
+    if (status === "kan-skiftes") {
+      const f = varer(katalog).find((v) => v.noegle === fra);
+      raekke.skiftFra = { modul: fra, navn: f.navn, prisOere: f.prisOere };
+      // Mister firmaet Kunder og Opgaver ved skiftet? (Appen advarer.)
+      const foer = harKunder(modulerNu()), efter = harKunder([...modulerNu([fra]), ...modulerAf(modul, katalog)]);
+      raekke.misterKunder = foer && !efter;
+      raekke.faarKunder = !foer && efter;
+    }
+    moduler.push(raekke);
+  }
+  // Rækkefølge (Ann 18/11): "Skift"-rækken står lige under den udgave, kunden har.
+  for (const r of moduler.filter((m) => m.status === "kan-skiftes")) {
+    moduler.splice(moduler.indexOf(r), 1);
+    const i = moduler.findIndex((m) => m.modul === r.skiftFra.modul);
+    moduler.splice(i + 1, 0, r);
   }
   const aktive = moduler.filter((m) => m.status === "aktiv").length;
   return {
@@ -165,12 +208,26 @@ function planlaeg(handling, modul, t, { sub, katalog = KATALOG, nyHandle } = {})
     ? { metode: "PUT", sti: s, krop: { timing: "renewal", remove_add_ons: liste } }
     : { metode: "PUT", sti: s, krop: { timing: "renewal", cancel_change: true } };
 
+  const gamle = udgaver(modul, katalog).flatMap((k) => t.instanser[k] || []);
   if (handling === "koeb") {
     if (stopper) return planlaeg("fortryd", modul, t, { sub, katalog });   // aldrig et ekstra eksemplar
+    if (!inst.length && gamle.length) return planlaeg("skift", modul, t, { sub, katalog, nyHandle }); // aldrig to udgaver
     if (inst.length) return { fejl: "har_modulet", status: 409 };
     if (!a.saelges) return { fejl: "saelges_ikke", status: 400 };
     const kald = [{ metode: "PUT", sti: s, krop: { timing: "immediate", add_ons: [{ add_on: a.handle, handle: nyHandle || `${a.handle}-${Date.now().toString(36)}` }] } }];
     if (t.ventendeStop.length) kald.push(genStop(t.ventendeStop)); // straks-aendringen slettede dem
+    return { kald };
+  }
+  if (handling === "skift") {
+    if (!katalog.PAKKER[modul]) return { fejl: "kan_ikke_skifte", status: 400 };
+    if (inst.length) return { fejl: "har_modulet", status: 409 };
+    if (!a.saelges) return { fejl: "saelges_ikke", status: 400 };
+    if (!gamle.length) return { fejl: "intet_at_skifte_fra", status: 409 };
+    const kald = [{ metode: "PUT", sti: s, krop: { timing: "immediate",
+      add_ons: [{ add_on: a.handle, handle: nyHandle || `${a.handle}-${Date.now().toString(36)}` }], remove_add_ons: gamle } }];
+    // Straks-aendringen sletter ventende stop: send de resterende igen (ikke den gamle udgaves).
+    const tilbage = t.ventendeStop.filter((h) => !gamle.includes(h));
+    if (tilbage.length) kald.push(genStop(tilbage));
     return { kald };
   }
   if (handling === "stop") {
@@ -251,7 +308,7 @@ function pakkeModul(app, supabase, { noegle = process.env.FRISBII_PRIVATE_KEY, f
     }
   });
 
-  for (const handling of ["koeb", "stop", "fortryd", "opsig", "genindfoer"]) {
+  for (const handling of ["koeb", "stop", "fortryd", "opsig", "genindfoer", "skift"]) {
     app.post(`/api/pakke/${handling}`, async (req, res) => {
       try {
         const f = await firmaOgTilstand(req, res);
@@ -295,3 +352,4 @@ module.exports.planlaeg = planlaeg;
 module.exports.virkendeRabatter = virkendeRabatter;
 module.exports.efterRabat = efterRabat;
 module.exports.igenUdenKompensation = igenUdenKompensation;
+module.exports.udgaver = udgaver;

@@ -203,6 +203,12 @@
     .kun-faner { display: none !important; }
     body.faner .kun-faner { display: flex !important; }
     body.faner .skjul-ved-faner { display: none !important; }
+    /* Fase 4 salg T3 (17/11-26): "Skrivehjaelp og SoMe uden kunder" har hverken
+       Opgaver eller Kunder. Kun naar /api/moduler svarer harKunder:false OG
+       firmaet har Vaerktoejer - ellers ser alt ud som foer. Id-vaelgerne vinder
+       over .kun-faner (hoejere specificitet, begge !important). */
+    body.faner.uden-kunder #nav-alle, body.faner.uden-kunder #nav-kunder,
+    body.faner.uden-kunder #top-ny-opgave, body.faner.uden-kunder #opgave-soeg-blok { display: none !important; }
     .topbar-profil { background: none; border: none; color: var(--ink-muted); padding: 6px; cursor: pointer; line-height: 0; }
     .topbar-profil .ti { width: 26px; height: 26px; }
     .topbar-hoejre { display: flex; align-items: center; gap: 8px; }
@@ -759,7 +765,7 @@
 <div class="topbar">
   <h1 id="firm-name">Dashboard</h1>
   <div class="topbar-hoejre">
-  <button class="btn-sm" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
+  <button class="btn-sm" id="top-ny-opgave" onclick="nyOpgaveFraTop()" style="display:flex;align-items:center;gap:5px"><svg class="ti" style="font-size:15px" aria-hidden="true"><use href="#i-plus"/></svg> Ny opgave</button>
   <button class="topbar-profil kun-faner" onclick="setPage('profil')" aria-label="Profil"><svg class="ti" aria-hidden="true"><use href="#i-user-circle"/></svg></button>
   </div>
 </div>
@@ -2688,7 +2694,11 @@ function leadKort(lead) {
         body: JSON.stringify(modul ? { modul } : {}),
       });
       const d = await r.json().catch(() => ({}));
-      if (r.ok && d.abonnement) pakke = d;
+      if (r.ok && d.abonnement) {
+        pakke = d;
+        // T4: et koeb eller skift kan give eller tage Kunder og Opgaver.
+        if (handling === 'koeb' || handling === 'skift') tjekFaner(true);
+      }
       else pakkeFejl = ({
         sidste_modul: 'Dit sidste modul kan ikke stoppes for sig. Vil du stoppe helt, så opsig abonnementet.',
         opsagt: 'Dit abonnement er opsagt. Genindfør det først.',
@@ -2723,7 +2733,16 @@ function leadKort(lead) {
     for (const m of p.moduler) {
       const pris = pkKr(m.prisOere) + '/md.';
       if (pakkeSpoerg && pakkeSpoerg.modul === m.modul) {
-        if (pakkeSpoerg.handling === 'stop') {
+        if (pakkeSpoerg.handling === 'skift') {
+          // T4 (18/11-26). Teksterne er Claudes udkast; Anne godkender.
+          const tekster = [['Skift til ' + m.navn + '?', true]];
+          if (m.misterKunder) tekster.push(['Kunder og Opgaver forsvinder fra appen.']);
+          if (m.faarKunder) tekster.push(['Kunder og Opgaver kommer frem i appen.']);
+          tekster.push([m.prisOere === m.skiftFra.prisOere ? 'Prisen er den samme, og skiftet gælder med det samme.'
+            : m.navn + ' koster ' + pris + ' ekskl. moms og gælder med det samme.']);
+          ind.appendChild(pkBoks(tekster,
+            [pkKnap('Fortryd', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Skift', true, () => pakkeHandling('skift', m.modul))]));
+        } else if (pakkeSpoerg.handling === 'stop') {
           ind.appendChild(pkBoks([['Stop ' + m.navn + '?', true], [m.navn + ' virker til ' + dato + ' og koster ikke noget derefter. Du kan fortryde indtil da.']],
             [pkKnap('Behold', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Stop ' + m.navn, true, () => pakkeHandling('stop', m.modul))]));
         } else {
@@ -2741,6 +2760,9 @@ function leadKort(lead) {
         ind.appendChild(pkRaekke(m.navn, linje, (p.opsagt || m.sidste) ? null : pkKnap('Stop', false, () => { pakkeSpoerg = { handling: 'stop', modul: m.modul }; tegnPakke(); })));
       } else if (m.status === 'stopper') {
         ind.appendChild(pkRaekke(m.navn, 'Stopper ' + dato, p.opsagt ? null : pkKnap('Fortryd', false, () => pakkeHandling('fortryd', m.modul))));
+      } else if (m.status === 'kan-skiftes') {
+        const linje = (m.prisOere === m.skiftFra.prisOere ? 'Samme pris' : pris) + ' · i stedet for ' + m.skiftFra.navn;
+        ind.appendChild(pkRaekke(m.navn, linje, p.opsagt ? null : pkKnap('Skift', true, () => { pakkeSpoerg = { handling: 'skift', modul: m.modul }; tegnPakke(); })));
       } else if (m.status === 'kan-koebes') {
         ind.appendChild(pkRaekke(m.navn, pris + ' · virker med det samme', p.opsagt ? null : pkKnap('Køb', true, () => { pakkeSpoerg = { handling: 'koeb', modul: m.modul }; tegnPakke(); })));
       } else {
@@ -2771,7 +2793,8 @@ function leadKort(lead) {
         const navne = p.moduler.filter((m) => m.status === 'aktiv' || m.status === 'stopper').map((m) => m.navn).join(' og ');
         const tekster = [['Stop! Du opsiger hele abonnementet.', true], [navne + ' stopper ' + dato + '.']];
         if (telefon && telefon.status !== 'kan-koebes') tekster.push(['Dit nummer holder op med at tage imod opkald.']);
-        tekster.push(['Dine opgaver og kunder gemmes i 3 måneder.']);
+        // T5: uden Kunder og Opgaver (body.uden-kunder, T3) er der ingen at gemme.
+        if (!document.body.classList.contains('uden-kunder')) tekster.push(['Dine opgaver og kunder gemmes i 3 måneder.']);
         ind.appendChild(pkBoks(tekster, [pkKnap('Fortryd', false, () => { pakkeSpoerg = null; tegnPakke(); }), pkKnap('Opsig', true, () => pakkeHandling('opsig'))]));
       } else {
         const o = pkEl('button', 'pk-opsig', 'Opsig abonnementet'); o.type = 'button';
@@ -3163,15 +3186,18 @@ function leadKort(lead) {
   // mangler, flaget er slukket, eller netvaerket svigter — bliver alt som
   // foer. Det fejler mod "som i dag", aldrig mod en tom skaerm.
   let fanerTjekket = false;
-  async function tjekFaner() {
-    if (fanerTjekket) return;
+  // blivHer (T4): kaldt igen efter et koeb eller skift i Din pakke - fanerne
+  // tilpasses (fx kommer Kunder og Opgaver frem), men han bliver i Profil.
+  async function tjekFaner(blivHer) {
+    if (fanerTjekket && !blivHer) return;
     fanerTjekket = true;
     try {
       const r = await fetch('/api/moduler', { headers: await authHeader() });
       if (!r.ok) return;
       const svar = await r.json();
       if (svar.tilbudAktiv !== true) return;
-      aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : []);
+      aktiverFaner(Array.isArray(svar.moduler) ? svar.moduler : [], svar.harKunder, blivHer);
+      if (blivHer) return;
       // Indtal ny opgave foelger TILBUD_AKTIV (Ann 16/10) — men intet modul:
       // alle firmaer faar mikrofonen.
       aktiverIndtaling();
@@ -3180,15 +3206,20 @@ function leadKort(lead) {
     }
   }
 
-  function aktiverFaner(moduler) {
+  function aktiverFaner(moduler, harKunder, blivHer) {
     document.body.classList.add('faner');
     // Skrivehjaelp kun med et af dens moduler (Fase 4).
     const skriv = moduler.includes('svar') || moduler.includes('facebook');
     document.getElementById('nav-skriv').style.display = skriv ? '' : 'none';
+    // T3: uden Kunder og Opgaver kun Vaerktoejer (+ Profil i toppen). Kun ved et
+    // udtrykkeligt false fra serveren; mangler feltet (aeldre server), som foer.
+    const udenKunder = harKunder === false && skriv;
+    document.body.classList.toggle('uden-kunder', udenKunder);
     vk.moduler = moduler.slice();
+    if (blivHer) return;
     // D94 trin 1c: profilen som oversigt — alt lukket, undtagen telefonpasseren.
     document.querySelectorAll('#page-profil details.profil-punkt').forEach(d => { d.open = d.id === 'profil-telefonpasser'; });
-    setFane('alle');
+    setFane(udenKunder ? 'skriv' : 'alle');
   }
 
   let forrigeFane = null;
@@ -3204,6 +3235,9 @@ function leadKort(lead) {
   });
 
   function setFane(fane) {
+    // T3: et firma uden Kunder og Opgaver har kun Vaerktoejer - ogsaa naar en
+    // anden vej (fx et link fra opgavevinduet) beder om en skjult fane.
+    if (document.body.classList.contains('uden-kunder')) fane = 'skriv';
     const fra = forrigeFane;
     forrigeFane = fane;
     if (fane === 'kunder') {

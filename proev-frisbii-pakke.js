@@ -40,7 +40,8 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   lig("instanser pr. modul", t.instanser, { referat: ["modul-referat"], telefon: ["modul-telefon"] });
   let v = visning(t);
   lig("to aktive moduler, prisen nu 900 kr.", [v.moduler.filter((m) => m.status === "aktiv").map((m) => m.modul), v.prisNuOere, v.prisFraNaesteOere], [["telefon", "referat"], 90000, 90000]);
-  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke", v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar-some"]);
+  lig("kommende moduler vises graatonet, Booking og Hele pakken ikke - og ikke \"uden kunder\", naar Telefonpasser giver kunder (T4)",
+    v.moduler.filter((m) => m.status === "kommer").map((m) => m.modul), ["tilbud", "faktura", "svar-some"]);
   lig("proeveperioden og stop-datoen", [v.proeveTil, v.stopDato], ["2026-11-07T10:59:59.791+00:00", "2026-11-07T10:59:59.791+00:00"]);
   v = visning(tilstand(SUB(STOP_REF), BEGGE));
   lig("ventende stop: Referat 'stopper', 500 kr. fra naeste periode", [v.moduler.find((m) => m.modul === "referat").status, v.prisFraNaesteOere], ["stopper", 50000]);
@@ -96,7 +97,7 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   const MED_PAKKE = A(["modul-telefon", "modul-telefon"], ["modul-svar-some-1", "modul-svar-some"]);
   v = visning(tilstand(SUB(), MED_PAKKE));
   lig("pakken er en linje med pakkens navn og pris", v.moduler.filter((m) => m.modul === "svar-some").map((m) => [m.navn, m.prisOere, m.status]),
-    [["Kundehenvendelser og SoMe", 20000, "aktiv"]]);
+    [["Skrivehj\u00e6lp og SoMe med kunder", 20000, "aktiv"]]);
   lig("svar og facebook vises ikke for sig", v.moduler.some((m) => m.modul === "svar" || m.modul === "facebook"), false);
   lig("prisen: Telefonpasser + pakken = 700 kr.", v.prisNuOere, 70000);
   lig("stop pakken: hele pakken stoppes", P("stop", "svar-some", SUB(), MED_PAKKE).kald[0].krop, { timing: "renewal", remove_add_ons: ["modul-svar-some-1"] });
@@ -106,6 +107,47 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
     planlaeg("koeb", "svar-some", tilstand(SUB(), BEGGE, KP), { sub: "sub-0139", katalog: KP, nyHandle: "ny-1" }).kald[0].krop,
     { timing: "immediate", add_ons: [{ add_on: "modul-svar-some", handle: "ny-1" }] });
   lig("kan ikke stoppe enkeltmodulet svar, naar man kun har pakken", P("stop", "svar", SUB(), MED_PAKKE).fejl, "har_ikke_modulet");
+
+  console.log("\n3d. Udgaver: skift mellem med og uden kunder (Fase 4 salg T4, 18/11)");
+  const { udgaver } = pakke;
+  lig("de to Skrivehjaelp-pakker er udgaver af hinanden", [udgaver("svar-some"), udgaver("svar-some-uden-kunder"), udgaver("referat")], [["svar-some-uden-kunder"], ["svar-some"], []]);
+  const KS = JSON.parse(JSON.stringify(KATALOG)); KS.PAKKER["svar-some"].saelges = true; KS.PAKKER["svar-some-uden-kunder"].saelges = true;
+  const MED = A(["med-1", "modul-svar-some"]), UDEN = A(["uden-1", "modul-svar-some-uden-kunder"]);
+  const PS = (h, m, sub, add) => planlaeg(h, m, tilstand(sub, add, KS), { sub: "sub-0139", katalog: KS, nyHandle: "ny-1" });
+  const VS = (sub, add) => visning(tilstand(sub, add, KS), KS);
+  let r1 = VS(SUB(), UDEN).moduler.find((m) => m.modul === "svar-some");
+  lig("har uden kunder: med kunder kan-skiftes og giver kunder", [r1.status, r1.skiftFra.modul, r1.misterKunder, r1.faarKunder], ["kan-skiftes", "svar-some-uden-kunder", false, true]);
+  r1 = VS(SUB(), MED).moduler.find((m) => m.modul === "svar-some-uden-kunder");
+  lig("har med kunder: uden kunder kan-skiftes og mister kunder", [r1.status, r1.skiftFra.modul, r1.misterKunder, r1.faarKunder], ["kan-skiftes", "svar-some", true, false]);
+  r1 = VS(SUB(), [...MED, ...A(["modul-telefon", "modul-telefon"])]).moduler.find((m) => m.modul === "svar-some-uden-kunder");
+  lig("med kunder + Telefonpasser: uden kunder vises ikke (giver intet)", r1, undefined);
+  r1 = VS(SUB(), [...UDEN, ...A(["modul-referat", "modul-referat"])]).moduler.find((m) => m.modul === "svar-some");
+  lig("uden kunder + Referat: med kunder kan stadig skiftes til, hverken tab eller gevinst", [r1.status, r1.misterKunder, r1.faarKunder], ["kan-skiftes", false, false]);
+  lig("Referat alene: kun med kunder tilbydes (uden giver intet ekstra)", VS(SUB(), A(["modul-referat", "modul-referat"])).moduler.filter((m) => m.modul.startsWith("svar-some")).map((m) => [m.modul, m.status]),
+    [["svar-some", "kan-koebes"]]);
+  lig("intet modul overhovedet: begge udgaver kan-koebes", VS(SUB(), []).moduler.filter((m) => m.modul.startsWith("svar-some")).map((m) => m.status), ["kan-koebes", "kan-koebes"]);
+  const ord = (v) => v.moduler.map((m) => m.modul).filter((k) => k.startsWith("svar-some"));
+  lig("raekkefoelge: den aktive udgave foerst, Skift lige under (Ann 18/11)", [ord(VS(SUB(), UDEN)), ord(VS(SUB(), MED))],
+    [["svar-some-uden-kunder", "svar-some"], ["svar-some", "svar-some-uden-kunder"]]);
+  const vu = VS(SUB(), [...UDEN, ...A(["modul-telefon", "modul-telefon"])]).moduler.map((m) => m.modul);
+  lig("Skift-raekken staar umiddelbart efter den aktive", vu.indexOf("svar-some") - vu.indexOf("svar-some-uden-kunder"), 1);
+  lig("opsagt: intet kan-skiftes", VS(SUB({ is_cancelled: true, expires: "2026-11-07T10:59:59.791+00:00" }), UDEN).moduler.some((m) => m.status === "kan-skiftes"), false);
+  lig("skift uden -> med: ét straks-kald, ny ind og gammel ud", PS("skift", "svar-some", SUB(), UDEN).kald,
+    [{ metode: "PUT", sti: S, krop: { timing: "immediate", add_ons: [{ add_on: "modul-svar-some", handle: "ny-1" }], remove_add_ons: ["uden-1"] } }]);
+  lig("skift med -> uden", PS("skift", "svar-some-uden-kunder", SUB(), MED).kald[0].krop,
+    { timing: "immediate", add_ons: [{ add_on: "modul-svar-some-uden-kunder", handle: "ny-1" }], remove_add_ons: ["med-1"] });
+  lig("koeb af den anden udgave bliver et skift (aldrig begge)", PS("koeb", "svar-some", SUB(), UDEN).kald[0].krop.remove_add_ons, ["uden-1"]);
+  lig("skift, mens Referat stopper: Referats stop sendes igen bagefter",
+    PS("skift", "svar-some", SUB(STOP_REF), [...UDEN, ...BEGGE]).kald.map((k) => k.krop),
+    [{ timing: "immediate", add_ons: [{ add_on: "modul-svar-some", handle: "ny-1" }], remove_add_ons: ["uden-1"] }, { timing: "renewal", remove_add_ons: ["modul-referat"] }]);
+  lig("skift fra en udgave, der stopper: den gamle fjernes straks, dens stop sendes ikke igen",
+    PS("skift", "svar-some", SUB({ pending_change: { pending: true, remove_add_ons: ["uden-1"] } }), [...UDEN, ...BEGGE]).kald.length, 1);
+  lig("skift uden at have den anden: afvises", PS("skift", "svar-some", SUB(), BEGGE).fejl, "intet_at_skifte_fra");
+  lig("skift til den, man har: afvises", PS("skift", "svar-some", SUB(), MED).fejl, "har_modulet");
+  lig("skift til et enkeltmodul: afvises", PS("skift", "referat", SUB(), UDEN).fejl, "kan_ikke_skifte");
+  lig("skift, mens pakkerne ikke saelges: afvises", P("skift", "svar-some", SUB(), A(["uden-1", "modul-svar-some-uden-kunder"])).fejl, "saelges_ikke");
+  const SKIFT = PS("skift", "svar-some", SUB(), UDEN).kald[0];
+  lig("code 215 paa et skift: proev igen uden kompensation", igenUdenKompensation(SKIFT, { ok: false, status: 400, data: { code: 215 } }).krop.compensation_method, "none");
 
   console.log("\n3c. Tilkoeb og kompensation (maalt 8/11: code 215 ved 100 % rabat)");
   const KOEB = { metode: "PUT", sti: S, krop: { timing: "immediate", add_ons: [{ add_on: "modul-referat", handle: "ny-1" }] } };
@@ -192,7 +234,7 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   r = await kald("POST /api/pakke/koeb", { modul: "referat" });
   lig("POST koeb, 215 ogsaa uden kompensation: 502, kun to kald", [r.status, r.data.error, sendt.length], [502, "frisbii_afviste", 2]);
   putSvar.length = 0; frisbiiAdd = BEGGE;
-  lig("ruterne findes", Object.keys(ruter).sort(), ["GET /api/pakke", "POST /api/pakke/fortryd", "POST /api/pakke/genindfoer", "POST /api/pakke/koeb", "POST /api/pakke/opsig", "POST /api/pakke/stop"]);
+  lig("ruterne findes", Object.keys(ruter).sort(), ["GET /api/pakke", "POST /api/pakke/fortryd", "POST /api/pakke/genindfoer", "POST /api/pakke/koeb", "POST /api/pakke/opsig", "POST /api/pakke/skift", "POST /api/pakke/stop"]);
 
   console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
   console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);

@@ -5,7 +5,7 @@ const webpush = require("web-push");
 const { firmIdFromToken } = require("./auth");
 const { gyldigtSmsNummer, kundeNoegle } = require("./phone");
 const { sendError } = require("@appsignal/nodejs"); // AppSignal-klienten er allerede initialiseret via --require ./appsignal.cjs
-const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV, FORMULAR_UDLOEB_AKTIV, SKRIVEHJAELP_AKTIV } = require("./flags");
+const { TILBUD_AKTIV, KUNDE_MATCH_AKTIV, FORMULAR_ENGANGS_AKTIV, SLET_KUNDE_AKTIV, LAEG_SAMMEN_AKTIV, FORMULAR_UDLOEB_AKTIV, SKRIVEHJAELP_AKTIV, SKRIVEHJAELP_SALG } = require("./flags");
 const { knytKunde } = require("./kundematch");
 const { hentEgenRaekke } = require("./ejerskab");
 const billeder = require("./billeder");
@@ -803,7 +803,8 @@ const server = app.listen(PORT, () => {
     `\n  Port:              ${PORT}` +
     `\n  Supabase-projekt:  ${supabaseRef}` +
     `\n  Tilbudsmodul:      ${TILBUD_AKTIV ? "TAENDT" : "SLUKKET"}` +
-    `\n  Skrivehjaelp:      ${SKRIVEHJAELP_AKTIV ? "TAENDT" : "SLUKKET"}\n`
+    `\n  Skrivehjaelp:      ${SKRIVEHJAELP_AKTIV ? "TAENDT" : "SLUKKET"}` +
+    `\n  Skrivehjaelp-salg: ${SKRIVEHJAELP_SALG ? "TAENDT" : "SLUKKET"}\n`
   );
 });
 
