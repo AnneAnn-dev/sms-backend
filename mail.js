@@ -88,6 +88,11 @@ async function sendViaScaleway({ to, subject, html, text, fromName, fromEmail })
   return res.json();
 }
 
+// Alt, der kommer udefra (firmanavn fra bestillingen, nummer), escapes, foer det
+// saettes ind i en mails HTML (Fase 4 salg T5, 18/11-26 - foer kun i
+// "Velkommen tilbage"). Emnet er ren tekst og escapes ikke.
+const tilHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
 // ─── Send velkomstmail (magic link) ─────────────────────────────────────────
 // Returnerer resultatet fra sendViaScaleway — herunder { blocked: true } hvis
 // mailen blev stoppet af staging-gaten. Kaldsteder kan (og boer) logge derefter.
@@ -99,13 +104,13 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
     subject:   `Velkommen, ${firmName} — din konto er klar`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${firmName}!</h1>
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${tilHtml(firmName)}!</h1>
         <p style="color:#555;margin-bottom:24px">
           Din konto er oprettet og klar til brug. Dit dedikerede telefonnummer er:
         </p>
         <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:22px;
                     font-weight:700;letter-spacing:0.05em;text-align:center;margin-bottom:24px">
-          ${phoneNumber}
+          ${tilHtml(phoneNumber)}
         </div>
         <p style="color:#555;margin-bottom:24px">
           Næste skridt: Log ind og færdiggør din opsætning — vælg stemme, skriv
@@ -134,6 +139,7 @@ async function sendWelcomeMail({ to, firmName, loginUrl, phoneNumber }) {
 // TEKSTERNE ER CLAUDES UDKAST (30/10) - Anne skriver de endelige.
 // Modulernes navne staar ET sted: kataloget (T8b, 31/10 - foer stod de ogsaa her).
 const { KATALOG } = require("./frisbii-katalog");
+const { harKunder } = require("./moduler");
 const MODUL_NAVNE = Object.fromEntries(Object.entries(KATALOG.MODUL_ADDONS).map(([m, a]) => [m, a.navn]));
 // Har kunden alle moduler i en pakke (Fase 4: svar og facebook), skrives pakkens navn
 // én gang i stedet for to modulnavne.
@@ -163,10 +169,23 @@ const knap = (url, tekst) => `
           ${tekst}
         </a>`;
 
-async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, variant }) {
+// Variant A (Fase 4 salg T5, 18/11-26, Ann godkendte formen 17/11): teksten
+// foelger modulerne. Skrivehjaelp-afsnittet kun med svar/facebook; "kunder og
+// opgaver" kun naar firmaet har dem (harKunder, moduler.js - samme regel som
+// appen); tilkoeb af Referat, hvis firmaet ikke har det; telefonnummer kun med
+// Kunder og Opgaver (Ann 17/11: ikke i "uden kunder").
+// J8: Referat optager kun haandvaerkerens EGNE noter. Ordlyden maa aldrig
+// antyde, at et moede eller en samtale optages - proev-velkomstmail.js vogter.
+// Ren funktion: { subject, html } - proeves uden at sende.
+function velkomstUdenNummer({ firmName, loginUrl, moduler, variant }) {
   const venter = variant === "B";
+  const navn = tilHtml(firmName);
+  const mods = moduler || [];
+  const skriv = mods.includes("svar") || mods.includes("facebook");
+  const kunder = harKunder(mods);
+  const referatTilbud = !mods.includes("referat");
   const indhold = venter ? `
-        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${firmName}!</h1>
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${navn}!</h1>
         <p style="color:#555;margin-bottom:16px">
           Din konto er oprettet. Dit eget telefonnummer er på vej — vi sætter det op
           hurtigst muligt og skriver til dig, så snart det er klar.
@@ -177,23 +196,42 @@ async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, var
         </p>
         ${knap(loginUrl, "Log ind og kom i gang")}
         <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>` : `
-        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${firmName}!</h1>
+        <h1 style="font-size:22px;margin-bottom:8px">Velkommen, ${navn}!</h1>
         <p style="color:#555;margin-bottom:16px">
-          Din konto er oprettet og klar til brug. Du har adgang til: ${modulTekst(moduler)}.
+          Din konto er oprettet, og ${tilHtml(modulTekst(mods))} er klar til brug.
+        </p>${skriv ? `
+        <p style="color:#555;margin-bottom:16px">
+          I appen får du hjælp til at svare dine kunder, skrive opslag til Facebook og svare
+          på kommentarer.${kunder ? " Du kan også samle dine kunder og opgaver ét sted." : ""}
+        </p>` : ""}
+        <p style="color:#555;margin-bottom:24px">
+          Næste skridt: Log ind, skriv dit firmanavn, og læg appen på din telefon. Det tager et par minutter.
         </p>
-        <p style="color:#555;margin-bottom:24px">Næste skridt: Log ind og kom i gang.</p>
-        ${knap(loginUrl, "Log ind og kom i gang")}
+        ${knap(loginUrl, "Log ind og kom i gang")}${referatTilbud ? `
         <p style="color:#555;margin-top:24px">
-          Vil du også have et telefonnummer, der tager imod opkald, når du ikke kan nå
-          telefonen? Det kan du tilføje når som helst under Profil → Din pakke.
-        </p>
+          <b>Er du træt af at holde styr på, hvad der blev aftalt?</b> Med Referat indtaler du
+          dine egne noter efter et møde eller en telefonsamtale, og appen skriver dem pænt op
+          for dig. Du kan tilføje det under Profil → Din pakke.
+        </p>` : ""}${kunder ? `
+        <p style="color:#555;margin-top:16px">
+          Vil du også have et nummer, der tager imod opkald, når du ikke kan nå telefonen?
+          ${referatTilbud ? "Det kan også tilføjes under Din pakke." : "Det kan du tilføje når som helst under Profil → Din pakke."}
+        </p>` : ""}
         <p style="color:#aaa;font-size:13px;margin-top:24px">Linket er gyldigt i 24 timer.</p>`;
+  return {
+    subject: venter ? `Velkommen, ${firmName} — dit nummer er på vej` : `Velkommen, ${firmName} — din konto er klar`,
+    html: ramme(indhold),
+  };
+}
+
+async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, variant }) {
+  const { subject, html } = velkomstUdenNummer({ firmName, loginUrl, moduler, variant });
   return await sendViaScaleway({
     to,
     fromEmail: process.env.SMTP_FROM,
     fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
-    subject:   venter ? `Velkommen, ${firmName} — dit nummer er på vej` : `Velkommen, ${firmName} — din konto er klar`,
-    html: ramme(indhold),
+    subject,
+    html,
   });
 }
 
@@ -201,7 +239,6 @@ async function sendVelkomstUdenNummerMail({ to, firmName, loginUrl, moduler, var
 // Til en kunde, hvis udloebne firma er genoplivet med et nyt abonnement (D91,
 // loesning B): samme login, opgaver og kunder. Fire udgaver efter nummeret.
 // UDKAST (Claude 31/10) - Anne skriver de endelige tekster.
-const tilHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 async function sendVelkommenTilbageMail({ to, firmName, loginUrl, moduler, nummer, egetNummer, venter }) {
   const navn = tilHtml(firmName);
   const telefon = (moduler || []).includes("telefon");
@@ -258,11 +295,11 @@ async function sendNummerKlarMail({ to, firmName, phoneNumber, loginUrl }) {
     fromName:  process.env.APP_NAME || "Dit Digitale Kontor",
     subject:   `Dit nummer er klar, ${firmName}`,
     html: ramme(`
-        <h1 style="font-size:22px;margin-bottom:8px">Hej ${firmName}</h1>
+        <h1 style="font-size:22px;margin-bottom:8px">Hej ${tilHtml(firmName)}</h1>
         <p style="color:#555;margin-bottom:16px">Dit eget telefonnummer er nu klar:</p>
         <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;font-size:22px;
                     font-weight:700;letter-spacing:0.05em;text-align:center;margin-bottom:24px">
-          ${phoneNumber}
+          ${tilHtml(phoneNumber)}
         </div>
         <p style="color:#555;margin-bottom:24px">
           Sidste skridt: Sæt viderestilling op på din telefon, så opkald, du ikke når,
@@ -378,4 +415,4 @@ async function sendAdminAlert({ subject, text }) {
   });
 }
 
-module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE, modulTekst };
+module.exports = { sendWelcomeMail, sendLoginLinkMail, sendAdminAlert, sendVelkomstUdenNummerMail, sendNummerKlarMail, sendVelkommenTilbageMail, MODUL_NAVNE, modulTekst, velkomstUdenNummer, tilHtml };
