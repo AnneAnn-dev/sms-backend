@@ -21,6 +21,14 @@
 // (pris, proeveperiode ...), aendres INTET - scriptet siger det, og Ann
 // retter i Frisbii. Hvert kald sendes en gang; foerste afvisning stopper resten.
 //
+// VARER, DER IKKE SAELGES ENDNU (Fase 4 salg T6.1, 18/11-26):
+//   node opret-frisbii-produkter.js --vare svar-some,svar-some-uden-kunder [--koer]
+// opretter OGSAA de navngivne varer fra kataloget, selvom de har saelges: false -
+// saa de findes i Frisbii, foer de saelges, uden at kataloget skal aendres
+// (det ville saette dem til salg i prod med naeste tog). Kun noegler, der staar
+// i kataloget (moduler og pakker); en ukendt noegle stopper, foer noget kaldes.
+// Samme spaerrer og samme kald som ellers.
+//
 // Bagefter: node check-env.js --live skal vaere groen, ogsaa for produkterne.
 // Ingen persondata. Noeglen udskrives aldrig.
 // -----------------------------------------------------------------------------
@@ -41,7 +49,7 @@ if (prod && !erProd) {
 }
 require("dotenv").config({ quiet: true });
 
-const { produkterTilSalg } = require("./frisbii-katalog");
+const { produkterTilSalg, varer } = require("./frisbii-katalog");
 const { doemProdukter } = require("./frisbii-tjek");
 
 const API = "https://api.frisbii.com/v1";
@@ -50,6 +58,19 @@ const PROD_HANDLE = "test-2-lommekontor";
 const KONTO = prod ? PROD_HANDLE : STAGING_HANDLE;
 const MILJOE = prod ? "PROD (LIVE)" : "staging";
 const koer = process.argv.includes("--koer");
+// --vare a,b (eller --vare=a,b): katalogets noegler, der skal oprettes, selvom de ikke saelges.
+const vareArg = (() => {
+  const i = process.argv.findIndex((x) => x === "--vare" || x.startsWith("--vare="));
+  if (i < 0) return [];
+  const v = process.argv[i].includes("=") ? process.argv[i].split("=")[1] : process.argv[i + 1];
+  return String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+})();
+const ekstra = vareArg.map((k) => ({ k, v: varer().find((x) => x.noegle === k) }));
+const ukendt = ekstra.filter((e) => !e.v).map((e) => e.k);
+if (process.argv.some((x) => x === "--vare" || x.startsWith("--vare=")) && (!vareArg.length || ukendt.length)) {
+  console.log(`STOP: --vare skal naevne katalogets noegler${ukendt.length ? " - ukendt: " + ukendt.join(", ") : ""}. Intet er kaldt.`);
+  process.exit(2);
+}
 const KEY = process.env.FRISBII_PRIVATE_KEY;
 if (!KEY) { console.log("STOP: FRISBII_PRIVATE_KEY mangler. Intet er kaldt."); process.exit(2); }
 const AUTH = "Basic " + Buffer.from(KEY + ":").toString("base64");
@@ -80,6 +101,10 @@ const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) 
 
   // 2) Hvad findes, og hvad mangler?
   const salg = produkterTilSalg();
+  for (const { v } of ekstra) {
+    if (!salg.addOns.some((a) => a.handle === v.handle)) salg.addOns.push({ handle: v.handle, navn: v.navn, prisOere: v.prisOere });
+  }
+  if (ekstra.length) console.log(`   --vare: ogsaa ${ekstra.map((e) => e.v.handle).join(", ")} (saelges ikke endnu)\n`);
   const planer = liste((await kald("GET", "/plan")).data);
   const addOns = liste((await kald("GET", "/add_on")).data);
   const planFindes = planer.some((p) => p && p.handle === salg.plan.handle && p.state === "active");
