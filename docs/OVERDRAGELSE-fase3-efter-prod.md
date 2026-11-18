@@ -2,7 +2,7 @@
 
 *Skrevet af Fase 3-chatten 17/11-26, lagt i repoet 18/11-26. Den næste chat, der tager Fase 3, starter her. Registret (`docs/RISIKOREGISTER.md`) er facit; står der noget andet her, gælder registret.*
 
-**Status kort:** Fase 3 (betaling og pakker i Frisbii, T1–T9) er i prod siden 2/11 med `FASE3_SYNK=true`. Første pilot (`sub-0082`) kom 6/11. Det, der står tilbage, er ét tog med det, der ligger klar i staging, to små visningsfejl og fem punkter, der venter på en beslutning eller en anden chat. Intet blokerer piloterne.
+**Status kort:** Fase 3 (betaling og pakker i Frisbii, T1–T9) er i prod siden 2/11 med `FASE3_SYNK=true`. Første pilot (`sub-0082`) kom 6/11. T10 er løst 18/11 (målt). Det, der står tilbage, er to små visningsfejl og fem punkter, der venter på en beslutning eller en anden chat. Intet blokerer piloterne.
 
 ## Læs først
 1. Dette dokument.
@@ -21,14 +21,13 @@
 
 ## Planen: T10–T16
 
-### T10 Næste tog (S) — det eneste, der bør gøres snart
-Til `main`:
-- `2026-11-08-koeb-kompensation` (commit på staging): Køb i Din pakke prøver igen med `compensation_method: "none"` ved Frisbii code 215. Bevist på `sub-0146`.
-- Dependabot: `dotenv` 18, gruppen #88 »produktion«, #45 »udvikling«, actions v7.
-- D2 T2/T3 fra en anden chat (kunde-SMS og `/formular` flyttet ud af `server.js`/`onboarding.js`, uden ændret adfærd).
-- Det, der ellers er kommet på staging siden. **Gennemgå listen før toget:** `git log origin/main..origin/staging`, `git diff --stat origin/main origin/staging`, og `... -- supabase/migrations`. Er Fase 4 flettet ind, skal den være slukket bag sit flag. Kommer der migrationer, køres de efter deployet med `push-prod.ps1` (mål med `migration list` og `db push --dry-run` først).
+### T10 Næste tog — løst 18/11 (målt)
+Køb ved code 215 (`2026-11-08-koeb-kompensation`), `dotenv` 18 og D2 T2/T3 er på `origin/main` = `1d5a07e`. Hvilket tog der bar dem, er ikke målt (sandsynligvis PR #114, 15/11). Det, der ligger i staging, er Fase 4 salgs og følger `docs/fase4-salg-byggeplan.md` (migrationen før koden).
+
+Står du selv med et tog senere (fx T11), så gør som sidst:
+- Gennemgå listen før toget: `git --no-pager log --oneline origin/main..origin/staging`, `git --no-pager diff --stat origin/main origin/staging` og det samme med `-- supabase/migrations`. Kommer der migrationer, følger deres rækkefølge den plan, de hører til (Fase 4 salg: migrationen før koden); mål med `migration list` og `db push --dry-run` først.
 - Efter kl. 17 (D8). PR `main...staging`, grøn CI, merge. Bevis: ny `sw.js`-version i prod, `npm run smoke:prod` 13/13. Flet `origin/main` tilbage i staging med `-X ours`; `git diff ORIG_HEAD HEAD --stat` skal være tom.
-- Sidste tog (2/11) gik fra en fast commit (`3b28cb1`) via grenen `tog/fase3-0211`, fordi staging havde uprøvede ting. Gør det samme, hvis noget på staging ikke er klar.
+- Har staging uprøvede ting, så kør fra en fast commit via en `tog/`-gren, som 2/11 (`3b28cb1` via `tog/fase3-0211`).
 
 ### T11 Din pakke: to visningsfejl (S)
 - Gammel plan viser ikke »Telefonpasser – Dit nuværende abonnement«: telefonen kommer fra planen (`GAMLE_PLANER`), ikke fra et add-on, og `visning()` i `frisbii-pakke.js` tæller kun add-ons.
