@@ -87,6 +87,14 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   const KP = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KP.PAKKER["svar-some"].saelges = true;
   lig("naar den saelges, kan pakken vaelges i checkout", m.vaelgModuler("telefon,svar-some", KP), { ok: true, moduler: ["svar-some", "telefon"] });
   lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some"), [{ modul: "svar-some", navn: "Skrivehj\u00e6lp og SoMe med kunder", prisOere: 20000 }]);
+  // Fase 4 salg (18/11): de to udgaver kan ikke koebes sammen.
+  const KU = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KU.PAKKER["svar-some"].saelges = true; KU.PAKKER["svar-some-uden-kunder"].saelges = true;
+  lig("begge udgaver i samme koeb -> afvist (to_udgaver)", m.vaelgModuler("svar-some,svar-some-uden-kunder", KU), { ok: false, fejl: "to_udgaver" });
+  lig("en udgave + Telefonpasser -> ok", m.vaelgModuler(["telefon", "svar-some-uden-kunder"], KU), { ok: true, moduler: ["svar-some-uden-kunder", "telefon"] });
+  lig("tilSalg fortaeller siden, hvad der udelukker hinanden",
+    m.tilSalg(KU).filter((p) => p.udelukker).map((p) => [p.modul, p.udelukker]), [["svar-some", ["svar-some-uden-kunder"]], ["svar-some-uden-kunder", ["svar-some"]]]);
+  lig("udelukker kun det, der selv kan koebes (en udgave alene til salg: intet felt)", m.tilSalg(KP).find((p) => p.modul === "svar-some").udelukker, undefined);
+  lig("moduler uden udgaver har intet udelukker-felt", m.tilSalg(KU).find((p) => p.modul === "telefon").udelukker, undefined);
   lig("koerende abonnement -> har konto", m.harKoerendeKonto([{ status: "active", frisbii_subscription: "sub-1" }]), true);
   lig("opsagt, ikke udloebet -> har konto", m.harKoerendeKonto([{ status: "active", billing_status: "cancelled", frisbii_subscription: "sub-1" }]), true);
   lig("udloebet firma -> maa koebe (genoplives, T8a)", m.harKoerendeKonto([{ status: "inactive", frisbii_subscription: "sub-1" }]), false);

@@ -126,6 +126,11 @@ const PILOT = { handle: "PILOTTEST_pilottest", discount: "pilot-gratis", state: 
   lig("Referat alene: kun med kunder tilbydes (uden giver intet ekstra)", VS(SUB(), A(["modul-referat", "modul-referat"])).moduler.filter((m) => m.modul.startsWith("svar-some")).map((m) => [m.modul, m.status]),
     [["svar-some", "kan-koebes"]]);
   lig("intet modul overhovedet: begge udgaver kan-koebes", VS(SUB(), []).moduler.filter((m) => m.modul.startsWith("svar-some")).map((m) => m.status), ["kan-koebes", "kan-koebes"]);
+  const ord = (v) => v.moduler.map((m) => m.modul).filter((k) => k.startsWith("svar-some"));
+  lig("raekkefoelge: den aktive udgave foerst, Skift lige under (Ann 18/11)", [ord(VS(SUB(), UDEN)), ord(VS(SUB(), MED))],
+    [["svar-some-uden-kunder", "svar-some"], ["svar-some", "svar-some-uden-kunder"]]);
+  const vu = VS(SUB(), [...UDEN, ...A(["modul-telefon", "modul-telefon"])]).moduler.map((m) => m.modul);
+  lig("Skift-raekken staar umiddelbart efter den aktive", vu.indexOf("svar-some") - vu.indexOf("svar-some-uden-kunder"), 1);
   lig("opsagt: intet kan-skiftes", VS(SUB({ is_cancelled: true, expires: "2026-11-07T10:59:59.791+00:00" }), UDEN).moduler.some((m) => m.status === "kan-skiftes"), false);
   lig("skift uden -> med: ét straks-kald, ny ind og gammel ud", PS("skift", "svar-some", SUB(), UDEN).kald,
     [{ metode: "PUT", sti: S, krop: { timing: "immediate", add_ons: [{ add_on: "modul-svar-some", handle: "ny-1" }], remove_add_ons: ["uden-1"] } }]);
