@@ -7,8 +7,19 @@
 // ⚠️ Retter du en tekst her, er T1-målingen ikke længere om denne udgave.
 // Hæv SKRIVEHJAELP_PROMPT_VERSION i prompts/skrivehjaelp.js og kør målingen om.
 //
-// Afventer: den fjerde, generelle pakke (Ann 3/11). Indtil den findes, falder
-// ukendte brancher tilbage til Håndværk (sectorOf nedenfor).
+// Den fjerde, generelle pakke (Fase 4 T8, 18/11-26) er Annes: situationer, spørgsmål og
+// svarmuligheder fra hendes Generel_branchepakke.docx, ordret. Fag uden egen pakke falder
+// tilbage til den (sectorOf nedenfor), også et håndværksfag, der ikke står på Håndværk-listen.
+// Udkast fra Claude, som Anne godkender: fagene, rules, extraPlaceholder, felt-id'erne og
+// de tre tekstfelter (Ny tid, Pris eller link, Hvad kan du sige om status?).
+//
+// Annes princip for pakken: svarmulighederne beskriver virksomhedens egen vurdering og
+// handling. AI'en må ikke selv beslutte, om virksomheden kan hjælpe, om kunden har ret,
+// eller om en aftale kan gennemføres.
+//
+// afgoerende (valgfrit pr. situation): det felt, firmaet SKAL udfylde. Mangler nøglen,
+// gælder standarden i AFGOERENDE i prompts/skrivehjaelp.js (afgoerendeFor). Den generelle
+// pakke bruger den, hvor Annes spørgsmål 1 har et andet id end i de andre pakker.
 
 "use strict";
 
@@ -196,6 +207,61 @@ const PACKS = {
           {id:"cause", label:"Hvad skete der?", type:"select", options:["Sygdom","Fejl i vores plan","Forrige opgave trak ud","Bilproblemer","Vi kunne ikke komme ind"]},
           {id:"newtime", label:"Ny tid", type:"text", placeholder:"Fx fredag kl. 9"}]},
     }
+  },
+
+  // Annes generelle pakke (18/11-26). Situationer, spørgsmål, svar og eksempler er ordret
+  // fra Generel_branchepakke.docx. Spørgsmål 1 er det afgørende felt i alle situationer
+  // undtagen ros, hvor der ikke er noget at beslutte.
+  generel: {
+    label: "Generel",
+    trades: ["Frisør","Revisor","Restaurant","Webshop","Fotograf","Hotel","Fitness","IT-support","Butik","Andet"],
+    rules: "Virksomheden kan høre til en hvilken som helst branche og er ikke nødvendigvis en håndværker. Kald aldrig virksomheden eller afsenderen en håndværker over for kunden, og skriv ikke om besigtigelse, materialer eller arbejde i kundens hjem, medmindre det står i fakta. Felterne er virksomhedens egen vurdering: beslut aldrig selv, om virksomheden kan hjælpe, om kunden har ret, eller om en aftale kan gennemføres.",
+    extraPlaceholder: "Fx: Vi har åbent mandag til fredag kl. 9-17. Ordren blev sendt i går, og du får et spornummer på mail.",
+    situations: {
+      nyopgave: {group:"andet", label:"Forespørgsel / ny kunde", afgoerende:"handle",
+        example:"Hej. Jeg har fundet jeres virksomhed på nettet og vil gerne høre lidt mere om, hvad I tilbyder. Jeg overvejer at blive kunde hos jer, men vil gerne vide lidt mere om mulighederne først.",
+        fields:[
+          {id:"handle", label:"Hvordan vil du gerne håndtere henvendelsen?", type:"select", options:["Jeg vil gerne hjælpe kunden videre.","Jeg vil gerne sende information om vores ydelser eller produkter.","Jeg har brug for flere oplysninger, før jeg kan svare.","Det er desværre ikke noget, vi tilbyder."]},
+          {id:"next", label:"Hvad er næste skridt?", type:"select", options:["Jeg sender kunden mere information.","Jeg vil gerne have kunden til at kontakte mig.","Jeg vil gerne aftale en samtale eller et møde.","Jeg afventer flere oplysninger fra kunden."]}]},
+      flyt: {group:"andet", label:"Booking / ændring af aftale",
+        example:"Hej. Jeg har en aftale hos jer på torsdag, men jeg er desværre blevet forhindret. Kan vi flytte den til fredag eller en anden dag i næste uge?",
+        fields:[
+          {id:"can", label:"Hvad er status på den ønskede tid?", type:"select", options:["Jeg kan tilbyde det ønskede tidspunkt.","Jeg skal undersøge, hvilke tider der er ledige.","Jeg kan tilbyde et andet tidspunkt.","Kunden kan selv vælge en ny tid via vores bookingsystem."]},
+          {id:"confirm", label:"Hvordan skal aftalen bekræftes?", type:"select", options:["Jeg bekræfter aftalen, når tidspunktet er aftalt.","Jeg vender tilbage med mulige tidspunkter.","Kunden skal selv booke eller ændre aftalen.","Jeg har brug for flere oplysninger, før jeg kan bekræfte ændringen."]},
+          {id:"newslot", label:"Ny tid eller valgmuligheder", type:"text", placeholder:"Fx fredag kl. 10 eller tirsdag kl. 14"}]},
+      pris: {group:"andet", label:"Prisforespørgsel",
+        example:"Hej. Jeg vil gerne høre, hvad det koster at benytte jeres service. Jeg har kigget lidt på jeres hjemmeside, men kan ikke helt gennemskue priserne. Kan I hjælpe mig?",
+        fields:[
+          {id:"pricetype", label:"Hvad kan du oplyse om prisen?", type:"select", options:["Jeg kan give en fast pris.","Jeg kan give en startpris eller vejledende pris.","Prisen afhænger af kundens behov eller ønsker.","Jeg har brug for flere oplysninger, før jeg kan give en pris."]},
+          {id:"next", label:"Hvordan vil du gerne gå videre?", type:"select", options:["Jeg sender kunden vores prisliste.","Jeg sender et konkret tilbud.","Jeg vil gerne tale med kunden om mulighederne.","Jeg afventer flere oplysninger fra kunden."]},
+          {id:"amount", label:"Pris eller link til prisliste", type:"text", placeholder:"Fx 450 kr. inkl. moms eller www.ditfirma.dk/priser"}]},
+      status: {group:"andet", label:"Levering / ordre / kundeservice",
+        example:"Hej. Jeg bestilte en vare hos jer for nogle dage siden, men har endnu ikke modtaget den. Jeg vil gerne høre, hvornår jeg kan forvente at modtage den. Mit ordrenummer er 12345.",
+        fields:[
+          {id:"state", label:"Hvad er status på henvendelsen?", type:"select", options:["Jeg har oplysningerne og kan give kunden et svar.","Jeg skal undersøge sagen nærmere.","Jeg mangler oplysninger fra kunden.","Jeg skal have sagen videre til en anden medarbejder."]},
+          {id:"next", label:"Hvad er næste skridt?", type:"select", options:["Jeg vender tilbage, når jeg har undersøgt sagen.","Jeg beder kunden sende flere oplysninger.","Jeg giver kunden information om den videre proces.","Jeg sender sagen videre til den relevante person."]},
+          {id:"info", label:"Hvad kan du sige om status?", type:"text", placeholder:"Fx Pakken blev sendt i går og er fremme i morgen"}]},
+      support: {group:"andet", label:"Support / hjælp",
+        example:"Hej. Jeg har problemer med at logge ind på min konto. Jeg har prøvet at nulstille min adgangskode, men det virker stadig ikke. Kan I hjælpe mig?",
+        fields:[
+          {id:"handle", label:"Hvordan vil du håndtere problemet?", type:"select", options:["Jeg kan hjælpe kunden med det samme.","Jeg vil guide kunden gennem nogle trin.","Jeg skal bruge flere oplysninger for at finde årsagen.","Jeg skal undersøge problemet nærmere."]},
+          {id:"next", label:"Hvad skal kunden gøre nu?", type:"select", options:["Jeg sender en vejledning.","Jeg beder kunden sende flere oplysninger.","Jeg beder kunden beskrive problemet nærmere.","Jeg vender tilbage, når jeg har undersøgt problemet."]}]},
+      ros: {group:"andet", label:"Ros / positiv feedback",
+        example:"Hej. Jeg vil bare lige sige tak for en rigtig god oplevelse hos jer. Det hele fungerede super godt, og jeg er meget tilfreds. Jeg vil helt sikkert anbefale jer til andre.",
+        fields:[
+          {id:"reply", label:"Hvordan vil du gerne svare kunden?", type:"select", options:["Jeg vil gerne takke kunden for de pæne ord.","Jeg vil gerne takke kunden og fortælle, at det glæder mig at høre.","Jeg vil gerne opfordre kunden til at anbefale os eller skrive en anmeldelse.","Jeg vil gerne give kunden en personlig tilbagemelding."]},
+          F.link]},
+      kvalitet: {group:"klage", label:"Klage / utilfreds kunde",
+        example:"Hej. Jeg er desværre ikke tilfreds med den service, jeg har fået hos jer. Jeg havde forventet noget andet, og jeg synes ikke, at det lever op til det, vi aftalte. Jeg vil gerne høre, hvad I vil gøre ved det.",
+        fields:[
+          {id:"assess", label:"Hvad er din vurdering af kundens henvendelse?", type:"select", options:["Jeg skal undersøge sagen først.","Jeg kan se, at vi skal rette op på noget.","Jeg er ikke enig i kundens vurdering.","Jeg har brug for flere oplysninger, før jeg kan tage stilling."]},
+          {id:"next", label:"Hvad er næste skridt?", type:"select", options:["Jeg undersøger sagen og vender tilbage.","Jeg vil gerne finde en løsning sammen med kunden.","Jeg beder kunden sende flere oplysninger.","Jeg sender sagen videre til den relevante person."]}]},
+      andet: {group:"andet", label:"Andet / øvrige henvendelser", afgoerende:"handle",
+        example:"Hej. Jeg har et spørgsmål, som jeg ikke helt kan finde svar på på jeres hjemmeside. Jeg vil gerne høre, om I kan hjælpe mig med at finde ud af, hvordan det fungerer hos jer.",
+        fields:[
+          {id:"handle", label:"Hvordan vil du gerne håndtere henvendelsen?", type:"select", options:["Jeg kan svare på kundens spørgsmål.","Jeg skal bruge flere oplysninger for at kunne svare.","Jeg vil gerne undersøge spørgsmålet nærmere.","Jeg skal sende kunden videre til den rette person."]},
+          {id:"next", label:"Hvad er næste skridt?", type:"select", options:["Jeg giver kunden et svar med det samme.","Jeg vender tilbage, når jeg har undersøgt spørgsmålet.","Jeg beder kunden uddybe sin henvendelse.","Jeg henviser kunden til den relevante information eller kontaktperson."]}]},
+    }
   }
 };
 // ===== SPROGLIG GRUNDPAKKE (Anne 13/11-26) =====
@@ -205,6 +271,8 @@ const PACKS = {
 // afslutning null = ingen fast afslutning (ved ros er takken nok). Anne ejer teksterne.
 // Klager (13/11): "senest [dag]" er sat ind i Annes "Vi vender tilbage, så snart vi har undersøgt sagen",
 // fordi modellen ikke tilføjede tiden selv (regel 17 og 19).
+// status og support (T8, 18/11) findes kun i den generelle pakke. Teksterne er Claudes udkast,
+// som Anne retter: samme indledninger og afslutning som Annes egne til lignende situationer.
 // proev-skrivehjaelp.js tjekker, at hver situation i hver pakke har begge nøgler, i begge former.
 //
 // JEG ELLER VI (Ann og Anne 15/11): svaret skrives som standard i jeg-form, for det er én person,
@@ -226,6 +294,8 @@ const SPROG_JEG = {
     pris_klage: "Tak fordi du gør mig opmærksom på det.",
     udeblevet:  "Tak for din besked.",
     skade:      "Tak fordi du gør mig opmærksom på det.",
+    status:     "Tak for din henvendelse.",
+    support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
     nyopgave:   "Jeg glæder mig til at høre fra dig.",
@@ -241,6 +311,8 @@ const SPROG_JEG = {
     pris_klage: "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
     udeblevet:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     skade:      "Jeg vender tilbage senest [dag], når jeg har undersøgt sagen.",
+    status:     "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    support:    "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
   },
 };
 
@@ -259,6 +331,8 @@ const SPROG_VI = {
     pris_klage: "Tak fordi du gør os opmærksomme på det.",
     udeblevet:  "Tak for din besked.",
     skade:      "Tak fordi du gør os opmærksomme på det.",
+    status:     "Tak for din henvendelse.",
+    support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
     nyopgave:   "Vi glæder os til at høre fra dig.",
@@ -274,6 +348,8 @@ const SPROG_VI = {
     pris_klage: "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
     udeblevet:  "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     skade:      "Vi vender tilbage senest [dag], når vi har undersøgt sagen.",
+    status:     "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
+    support:    "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
   },
 };
 
@@ -284,7 +360,7 @@ function sprogFor(form) { return form === "vi" ? SPROG_VI : SPROG_JEG; }
 
 function sectorOf(trade){
   for (const [k, p] of Object.entries(PACKS)) if (p.trades.includes(trade)) return k;
-  return "haandvaerk";
+  return "generel";   // fag uden egen pakke (T8, 18/11-26). Før: "haandvaerk".
 }
 
 module.exports = { PACKS, SPROG, FORMER, sprogFor, sectorOf };

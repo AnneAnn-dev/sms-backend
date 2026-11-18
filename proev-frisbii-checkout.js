@@ -5,7 +5,7 @@
 //
 //   node proev-frisbii-checkout.js
 //
-// 31/10-26. Rabatkode tilfoejet 1/11-26. Ren ASCII.
+// 31/10-26. Rabatkode tilfoejet 1/11-26. Bestillingssidens felter 18/11-26. Ren ASCII.
 "use strict";
 
 let bestaaet = 0, fejlet = 0;
@@ -86,7 +86,7 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   lig("pakken \"Skrivehjaelp og SoMe med kunder\" saelges ikke endnu (Fase 4)", m.vaelgModuler("svar-some").fejl, "ukendt_modul");
   const KP = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KP.PAKKER["svar-some"].saelges = true;
   lig("naar den saelges, kan pakken vaelges i checkout", m.vaelgModuler("telefon,svar-some", KP), { ok: true, moduler: ["svar-some", "telefon"] });
-  lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some"), [{ modul: "svar-some", navn: "Skrivehj\u00e6lp og SoMe med kunder", prisOere: 20000 }]);
+  lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some").map((p) => [p.modul, p.navn, p.prisOere]), [["svar-some", "Skrivehj\u00e6lp og SoMe med kunder", 20000]]);
   // Fase 4 salg (18/11): de to udgaver kan ikke koebes sammen.
   const KU = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KU.PAKKER["svar-some"].saelges = true; KU.PAKKER["svar-some-uden-kunder"].saelges = true;
   lig("begge udgaver i samme koeb -> afvist (to_udgaver)", m.vaelgModuler("svar-some,svar-some-uden-kunder", KU), { ok: false, fejl: "to_udgaver" });
@@ -95,6 +95,20 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
     m.tilSalg(KU).filter((p) => p.udelukker).map((p) => [p.modul, p.udelukker]), [["svar-some", ["svar-some-uden-kunder"]], ["svar-some-uden-kunder", ["svar-some"]]]);
   lig("udelukker kun det, der selv kan koebes (en udgave alene til salg: intet felt)", m.tilSalg(KP).find((p) => p.modul === "svar-some").udelukker, undefined);
   lig("moduler uden udgaver har intet udelukker-felt", m.tilSalg(KU).find((p) => p.modul === "telefon").udelukker, undefined);
+  // Bestillingssiden (18/11): /bestil er den eneste betalingsside; teksterne kommer fra kataloget.
+  const vis = (k) => m.tilSalg(k).map((p) => [p.modul, !!p.beskrivelse, p.giverKunder, p.paaListen, !!p.side]);
+  lig("tilSalg: beskrivelse og giverKunder paa alt; uden kunder er ikke paa listen; begge pakker har egen side",
+    vis(KU), [["telefon", true, true, undefined, false], ["referat", true, true, undefined, false],
+      ["svar-some", true, true, undefined, true], ["svar-some-uden-kunder", true, false, false, true]]);
+  lig("den fulde liste (paaListen ikke false) har aldrig \"uden kunder\"",
+    m.tilSalg(KU).filter((p) => p.paaListen !== false).map((p) => p.modul), ["telefon", "referat", "svar-some"]);
+  lig("... men den kan stadig koebes alene (fra sin egen side)", m.vaelgModuler("svar-some-uden-kunder", KU), { ok: true, moduler: ["svar-some-uden-kunder"] });
+  lig("uden kunder: egen hjaelpetekst til firmanavnet", typeof m.tilSalg(KU).find((p) => p.modul === "svar-some-uden-kunder").side.firmaHint, "string");
+  lig("med kunder: ingen egen hjaelpetekst (sidens standard)", m.tilSalg(KU).find((p) => p.modul === "svar-some").side.firmaHint, undefined);
+  lig("side er en kopi - siden kan ikke aendre kataloget", (() => { const s = m.tilSalg(KU).find((p) => p.modul === "svar-some").side; s.overskrift = "x"; return m.tilSalg(KU).find((p) => p.modul === "svar-some").side.overskrift !== "x"; })(), true);
+  lig("kommerSnart: Tilbud og Faktura (moduler, der kommer), ingen pakker",
+    m.kommerSnart().map((a) => [a.navn, a.prisOere]), [["Tilbud", 50000], ["Faktura", 50000]]);
+  lig("kommerSnart viser ikke noget, der saelges", m.kommerSnart(KU).some((a) => m.tilSalg(KU).some((p) => p.navn === a.navn)), false);
   lig("koerende abonnement -> har konto", m.harKoerendeKonto([{ status: "active", frisbii_subscription: "sub-1" }]), true);
   lig("opsagt, ikke udloebet -> har konto", m.harKoerendeKonto([{ status: "active", billing_status: "cancelled", frisbii_subscription: "sub-1" }]), true);
   lig("udloebet firma -> maa koebe (genoplives, T8a)", m.harKoerendeKonto([{ status: "inactive", frisbii_subscription: "sub-1" }]), false);
@@ -118,6 +132,16 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   r = await kald(m, falskDb([]), { ...KROP, company: "" });
   lig("firmanavn mangler stadig: 400 missing_company (D33)", [r.status, r.data.error], [400, "missing_company"]);
   lig("ruterne med flaget: produkter og bestil findes", r.ruter, ["GET /bestil", "GET /checkout/produkter", "POST /checkout/start"]);
+  const produkterSvar = await (async () => {
+    const ruter = {};
+    m({ post() {}, get: (s, f) => { ruter[s] = f; } }, falskDb([]));
+    let data = null; const res = { set() { return res; }, json(d) { data = d; return res; } };
+    ruter["/checkout/produkter"]({}, res);
+    return data;
+  })();
+  lig("/checkout/produkter sender proevedage, produkter og kommer",
+    [produkterSvar.proevedage, produkterSvar.produkter.map((p) => p.modul), produkterSvar.kommer.map((a) => a.navn)],
+    [7, ["telefon", "referat"], ["Tilbud", "Faktura"]]);
 
   console.log("\n2b. Rabatkode (maalt 1/11, sub-0140)");
   lig("rensKode: ingen kode", [m.rensKode(undefined), m.rensKode(""), m.rensKode("   ")], [{ ok: true, kode: null }, { ok: true, kode: null }, { ok: true, kode: null }]);
