@@ -3,6 +3,19 @@
 Skrevet 16/11-26 ud fra `origin/main` = `e93c197`. **Godkendt af Anne 17/11.** Navne, pris og salgsvej afgjort 17/11 (Ann), se nedenfor.
 Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-repo\<emne>\`.
 
+## Status 18/11
+
+| Trin | Status |
+|---|---|
+| T1–T4 | På `staging`. Migrationen er kørt på staging, **ikke i prod**. |
+| T5 | På `staging`: velkomstmailen følger modulerne (`velkomstUdenNummer`, 34 prøver). Anne mangler at godkende ordlyden. |
+| T6 | På `staging`: salget styres af flaget `SKRIVEHJAELP_SALG` i stedet for `saelges: true` i koden. Add-ons er oprettet i Frisbii test. Frisbii live er ikke bekræftet. |
+| T7 | Skiftet er målt på Frisbii test (se T7). Test 5 på Erikas mangler. |
+| T8 | Planen er godkendt (Ann 18/11). **Ikke bygget.** Bygges i sin egen chat og merges først til `staging`, når prod-toget er kørt. |
+| Prod | Intet af salget er i prod. Toget kører i sin egen chat fra en låst `staging`-commit. |
+
+Arbejdet er delt i to chats 18/11: `claude/overdragelse-fase4-prod.md` og `claude/overdragelse-fase4-t8-generel.md` i projektet.
+
 ## Beslutninger (Ann 16/11)
 
 | | Skrivehjælp og SoMe med kunder | Skrivehjælp og SoMe uden kunder |
@@ -67,8 +80,10 @@ Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-rep
 - Måles på staging (T7).
 
 ### T6 — Frisbii og salg (rækkefølgen er vigtig)
+**Ændret 18/11 (Ann):** salget tændes med flaget `SKRIVEHJAELP_SALG=true` i Railway, ikke med `saelges: true` i koden. Begge pakker har `saelges: SKRIVEHJAELP_SALG`. Flaget er fail-closed: mangler det, sælges der ikke. Serveren logger `Skrivehjaelp-salg: TAENDT/SLUKKET` ved opstart. Add-ons oprettes med `opret-frisbii-produkter.js --vare svar-some,svar-some-uden-kunder` (og `--prod` for live) og skal være On-Off.
+
 1. Frisbii **test**: opret `modul-svar-some` og `modul-svar-some-uden-kunder`, 200 kr. ekskl. moms, sat op som `modul-referat` (samme planer under "Gælder").
-2. Kode: `saelges: true` for begge pakker. Staging.
+2. Flaget `SKRIVEHJAELP_SALG=true` på staging.
 3. Køb på staging: med kunder alene, uden kunder alene, med kunder oven på Telefonpasser, skift uden → med og med → uden.
 4. Frisbii **live**: samme to add-ons, samme handles.
 5. Prod.
@@ -82,6 +97,15 @@ Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-rep
 - Afstemningen (`afstem-frisbii.js`) melder ingen uenighed.
 - `kor-proever` grøn.
 
+**Målt (18/11):**
+- Skiftet går igennem i ét kald begge veje.
+- Frisbii krediterer forholdsmæssigt (249,96 kr. på inv-39) og laver en ny faktura på ca. 250 kr. Et skift mellem to udgaver til samme pris koster altså kunden ca. 0.
+- Ingen kode 215 på Nillis NixBix (sub-0147, 100 % rabat).
+- **Hul fundet og lukket:** bestillingssiden tog imod begge udgaver i samme bestilling. Den afviser nu med `to_udgaver`.
+- **Sidefund, ikke undersøgt:** efter at en kundes e-mail var rettet, gik webhooken ind i T8a-opslaget ("T8a: pilot - intet nyt firma for sub-0149").
+
+**Mangler:** test 5 på Erikas (køb af Referat får fanerne frem; opsig-teksten). Afstemningen er ikke bekræftet kørt.
+
 ### T8 — Den generelle branchepakke (Annes udkast 17/11, efter T1-T6)
 - Ny pakke i `prompts/skrivehjaelp-pakker.js` med Annes otte situationer og en fagliste (fx Frisør, Revisor, Restaurant, Webshop, Fotograf, Hotel, Fitness, IT, Andet).
 - Tekstfelt til faktummet, hvor et valg kræver et (Ann 17/11): tid (situation 2), pris (3), status/levering (4). Uden felt finder modellen på tallet eller skriver uden om (P5).
@@ -89,22 +113,54 @@ Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-rep
 - `SKRIVEHJAELP_PROMPT_VERSION` hæves, og `maal-skrivehjaelp.js` køres med et sæt på de otte eksempler.
 - Skal være i prod, før "uden kunder" sælges uden for håndværket.
 
+**Godkendt plan (Ann 18/11), ikke bygget.** Annes spørgsmål 1 er det afgørende felt i hver situation.
+
+| Annes situation | id | Tekstfelt |
+|---|---|---|
+| 1 Forespørgsel / ny kunde | `nyopgave` | – |
+| 2 Booking / ændring | `flyt` | Ny tid eller valgmuligheder |
+| 3 Prisforespørgsel | `pris` | Pris eller link til prisliste |
+| 4 Levering / ordre / kundeservice | `status` (ny) | Hvad kan du sige om status? |
+| 5 Support / hjælp | `support` (ny) | – |
+| 6 Ros | `ros` | Link til anmeldelse |
+| 7 Klage | `kvalitet` | – |
+| 8 Andet | `andet` | – |
+
+- Det afgørende felt kan sættes pr. situation i pakken (`afgoerende`), fordi den generelle pakke bruger andre felter end de tre andre.
+- Nye åbnings- og afslutningstekster til `status` og `support` i jeg- og vi-form (udkast; Anne retter).
+- Pakkens regel: virksomheden er ikke nødvendigvis en håndværker og må aldrig kaldes det.
+- Rullemenuen med brancher får de nye fag af sig selv (i dag kan kun Håndværk, Grøn og Service vælges).
+- **Følge, ikke løst:** de ti cases uden for håndværk i `skrivehjaelp-saet-anne20.json` rammer den generelle pakke efter T8. Syv af dem har ingen felter og bliver afvist. Enten rettes de, eller Annes otte nye eksempler erstatter dem.
+
 ## Rækkefølge i prod
 1. Migrationen (T1) — før koden. Peg CLI'en på prod med `npx supabase link --project-ref glymuxqtrbpeyzmflilf`, `db push`, og TILBAGE til staging med det samme (`skift-prod.ps1` flytter ikke linket).
-2. Koden med `saelges: false` (T1-T5).
-3. Frisbii live add-ons (T6.4).
-4. `saelges: true` (T6.2) i prod.
-5. Hjemmesiden.
+2. Frisbii live add-ons (T6.4). Mål først, om de findes.
+3. Koden (T1–T7) fra en låst `staging`-commit, med `SKRIVEHJAELP_SALG` fraværende eller `false` i prod. `FRISBII_PLAN_HANDLE` skal stå som `abonnement-standard` (D103).
+4. T8 i prod (eget lille tog).
+5. `SKRIVEHJAELP_SALG=true` i prod, efter beslutning (Ann og Anne). Tændes flaget før T8, sælges "uden kunder" til fag, der kører på Håndværk-pakken.
+6. Hjemmesiden.
+
+**Frist:** undtagelsen for `picomatch` (S40) udløber 25/11. Fra 26/11 er CI rød, og Railway deployer ikke.
+
+## Næste tog: nødbremsen (D103, besluttet 18/11)
+Ann valgte vej (b): bremsen skal stoppe salget i stedet for at falde tilbage til den gamle plan, hvis pris er forkert. Ikke bygget.
+- Når bremsen er trukket, svarer bestillingssiden, at der ikke kan bestilles lige nu. Anne skriver teksten.
+- Derefter fjernes `FRISBII_PLAN_HANDLE` og kravet om den i `requireConfig`.
+- Afklares i koden først: om bremsen fortsat er `FASE3_SYNK=false` eller får sit eget flag.
 
 ## Tilbagerulning
 | Problem | Gør |
 |---|---|
-| Salget fejler | `saelges: false` igen (kode) og hjemmesidens knap tilbage til "Giv mig besked". |
+| Salget fejler | `SKRIVEHJAELP_SALG=false` i Railway (kræver ingen kode; tjek loglinjen `Skrivehjaelp-salg: SLUKKET`) og hjemmesidens knap tilbage til "Giv mig besked". |
 | Appen viser forkerte faner | Railway: redeploy forrige deploy. |
 | Migrationen | Bliver liggende; den udvider kun CHECK-reglen. |
 
 ## Åbne spørgsmål
 - Anne: godkender ordlyden i velkomstmailen og onboardingen (udkast 17/11), især Referat-linjen (J8).
-- Anne: ordlyden i tekstfelterne i den generelle pakke.
+- Anne: ordlyden i tekstfelterne i den generelle pakke, de nye åbnings- og afslutningstekster og fagnavnene (T8).
+- Anne: teksterne i skift-boksen i Din pakke og gratis-teksten på bestillingssiden ("… – undtagen Skrivehjælp og SoMe uden kunder.").
+- Anne: teksten til kunden, når nødbremsen er trukket (D103).
+- Ann og Anne: hvornår `SKRIVEHJAELP_SALG` tændes i prod.
+- Ann: skal de generelle cases i anne20 rettes eller erstattes (T8)?
 
 Afgjort 17/11 (Ann): navnene, prisen på `kunder` (200 kr.), salgsvej og brand.
