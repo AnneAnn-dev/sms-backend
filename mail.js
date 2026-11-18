@@ -209,7 +209,7 @@ function velkomstUdenNummer({ firmName, loginUrl, moduler, variant }) {
         </p>
         ${knap(loginUrl, "Log ind og kom i gang")}${referatTilbud ? `
         <p style="color:#555;margin-top:24px">
-          <b>Er du træt af at holde styr på, hvad der blev aftalt?</b> Med Referat indtaler du
+          <b>Kunne du tænke dig hjælp til at holde styr på dine noter?</b> Med Referat indtaler du
           dine egne noter efter et møde eller en telefonsamtale, og appen skriver dem pænt op
           for dig. Du kan tilføje det under Profil → Din pakke.
         </p>` : ""}${kunder ? `

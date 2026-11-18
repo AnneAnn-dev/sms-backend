@@ -58,6 +58,7 @@ for (const mods of [["svar", "facebook"], ["svar", "facebook", "kunder"], ["refe
   harIkke(`${mods.join("+")}: intet "moedereferat"`, h, "m\u00f8dereferat");
   harIkke(`${mods.join("+")}: intet "telefonaftale"`, h, "telefonaftale");
 }
+har("overskriften paa Referat (Ann 18/11)", mail(["svar", "facebook"]).html, "Kunne du t\u00e6nke dig hj\u00e6lp til at holde styr p\u00e5 dine noter?");
 har("'dine egne noter' staar der", mail(["svar", "facebook"]).html, "dine egne noter efter et m\u00f8de eller en telefonsamtale");
 
 console.log("\n6. Firmanavnet escapes i HTML (det kommer fra bestillingen)");
