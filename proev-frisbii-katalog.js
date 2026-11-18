@@ -174,6 +174,24 @@ lig("udefineret: nej", mod.harKunder(undefined), false);
 lig("de to udgaver i kataloget giver hhv. ja og nej",
   [mod.harKunder(KATALOG.PAKKER["svar-some"].moduler), mod.harKunder(KATALOG.PAKKER["svar-some-uden-kunder"].moduler)], [true, false]);
 
+console.log("\n7. Flaget SKRIVEHJAELP_SALG styrer salget af de to pakker (Ann 18/11)");
+// Kataloget laeser flaget, naar det indlaeses - derfor en frisk proces pr. vaerdi.
+const { spawnSync } = require("child_process");
+const medFlag = (vaerdi) => {
+  const env = { ...process.env }; delete env.SKRIVEHJAELP_SALG;
+  if (vaerdi !== undefined) env.SKRIVEHJAELP_SALG = vaerdi;
+  const r = spawnSync(process.execPath, ["-e",
+    "const k=require('./frisbii-katalog');const P=k.KATALOG.PAKKER;" +
+    "console.log(JSON.stringify([P['svar-some'].saelges,P['svar-some-uden-kunder'].saelges,k.produkterTilSalg().addOns.filter(a=>a.pakke).map(a=>a.handle),k.tjekKatalog()]))"],
+    { cwd: __dirname, env, encoding: "utf8" });
+  try { return JSON.parse(r.stdout.trim()); } catch (e) { return "fejl: " + (r.stderr || r.stdout); }
+};
+lig("ikke sat: saelges ikke", medFlag(undefined), [false, false, [], []]);
+lig("\"true\": begge saelges og skal findes i Frisbii", medFlag("true"), [true, true, ["modul-svar-some", "modul-svar-some-uden-kunder"], []]);
+lig("\"True\" (tastefejl): saelges ikke - fail-closed", medFlag("True"), [false, false, [], []]);
+lig("\"false\": saelges ikke", medFlag("false"), [false, false, [], []]);
+lig("modulet kunder saelges aldrig for sig, heller ikke med flaget", medFlag("true")[2].includes("modul-kunder"), false);
+
 console.log(`\n${bestaaet}/${bestaaet + fejlet}`);
 console.log(`${bestaaet} bestaaet, ${fejlet} fejlet.`);
 process.exit(fejlet ? 1 : 0);
