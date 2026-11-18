@@ -16,6 +16,9 @@
 //      Rettelsen er at slette linjen. En liste, der ikke rydder sig selv op,
 //      ender med at undskylde fremtidige fejl.
 //   3. Undtagelserne og deres begrundelse printes i HVER koersel.
+//   4. En undtagelse kan have en udloebsdato (udloeber: "AAAA-MM-DD", tilfoejet
+//      18/11-26). Fra dagen efter undskylder den intet, og fundet BLOKERER
+//      igen - ogsaa selvom ingen har husket re-triggeren. Datoen er dansk tid.
 //
 // Fail-closed: kan npm audit ikke koeres eller svaret ikke laeses, er
 // resultatet UAFKLARET (exit 2) - aldrig groent.
@@ -44,7 +47,25 @@ const fs = require("fs");
 //   undtagelsen var blevet overfloedig, og gjorde koerslen roed - regel 2.
 //   Linjen er slettet samme dag. Se registret.
 
-const UNDTAGELSER = [];
+const UNDTAGELSER = [
+  {
+    id: "GHSA-fc5q-39xc-vjpf",
+    pakke: "picomatch",
+    dato: "2026-11-18",
+    udloeber: "2026-11-25",
+    begrundelse: "Kun via @appsignal/nodejs > node-gyp > tinyglobby (byggevaerktoej ved npm install). " +
+      "Matcher kun moenstre skrevet i vaerktoejet; serveren kalder aldrig picomatch, og intet brugerinput naar dertil. " +
+      "Ingen rettet version (patched: None, berorte <= 4.0.7). Blokerede staging-deploy 18/11 (Wait for CI).",
+    retrigger: "rettet picomatch udgivet, eller @appsignal/nodejs uden node-gyp i kaeden - og senest udloebsdatoen (Ann 18/11: en uge)",
+  },
+];
+
+// I dag som AAAA-MM-DD i dansk tid (CI koerer i UTC). Til test: AUDIT_IDAG.
+function idag() {
+  if (process.env.AUDIT_IDAG) return process.env.AUDIT_IDAG;
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Copenhagen" }).format(new Date());
+}
+const udloebet = (u) => !!u.udloeber && idag() > u.udloeber;
 
 const BLOKERENDE = new Set(["high", "critical"]);
 
@@ -123,7 +144,7 @@ const blokerende = [...unikke.values()].filter((f) => BLOKERENDE.has(f.severity)
 const undtaget = [];
 const uundskyldt = [];
 for (const f of blokerende) {
-  const u = UNDTAGELSER.find((x) => x.id.toLowerCase() === f.id && x.pakke === f.pakke);
+  const u = UNDTAGELSER.find((x) => x.id.toLowerCase() === f.id && x.pakke === f.pakke && !udloebet(x));
   (u ? undtaget : uundskyldt).push(f);
 }
 
@@ -139,7 +160,8 @@ console.log("");
 console.log("Undtagelser i kraft (" + UNDTAGELSER.length + "):");
 if (!UNDTAGELSER.length) console.log("  (ingen - listen er tom, og det er den tilstand, der skal vaere normal)");
 for (const u of UNDTAGELSER) {
-  console.log("  - " + u.id + " i " + u.pakke + " (siden " + u.dato + ")");
+  console.log("  - " + u.id + " i " + u.pakke + " (siden " + u.dato +
+    (u.udloeber ? ", udloeber " + u.udloeber + (udloebet(u) ? " - UDLOEBET, undskylder intet" : "") : "") + ")");
   console.log("      Hvorfor:     " + u.begrundelse);
   console.log("      Re-trigger:  " + u.retrigger);
 }
@@ -149,7 +171,9 @@ for (const f of undtaget) {
   console.log("UNDTAGET   [" + f.severity + "] " + f.id + " i " + f.pakke + " - " + f.title);
 }
 for (const f of uundskyldt) {
-  console.log("BLOKERER   [" + f.severity + "] " + f.id + " i " + f.pakke + " - " + f.title + " " + f.url);
+  const udl = UNDTAGELSER.find((x) => x.id.toLowerCase() === f.id && x.pakke === f.pakke && udloebet(x));
+  console.log("BLOKERER   [" + f.severity + "] " + f.id + " i " + f.pakke + " - " + f.title + " " + f.url +
+    (udl ? "  (undtagelsen udloeb " + udl.udloeber + " - forlaeng den bevidst i registret, eller ret fundet)" : ""));
 }
 for (const u of foraeldede) {
   console.log("FORAELDET  " + u.id + " i " + u.pakke +
