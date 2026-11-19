@@ -4,6 +4,8 @@
 # Beskytter mod link-faelden: CLI'ens maal er usynlig tilstand gemt i
 # supabase\.temp\project-ref, og et push mod det forkerte projekt er lydloest.
 # Brug:  .\push-staging.ps1
+# --linked paa db push (D104, 19/11-26): Supabase CLI v3 sender ellers
+# migrationerne til en LOKAL database og melder "Finished" - staging er urort.
 # -----------------------------------------------------------------------------
 $STAGING_REF = "hehrvdmtzokzbnbihcel"
 
@@ -22,4 +24,4 @@ if ($ref -ne $STAGING_REF) {
 }
 
 Write-Host "[OK] Link verificeret: staging ($ref) -- pusher migrationer..." -ForegroundColor Green
-npx supabase db push
+npx supabase db push --linked

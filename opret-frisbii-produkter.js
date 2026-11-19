@@ -102,7 +102,7 @@ const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) 
   // 2) Hvad findes, og hvad mangler?
   const salg = produkterTilSalg();
   for (const { v } of ekstra) {
-    if (!salg.addOns.some((a) => a.handle === v.handle)) salg.addOns.push({ handle: v.handle, navn: v.navn, prisOere: v.prisOere });
+    if (!salg.addOns.some((a) => a.handle === v.handle)) salg.addOns.push({ handle: v.handle, navn: v.navn, salgsnavn: v.salgsnavn, prisOere: v.prisOere });
   }
   if (ekstra.length) console.log(`   --vare: ogsaa ${ekstra.map((e) => e.v.handle).join(", ")} (saelges ikke endnu)\n`);
   const planer = liste((await kald("GET", "/plan")).data);
@@ -117,7 +117,7 @@ const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) 
       metode: "POST", sti: "/plan",
       body: {
         handle: salg.plan.handle,
-        name: "Dit Digitale Kontor - basis",
+        name: "Dit Digitale Kontor",
         description: "Grundabonnement. Modulerne koebes som tillaeg.",
         amount: salg.plan.prisOere,
         vat: 0.25,
@@ -134,11 +134,14 @@ const liste = (d) => (!d ? [] : Array.isArray(d) ? d : Array.isArray(d.content) 
   for (const a of salg.addOns) {
     if (!findesIkke(a.handle)) continue;
     opgaver.push({
-      hvad: `add-on ${a.handle} (${a.navn}, ${a.prisOere / 100} kr. ekskl. moms)`,
+      hvad: `add-on ${a.handle} (${a.salgsnavn || a.navn}, ${a.prisOere / 100} kr. ekskl. moms)`,
       metode: "POST", sti: "/add_on",
       body: {
         handle: a.handle,
-        name: a.navn,
+        // Navnet, koeberen ser i Frisbiis mails og paa fakturaen (salgsnavn, 19/11-26):
+        // "Skrivehjaelp og SoMe", aldrig "med/uden kunder". Planen hedder "Dit Digitale
+        // Kontor" (Ann omdoebte begge i Frisbii 19/11).
+        name: a.salgsnavn || a.navn,
         amount: a.prisOere,
         vat: 0.25,
         amount_incl_vat: false,

@@ -13,6 +13,8 @@
 #           'db push --dry-run --include-all' viser praecis de forventede filer.
 #           Indfoert 18/10-26: Fase 1a og 1b (13/10) var aeldre end prods
 #           nyeste migration (17/10), og scriptet kunne ikke sende flaget med.
+#  --linked paa db push (D104, 19/11-26): Supabase CLI v3 sender ellers
+#  migrationerne til en LOKAL database og melder "Finished" - prod er urort.
 # -----------------------------------------------------------------------------
 param(
     [switch]$IncludeAll
@@ -75,9 +77,9 @@ if ($ref -ne $PROD_REF) {
 Write-Host "[OK] Link verificeret: prod -- pusher migrationer..." -ForegroundColor Green
 if ($IncludeAll) {
     Write-Host "[INFO]  --include-all: ogsaa migrationer, der er AELDRE end prods nyeste." -ForegroundColor Yellow
-    npx supabase db push --include-all
+    npx supabase db push --linked --include-all
 } else {
-    npx supabase db push
+    npx supabase db push --linked
 }
 $pushKode = $LASTEXITCODE
 if ($pushKode -ne 0) {
