@@ -128,12 +128,40 @@ const FAG = { haandvaerk: "T\u00f8mrer", groen: "Anl\u00e6gsgartner", service: "
   lig("et fag uden pakke (Bager) faar den generelle pakke i prompten", ukendt.system.includes("BRANCHE: Generel"), true);
   lig("et Haandvaerk-valg er ugyldigt i den generelle pakke",
     gs("kvalitet", { assess: "Kunden har ret, vi udbedrer" }) instanceof P.ValideringsFejl, true);
-  lig("promptversionen er haevet (T8 og Anns afslutning 19/11)", P.SKRIVEHJAELP_PROMPT_VERSION, "2026-11-19");
-  lig("ny opgave: Anns afslutning i alle pakker, jeg og vi, og den gamle er vaek (19/11)",
-    [P.bygSvar({ situation: "nyopgave", felter: { take: "Nej, vi har for travlt lige nu" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "T\u00f8mrer" }).system,
-     P.bygSvar({ situation: "nyopgave", felter: { handle: "Det er desv\u00e6rre ikke noget, vi tilbyder." }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Fris\u00f8r", form: "vi" }).system]
-      .map((s) => [s.includes("AFSLUTNING: Du er altid velkommen til at sp\u00f8rge igen, hvis du p\u00e5 et senere tidspunkt f\u00e5r brug for hj\u00e6lp."), s.includes("gl\u00e6der")]),
-    [[true, false], [true, false]]);
+  lig("promptversionen er haevet (nej uden de andre felter, 19/11)", P.SKRIVEHJAELP_PROMPT_VERSION, "2026-11-19b");
+  const NEJ_AFSL = "AFSLUTNING: Du er altid velkommen til at sp\u00f8rge igen, hvis du p\u00e5 et senere tidspunkt f\u00e5r brug for hj\u00e6lp.";
+  const afsl = (trade, felter, form) => { const s = P.bygSvar({ situation: "nyopgave", felter, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade, form }).system; return s.includes(NEJ_AFSL) ? "nej" : s.includes("AFSLUTNING: Jeg gl\u00e6der mig til at h\u00f8re fra dig.") ? "ja-jeg" : s.includes("AFSLUTNING: Vi gl\u00e6der os til at h\u00f8re fra dig.") ? "ja-vi" : "?"; };
+  lig("ny opgave: Anns afslutning ved nej, 'glaeder mig/os' ved ja, i alle pakker og begge former (19/11)",
+    [afsl("T\u00f8mrer", { take: "Nej, vi har for travlt lige nu" }), afsl("T\u00f8mrer", { take: "Nej, det er ikke vores fag" }, "vi"), afsl("T\u00f8mrer", { take: "Ja, jeg vil gerne se den f\u00f8rst" }),
+     afsl("T\u00f8mrer", { take: "Ja, jeg vil gerne se den f\u00f8rst" }, "vi"), afsl("Anl\u00e6gsgartner", { take: "Nej, det laver vi ikke" }), afsl("Reng\u00f8ring", { take: "Nej, det ligger uden for vores omr\u00e5de" }),
+     afsl("Reng\u00f8ring", { take: "Ja, her er en pris" }), afsl("Fris\u00f8r", { handle: "Det er desv\u00e6rre ikke noget, vi tilbyder." }, "vi"), afsl("Fris\u00f8r", { handle: "Jeg vil gerne hj\u00e6lpe kunden videre." })],
+    ["nej", "nej", "ja-jeg", "ja-vi", "nej", "nej", "ja-jeg", "nej", "ja-jeg"]);
+  const nejFejl = [];
+  for (const [pk, pack] of Object.entries(PACKS)) for (const [sid, sit] of Object.entries(pack.situations)) {
+    if (sit.nej === undefined) continue;
+    const afg = P.afgoerendeFor(pack, sid), f = sit.fields.find((x) => x.id === afg);
+    if (!Array.isArray(sit.nej) || !f || f.type !== "select") { nejFejl.push(`${pk}/${sid}: nej kraever et afgoerende rullemenu-felt`); continue; }
+    for (const v of sit.nej) if (!f.options.includes(v)) nejFejl.push(`${pk}/${sid}: "${v}" er ikke et svar i ${afg}`);
+    for (const form of ["jeg", "vi"]) if (typeof SPROG[form].afslutning[sid + "_nej"] !== "string") nejFejl.push(`${form}/${sid}_nej mangler`);
+  }
+  const nejSvar = (trade, felter, andet) => P.bygSvar({ situation: "nyopgave", felter, andet: andet || "", kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade });
+  const ulla = nejSvar("Andet", { handle: "Det er desv\u00e6rre ikke noget, vi tilbyder.", next: "Jeg sender kunden mere information." });
+  lig("nej (Ullas sag 19/11): spoergsmaal 2 bruges ikke, og systemfeltet siger SVARET ER ET NEJ",
+    [ulla.bruger.includes("Det er desv\u00e6rre ikke noget, vi tilbyder."), ulla.bruger.includes("mere information"), ulla.bruger.includes("Hvad er n\u00e6ste skridt?"), ulla.system.includes("SVARET ER ET NEJ"), ulla.bruger.includes("SVARET ER ET NEJ")],
+    [true, false, false, true, false]);
+  const tagNej = nejSvar("T\u00f8mrer", { take: "Nej, vi har for travlt lige nu", visit: "tirsdag kl. 16" }, "Hansen Tag kan m\u00e5ske hj\u00e6lpe.");
+  lig("nej i Haandvaerk: 'Forslag til tid' bruges ikke, men 'Andet' kommer med",
+    [tagNej.bruger.includes("tirsdag kl. 16"), tagNej.bruger.includes("Hansen Tag kan m\u00e5ske hj\u00e6lpe."), tagNej.system.includes("SVARET ER ET NEJ")], [false, true, true]);
+  const tagJa = nejSvar("T\u00f8mrer", { take: "Ja, jeg vil gerne se den f\u00f8rst", visit: "tirsdag kl. 16" });
+  lig("ja er uaendret: alle felter kommer med, og der staar intet om nej",
+    [tagJa.bruger.includes("tirsdag kl. 16"), tagJa.system.includes("SVARET ER ET NEJ")], [true, false]);
+  lig("et gammelt, ugyldigt valg i et felt, der ikke bruges ved nej, afviser ikke svaret",
+    kaster(() => nejSvar("Andet", { handle: "Det er desv\u00e6rre ikke noget, vi tilbyder.", next: "findes ikke" })), null);
+  lig("situationer uden nej-liste er uaendrede (ingen nej-linje)",
+    P.bygSvar({ situation: "pris", felter: { pricetype: "Fast pris" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "T\u00f8mrer" }).system.includes("SVARET ER ET NEJ"), false);
+  lig("nej-svarene staar ordret i det afgoerende felt, og der findes en nej-afslutning i begge former", nejFejl, []);
+  lig("'(henvis venligt)' er vaek fra alle svar (modellen opfandt en henvisning, 18/11)",
+    Object.values(PACKS).flatMap((p) => Object.values(p.situations).flatMap((s) => s.fields.flatMap((f) => f.options || []))).filter((o) => o.includes("henvis venligt")), []);
 
   console.log("\n2. tekst-adapter.skriv()");
   const ENV = {

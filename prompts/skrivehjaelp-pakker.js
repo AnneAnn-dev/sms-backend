@@ -17,6 +17,11 @@
 // handling. AI'en må ikke selv beslutte, om virksomheden kan hjælpe, om kunden har ret,
 // eller om en aftale kan gennemføres.
 //
+// nej (valgfrit pr. situation, Ann 19/11): de svar i det afgørende felt, der betyder nej. Vælger
+// firmaet et af dem, bruges afslutningen SPROG.afslutning["<id>_nej"] i stedet for den almindelige,
+// fx ved ny opgave: "Du er altid velkommen til at spørge igen …" i stedet for "Jeg glæder mig til
+// at høre fra dig". Teksterne skal stå ordret som i options; proev-skrivehjaelp.js tjekker det.
+//
 // afgoerende (valgfrit pr. situation): det felt, firmaet SKAL udfylde. Mangler nøglen,
 // gælder standarden i AFGOERENDE i prompts/skrivehjaelp.js (afgoerendeFor). Den generelle
 // pakke bruger den, hvor Annes spørgsmål 1 har et andet id end i de andre pakker.
@@ -40,10 +45,10 @@ const PACKS = {
     rules: "Kunden er typisk privatperson, og opgaven foregår i kundens hjem. Ekstraarbejde bør altid aftales, før det udføres.",
     extraPlaceholder: "Fx: Vi kommer i morgen kl. 7 og er færdige torsdag. Ekstra arbejde aftales skriftligt før vi går i gang.",
     situations: {
-      nyopgave: {group:"andet", label:"Ny opgave",
+      nyopgave: {group:"andet", label:"Ny opgave", nej:["Nej, det er ikke vores fag","Nej, vi har for travlt lige nu"],
         example:"Hej. Kan I sige hvornår I har tid til at kigge på vores tag? Det drypper lidt i stuen når det regner kraftigt. Vi bor i Hillerød.\nMvh Peter",
         fields:[
-          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se den først","Ja, send gerne billeder, så giver jeg en pris","Nej, det er ikke vores fag (henvis venligt)","Nej, vi har for travlt lige nu"]},
+          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se den først","Ja, send gerne billeder, så giver jeg en pris","Nej, det er ikke vores fag","Nej, vi har for travlt lige nu"]},
           {id:"visit", label:"Forslag til tid", type:"text", placeholder:"Fx tirsdag kl. 16 eller torsdag kl. 8"}]},
       pris: {group:"andet", label:"Hvad koster det?",
         example:"Hej. Hvad koster det cirka at få skiftet et toilet? Vi har selv købt det nye.\nVh Maria",
@@ -96,10 +101,10 @@ const PACKS = {
     rules: "Arbejdet foregår udendørs og afhænger af vejr og årstid. Lov aldrig, at planter, græs eller beplantning vil lykkes eller overleve, da det afhænger af vejr og vanding. Har håndværkeren oplyst plejeråd, så tag dem med kort.",
     extraPlaceholder: "Fx: Vi kommer igen mandag, hvis det er tørvejr. Husk at vande den nye græsplæne morgen og aften de første 3 uger.",
     situations: {
-      nyopgave: {group:"andet", label:"Ny opgave",
+      nyopgave: {group:"andet", label:"Ny opgave", nej:["Nej, det laver vi ikke"],
         example:"Hej. Vi vil gerne have lagt en ny terrasse på ca. 30 m2 og plantet en bøgehæk langs skellet. Kan I komme og se på det og give et tilbud?\nMvh Anders",
         fields:[
-          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se haven først","Ja, send gerne billeder og mål, så giver jeg en pris","Nej, det laver vi ikke (henvis venligt)","Ja, men vi kan tidligst starte senere på sæsonen"]},
+          {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se haven først","Ja, send gerne billeder og mål, så giver jeg en pris","Nej, det laver vi ikke","Ja, men vi kan tidligst starte senere på sæsonen"]},
           {id:"visit", label:"Forslag til tid for besigtigelse", type:"text", placeholder:"Fx onsdag kl. 15 eller lørdag kl. 9"}]},
       pris: {group:"andet", label:"Hvad koster det?",
         example:"Hej. Hvad koster det at få slået græs og klippet hæk hver 14. dag hen over sommeren? Grunden er ca. 900 m2.\nVh Hanne",
@@ -153,7 +158,7 @@ const PACKS = {
     rules: "Firmaet kommer ofte i kundens hjem, og kunden er tit ikke selv til stede. Ved skader på kundens ting: indrøm aldrig ansvar, men sig at I tager det alvorligt og undersøger det, og nævn forsikring kun hvis det står i fakta. Ved spørgsmål om sikkerhed (fx kemikalier, kæledyr, børn) må du kun gengive det, håndværkeren har skrevet, og ellers skrive en pladsholder.",
     extraPlaceholder: "Fx: Vi kommer torsdag mellem 8 og 10. Nøglen kan ligge i nøgleboksen.",
     situations: {
-      nyopgave: {group:"andet", label:"Ny opgave",
+      nyopgave: {group:"andet", label:"Ny opgave", nej:["Nej, vi har ikke plads lige nu","Nej, det ligger uden for vores område"],
         example:"Hej. Vi søger fast rengøring hver anden uge i et hus på ca. 140 m2 i Hillerød. Har I plads til en ny kunde?\nMvh Sofie",
         fields:[
           {id:"take", label:"Vil du tage opgaven?", type:"select", options:["Ja, jeg vil gerne se stedet først","Ja, men jeg skal bruge nogle billeder for at kunne give et tilbud","Ja, her er en pris","Nej, vi har ikke plads lige nu","Nej, det ligger uden for vores område"]},
@@ -215,10 +220,10 @@ const PACKS = {
   generel: {
     label: "Generel",
     trades: ["Frisør","Revisor","Restaurant","Webshop","Fotograf","Hotel","Fitness","IT-support","Butik","Andet"],
-    rules: "Virksomheden kan høre til en hvilken som helst branche og er ikke nødvendigvis en håndværker. Kald aldrig virksomheden eller afsenderen en håndværker over for kunden, og skriv ikke om besigtigelse, materialer eller arbejde i kundens hjem, medmindre det står i fakta. Felterne er virksomhedens egen vurdering: beslut aldrig selv, om virksomheden kan hjælpe, om kunden har ret, eller om en aftale kan gennemføres.",
+    rules: "Virksomheden kan høre til en hvilken som helst branche og er ikke nødvendigvis en håndværker. Kald aldrig virksomheden eller afsenderen en håndværker over for kunden, og skriv ikke om besigtigelse, materialer eller arbejde i kundens hjem, medmindre det står i fakta. Felterne er virksomhedens egen vurdering: beslut aldrig selv, om virksomheden kan hjælpe, om kunden har ret, eller om en aftale kan gennemføres. Ser virksomheden anderledes på en klage end kunden, så anerkend først kundens oplevelse og sig det blødt og venligt, fx at virksomheden ser lidt anderledes på sagen; afvis aldrig kunden direkte.",
     extraPlaceholder: "Fx: Vi har åbent mandag til fredag kl. 9-17. Ordren blev sendt i går, og du får et spornummer på mail.",
     situations: {
-      nyopgave: {group:"andet", label:"Forespørgsel / ny kunde", afgoerende:"handle",
+      nyopgave: {group:"andet", label:"Forespørgsel / ny kunde", afgoerende:"handle", nej:["Det er desværre ikke noget, vi tilbyder."],
         example:"Hej. Jeg har fundet jeres virksomhed på nettet og vil gerne høre lidt mere om, hvad I tilbyder. Jeg overvejer at blive kunde hos jer, men vil gerne vide lidt mere om mulighederne først.",
         fields:[
           {id:"handle", label:"Hvordan vil du gerne håndtere henvendelsen?", type:"select", options:["Jeg vil gerne hjælpe kunden videre.","Jeg vil gerne sende information om vores ydelser eller produkter.","Jeg har brug for flere oplysninger, før jeg kan svare.","Det er desværre ikke noget, vi tilbyder."]},
@@ -254,7 +259,7 @@ const PACKS = {
       kvalitet: {group:"klage", label:"Klage / utilfreds kunde",
         example:"Hej. Jeg er desværre ikke tilfreds med den service, jeg har fået hos jer. Jeg havde forventet noget andet, og jeg synes ikke, at det lever op til det, vi aftalte. Jeg vil gerne høre, hvad I vil gøre ved det.",
         fields:[
-          {id:"assess", label:"Hvad er din vurdering af kundens henvendelse?", type:"select", options:["Jeg skal undersøge sagen først.","Jeg kan se, at vi skal rette op på noget.","Jeg er ikke enig i kundens vurdering.","Jeg har brug for flere oplysninger, før jeg kan tage stilling."]},
+          {id:"assess", label:"Hvad er din vurdering af kundens henvendelse?", type:"select", options:["Jeg skal undersøge sagen først.","Jeg kan se, at vi skal rette op på noget.","Jeg ser anderledes på sagen end kunden.","Jeg har brug for flere oplysninger, før jeg kan tage stilling."]},
           {id:"next", label:"Hvad er næste skridt?", type:"select", options:["Jeg undersøger sagen og vender tilbage.","Jeg vil gerne finde en løsning sammen med kunden.","Jeg beder kunden sende flere oplysninger.","Jeg sender sagen videre til den relevante person."]}]},
       andet: {group:"andet", label:"Andet / øvrige henvendelser", afgoerende:"handle",
         example:"Hej. Jeg har et spørgsmål, som jeg ikke helt kan finde svar på på jeres hjemmeside. Jeg vil gerne høre, om I kan hjælpe mig med at finde ud af, hvordan det fungerer hos jer.",
@@ -298,7 +303,8 @@ const SPROG_JEG = {
     support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
-    nyopgave:   "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: før "Jeg glæder mig til at høre fra dig." (skævt efter et nej)
+    nyopgave:   "Jeg glæder mig til at høre fra dig.",
+    nyopgave_nej: "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: når firmaet siger nej (sit.nej)
     pris:       "Jeg ser frem til at høre fra dig.",
     flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     tilbud:     "Du er meget velkommen til at kontakte mig, hvis du har spørgsmål.",
@@ -335,7 +341,8 @@ const SPROG_VI = {
     support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
-    nyopgave:   "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: før "Vi glæder os til at høre fra dig."
+    nyopgave:   "Vi glæder os til at høre fra dig.",
+    nyopgave_nej: "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: når firmaet siger nej (sit.nej)
     pris:       "Vi ser frem til at høre fra dig.",
     flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     tilbud:     "Du er meget velkommen til at kontakte os, hvis du har spørgsmål.",
