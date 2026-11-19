@@ -78,6 +78,8 @@ function situationerFor(fag) {
     // Samme regel som bygSvar (lag 2): pakkens eget felt, ellers standarden.
     afgoerende: P.afgoerendeFor(pack, id) === undefined ? null : P.afgoerendeFor(pack, id),
     felter: s.fields.map((f) => ({ id: f.id, label: f.label, type: f.type, options: f.options || null, placeholder: f.placeholder || null })),
+    // Nej-svarene i det afgørende felt (Ann 19/11): appen skjuler de andre felter, når et af dem vælges.
+    nej: Array.isArray(s.nej) && s.nej.length ? s.nej.slice() : null,
   }));
 }
 
