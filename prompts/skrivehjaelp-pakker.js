@@ -298,7 +298,7 @@ const SPROG_JEG = {
     support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
-    nyopgave:   "Jeg glæder mig til at høre fra dig.",
+    nyopgave:   "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: før "Jeg glæder mig til at høre fra dig." (skævt efter et nej)
     pris:       "Jeg ser frem til at høre fra dig.",
     flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     tilbud:     "Du er meget velkommen til at kontakte mig, hvis du har spørgsmål.",
@@ -335,7 +335,7 @@ const SPROG_VI = {
     support:    "Tak for dit spørgsmål.",
   },
   afslutning: {
-    nyopgave:   "Vi glæder os til at høre fra dig.",
+    nyopgave:   "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp.",   // Ann 19/11: før "Vi glæder os til at høre fra dig."
     pris:       "Vi ser frem til at høre fra dig.",
     flyt:       "Du er altid velkommen til at skrive igen, hvis der opstår spørgsmål.",
     tilbud:     "Du er meget velkommen til at kontakte os, hvis du har spørgsmål.",

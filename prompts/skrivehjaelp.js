@@ -22,7 +22,10 @@
 
 const { PACKS, sprogFor, sectorOf } = require("./skrivehjaelp-pakker");
 
-const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-18";
+const SKRIVEHJAELP_PROMPT_VERSION = "2026-11-19";
+// 2026-11-19: afslutningen ved ny opgave/forespørgsel (SPROG.afslutning.nyopgave, alle pakker, jeg og vi)
+//   er Anns: "Du er altid velkommen til at spørge igen, hvis du på et senere tidspunkt får brug for hjælp."
+//   "Jeg glæder mig til at høre fra dig" var skævt, når firmaet siger nej (appen 18/11, stråtag).
 // 2026-11-18: Annes generelle branchepakke (Fase 4 T8). Reglerne her er uændrede, men en virksomhed
 //   uden egen pakke får nu den generelle pakkes situationer, felter og REGLER FOR BRANCHEN i stedet
 //   for Håndværks. Pakkens regel siger, at virksomheden ikke nødvendigvis er en håndværker, og at den

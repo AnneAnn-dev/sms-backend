@@ -128,7 +128,12 @@ const FAG = { haandvaerk: "T\u00f8mrer", groen: "Anl\u00e6gsgartner", service: "
   lig("et fag uden pakke (Bager) faar den generelle pakke i prompten", ukendt.system.includes("BRANCHE: Generel"), true);
   lig("et Haandvaerk-valg er ugyldigt i den generelle pakke",
     gs("kvalitet", { assess: "Kunden har ret, vi udbedrer" }) instanceof P.ValideringsFejl, true);
-  lig("promptversionen er haevet (T8)", P.SKRIVEHJAELP_PROMPT_VERSION, "2026-11-18");
+  lig("promptversionen er haevet (T8 og Anns afslutning 19/11)", P.SKRIVEHJAELP_PROMPT_VERSION, "2026-11-19");
+  lig("ny opgave: Anns afslutning i alle pakker, jeg og vi, og den gamle er vaek (19/11)",
+    [P.bygSvar({ situation: "nyopgave", felter: { take: "Nej, vi har for travlt lige nu" }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "T\u00f8mrer" }).system,
+     P.bygSvar({ situation: "nyopgave", felter: { handle: "Det er desv\u00e6rre ikke noget, vi tilbyder." }, kanal: "sms", tone: "venlig", besked: "x" }, { ...FIRMA, trade: "Fris\u00f8r", form: "vi" }).system]
+      .map((s) => [s.includes("AFSLUTNING: Du er altid velkommen til at sp\u00f8rge igen, hvis du p\u00e5 et senere tidspunkt f\u00e5r brug for hj\u00e6lp."), s.includes("gl\u00e6der")]),
+    [[true, false], [true, false]]);
 
   console.log("\n2. tekst-adapter.skriv()");
   const ENV = {
