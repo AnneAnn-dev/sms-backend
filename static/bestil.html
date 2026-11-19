@@ -26,6 +26,9 @@
     ?pakke= giver den fulde liste. Laasen styrer kun, hvad siden VISER -
     serveren afgoer stadig, hvad der kan koebes (vaelgModuler).
 
+    Kortlogoerne (static/kort/) er et krav (Ann 19/11) og kommer fra Annes
+    betaling.html - lagt hos os, saa siden ikke afhaenger af hjemmesiden.
+
     Navne, priser, beskrivelser og sidetekster hentes fra /checkout/produkter
     (kataloget, frisbii-katalog.js) - siden har ingen af dem selv. Koebet
     starter med POST /checkout/start, som svarer med Frisbiis betalingsside
@@ -103,7 +106,9 @@
     .betal-v { display: flex; align-items: center; gap: 12px; font-family: "Nunito", system-ui, sans-serif; font-size: 15.5px; font-weight: 700; color: var(--navy); }
     .radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--steel); position: relative; flex-shrink: 0; }
     .radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--steel); }
-    .kort { font-size: 13px; color: var(--ink-muted); text-align: right; }
+    .kort { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .kort img { display: block; height: auto; }
+    .kort-tekst { font-size: 14px; color: var(--ink-muted); margin: 8px 0 0 20px; }
 
     .besked { color: var(--error); margin-top: 14px; min-height: 1px; }
     .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px; background: var(--navy); color: #fff; border: none; border-radius: 12px; font-family: "Nunito", system-ui, sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 14px; text-decoration: none; transition: background .2s; }
@@ -217,8 +222,13 @@
 
         <div class="betal">
           <div class="betal-v"><span class="radio"></span>Betalingskort</div>
-          <div class="kort">Dankort, Visa eller Mastercard</div>
+          <div class="kort">
+            <img src="/kort/dankort.png" alt="Dankort" width="33" height="20">
+            <img src="/kort/visa.svg" alt="Visa" width="48" height="16">
+            <img src="/kort/mastercard.svg" alt="Mastercard" width="28" height="22">
+          </div>
         </div>
+        <p class="kort-tekst">Betal med Dankort, Visa eller Mastercard.</p>
 
         <p class="besked" id="besked" role="alert"></p>
         <button class="btn" id="koeb" type="submit" disabled>

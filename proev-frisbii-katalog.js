@@ -167,6 +167,8 @@ k = kopi(); k.PAKKER["svar-some"].side = { overskrift: "X" };
 tjekKatalog(k).some((f) => f.includes("overskrift og intro")) ? ok("side uden intro -> fejl") : nej("side uden intro -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.PAKKER["svar-some"].paaListen = "nej";
 tjekKatalog(k).some((f) => f.includes("paaListen skal")) ? ok("paaListen, der ikke er true/false -> fejl") : nej("paaListen ugyldig -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].salgsnavn = " ";
+tjekKatalog(k).some((f) => f.includes("svar-some: salgsnavn er tomt")) ? ok("tomt salgsnavn -> fejl") : nej("tomt salgsnavn -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); delete k.MODUL_ADDONS.tilbud.beskrivelse;
 lig("Tilbud (kommer, saelges ikke) behoever ingen beskrivelse", tjekKatalog(k), []);
 lig("et katalog med et modul, MODULER ikke kender -> fejl",

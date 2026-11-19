@@ -86,7 +86,7 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   lig("pakken \"Skrivehjaelp og SoMe med kunder\" saelges ikke endnu (Fase 4)", m.vaelgModuler("svar-some").fejl, "ukendt_modul");
   const KP = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KP.PAKKER["svar-some"].saelges = true;
   lig("naar den saelges, kan pakken vaelges i checkout", m.vaelgModuler("telefon,svar-some", KP), { ok: true, moduler: ["svar-some", "telefon"] });
-  lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some").map((p) => [p.modul, p.navn, p.prisOere]), [["svar-some", "Skrivehj\u00e6lp og SoMe med kunder", 20000]]);
+  lig("... og staar i tilSalg med pakkens navn og pris", m.tilSalg(KP).filter((p) => p.modul === "svar-some").map((p) => [p.modul, p.navn, p.prisOere]), [["svar-some", "Skrivehj\u00e6lp og SoMe", 20000]]);
   // Fase 4 salg (18/11): de to udgaver kan ikke koebes sammen.
   const KU = JSON.parse(JSON.stringify(require("./frisbii-katalog").KATALOG)); KU.PAKKER["svar-some"].saelges = true; KU.PAKKER["svar-some-uden-kunder"].saelges = true;
   lig("begge udgaver i samme koeb -> afvist (to_udgaver)", m.vaelgModuler("svar-some,svar-some-uden-kunder", KU), { ok: false, fejl: "to_udgaver" });
@@ -103,6 +103,10 @@ const KROP = { name: "Mogens", email: "Mogens@Maler.dk", company: "Mogens Maler"
   lig("den fulde liste (paaListen ikke false) har aldrig \"uden kunder\"",
     m.tilSalg(KU).filter((p) => p.paaListen !== false).map((p) => p.modul), ["telefon", "referat", "svar-some"]);
   lig("... men den kan stadig koebes alene (fra sin egen side)", m.vaelgModuler("svar-some-uden-kunder", KU), { ok: true, moduler: ["svar-some-uden-kunder"] });
+  lig("koeberen ser \"Skrivehj\u00e6lp og SoMe\" for begge udgaver (salgsnavn, 19/11) - aldrig med/uden kunder",
+    m.tilSalg(KU).filter((p) => p.modul.startsWith("svar-some")).map((p) => p.navn), ["Skrivehj\u00e6lp og SoMe", "Skrivehj\u00e6lp og SoMe"]);
+  lig("uden kunder: intro naevner ikke kunde- og opgavestyring (Ann 19/11)",
+    /opgavestyring/.test(m.tilSalg(KU).find((p) => p.modul === "svar-some-uden-kunder").side.intro), false);
   lig("uden kunder: egen hjaelpetekst til firmanavnet", typeof m.tilSalg(KU).find((p) => p.modul === "svar-some-uden-kunder").side.firmaHint, "string");
   lig("med kunder: ingen egen hjaelpetekst (sidens standard)", m.tilSalg(KU).find((p) => p.modul === "svar-some").side.firmaHint, undefined);
   lig("side er en kopi - siden kan ikke aendre kataloget", (() => { const s = m.tilSalg(KU).find((p) => p.modul === "svar-some").side; s.overskrift = "x"; return m.tilSalg(KU).find((p) => p.modul === "svar-some").side.overskrift !== "x"; })(), true);
