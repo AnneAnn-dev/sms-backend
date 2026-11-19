@@ -111,7 +111,8 @@ function maskerEmail(s) {
 function tilSalg(katalog = KATALOG) {
   const tilgaengelig = varer(katalog).filter((a) => a.saelges);
   return tilgaengelig.map((a) => {
-    const p = { modul: a.noegle, navn: a.navn, prisOere: a.prisOere };
+    // salgsnavn (19/11): koeberen ser "Skrivehjælp og SoMe", ikke "med/uden kunder".
+    const p = { modul: a.noegle, navn: a.salgsnavn || a.navn, prisOere: a.prisOere };
     if (a.beskrivelse) p.beskrivelse = a.beskrivelse;
     p.giverKunder = harKunder(a.moduler);
     if (a.paaListen === false) p.paaListen = false;

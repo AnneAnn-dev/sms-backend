@@ -51,6 +51,10 @@
 //    side (/bestil?pakke=<noegle>). "Uden kunder" saelges kun dér.
 //  - side: overskrift og intro (og evt. firmaHint) til varens egen, laaste side
 //    /bestil?pakke=<noegle>. Kraeves, naar paaListen er false.
+//  - salgsnavn: det navn, KOEBEREN ser - paa bestillingssiden og i Frisbii (Ann
+//    og Anne 19/11: "med/uden kunder" forvirrer koeberen). Begge udgaver hedder
+//    "Skrivehjælp og SoMe"; add-ons i Frisbii omdoebes til det i haanden.
+//    navn bruges stadig i Din pakke, hvor kunden skifter mellem udgaverne.
 // Teksterne er godkendt af Ann og Anne 18/11; Anne ejer dem.
 //
 // Rene funktioner, ingen netvaerk, ingen miljoevariabler. Proeves af
@@ -86,6 +90,7 @@ const MODUL_ADDONS = {
 const PAKKER = {
   "svar-some": { handle: "modul-svar-some", navn: "Skrivehjælp og SoMe med kunder", prisOere: 20000,
                  moduler: ["svar", "facebook", "kunder"], saelges: SKRIVEHJAELP_SALG, kommer: true,
+                 salgsnavn: "Skrivehjælp og SoMe",
                  beskrivelse: "Svar til kunder på SMS og mail, opslag til Facebook og Instagram og svar på kommentarer. Kunder og opgaver er med.",
                  side: {
                    overskrift: "Svar dine kunder hurtigere.",
@@ -93,11 +98,12 @@ const PAKKER = {
                  } },
   "svar-some-uden-kunder": { handle: "modul-svar-some-uden-kunder", navn: "Skrivehjælp og SoMe uden kunder", prisOere: 20000,
                  moduler: ["svar", "facebook"], saelges: SKRIVEHJAELP_SALG, kommer: true,
+                 salgsnavn: "Skrivehjælp og SoMe",
                  beskrivelse: "Svar til kunder på SMS og mail, opslag til Facebook og Instagram og svar på kommentarer.",
                  paaListen: false,
                  side: {
                    overskrift: "Skriv til dine kunder og på sociale medier – uden besvær.",
-                   intro: "Udkast til svar på SMS og mail og opslag til Facebook og Instagram. Til dig, der ikke har brug for kunde- og opgavestyring.",
+                   intro: "Udkast til svar på SMS og mail og opslag til Facebook og Instagram.",
                    firmaHint: "Det er navnet, dine kunder kender dig under.",
                  } },
 };
@@ -236,6 +242,7 @@ function tjekKatalog(katalog = KATALOG, moduler = MODULER) {
     if (typeof a.beskrivelse !== "string" || !a.beskrivelse.trim()) fejl.push(`${m}: beskrivelse mangler`);
   }
   for (const [m, a] of Object.entries(katalog.MODUL_ADDONS).concat(Object.entries(pakker))) {
+    if (a.salgsnavn !== undefined && (typeof a.salgsnavn !== "string" || !a.salgsnavn.trim())) fejl.push(`${m}: salgsnavn er tomt`);
     if (a.paaListen !== undefined && typeof a.paaListen !== "boolean") fejl.push(`${m}: paaListen skal vaere true eller false`);
     if (a.side !== undefined) {
       const s = a.side || {};
