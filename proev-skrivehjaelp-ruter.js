@@ -119,6 +119,8 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
     ["Fris\u00f8r", "Revisor", "Restaurant", "Webshop", "Fotograf", "Hotel", "Fitness", "IT-support", "Butik", "Andet"]);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: { branche: "Fris\u00f8r", afsender_navn: "Mette", afsender_telefon: null, telefon: null } }) });
   const gny = r.data.situationer.find((s) => s.id === "nyopgave"), gan = r.data.situationer.find((s) => s.id === "andet"), gro = r.data.situationer.find((s) => s.id === "ros");
+  lig("appen faar nej-svarene for ny opgave, og ingen nej-liste for de andre situationer (Ann 19/11)",
+    [gny.nej, gan.nej, gro.nej], [["Det er desv\u00e6rre ikke noget, vi tilbyder."], null, null]);
   lig("frisoer: Annes otte situationer, og appen faar pakkens afgoerende felt (lag 1)",
     [r.data.situationer.map((s) => s.id), gny.afgoerende, gan.afgoerende, gro.afgoerende, r.data.situationer.find((s) => s.id === "status").afgoerende],
     [["nyopgave", "flyt", "pris", "status", "support", "ros", "kvalitet", "andet"], "handle", "handle", null, "state"]);

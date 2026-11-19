@@ -3019,22 +3019,46 @@ function leadKort(lead) {
       const mail = vkKnap('Mail', false, () => { kanal = 'mail'; mail.classList.add('valgt'); sms.classList.remove('valgt'); });
       const kanaler = vkEl('div', 'vk-to'); kanaler.append(sms, mail);
       let indtast = {};
+      let skjult = new Set();   // felter, der ikke bruges, fordi firmaet siger nej (s.nej, Ann 19/11)
       function sit() { return (p.situationer || []).find((s) => s.id === situation.value) || null; }
       function tegnFelter() {
-        felter.replaceChildren(); indtast = {};
+        felter.replaceChildren(); indtast = {}; skjult = new Set();
         const s = sit(); if (!s) return;
+        const boks = {};
         for (const f of s.felter) {
           const e = f.type === 'select' ? vkVaelger(f.options || [], 'Vælg') : vkTekstfelt(300, f.placeholder || '');
           indtast[f.id] = e;
-          felter.appendChild(vkFelt(f.label, e, s.afgoerende === f.id));
+          boks[f.id] = vkFelt(f.label, e, s.afgoerende === f.id);
+          felter.appendChild(boks[f.id]);
         }
-        felter.appendChild(vkFelt('Andet kunden skal vide', andet, s.afgoerende === 'andet'));
+        const andetBoks = vkFelt('Andet kunden skal vide', andet, s.afgoerende === 'andet');
+        const nejHjaelp = vkEl('div', 'vk-hjaelp', 'Siger du nej, kan du skrive her, hvis du fx vil anbefale en anden.');
+        nejHjaelp.style.display = 'none'; nejHjaelp.style.marginTop = '6px';
+        andetBoks.appendChild(nejHjaelp);
+        felter.appendChild(andetBoks);
+        // Vaelges et nej-svar i det afgoerende felt, skjules de andre felter og sendes ikke med.
+        // Serveren bruger dem heller ikke (bygSvar); her forsvinder de bare ogsaa paa skaermen.
+        const afgEl = s.afgoerende ? indtast[s.afgoerende] : null;
+        if (Array.isArray(s.nej) && s.nej.length && afgEl) {
+          const opdater = () => {
+            const nej = s.nej.includes(afgEl.value);
+            skjult = new Set();
+            for (const [id, b] of Object.entries(boks)) {
+              if (id === s.afgoerende) continue;
+              b.style.display = nej ? 'none' : '';
+              if (nej) skjult.add(id);
+            }
+            nejHjaelp.style.display = nej ? '' : 'none';
+          };
+          afgEl.addEventListener('change', opdater);
+          opdater();
+        }
       }
       situation.onchange = tegnFelter;
       const send = vkSendKnap('svar', () => {
         if (!besked.value.trim()) return { fejl: 'Sæt kundens besked ind.', fokus: besked };
         const s = sit(); if (!s) return { fejl: 'Vælg, hvad det drejer sig om.', fokus: situation };
-        const v = {}; for (const [id, e] of Object.entries(indtast)) if (e.value.trim()) v[id] = e.value.trim();
+        const v = {}; for (const [id, e] of Object.entries(indtast)) if (e.value.trim() && !skjult.has(id)) v[id] = e.value.trim();
         if (s.afgoerende === 'andet' && !andet.value.trim()) return { fejl: 'Skriv, hvad kunden skal vide.', fokus: andet };
         if (s.afgoerende && s.afgoerende !== 'andet' && !v[s.afgoerende]) {
           const f = s.felter.find((x) => x.id === s.afgoerende);
