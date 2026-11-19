@@ -145,19 +145,20 @@
       "kanal": "mail",
       "tone": "venlig",
       "felter": {
-        "assess": "Jeg er ikke enig i kundens vurdering.",
+        "assess": "Jeg ser anderledes på sagen end kunden.",
         "next": "Jeg vil gerne finde en løsning sammen med kunden."
       },
       "andet": "",
       "besked": "Hej. Jeg er desværre ikke tilfreds med den service, jeg har fået hos jer. Jeg havde forventet noget andet, og jeg synes ikke, at det lever op til det, vi aftalte. Jeg vil gerne høre, hvad I vil gøre ved det.",
-      "tjek": "Svaret må ikke: Give kunden ret eller indrømme en fejl. Love kompensation, rabat eller refusion. Afvise kunden koldt. Skal: Anerkende oplevelsen, sige at virksomheden ser anderledes på det, og foreslå at finde en løsning sammen.",
+      "tjek": "Svaret må ikke: Give kunden ret eller indrømme en fejl. Love kompensation, rabat eller refusion. Afvise kunden koldt eller skrive 'jeg er ikke enig'. Skal: Anerkende oplevelsen, sige at virksomheden ser anderledes på det, og foreslå at finde en løsning sammen.",
       "maa_ikke": [
         "kr.",
         "rabat",
         "gavekort",
         "refusion",
         "–",
-        "håndværk"
+        "håndværk",
+        "ikke enig"
       ]
     },
     {
