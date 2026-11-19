@@ -1,22 +1,24 @@
 # Byggeplan: Skrivehjælp og SoMe med og uden kunder til salg (Fase 4, salg)
 
 Skrevet 16/11-26 ud fra `origin/main` = `e93c197`. **Godkendt af Anne 17/11.** Navne, pris og salgsvej afgjort 17/11 (Ann), se nedenfor.
+**Opdateret 19/11 (T8-chatten)** ud fra registret til og med indførslen om bestillingssiden 19/11 og T8's egen indførsel. Prod-toget nr. 2 var ved at blive sat i gang, da det her blev skrevet. Det er ikke bekræftet i prod.
 Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-repo\<emne>\`.
 
-## Status 18/11
+## Status 19/11
 
 | Trin | Status |
 |---|---|
-| T1–T4 | På `staging`. Migrationen er kørt på staging, **ikke i prod**. |
-| T5 | På `staging`: velkomstmailen følger modulerne (`velkomstUdenNummer`, 34 prøver). Anne mangler at godkende ordlyden. |
-| T6 | På `staging`: salget styres af flaget `SKRIVEHJAELP_SALG` i stedet for `saelges: true` i koden. Add-ons er oprettet i Frisbii test. Frisbii live er ikke bekræftet. |
-| T7 | Skiftet er målt på Frisbii test (se T7). Test 5 på Erikas mangler. |
-| T8 | Planen er godkendt (Ann 18/11). **Ikke bygget.** Bygges i sin egen chat og merges først til `staging`, når prod-toget er kørt. |
-| Prod | Intet af salget er i prod. Toget kører i sin egen chat fra en låst `staging`-commit. |
+| T1–T4 | **I prod** (tog 1, PR #119, 18/11). Migrationen `20261117120000_firma_moduler_kunder.sql` er kørt i prod. |
+| T5 | **I prod.** Anne har godkendt mail-, skift- og bestillingsteksterne (18/11). |
+| T6 | **I prod, og salget er tændt** (`SKRIVEHJAELP_SALG=true`, 18/11 kl. 09.13 UTC). Add-ons er oprettet i Frisbii live. |
+| T7 | Målt på Frisbii test 18/11. **Ikke målt i live:** bestillingssiden med flaget tændt, skift mellem udgaverne, og om de fire gratis-firmaer kan komme til at betale for det, de har. Test 5 på Erikas står ikke som gjort i registret. |
+| T8 | **På `staging` 19/11, godkendt af Anne, målt på `2026-11-19b`.** Kører med i tog 2. |
+| Bestillingssiden | `/bestil` som eneste betalingsside, låste sider (`?pakke=`), salgsnavn, kortlogoer, velkomstmail med salgsnavn, S40 lukket. **På `staging`**, kører med i tog 2 (den anden chat). |
+| Prod-tog 2 | Bærer bestillingssiden, T8, S40-rettelsen og `mail-salgsnavn`. Sat i gang 19/11 af den anden chat. **Ikke bekræftet i prod.** |
 
-Arbejdet er delt i to chats 18/11: `claude/overdragelse-fase4-prod.md` og `claude/overdragelse-fase4-t8-generel.md` i projektet.
+Arbejdet blev delt i to chats 18/11: `claude/overdragelse-fase4-prod.md` og `claude/overdragelse-fase4-t8-generel.md` i projektet. T8-overdragelsen har en statusdel øverst fra 19/11.
 
-## Beslutninger (Ann 16/11)
+## Beslutninger (Ann 16/11, opdateret 19/11)
 
 | | Skrivehjælp og SoMe med kunder | Skrivehjælp og SoMe uden kunder |
 |---|---|---|
@@ -25,142 +27,118 @@ Arbejdet er delt i to chats 18/11: `claude/overdragelse-fase4-prod.md` og `claud
 | Giver modulerne | svar, facebook, **kunder** | svar, facebook |
 | Appen viser | Opgaver, Kunder, Værktøjer, Profil. Kunder og opgaver kan oprettes i hånden. | Kun Værktøjer og Profil |
 | Telefonnummer | nej (samme vej som Referat uden telefon) | nej |
-| Navn | **Skrivehjælp og SoMe med kunder** | **Skrivehjælp og SoMe uden kunder** |
-| Sælges på | ditdigitalekontor.dk | egen side hos Simply (samme brand); indtil den er bygget: ditdigitalekontor.dk |
+| Navn i Din pakke | **Skrivehjælp og SoMe med kunder** | **Skrivehjælp og SoMe uden kunder** |
+| Navn, køberen ser (19/11) | **Skrivehjælp og SoMe** (`salgsnavn`) | **Skrivehjælp og SoMe** (`salgsnavn`) |
+| Sælges på | `/bestil` (eneste betalingsside fra tog 2) | den låste side `/bestil?pakke=svar-some-uden-kunder`; står ikke på den fulde liste |
 | Målgruppe | håndværkere | små virksomheder uden for håndværket |
 
 - Handles er endelige og kan ikke ændres i Frisbii. Navnene står kun i `frisbii-katalog.js` og kan rettes senere.
 - Brandet er det samme for begge (Ann 17/11): afsender, onboarding og ikon siger fortsat Dit Digitale Kontor. Ingen brand-kode.
-- **Uden kunder sælges uden for håndværket** — derfor er Annes generelle branchepakke en forudsætning for salget (T8).
+- **"Uden kunder" sælges til alle allerede nu (Ann 18/11).** Fag uden for håndværket kører på Håndværk-pakken, til T8 er i prod. Det var et bevidst valg, og det ophævede aftale 3 mellem de to chats.
 - Har firmaet Telefonpasser, Referat (eller senere Tilbud, Faktura, Booking), har det Kunder og Opgaver i forvejen. For de nuværende kunder ændres intet: de har alle Telefonpasser.
-- De firmaer, der fik Skrivehjælp gratis 15/11 (rækker med `kilde = 'manuel'`), beholder den. Det er ikke en del af denne plan at ændre det.
+- De fire firmaer, der fik Skrivehjælp gratis 15/11 (rækker med `kilde = 'manuel'`), beholder den (Ann 18/11).
+- Frisbii (Ann 19/11): planen hedder "Dit Digitale Kontor", og begge add-ons hedder "Skrivehjælp og SoMe".
 
-## Sådan virker det i dag (målt i koden 16/11)
+## Sådan virkede det før Fase 4 salg (målt i koden 16/11)
 
-- **Kataloget** (`frisbii-katalog.js`): pakken `svar-some` (`modul-svar-some`) giver `["svar", "facebook"]`, `saelges: false`, `kommer: true`. `tjekKatalog` afviser et modul i to pakker ("modulet svar er i to pakker").
-- **Modulerne** (`moduler.js`): `MODULER = ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook"]`. Navnene står også i CHECK-reglen `firma_moduler_modul` (migrationerne `20261013120000_firma_moduler.sql` og `20261029051526_synk_frisbii_moduler.sql`). `aktiveModuler` ser kun på rækkerne og datoerne, ikke på abonnementets status.
-- **Nummeret følger modulerne** (`frisbii-webhook.js` ca. linje 517-555): uden `telefon` sættes `udenNummer = "A"`, der tildeles intet nummer, og kunden får `sendVelkomstUdenNummerMail(... variant "A")`.
-- **Onboarding uden telefon** findes: `POST /onboarding/faerdig-uden-telefon` (T7d) sætter status `active` uden verifikation, når `telefonTilstand(...).udenVerifikation`.
-- **Appens faner** (`static/dashboard.html`, `aktiverFaner`): fanerne vises kun med `tilbudAktiv:true`. Opgaver (`nav-alle`) og Kunder (`nav-kunder`) vises altid; Værktøjer (`nav-skriv`) kun med `svar` eller `facebook`. Startfanen er `setFane('alle')`.
+- **Kataloget** (`frisbii-katalog.js`): pakken `svar-some` (`modul-svar-some`) gav `["svar", "facebook"]`, `saelges: false`, `kommer: true`. `tjekKatalog` afviste et modul i to pakker.
+- **Modulerne** (`moduler.js`): `MODULER = ["telefon", "referat", "tilbud", "faktura", "booking", "svar", "facebook"]`. Navnene står også i CHECK-reglen `firma_moduler_modul`. `aktiveModuler` ser kun på rækkerne og datoerne, ikke på abonnementets status. (Efter T1 er `kunder` med.)
+- **Nummeret følger modulerne** (`frisbii-webhook.js`): uden `telefon` sættes `udenNummer = "A"`, der tildeles intet nummer, og kunden får `sendVelkomstUdenNummerMail(... variant "A")`.
+- **Onboarding uden telefon**: `POST /onboarding/faerdig-uden-telefon` (T7d).
+- **Appens faner** (`static/dashboard.html`, `aktiverFaner`): fanerne vises kun med `tilbudAktiv:true`. Værktøjer (`nav-skriv`) kun med `svar` eller `facebook`. (Efter T3 skjules Opgaver og Kunder uden "har kunder".)
 - **Serveren**: "Kunder og opgaver er fundamentet og spærres ikke" (`server.js`, ved `TILBUD_AKTIV`).
-- **Checkout** (`frisbii-checkout.js` ca. linje 284): `add_ons: [{ add_on: handleForVare(m) }]` — intet beløb sendes. Prisen ligger altså i Frisbii (add-on'ens pris pr. plan; listen viser "kr0.00" med "Pris pr. enhed" og "Gælder: ddk-basis"). Den nye add-on sættes op som `modul-referat`.
-- **Hjemmesiden** viser allerede "Kundehenvendelser og SoMe — 200 kr. — Prøv gratis". Den kan ikke gennemføres, før trin 6.
+- **Checkout** (`frisbii-checkout.js`): `add_ons: [{ add_on: handleForVare(m) }]`, intet beløb sendes; prisen ligger i Frisbii.
 
 ## Ændringerne
 
-### T1 — Modulet `kunder` (migration først)
-- Ny migration `supabase/migrations/<ts>_firma_moduler_kunder.sql`: CHECK-reglen `firma_moduler_modul` udvides med `'kunder'`. Ingen data røres. Kontrol og rollback i filen.
-- `moduler.js`: `MODULER` får `"kunder"`.
-- `frisbii-katalog.js`: `MODUL_ADDONS.kunder = { handle: "modul-kunder", navn: "Kunder og opgaver", prisOere: 20000, saelges: false }` (prisen afgjort 17/11) (kræves af `tjekKatalog`: katalog og `MODULER` skal nævne de samme). Oprettes IKKE i Frisbii.
-- `proev-frisbii-katalog.js` tjekker CHECK-reglen mod `MODULER` — opdateres.
+### T1 — Modulet `kunder` (migration først) ✅ i prod
+- Migration: CHECK-reglen `firma_moduler_modul` udvidet med `'kunder'`.
+- `moduler.js`: `MODULER` har `"kunder"`.
+- `frisbii-katalog.js`: `MODUL_ADDONS.kunder` (`modul-kunder`, "Kunder og opgaver", 200 kr., `saelges: false`). Oprettes IKKE i Frisbii.
 
-### T2 — De to pakker i kataloget
-- `PAKKER["svar-some"]`: `moduler: ["svar", "facebook", "kunder"]`, navn "Skrivehjælp og SoMe med kunder", `saelges: false` (tændes i T6).
-- `PAKKER["svar-some-uden-kunder"]`: handle `modul-svar-some-uden-kunder`, navn "Skrivehjælp og SoMe uden kunder", `moduler: ["svar", "facebook"]`, 20000 øre, `saelges: false`, `kommer: true`.
-- `tjekKatalog`: et modul må gerne være i flere pakker. "Dobbelt" (to pakker med samme modul på ét abonnement) meldes stadig af `modulerFraHandles` og afstemningen.
-- Synk og webhook kender pakkerne gennem `varer()` og `handleTilPakke` — ingen ændring, men prøverne udvides med begge handles.
+### T2 — De to pakker i kataloget ✅ i prod
+- `svar-some` (med kunder): `["svar", "facebook", "kunder"]`. `svar-some-uden-kunder`: `["svar", "facebook"]`. Begge 200 kr.
+- Et modul må gerne være i flere pakker; "dobbelt" på ét abonnement meldes af `modulerFraHandles` og afstemningen.
 
-### T3 — Appen: "uden kunder" viser hverken Opgaver eller Kunder
-- `aktiverFaner(moduler)`: firmaet "har kunder", når `moduler` indeholder et af `kunder`, `telefon`, `referat`, `tilbud`, `faktura`, `booking`. Har det ikke: skjul `nav-alle`, `nav-kunder`, "+ Ny opgave" og opgavesøgningen, og start på `setFane('skriv')`.
-- Uden `tilbudAktiv:true` ændres intet (fejler mod "som i dag").
-- `sw.js` bumpes.
-- Serveren spærrer IKKE kunder og opgaver i denne runde (firmaet ser kun sine egne data). Kan tages senere med `kraevModul`.
+### T3 — Appen: "uden kunder" viser hverken Opgaver eller Kunder ✅ i prod
+- "Har kunder" = `kunder`, `telefon`, `referat`, `tilbud`, `faktura` eller `booking` (`harKunder` i `moduler.js`, samme regel i `aktiverFaner`). Uden: start på Værktøjer.
+- Serveren spærrer ikke kunder og opgaver (kan tages senere med `kraevModul`).
 
-### T4 — Din pakke: se og skifte udgave
-- Begge pakker vises under Din pakke. Har firmaet den ene, vises den anden som "Skift til …".
-- Skift = ét kald til Frisbii, der tilføjer den nye og fjerner den gamle (`timing: "immediate"`), så kunden aldrig betaler for begge. Bygges i `frisbii-pakke.js` (`planlaeg`) med prøver. Code 215-reglen (100 % rabat) gælder også her.
-- Har firmaet Telefonpasser eller Referat, vises kun "med kunder" ("uden kunder" giver intet ekstra).
+### T4 — Din pakke: se og skifte udgave ✅ i prod
+- Skift i ét kald til Frisbii (`timing: "immediate"`). Med Telefonpasser eller Referat vises kun "med kunder" (målt i prod på Anns firma 18/11).
 
-### T5 — Oprettelse og velkomstmail
-- Køb af kun én af de to udgaver: ingen `telefon` → intet nummer (findes), variant "A".
-- Variant A vælger tekst efter, om firmaet har kunder. Reglen "har kunder" står ét sted på serveren (`harKunder(moduler)` i `moduler.js`), samme regel som `aktiverFaner` i T3. Mailen nævner pakkens navn frem for modulnavnene.
-- Mailen nævner to tilkøb (Ann 17/11): Referat i begge udgaver (J8: "dine egne noter efter et møde eller en telefonsamtale" — aldrig optagelse af samtalen) og telefonnummeret kun med kunder. Claudes udkast 17/11 til Anne; Anne godkender ordlyden.
-- Onboarding uden kunder: hjælpeteksten under firmanavnet bliver "Det er navnet, dine kunder kender dig under." (der er ingen opgaver).
-- Tjek i den friske `mail.js`, at `firmName` escapes i variant A og B (`tilHtml`); i kopien fra 1/11 gjorde den ikke.
-- Måles på staging (T7).
+### T5 — Oprettelse og velkomstmail ✅ i prod
+- Variant A vælger tekst efter `harKunder`. Mailen nævner Referat i begge udgaver (J8) og telefonnummeret kun med kunder. Anne har godkendt.
+- Tog 2: mailen bruger `salgsnavn` ("Skrivehjælp og SoMe"), aldrig "med/uden kunder".
 
-### T6 — Frisbii og salg (rækkefølgen er vigtig)
-**Ændret 18/11 (Ann):** salget tændes med flaget `SKRIVEHJAELP_SALG=true` i Railway, ikke med `saelges: true` i koden. Begge pakker har `saelges: SKRIVEHJAELP_SALG`. Flaget er fail-closed: mangler det, sælges der ikke. Serveren logger `Skrivehjaelp-salg: TAENDT/SLUKKET` ved opstart. Add-ons oprettes med `opret-frisbii-produkter.js --vare svar-some,svar-some-uden-kunder` (og `--prod` for live) og skal være On-Off.
+### T6 — Frisbii og salg ✅ i prod
+- Salget styres af flaget `SKRIVEHJAELP_SALG` (fail-closed). Tændt i prod 18/11.
+- Frisbii live: `modul-svar-some` og `modul-svar-some-uden-kunder` (`on_off`, 200 kr., `eligible_plans: ["ddk-basis"]`).
+- Tog 2: `/bestil` bliver den eneste betalingsside. Efter toget peger hjemmesidens "Kom i gang" på `https://opgave.ditdigitalekontor.dk/bestil`, Annes `betaling.html` pensioneres, og annoncerne får de låste prod-links.
 
-1. Frisbii **test**: opret `modul-svar-some` og `modul-svar-some-uden-kunder`, 200 kr. ekskl. moms, sat op som `modul-referat` (samme planer under "Gælder").
-2. Flaget `SKRIVEHJAELP_SALG=true` på staging.
-3. Køb på staging: med kunder alene, uden kunder alene, med kunder oven på Telefonpasser, skift uden → med og med → uden.
-4. Frisbii **live**: samme to add-ons, samme handles.
-5. Prod.
-6. Hjemmesiden: "Prøv gratis" peger på den rigtige pakke (`?modul=svar-some` eller `svar-some-uden-kunder`, efter hvordan `/bestil` tager imod). Indtil den nye side findes, ligger begge på ditdigitalekontor.dk. Når den nye side kommer: `/tak` og `/afbrudt` følger i dag `SIMPLY_BASE_URL`, så en kunde derfra lander på ditdigitalekontor.dk efter betalingen — tages op, når siden bygges.
+### T7 — Test
+**Målt 18/11 på Frisbii test:** skiftet går igennem i ét kald begge veje; Frisbii krediterer forholdsmæssigt, så et skift koster kunden ca. 0; ingen kode 215 ved 100 % rabat. Bestillingssiden afviser begge udgaver i samme bestilling (`to_udgaver`).
+**Ikke målt i live:** bestillingssiden med flaget tændt, skift mellem udgaverne, de fire gratis-firmaer. Ved første rigtige køb: læs webhook-loggen for `T8a` og `ukendte`.
 
-### T7 — Test på staging (før prod)
-- Nyt firma køber kun Skrivehjælp og SoMe uden kunder: intet nummer, onboarding uden telefon, appen viser kun Værktøjer og Profil, udkast virker.
-- Nyt firma køber kun Skrivehjælp og SoMe med kunder: intet nummer, Opgaver og Kunder vises, "+ Ny opgave" virker, udkast virker.
-- Firma med Telefonpasser køber Skrivehjælp og SoMe med kunder: ingen ændring i telefonen, Værktøjer kommer til.
-- Skift mellem udgaverne: én faktura-ændring, ingen dobbeltbetaling (læs fakturaen i Frisbii, gæt ikke).
-- Afstemningen (`afstem-frisbii.js`) melder ingen uenighed.
-- `kor-proever` grøn.
+### T8 — Den generelle branchepakke ✅ på staging 19/11, i tog 2
+**Bygget (t8-1 til t8-6):**
+- Annes `Generel_branchepakke.docx` er den fjerde pakke, `generel`: 8 situationer (`nyopgave`, `flyt`, `pris`, `status` (ny), `support` (ny), `ros`, `kvalitet`, `andet`), fagene Frisør, Revisor, Restaurant, Webshop, Fotograf, Hotel, Fitness, IT-support, Butik og Andet. Rullemenuen viser dem af sig selv.
+- `sectorOf` falder tilbage til `generel` i stedet for Håndværk, også for håndværksfag uden for listen.
+- Det afgørende felt kan sættes pr. situation (`afgoerendeFor`); i den generelle pakke er Annes spørgsmål 1 kravet.
+- Ny opgave har én afslutning ved ja og en anden ved nej (`sit.nej` → `nyopgave_nej`) i alle fire pakker. Ved et nej bruges kun nej-svaret og "Andet", og appen skjuler de andre felter.
+- "(henvis venligt)" er fjernet i Håndværk og Grøn sektor; den generelle klage er blødt op.
+- Prompt-version `2026-11-19b`. Nyt målesæt `skrivehjaelp-saet-generel8.json`; anne20's 10 generelle cases har fået felter.
 
-**Målt (18/11):**
-- Skiftet går igennem i ét kald begge veje.
-- Frisbii krediterer forholdsmæssigt (249,96 kr. på inv-39) og laver en ny faktura på ca. 250 kr. Et skift mellem to udgaver til samme pris koster altså kunden ca. 0.
-- Ingen kode 215 på Nillis NixBix (sub-0147, 100 % rabat).
-- **Hul fundet og lukket:** bestillingssiden tog imod begge udgaver i samme bestilling. Den afviser nu med `to_udgaver`.
-- **Sidefund, ikke undersøgt:** efter at en kundes e-mail var rettet, gik webhooken ind i T8a-opslaget ("T8a: pilot - intet nyt firma for sub-0149").
+**Målt 19/11 på `2026-11-19b`:** "håndværk" står ikke i nogen af 37 svar; flagniveauet er uændret fra `2026-11-18`. Anne har godkendt tekster, fag og felter.
 
-**Mangler:** test 5 på Erikas (køb af Referat får fanerne frem; opsig-teksten). Afstemningen er ikke bekræftet kørt.
-
-### T8 — Den generelle branchepakke (Annes udkast 17/11, efter T1-T6)
-- Ny pakke i `prompts/skrivehjaelp-pakker.js` med Annes otte situationer og en fagliste (fx Frisør, Revisor, Restaurant, Webshop, Fotograf, Hotel, Fitness, IT, Andet).
-- Tekstfelt til faktummet, hvor et valg kræver et (Ann 17/11): tid (situation 2), pris (3), status/levering (4). Uden felt finder modellen på tallet eller skriver uden om (P5).
-- `sectorOf` falder tilbage til den generelle pakke i stedet for Håndværk (Ann 17/11).
-- `SKRIVEHJAELP_PROMPT_VERSION` hæves, og `maal-skrivehjaelp.js` køres med et sæt på de otte eksempler.
-- Skal være i prod, før "uden kunder" sælges uden for håndværket.
-
-**Godkendt plan (Ann 18/11), ikke bygget.** Annes spørgsmål 1 er det afgørende felt i hver situation.
-
-| Annes situation | id | Tekstfelt |
-|---|---|---|
-| 1 Forespørgsel / ny kunde | `nyopgave` | – |
-| 2 Booking / ændring | `flyt` | Ny tid eller valgmuligheder |
-| 3 Prisforespørgsel | `pris` | Pris eller link til prisliste |
-| 4 Levering / ordre / kundeservice | `status` (ny) | Hvad kan du sige om status? |
-| 5 Support / hjælp | `support` (ny) | – |
-| 6 Ros | `ros` | Link til anmeldelse |
-| 7 Klage | `kvalitet` | – |
-| 8 Andet | `andet` | – |
-
-- Det afgørende felt kan sættes pr. situation i pakken (`afgoerende`), fordi den generelle pakke bruger andre felter end de tre andre.
-- Nye åbnings- og afslutningstekster til `status` og `support` i jeg- og vi-form (udkast; Anne retter).
-- Pakkens regel: virksomheden er ikke nødvendigvis en håndværker og må aldrig kaldes det.
-- Rullemenuen med brancher får de nye fag af sig selv (i dag kan kun Håndværk, Grøn og Service vælges).
-- **Følge, ikke løst:** de ti cases uden for håndværk i `skrivehjaelp-saet-anne20.json` rammer den generelle pakke efter T8. Syv af dem har ingen felter og bliver afvist. Enten rettes de, eller Annes otte nye eksempler erstatter dem.
+**Åbent (ikke blokerende):** de andre målesæt (fx t1b) er ikke tjekket for cases, der nu rammer den generelle pakke · "Andet" deles op ved forkortelser (fandtes før T8) · dashboardets skjul ved nej er ikke med i CI.
 
 ## Rækkefølge i prod
-1. Migrationen (T1) — før koden. Peg CLI'en på prod med `npx supabase link --project-ref glymuxqtrbpeyzmflilf`, `db push`, og TILBAGE til staging med det samme (`skift-prod.ps1` flytter ikke linket).
-2. Frisbii live add-ons (T6.4). Mål først, om de findes.
-3. Koden (T1–T7) fra en låst `staging`-commit, med `SKRIVEHJAELP_SALG` fraværende eller `false` i prod. `FRISBII_PLAN_HANDLE` skal stå som `abonnement-standard` (D103).
-4. T8 i prod (eget lille tog).
-5. `SKRIVEHJAELP_SALG=true` i prod, efter beslutning (Ann og Anne). Tændes flaget før T8, sælges "uden kunder" til fag, der kører på Håndværk-pakken.
-6. Hjemmesiden.
 
-**Frist:** undtagelsen for `picomatch` (S40) udløber 25/11. Fra 26/11 er CI rød, og Railway deployer ikke.
+1. ✅ Migrationen (T1), 18/11.
+2. ✅ Frisbii live add-ons (T6.4), 18/11.
+3. ✅ Koden T1–T7 (tog 1, PR #119, fra den låste commit `c16bba1`), 18/11.
+4. ✅ `SKRIVEHJAELP_SALG=true` i prod, 18/11 (Ann; før T8, bevidst).
+5. ⏳ **Tog 2:** bestillingssiden, T8, S40-rettelsen og `mail-salgsnavn`, fra en låst `staging`-commit. Genindlæs appen efter deployet, så det nye dashboard hentes.
+6. Hjemmesiden peger på `/bestil`, og `betaling.html` pensioneres (efter tog 2).
+
+**S40:** lukket 19/11 (picomatch er væk fra audit-rapporten). Fristen 25/11 gælder ikke længere.
 
 ## Næste tog: nødbremsen (D103, besluttet 18/11)
 Ann valgte vej (b): bremsen skal stoppe salget i stedet for at falde tilbage til den gamle plan, hvis pris er forkert. Ikke bygget.
 - Når bremsen er trukket, svarer bestillingssiden, at der ikke kan bestilles lige nu. Anne skriver teksten.
 - Derefter fjernes `FRISBII_PLAN_HANDLE` og kravet om den i `requireConfig`.
 - Afklares i koden først: om bremsen fortsat er `FASE3_SYNK=false` eller får sit eget flag.
+- Stadig ikke gjort: advarslen ved variablen i runbooken og i `check-env.js`.
+
+## Skrivehjælp efter tog 2: i prod, under observation
+
+Skrivehjælp er klar til at blive solgt, men ikke "færdig": den er kun målt på testcases. Forslag (T8-chatten 19/11) til hvornår den kan kaldes færdig:
+- Anne har læst 20–30 rigtige udkast (med samtykke eller anonymiseret) og fundet dem gode nok.
+- Fejl, hun finder, er lavet om til cases i et målesæt.
+- Der er mindst én måling af brugen, fx udkast pr. firma pr. uge.
 
 ## Tilbagerulning
 | Problem | Gør |
 |---|---|
-| Salget fejler | `SKRIVEHJAELP_SALG=false` i Railway (kræver ingen kode; tjek loglinjen `Skrivehjaelp-salg: SLUKKET`) og hjemmesidens knap tilbage til "Giv mig besked". |
-| Appen viser forkerte faner | Railway: redeploy forrige deploy. |
+| Salget fejler | `SKRIVEHJAELP_SALG=false` i Railway (kræver ingen kode; tjek loglinjen `Skrivehjaelp-salg: SLUKKET`). |
+| Appen viser forkerte faner eller Skrivehjælp fejler efter tog 2 | Railway: redeploy forrige deploy. |
 | Migrationen | Bliver liggende; den udvider kun CHECK-reglen. |
 
 ## Åbne spørgsmål
-- Anne: godkender ordlyden i velkomstmailen og onboardingen (udkast 17/11), især Referat-linjen (J8).
-- Anne: ordlyden i tekstfelterne i den generelle pakke, de nye åbnings- og afslutningstekster og fagnavnene (T8).
-- Anne: teksterne i skift-boksen i Din pakke og gratis-teksten på bestillingssiden ("… – undtagen Skrivehjælp og SoMe uden kunder.").
 - Anne: teksten til kunden, når nødbremsen er trukket (D103).
-- Ann og Anne: hvornår `SKRIVEHJAELP_SALG` tændes i prod.
-- Ann: skal de generelle cases i anne20 rettes eller erstattes (T8)?
+- Frisbii: afsendernavnet "Lommekontor" er låst og kræver Frisbiis support.
+- Ann: hvornår T7's tre punkter måles i live (bestillingssiden med flaget, skift, gratis-firmaerne).
 
-Afgjort 17/11 (Ann): navnene, prisen på `kunder` (200 kr.), salgsvej og brand.
+Afgjort 17/11 (Ann): navnene, prisen på `kunder` (200 kr.), salgsvej og brand. Afgjort 18/11: salget tændt før T8 (aftale 3 ophævet), gratis-firmaerne beholder Skrivehjælp, Anne godkendte mail-, skift- og bestillingsteksterne. Afgjort 19/11: `/bestil` er den eneste betalingsside, salgsnavnet "Skrivehjælp og SoMe", og Anne godkendte T8.
+
+## Til tilbudsprojektet
+
+Fase 4 salg blokerer ikke tilbudsmodulet. Når tog 2 er i prod, er Fase 4 salg bygget færdigt; det, der er tilbage, er måling i live og D103.
+
+Det, Fase 4 har ændret i filer og regler, som tilbudsmodulet også bruger:
+- `moduler.js`: modulet `kunder` findes, og `harKunder(moduler)` er reglen for, om firmaet har Kunder og Opgaver. `tilbud` tæller med i den.
+- `static/dashboard.html`: `aktiverFaner` skjuler Opgaver og Kunder uden "har kunder"; Værktøjer-fanen og Skrivehjælp-formularen er ændret (nej-skjul i T8). Hent altid den friske fil fra `origin/staging` før ændringer.
+- `frisbii-katalog.js`: kataloget har `salgsnavn`, `beskrivelse`, `side` og `paaListen` (bestillingssiden). Et nyt modul som Tilbud skal også have dem, hvis det skal sælges på `/bestil`.
+- `/bestil` er den eneste betalingsside efter tog 2.
+- Lære fra 19/11 for alle chats: `git diff --cached --name-only` skal vise præcis opgavens filer før commit (T8 kom med i bestillingssidens commit ved et uheld), og CRLF-leverancer tjekkes, som git gør (`\r\n` → `\n`).
