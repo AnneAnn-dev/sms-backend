@@ -142,13 +142,14 @@ const { KATALOG } = require("./frisbii-katalog");
 const { harKunder } = require("./moduler");
 const MODUL_NAVNE = Object.fromEntries(Object.entries(KATALOG.MODUL_ADDONS).map(([m, a]) => [m, a.navn]));
 // Har kunden alle moduler i en pakke (Fase 4: svar og facebook), skrives pakkens navn
-// én gang i stedet for to modulnavne.
+// én gang i stedet for to modulnavne. Det er salgsnavnet - "Skrivehjælp og SoMe" -
+// ikke "med/uden kunder", som forvirrer koeberen (Ann og Anne 19/11).
 const modulTekst = (moduler) => {
   let rest = [...(moduler || [])];
   const navne = [];
   for (const p of Object.values(KATALOG.PAKKER || {})) {
     if (p.moduler.every((m) => rest.includes(m))) {
-      navne.push(p.navn);
+      navne.push(p.salgsnavn || p.navn);
       rest = rest.filter((m) => !p.moduler.includes(m));
     }
   }
