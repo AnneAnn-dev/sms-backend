@@ -12,6 +12,7 @@
 //  - ingen kundetekst i loggen
 //  - underskriften viser et dansk nummer uden +45 (10/11-26)
 //  - jeg-form som standard, vi-form naar firmaet har valgt det (15/11-26)
+//  - den generelle pakke: fagene i rullemenuen, tilbagefald og pakkens afgoerende felt (T8, 18/11-26)
 // Ren ASCII.
 "use strict";
 
@@ -112,8 +113,26 @@ const forbrugt = (d) => d.indsat.filter((x) => x.tabel === "ai_forbrug").map((x)
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ moduler: ["telefon"] }) });
   lig("profil uden svar/facebook: 403", r.status, 403);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: { branche: null, afsender_navn: null, telefon: null } }) });
-  lig("profilen mangler: siges, og brancherne er Annes tre pakker", [r.status, r.data.profilMangler, r.data.brancher.map((b) => b.gruppe), r.data.situationer.length],
-    [200, true, ["H\u00e5ndv\u00e6rk", "Gr\u00f8n sektor", "Service"], 0]);
+  lig("profilen mangler: siges, og brancherne er Annes fire pakker", [r.status, r.data.profilMangler, r.data.brancher.map((b) => b.gruppe), r.data.situationer.length],
+    [200, true, ["H\u00e5ndv\u00e6rk", "Gr\u00f8n sektor", "Service", "Generel"], 0]);
+  lig("rullemenuen faar de generelle fag (Anns fund: kun haandvaerk, groen og service)", r.data.brancher[3].fag,
+    ["Fris\u00f8r", "Revisor", "Restaurant", "Webshop", "Fotograf", "Hotel", "Fitness", "IT-support", "Butik", "Andet"]);
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: { branche: "Fris\u00f8r", afsender_navn: "Mette", afsender_telefon: null, telefon: null } }) });
+  const gny = r.data.situationer.find((s) => s.id === "nyopgave"), gan = r.data.situationer.find((s) => s.id === "andet"), gro = r.data.situationer.find((s) => s.id === "ros");
+  lig("appen faar nej-svarene for ny opgave, og ingen nej-liste for de andre situationer (Ann 19/11)",
+    [gny.nej, gan.nej, gro.nej], [["Det er desv\u00e6rre ikke noget, vi tilbyder."], null, null]);
+  lig("frisoer: Annes otte situationer, og appen faar pakkens afgoerende felt (lag 1)",
+    [r.data.situationer.map((s) => s.id), gny.afgoerende, gan.afgoerende, gro.afgoerende, r.data.situationer.find((s) => s.id === "status").afgoerende],
+    [["nyopgave", "flyt", "pris", "status", "support", "ros", "kvalitet", "andet"], "handle", "handle", null, "state"]);
+  r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil", d: db({ profil: { branche: "Bager", afsender_navn: "Mette", afsender_telefon: null, telefon: null } }) });
+  lig("et gemt fag uden pakke faar den generelle pakke (foer: Haandvaerk)", [r.data.situationer.length, r.data.situationer[0].label], [8, "Foresp\u00f8rgsel / ny kunde"]);
+  r = await koer({ sti: "/api/skrivehjaelp/profil", krop: { branche: "IT-support", afsenderNavn: "Mette" } });
+  lig("et generelt fag kan gemmes, og svaret har de generelle situationer", [r.status, r.d.opdateret[0].v.branche, r.data.situationer.length], [200, "IT-support", 8]);
+  const PG = { branche: "Fris\u00f8r", afsender_navn: "Mette", afsender_telefon: null, telefon: null };
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: { ...SVAR, felter: { take: "Ja, jeg vil gerne se den f\u00f8rst" } }, d: db({ profil: PG }) });
+  lig("frisoer uden Annes spoergsmaal 1: 400 med feltets navn, intet kald (lag 2)", [r.status, r.data.besked, r.m.kald.length], [400, "Udfyld: Hvordan vil du gerne h\u00e5ndtere henvendelsen?", 0]);
+  r = await koer({ sti: "/api/skrivehjaelp/svar", krop: { ...SVAR, felter: { handle: "Jeg vil gerne hj\u00e6lpe kunden videre." } }, d: db({ profil: PG }), m: model([GODT]) });
+  lig("frisoer med spoergsmaal 1: 200, og prompten har den generelle pakke", [r.status, r.m.kald[0].system.includes("BRANCHE: Generel")], [200, true]);
   r = await koer({ metode: "GET", sti: "/api/skrivehjaelp/profil" });
   const ny = r.data.situationer.find((s) => s.id === "nyopgave");
   lig("med profil: situationerne for branchen, med det afgoerende felt", [r.data.firmanavn, r.data.afsenderNavn, ny.afgoerende, r.data.situationer.length], ["Hansens VVS", "Peter", "take", 11]);

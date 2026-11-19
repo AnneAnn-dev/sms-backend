@@ -3,181 +3,333 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bestil Dit Digitale Kontor</title>
+  <title>Bestil | Dit Digitale Kontor</title>
+  <meta name="robots" content="noindex">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
   <!--
-    Bestillingssiden (Fase 3, T8b, 31/10-26). Hjemmesidens knapper linker hertil:
-      /bestil?moduler=telefon | referat | telefon,referat
-    Rabatkode (1/11-26): feltet "Rabatkode (valgfri)", eller ?kode=PILOTTEST i
-    linket. Serveren tjekker koden hos Frisbii; en ukendt kode giver
-    "ukendt_kode", og kunden bliver her. Rabatten ses paa Frisbiis betalingsside.
-    Modulerne og priserne hentes fra /checkout/produkter (kataloget) - siden har
-    ingen priser selv. Koebet starter med POST /checkout/start, som svarer med
-    Frisbiis betalingsside eller 409 "har_konto" (D91). "Har konto" sender kunden
-    til log ind-siden (/dashboard), hvor koden fra mailen kan tastes - en kode
-    sendt herfra havde intet felt at blive tastet i (Ann 31/10).
-    Stil: docs/DASHBOARD-STIL.md (side med skrivefelter = svagt lyseblaa, hvide
-    felter, en blaa knap, alle andre hvide med kant, ingen groen i hvile).
-    Kundens egne ord vises altid som tekst, aldrig som HTML (S33).
+    Bestillingssiden - DEN ENESTE BETALINGSSIDE (Ann og Anne 18/11-26).
+    Hjemmesiden vaelger ikke laengere moduler; den linker hertil. Udseendet er
+    hjemmesidens betaling.html (to kolonner), saa kunden ikke moeder to sider.
+
+    Tre maader at aabne siden:
+      /bestil                          den fulde liste, Telefonpasser valgt
+      /bestil?moduler=telefon,svar-some  den fulde liste med de navngivne valgt
+      /bestil?pakke=svar-some          LAAST til én vare, med varens egen
+      /bestil?pakke=svar-some-uden-kunder  overskrift og tekst (fokuseret salg)
+    ?kode=PILOTTEST udfylder rabatkoden i alle tre.
+
+    Den fulde liste viser varer med paaListen != false ("uden kunder" er kun
+    paa sin egen side) og "Kommer snart" for moduler, der kommer. Et ukendt
+    ?pakke= giver den fulde liste. Laasen styrer kun, hvad siden VISER -
+    serveren afgoer stadig, hvad der kan koebes (vaelgModuler).
+
+    Kortlogoerne (static/kort/) er et krav (Ann 19/11) og kommer fra Annes
+    betaling.html - lagt hos os, saa siden ikke afhaenger af hjemmesiden.
+
+    Navne, priser, beskrivelser og sidetekster hentes fra /checkout/produkter
+    (kataloget, frisbii-katalog.js) - siden har ingen af dem selv. Koebet
+    starter med POST /checkout/start, som svarer med Frisbiis betalingsside
+    eller 409 "har_konto" (D91) -> log ind-siden (/dashboard).
+    Kundens egne ord og alle tekster fra serveren saettes med textContent,
+    aldrig som HTML (S33). Inputfelter er 16px (iOS-zoom).
   -->
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --ink: #16232F; --muted: #5B6B7A; --accent: #2C6B9E; --accent-hover: #3579b0;
-      --line: #E4E9EF; --page: #FAFCFE; --white: #FFFFFF; --tint: #F0F5FA;
-      --error: #C24444; --success: #2E7D52;
+      --navy: #1A3A5C; --steel: #2C6B9E; --smoke: #F4F7FA; --white: #FFFFFF; --ink: #1C2A38;
+      --steel-light: #EAF2FB; --ink-muted: #4A5D6E; --border: #DDE4EC; --error: #C24444;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 16px; line-height: 1.55;
-      background: var(--page); color: var(--ink); -webkit-font-smoothing: antialiased;
-      padding: 32px 20px 56px; display: flex; justify-content: center;
+      font-family: "Source Sans 3", system-ui, sans-serif; font-size: 17px; line-height: 1.6; color: var(--ink);
+      background: var(--white); min-height: 100vh; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased;
     }
-    main { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 24px; }
-    .brand { font-family: 'Nunito', system-ui, sans-serif; font-weight: 800; font-size: 17px; color: var(--accent); }
-    h1 { font-family: 'Nunito', system-ui, sans-serif; font-weight: 800; font-size: 22px; line-height: 1.25; text-wrap: balance; }
-    .sub { color: var(--muted); margin-top: 6px; }
-    .etiket {
-      font-family: 'Nunito', system-ui, sans-serif; font-weight: 700; font-size: 13px;
-      letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 8px;
-    }
-    .produkter { display: flex; flex-direction: column; gap: 10px; }
-    .produkt {
-      display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--white);
-      border: 1px solid var(--line); border-radius: 14px; cursor: pointer; transition: border-color .15s ease;
-    }
-    .produkt:has(input:checked) { border-color: var(--accent); }
-    .produkt input { width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; }
-    .produkt .navn { font-family: 'Nunito', system-ui, sans-serif; font-weight: 800; font-size: 17px; flex: 1; }
-    .produkt .pris { color: var(--muted); white-space: nowrap; }
-    .gratis { color: var(--muted); margin-top: 10px; }
+    nav { background: var(--navy); padding: 0 5vw; display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { font-family: "Nunito", system-ui, sans-serif; font-weight: 800; font-size: 21px; color: #fff; text-decoration: none; letter-spacing: -.3px; }
+    .logo span { color: #7dbfe8; }
+    .sikker { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.6); font-size: 13.5px; }
+    .sikker svg, .ikon { width: 16px; height: 16px; flex-shrink: 0; }
+
+    form { flex: 1; display: flex; }
+    .kol { flex: 1; padding: 56px 5vw; display: flex; }
+    .kol-v { justify-content: flex-end; background: var(--white); }
+    .kol-h { justify-content: flex-start; background: var(--smoke); }
+    .indre { max-width: 460px; width: 100%; }
+    .kol-v .indre { padding-right: 24px; }
+    .kol-h .indre { padding-left: 24px; }
+
+    .eyebrow { font-family: "Nunito", system-ui, sans-serif; font-size: 13px; font-weight: 700; color: var(--steel); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; }
+    h1 { font-family: "Nunito", system-ui, sans-serif; font-size: clamp(30px, 4.2vw, 44px); font-weight: 900; color: var(--navy); line-height: 1.08; margin-bottom: 14px; text-wrap: balance; }
+    .intro { color: var(--ink-muted); margin-bottom: 30px; }
+    .etiket { font-family: "Nunito", system-ui, sans-serif; font-size: 15px; font-weight: 800; color: var(--navy); margin-bottom: 12px; display: block; }
+
+    .liste { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+    .vare { display: flex; align-items: center; gap: 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
+    .vare input { position: absolute; opacity: 0; pointer-events: none; }
+    .vare.valgt { border-color: var(--steel); box-shadow: 0 0 0 1px var(--steel); background: var(--steel-light); }
+    .vare:focus-within { outline: 2px solid var(--steel); outline-offset: 2px; }
+    .vare.laast { cursor: default; }
+    .vare.kommer { cursor: default; opacity: .55; border-style: dashed; background: var(--smoke); }
+    .flueben { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--border); flex-shrink: 0; position: relative; background: var(--white); }
+    .vare.valgt .flueben { border-color: var(--steel); background: var(--steel); }
+    .vare.valgt .flueben::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+    .tekst { flex: 1; display: flex; flex-direction: column; line-height: 1.35; }
+    .tekst strong { font-family: "Nunito", system-ui, sans-serif; font-size: 15.5px; font-weight: 800; color: var(--navy); }
+    .tekst small { font-size: 13.5px; color: var(--ink-muted); }
+    .pris { font-family: "Nunito", system-ui, sans-serif; font-weight: 800; color: var(--navy); white-space: nowrap; }
+
+    .meta { display: flex; gap: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+    .meta div, .prislinje { display: flex; align-items: center; gap: 9px; font-size: 14.5px; color: var(--ink-muted); }
+    .prislinje { font-size: 15px; color: var(--ink); padding: 5px 0; }
+    .prislinje strong { font-weight: 800; color: var(--navy); }
+    .ikon { stroke: var(--ink-muted); }
+    .valgt-tekst { font-size: 14px; color: var(--ink-muted); margin: 2px 0 0 25px; }
+    .note { font-size: 14.5px; color: var(--ink-muted); margin-top: 18px; }
+    .note strong { color: var(--ink); }
+
+    h2 { font-family: "Nunito", system-ui, sans-serif; font-size: clamp(22px, 2.8vw, 28px); font-weight: 900; color: var(--steel); margin-bottom: 20px; }
     .felt { display: flex; flex-direction: column; }
-    .felt + .felt { margin-top: 16px; }
+    .felt + .felt { margin-top: 14px; }
+    .felt label { font-family: "Nunito", system-ui, sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
     input[type=text], input[type=email], input[type=tel] {
       width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--white);
-      border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; outline: none;
-      transition: border-color .15s ease;
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; outline: none; transition: border-color .15s;
     }
-    input:focus { border-color: var(--accent); }
+    input[type=text]:focus, input[type=email]:focus, input[type=tel]:focus { border-color: var(--steel); }
     #kode { text-transform: uppercase; }
     input.fejl { border-color: var(--error); }
-    .hint { color: var(--muted); margin-top: 6px; }
-    .sum {
-      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-      border-top: 1px solid var(--line); padding-top: 16px;
-    }
-    .sum strong { font-family: 'Nunito', system-ui, sans-serif; font-weight: 800; font-size: 17px; white-space: nowrap; }
-    .sum span { color: var(--muted); }
-    .btn {
-      display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px;
-      border: none; border-radius: 14px; background: var(--accent); color: #fff; cursor: pointer;
-      font-family: 'Nunito', system-ui, sans-serif; font-size: 16px; font-weight: 800;
-    }
-    .btn:hover { background: var(--accent-hover); }
-    .btn:disabled { opacity: .55; cursor: default; }
-    .btn.hvid { background: var(--white); color: var(--accent); border: 1px solid var(--line); }
-    .btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .hint { font-size: 14px; color: var(--ink-muted); margin-top: 5px; }
+
+    .betal { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--steel-light); border: 1px solid var(--steel); box-shadow: 0 0 0 1px var(--steel); border-radius: 12px; padding: 16px 18px; margin-top: 26px; }
+    .betal-v { display: flex; align-items: center; gap: 12px; font-family: "Nunito", system-ui, sans-serif; font-size: 15.5px; font-weight: 700; color: var(--navy); }
+    .radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--steel); position: relative; flex-shrink: 0; }
+    .radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--steel); }
+    .kort { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .kort img { display: block; height: auto; }
+    .kort-tekst { font-size: 14px; color: var(--ink-muted); margin: 8px 0 0 20px; }
+
+    .besked { color: var(--error); margin-top: 14px; min-height: 1px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px; background: var(--navy); color: #fff; border: none; border-radius: 12px; font-family: "Nunito", system-ui, sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 14px; text-decoration: none; transition: background .2s; }
+    .btn:hover { background: #12283f; }
+    .btn:disabled { background: var(--border); color: var(--ink-muted); cursor: default; }
+    .btn:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+    .btn svg { width: 17px; height: 17px; }
     .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
     .btn.arbejder .spinner { display: block; }
+    .btn.arbejder svg { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .besked { color: var(--error); min-height: 1px; }
-    .boks { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-    .boks h2 { font-family: 'Nunito', system-ui, sans-serif; font-weight: 800; font-size: 17px; }
-    .lille { color: var(--muted); text-align: center; }
+    .juridisk { font-size: 13.5px; color: var(--ink-muted); text-align: center; margin-top: 16px; }
+    .juridisk a { color: var(--steel); font-weight: 600; text-decoration: none; }
+    .frisbii { display: flex; align-items: flex-start; gap: 10px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-top: 22px; font-size: 13.5px; color: var(--ink-muted); }
+    .frisbii .ikon { margin-top: 2px; }
+    .boks { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .boks h3 { font-family: "Nunito", system-ui, sans-serif; font-weight: 800; font-size: 18px; color: var(--navy); }
+
+    footer { background: var(--navy); color: rgba(255,255,255,.45); padding: 20px 5vw; text-align: center; font-size: 13px; }
+    footer a { color: rgba(255,255,255,.45); text-decoration: none; margin: 0 10px; }
+    footer a:hover { color: #fff; }
     [hidden] { display: none !important; }
+
+    @media (max-width: 860px) {
+      form { flex-direction: column; }
+      .kol { justify-content: center; padding: 36px 6vw; }
+      .kol-v .indre, .kol-h .indre { padding: 0; max-width: 520px; }
+      .kol-v { border-bottom: 1px solid var(--border); }
+    }
     @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
   </style>
 </head>
 <body>
-<main>
-  <div>
-    <div class="brand">Dit Digitale Kontor</div>
+
+<nav>
+  <a class="logo" href="https://ditdigitalekontor.dk/">Dit <span>Digitale</span> Kontor</a>
+  <div class="sikker">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    Sikker forbindelse
   </div>
+</nav>
 
-  <div>
-    <h1>Kom i gang med Dit Digitale Kontor</h1>
-    <p class="sub" id="proeve-tekst">Prøv gratis i 7 dage. Du kan opsige når som helst.</p>
-  </div>
+<form id="form" novalidate>
+  <!-- VENSTRE: valg og pris -->
+  <div class="kol kol-v">
+    <div class="indre">
+      <div class="eyebrow">Din bestilling</div>
+      <h1 id="overskrift">Kom i gang med Dit Digitale Kontor</h1>
+      <p class="intro" id="intro" hidden></p>
 
-  <form id="form" novalidate>
-    <section>
-      <span class="etiket">Vælg moduler</span>
-      <div class="produkter" id="produkter"></div>
-      <p class="gratis">Opgaver og kunde-CRM er gratis med i alle moduler – undtagen Skrivehjælp og SoMe uden kunder.</p>
-    </section>
+      <span class="etiket" id="liste-etiket">Vælg de moduler, du vil starte med</span>
+      <div class="liste" id="liste"></div>
 
-    <section style="margin-top:28px">
-      <div class="felt">
-        <label class="etiket" for="navn">Dit navn</label>
-        <input id="navn" type="text" autocomplete="name" required>
+      <div class="meta">
+        <div>
+          <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          1 virksomhed
+        </div>
+        <div id="meta-kunder">
+          <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Kunder og Opgaver gratis med
+        </div>
       </div>
-      <div class="felt">
-        <label class="etiket" for="firma">Firmanavn</label>
-        <input id="firma" type="text" autocomplete="organization" required>
-        <p class="hint">Navnet, dine kunder møder i beskeder og på telefonen.</p>
-      </div>
-      <div class="felt">
-        <label class="etiket" for="email">E-mail</label>
-        <input id="email" type="email" autocomplete="email" inputmode="email" required>
-        <p class="hint">Her sender vi dit login.</p>
-      </div>
-      <div class="felt">
-        <label class="etiket" for="tlf">Mobilnummer (valgfrit)</label>
-        <input id="tlf" type="tel" autocomplete="tel" inputmode="tel">
-      </div>
-      <div class="felt">
-        <label class="etiket" for="kode">Rabatkode (valgfri)</label>
-        <input id="kode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
-        <p class="hint" id="kode-hint" hidden>Rabatten ses på betalingssiden, før du betaler.</p>
-      </div>
-    </section>
 
-    <div class="sum" style="margin-top:28px">
-      <span id="sum-tekst">Pr. måned efter prøveperioden, ekskl. moms</span>
-      <strong id="sum">–</strong>
+      <div class="prislinje">
+        <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span><strong>0 kr.</strong>&nbsp;i <span class="proevedage">7</span> dage</span>
+      </div>
+      <div class="prislinje">
+        <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Herefter <strong id="sum">–</strong>&nbsp;/md. ekskl. moms</span>
+      </div>
+      <p class="valgt-tekst" id="valgt-tekst"></p>
+
+      <p class="note">
+        <strong>Godt at vide:</strong> Efter de <span class="proevedage">7</span> gratis dage fortsætter det valgte automatisk
+        til normal pris, medmindre du opsiger inden. Gælder nye kunder. Ingen binding, du kan opsige når som helst.
+        Du kan altid lægge moduler til eller fjerne dem senere.
+      </p>
     </div>
+  </div>
 
-    <p class="besked" id="besked" role="alert" style="margin-top:16px"></p>
+  <!-- HØJRE: oplysninger og betaling -->
+  <div class="kol kol-h">
+    <div class="indre">
+      <div id="bestilling">
+        <h2>Dine oplysninger</h2>
+        <div class="felt">
+          <label for="navn">Dit navn</label>
+          <input id="navn" type="text" autocomplete="name" required>
+        </div>
+        <div class="felt">
+          <label for="firma">Firmanavn</label>
+          <input id="firma" type="text" autocomplete="organization" required>
+          <p class="hint" id="firma-hint">Navnet, dine kunder møder i beskeder og på telefonen.</p>
+        </div>
+        <div class="felt">
+          <label for="email">E-mail</label>
+          <input id="email" type="email" autocomplete="email" inputmode="email" required>
+          <p class="hint">Her sender vi dit login.</p>
+        </div>
+        <div class="felt">
+          <label for="tlf">Mobilnummer (valgfrit)</label>
+          <input id="tlf" type="tel" autocomplete="tel" inputmode="tel">
+        </div>
+        <div class="felt">
+          <label for="kode">Rabatkode (valgfri)</label>
+          <input id="kode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
+          <p class="hint" id="kode-hint" hidden>Rabatten ses på betalingssiden, før du betaler.</p>
+        </div>
 
-    <button class="btn" id="koeb" type="submit" style="margin-top:12px" disabled>
-      <span id="koeb-tekst">Videre til betaling</span><span class="spinner"></span>
-    </button>
-    <p class="lille" style="margin-top:12px">Du betaler sikkert hos Frisbii. Intet trækkes i prøveperioden.</p>
-  </form>
+        <div class="betal">
+          <div class="betal-v"><span class="radio"></span>Betalingskort</div>
+          <div class="kort">
+            <img src="/kort/dankort.png" alt="Dankort" width="33" height="20">
+            <img src="/kort/visa.svg" alt="Visa" width="48" height="16">
+            <img src="/kort/mastercard.svg" alt="Mastercard" width="28" height="22">
+          </div>
+        </div>
+        <p class="kort-tekst">Betal med Dankort, Visa eller Mastercard.</p>
 
-  <section class="boks" id="har-konto" hidden>
-    <h2>Du har allerede en konto hos os</h2>
-    <p>Log ind med din e-mail og adgangskode. Har du ingen adgangskode, kan du få en kode på mail på log ind-siden.</p>
-    <a class="btn" id="til-login" href="/dashboard" style="text-decoration:none">Log ind</a>
-  </section>
-</main>
+        <p class="besked" id="besked" role="alert"></p>
+        <button class="btn" id="koeb" type="submit" disabled>
+          <span>Fortsæt til betaling</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="spinner"></span>
+        </button>
+        <p class="juridisk">Ved at klikke på knappen accepterer du vores <a href="https://ditdigitalekontor.dk/betingelser.html" target="_blank" rel="noopener">handelsbetingelser</a>.</p>
+        <div class="frisbii">
+          <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>Du betaler sikkert hos vores betalingsudbyder Frisbii. Intet trækkes i prøveperioden, og vi opbevarer ikke dine kortoplysninger.</span>
+        </div>
+      </div>
+
+      <section class="boks" id="har-konto" hidden>
+        <h3>Du har allerede en konto hos os</h3>
+        <p>Log ind med din e-mail og adgangskode. Har du ingen adgangskode, kan du få en kode på mail på log ind-siden.</p>
+        <a class="btn" href="/dashboard">Log ind</a>
+      </section>
+    </div>
+  </div>
+</form>
+
+<footer>
+  <span>© 2026 Dit Digitale Kontor</span>
+  <a href="https://ditdigitalekontor.dk/faq.html">FAQ</a>
+  <a href="https://ditdigitalekontor.dk/privatlivspolitik.html">Privatlivspolitik</a>
+  <a href="https://ditdigitalekontor.dk/betingelser.html">Handelsbetingelser</a>
+  <a href="https://ditdigitalekontor.dk/abonnementsvilkaar.html">Abonnementsvilkår</a>
+</footer>
 
 <script>
 (function () {
   "use strict";
-  var produkter = [];
   var $ = function (id) { return document.getElementById(id); };
   var kr = function (oere) { return (oere / 100).toLocaleString("da-DK") + " kr."; };
+  var params = new URLSearchParams(location.search);
+  var produkter = [];   // fra /checkout/produkter
+  var vist = [];        // de varer, siden viser (kan vaelges)
+  var valgt = [];       // noeglerne paa det valgte
+  var laast = false;    // ?pakke=: én vare, kan ikke vaelges fra
 
-  function valgte() {
-    return Array.prototype.slice.call(document.querySelectorAll("#produkter input:checked")).map(function (i) { return i.value; });
-  }
-  function opdaterSum() {
-    var sum = produkter.filter(function (p) { return valgte().indexOf(p.modul) !== -1; })
-      .reduce(function (s, p) { return s + p.prisOere; }, 0);
-    $("sum").textContent = valgte().length ? kr(sum) : "–";
-    $("koeb").disabled = !valgte().length;
-  }
   function visBesked(tekst) { $("besked").textContent = tekst || ""; }
+  function vare(noegle) { return produkter.filter(function (p) { return p.modul === noegle; })[0] || null; }
 
-  // Moduler fra linket (?moduler=telefon,referat). Ukendte ignoreres.
-  var fraLink = (new URLSearchParams(location.search).get("moduler") || "")
-    .split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+  function opdater() {
+    var dele = vist.filter(function (p) { return valgt.indexOf(p.modul) !== -1; });
+    var sum = dele.reduce(function (s, p) { return s + p.prisOere; }, 0);
+    $("sum").textContent = dele.length ? kr(sum) : "–";
+    $("valgt-tekst").textContent = dele.length ? dele.map(function (p) { return p.navn; }).join(" + ") : "Vælg mindst ét modul";
+    // "Kunder og Opgaver gratis med": kun naar det valgte giver dem (kataloget, giverKunder).
+    $("meta-kunder").hidden = dele.length > 0 && !dele.some(function (p) { return p.giverKunder; });
+    $("koeb").disabled = !dele.length;
+    Array.prototype.forEach.call(document.querySelectorAll("#liste .vare[data-modul]"), function (el) {
+      var paa = valgt.indexOf(el.getAttribute("data-modul")) !== -1;
+      el.classList.toggle("valgt", paa);
+      var cb = el.querySelector("input"); if (cb) cb.checked = paa;
+    });
+  }
+
+  function vaelg(p, paa) {
+    valgt = valgt.filter(function (m) { return m !== p.modul; });
+    if (paa) {
+      // To udgaver af samme pakke: kun én ad gangen (serveren afviser begge: to_udgaver).
+      valgt = valgt.filter(function (m) { return (p.udelukker || []).indexOf(m) === -1; });
+      valgt.push(p.modul);
+    }
+    opdater();
+  }
+
+  function byggVare(p) {
+    var el = document.createElement(laast ? "div" : "label");
+    el.className = "vare" + (laast ? " laast" : "");
+    el.setAttribute("data-modul", p.modul);
+    if (!laast) {
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = p.modul;
+      cb.addEventListener("change", function () { vaelg(p, cb.checked); });
+      el.appendChild(cb);
+    }
+    var fb = document.createElement("span"); fb.className = "flueben"; el.appendChild(fb);
+    var tekst = document.createElement("span"); tekst.className = "tekst";
+    var navn = document.createElement("strong"); navn.textContent = p.navn; tekst.appendChild(navn);
+    if (p.beskrivelse) { var b = document.createElement("small"); b.textContent = p.beskrivelse; tekst.appendChild(b); }
+    el.appendChild(tekst);
+    var pris = document.createElement("span"); pris.className = "pris"; pris.textContent = kr(p.prisOere); el.appendChild(pris);
+    return el;
+  }
+
+  function byggKommer(a) {
+    var el = document.createElement("div"); el.className = "vare kommer";
+    var fb = document.createElement("span"); fb.className = "flueben"; el.appendChild(fb);
+    var tekst = document.createElement("span"); tekst.className = "tekst";
+    var navn = document.createElement("strong"); navn.textContent = a.navn; tekst.appendChild(navn);
+    var s = document.createElement("small"); s.textContent = "Kommer snart."; tekst.appendChild(s);
+    el.appendChild(tekst);
+    var pris = document.createElement("span"); pris.className = "pris"; pris.textContent = kr(a.prisOere); el.appendChild(pris);
+    return el;
+  }
 
   // Rabatkode fra linket (?kode=PILOTTEST) udfyldes; hinten vises, naar der er en kode.
-  var kodeFraLink = (new URLSearchParams(location.search).get("kode") || "").trim().toUpperCase().slice(0, 40);
+  var kodeFraLink = (params.get("kode") || "").trim().toUpperCase().slice(0, 40);
   if (kodeFraLink) $("kode").value = kodeFraLink;
   function opdaterKodeHint() { $("kode-hint").hidden = !$("kode").value.trim(); }
   $("kode").addEventListener("input", function () { $("kode").classList.remove("fejl"); opdaterKodeHint(); });
@@ -187,27 +339,38 @@
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function (data) {
       produkter = data.produkter || [];
-      if (data.proevedage) $("proeve-tekst").textContent = "Prøv gratis i " + data.proevedage + " dage. Du kan opsige når som helst.";
-      var valgtFraLink = fraLink.filter(function (m) { return produkter.some(function (p) { return p.modul === m; }); });
-      var liste = $("produkter");
-      produkter.forEach(function (p) {
-        var lab = document.createElement("label"); lab.className = "produkt";
-        var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = p.modul;
-        cb.checked = valgtFraLink.length ? valgtFraLink.indexOf(p.modul) !== -1 : p.modul === "telefon";
-        // To udgaver af samme pakke (Fase 4 salg): kun én ad gangen. Fra linket vinder den første.
-        if (cb.checked && (p.udelukker || []).some(function (u) { return valgte().indexOf(u) !== -1; })) cb.checked = false;
-        cb.addEventListener("change", function () {
-          if (cb.checked) (p.udelukker || []).forEach(function (u) {
-            var anden = document.querySelector('#produkter input[value="' + u + '"]');
-            if (anden) anden.checked = false;
+      if (data.proevedage) Array.prototype.forEach.call(document.querySelectorAll(".proevedage"), function (el) { el.textContent = data.proevedage; });
+
+      // ?pakke=<noegle>: den laaste side - kun hvis varen findes og har sin egen side.
+      var fokus = vare((params.get("pakke") || "").trim().toLowerCase());
+      if (fokus && fokus.side) {
+        laast = true;
+        vist = [fokus];
+        valgt = [fokus.modul];
+        $("overskrift").textContent = fokus.side.overskrift;
+        $("intro").textContent = fokus.side.intro; $("intro").hidden = false;
+        if (fokus.side.firmaHint) $("firma-hint").textContent = fokus.side.firmaHint;
+        $("liste-etiket").textContent = "Det får du";
+        document.title = fokus.navn + " | Dit Digitale Kontor";
+      } else {
+        // Den fulde liste: alt, der ikke kun hoerer til sin egen side.
+        vist = produkter.filter(function (p) { return p.paaListen !== false; });
+        var fraLink = (params.get("moduler") || "").split(",")
+          .map(function (s) { return s.trim().toLowerCase(); })
+          .filter(function (m) { return vist.some(function (p) { return p.modul === m; }); });
+        valgt = [];
+        (fraLink.length ? fraLink : vist.some(function (p) { return p.modul === "telefon"; }) ? ["telefon"] : [])
+          .forEach(function (m) {
+            var p = vare(m);
+            // Fra linket vinder den foerste af to udgaver.
+            if (p && valgt.indexOf(m) === -1 && !valgt.some(function (v) { return (p.udelukker || []).indexOf(v) !== -1; })) valgt.push(m);
           });
-          opdaterSum();
-        });
-        var navn = document.createElement("span"); navn.className = "navn"; navn.textContent = p.navn;
-        var pris = document.createElement("span"); pris.className = "pris"; pris.textContent = kr(p.prisOere) + "/md.";
-        lab.appendChild(cb); lab.appendChild(navn); lab.appendChild(pris); liste.appendChild(lab);
-      });
-      opdaterSum();
+      }
+
+      var liste = $("liste");
+      vist.forEach(function (p) { liste.appendChild(byggVare(p)); });
+      if (!laast) (data.kommer || []).forEach(function (a) { liste.appendChild(byggKommer(a)); });
+      opdater();
     })
     .catch(function () {
       visBesked("Vi kunne ikke hente modulerne lige nu. Prøv igen om lidt, eller skriv til info@ditdigitalekontor.dk.");
@@ -230,7 +393,8 @@
     ["navn", "firma", "email", "kode"].forEach(function (id) { $(id).classList.remove("fejl"); });
     var krop = {
       name: $("navn").value.trim(), company: $("firma").value.trim(),
-      email: $("email").value.trim(), phone: $("tlf").value.trim(), moduler: valgte(),
+      email: $("email").value.trim(), phone: $("tlf").value.trim(),
+      moduler: valgt.filter(function (m) { return vist.some(function (p) { return p.modul === m; }); }),
       kode: $("kode").value.trim().toUpperCase(),
     };
     if (!krop.name) { $("navn").classList.add("fejl"); return visBesked("Skriv dit navn."); }
@@ -247,9 +411,9 @@
       return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, d: d }; });
     }).then(function (svar) {
       if (svar.status === 200 && svar.d.url) { location.href = svar.d.url; return; }
-      knap.classList.remove("arbejder"); opdaterSum();
+      knap.classList.remove("arbejder"); opdater();
       if (svar.status === 409 && svar.d.error === "har_konto") {
-        $("form").hidden = true; $("har-konto").hidden = false; return;
+        $("bestilling").hidden = true; $("har-konto").hidden = false; return;
       }
       if (svar.status === 429) {
         var min = Math.max(1, Math.ceil((svar.d.retry_after_sekunder || 600) / 60));
@@ -259,11 +423,10 @@
       if (f) { if (f[0]) $(f[0]).classList.add("fejl"); return visBesked(f[1]); }
       visBesked("Noget gik galt, da vi skulle åbne betalingen. Prøv igen om lidt, eller skriv til info@ditdigitalekontor.dk.");
     }).catch(function () {
-      knap.classList.remove("arbejder"); opdaterSum();
+      knap.classList.remove("arbejder"); opdater();
       visBesked("Ingen forbindelse. Tjek dit internet og prøv igen.");
     });
   });
-
 })();
 </script>
 </body>

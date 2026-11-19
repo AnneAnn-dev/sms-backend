@@ -150,14 +150,33 @@ k = kopi(); k.PAKKER["svar-some"].moduler = ["svar", "findes-ikke"];
 tjekKatalog(k).some((f) => f.includes("ukendt modul findes-ikke")) ? ok("pakke med ukendt modul -> fejl") : nej("pakke ukendt modul -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.PAKKER["svar-some"].handle = k.MODUL_ADDONS.svar.handle;
 tjekKatalog(k).some((f) => f.includes("to gange")) ? ok("pakke med et moduls handle -> fejl") : nej("pakke-handle to gange -> fejl", JSON.stringify(tjekKatalog(k)));
-k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["svar", "referat"], saelges: false };
+k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["svar", "referat"], saelges: false, beskrivelse: "E" };
 lig("et modul i flere pakker er tilladt (Fase 4 salg)", tjekKatalog(k), []);
 k = kopi(); k.PAKKER.ekstra = { handle: "modul-ekstra", navn: "Ekstra", prisOere: 100, moduler: ["facebook", "svar"], saelges: false };
 tjekKatalog(k).some((f) => f.includes("de samme moduler")) ? ok("to pakker med de samme moduler -> fejl") : nej("to pakker samme moduler -> fejl", JSON.stringify(tjekKatalog(k)));
 k = kopi(); k.PAKKER.referat = { handle: "modul-x", navn: "X", prisOere: 100, moduler: ["svar", "facebook"], saelges: false };
 tjekKatalog(k).some((f) => f.includes("samme som et modul")) ? ok("pakke med et moduls navn -> fejl") : nej("pakke med modulnavn -> fejl", JSON.stringify(tjekKatalog(k)));
+// Bestillingssiden (18/11): tekster i kataloget, ikke paa hjemmesiden.
+k = kopi(); delete k.MODUL_ADDONS.telefon.beskrivelse;
+tjekKatalog(k).some((f) => f.includes("telefon: beskrivelse mangler")) ? ok("modul til salg uden beskrivelse -> fejl") : nej("modul uden beskrivelse -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].beskrivelse = "  ";
+tjekKatalog(k).some((f) => f.includes("svar-some: beskrivelse mangler")) ? ok("pakke med tom beskrivelse -> fejl (ogsaa naar den ikke saelges endnu)") : nej("pakke tom beskrivelse -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); delete k.PAKKER["svar-some-uden-kunder"].side;
+tjekKatalog(k).some((f) => f.includes("kraever en side")) ? ok("ikke paa listen og ingen egen side -> fejl (kan ikke koebes nogen steder)") : nej("paaListen false uden side -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].side = { overskrift: "X" };
+tjekKatalog(k).some((f) => f.includes("overskrift og intro")) ? ok("side uden intro -> fejl") : nej("side uden intro -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].paaListen = "nej";
+tjekKatalog(k).some((f) => f.includes("paaListen skal")) ? ok("paaListen, der ikke er true/false -> fejl") : nej("paaListen ugyldig -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); k.PAKKER["svar-some"].salgsnavn = " ";
+tjekKatalog(k).some((f) => f.includes("svar-some: salgsnavn er tomt")) ? ok("tomt salgsnavn -> fejl") : nej("tomt salgsnavn -> fejl", JSON.stringify(tjekKatalog(k)));
+k = kopi(); delete k.MODUL_ADDONS.tilbud.beskrivelse;
+lig("Tilbud (kommer, saelges ikke) behoever ingen beskrivelse", tjekKatalog(k), []);
 lig("et katalog med et modul, MODULER ikke kender -> fejl",
   tjekKatalog(KATALOG, MODULER.filter((m) => m !== "facebook")).length > 0, true);
+
+lig("bestillingssiden: med kunder staar paa listen, uden kunder kun paa sin egen side",
+  [KATALOG.PAKKER["svar-some"].paaListen, KATALOG.PAKKER["svar-some-uden-kunder"].paaListen, !!KATALOG.PAKKER["svar-some"].side, !!KATALOG.PAKKER["svar-some-uden-kunder"].side],
+  [undefined, false, true, true]);
 
 console.log("\n6. Har firmaet Kunder og Opgaver? (moduler.js, Fase 4 salg T3)");
 const mod = require("./moduler");

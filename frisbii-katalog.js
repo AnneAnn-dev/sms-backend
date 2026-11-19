@@ -42,6 +42,21 @@
 //  Modulet kunder saelges ikke for sig og oprettes ikke i Frisbii; prisen (200 kr.,
 //  Ann 17/11) er der kun, fordi tjekKatalog kraever en.
 //
+// BESTILLINGSSIDEN (Ann og Anne 18/11-26): /bestil er den eneste betalingsside;
+// hjemmesiden linker kun. Teksterne til siden staar her, saa navne, priser og
+// tekster ikke kan glide fra hinanden (ingen dublet paa hjemmesiden):
+//  - beskrivelse: linjen under varens navn. Kraeves for alt, der saelges, og
+//    for alle pakker (tjekKatalog).
+//  - paaListen: false = varen staar IKKE paa den fulde liste, kun paa sin egen
+//    side (/bestil?pakke=<noegle>). "Uden kunder" saelges kun dér.
+//  - side: overskrift og intro (og evt. firmaHint) til varens egen, laaste side
+//    /bestil?pakke=<noegle>. Kraeves, naar paaListen er false.
+//  - salgsnavn: det navn, KOEBEREN ser - paa bestillingssiden og i Frisbii (Ann
+//    og Anne 19/11: "med/uden kunder" forvirrer koeberen). Begge udgaver hedder
+//    "Skrivehjælp og SoMe"; add-ons i Frisbii omdoebes til det i haanden.
+//    navn bruges stadig i Din pakke, hvor kunden skifter mellem udgaverne.
+// Teksterne er godkendt af Ann og Anne 18/11; Anne ejer dem.
+//
 // Rene funktioner, ingen netvaerk, ingen miljoevariabler. Proeves af
 // proev-frisbii-katalog.js, som ogsaa tjekker, at kataloget, MODULER og
 // CHECK-reglen i databasen naevner de samme moduler.
@@ -60,8 +75,10 @@ const GAMLE_PLANER = {
 };
 
 const MODUL_ADDONS = {
-  telefon:  { handle: "modul-telefon",  navn: "Telefonpasser",     prisOere: 50000, saelges: true },
-  referat:  { handle: "modul-referat",  navn: "Referat",           prisOere: 40000, saelges: true },
+  telefon:  { handle: "modul-telefon",  navn: "Telefonpasser",     prisOere: 50000, saelges: true,
+              beskrivelse: "Kunden får en SMS og beskriver selv opgaven, når du ikke kan tage telefonen." },
+  referat:  { handle: "modul-referat",  navn: "Referat",           prisOere: 40000, saelges: true,
+              beskrivelse: "Indtal et referat hos kunden, og placér det på opgaven." },
   tilbud:   { handle: "modul-tilbud",   navn: "Tilbud",            prisOere: 50000, saelges: false, kommer: true },
   faktura:  { handle: "modul-faktura",  navn: "Faktura",           prisOere: 50000, saelges: false, kommer: true },
   booking:  { handle: "modul-booking",  navn: "Booking",           prisOere: 40000, saelges: false },
@@ -72,9 +89,23 @@ const MODUL_ADDONS = {
 
 const PAKKER = {
   "svar-some": { handle: "modul-svar-some", navn: "Skrivehjælp og SoMe med kunder", prisOere: 20000,
-                 moduler: ["svar", "facebook", "kunder"], saelges: SKRIVEHJAELP_SALG, kommer: true },
+                 moduler: ["svar", "facebook", "kunder"], saelges: SKRIVEHJAELP_SALG, kommer: true,
+                 salgsnavn: "Skrivehjælp og SoMe",
+                 beskrivelse: "Svar til kunder på SMS og mail, opslag til Facebook og Instagram og svar på kommentarer. Kunder og opgaver er med.",
+                 side: {
+                   overskrift: "Svar dine kunder hurtigere.",
+                   intro: "Skrivehjælp laver udkast til dine svar på SMS og mail, og SoMe-værktøjet skriver dine opslag til Facebook og Instagram. Kunder og opgaver er med.",
+                 } },
   "svar-some-uden-kunder": { handle: "modul-svar-some-uden-kunder", navn: "Skrivehjælp og SoMe uden kunder", prisOere: 20000,
-                 moduler: ["svar", "facebook"], saelges: SKRIVEHJAELP_SALG, kommer: true },
+                 moduler: ["svar", "facebook"], saelges: SKRIVEHJAELP_SALG, kommer: true,
+                 salgsnavn: "Skrivehjælp og SoMe",
+                 beskrivelse: "Svar til kunder på SMS og mail, opslag til Facebook og Instagram og svar på kommentarer.",
+                 paaListen: false,
+                 side: {
+                   overskrift: "Skriv til dine kunder og på sociale medier – uden besvær.",
+                   intro: "Udkast til svar på SMS og mail og opslag til Facebook og Instagram.",
+                   firmaHint: "Det er navnet, dine kunder kender dig under.",
+                 } },
 };
 
 const HELE_PAKKEN = { handle: "modul-hele-pakken", navn: "Hele pakken", prisOere: 150000, saelges: false };
@@ -202,6 +233,25 @@ function tjekKatalog(katalog = KATALOG, moduler = MODULER) {
     if (!Number.isInteger(a.prisOere) || a.prisOere <= 0) fejl.push(`${m}: prisOere skal vaere et positivt heltal`);
     if (typeof a.saelges !== "boolean") fejl.push(`${m}: saelges skal vaere true eller false`);
     if (!a.navn) fejl.push(`${m}: navn mangler`);
+  }
+  // Bestillingssiden (18/11): beskrivelse paa alt, der kan saelges, og paa alle
+  // pakker (deres salg styres af et flag, saa de skal vaere klar paa forhaand).
+  const medTekst = Object.entries(katalog.MODUL_ADDONS).filter(([, a]) => a.saelges)
+    .concat(Object.entries(pakker));
+  for (const [m, a] of medTekst) {
+    if (typeof a.beskrivelse !== "string" || !a.beskrivelse.trim()) fejl.push(`${m}: beskrivelse mangler`);
+  }
+  for (const [m, a] of Object.entries(katalog.MODUL_ADDONS).concat(Object.entries(pakker))) {
+    if (a.salgsnavn !== undefined && (typeof a.salgsnavn !== "string" || !a.salgsnavn.trim())) fejl.push(`${m}: salgsnavn er tomt`);
+    if (a.paaListen !== undefined && typeof a.paaListen !== "boolean") fejl.push(`${m}: paaListen skal vaere true eller false`);
+    if (a.side !== undefined) {
+      const s = a.side || {};
+      if (typeof s.overskrift !== "string" || !s.overskrift.trim() || typeof s.intro !== "string" || !s.intro.trim()) {
+        fejl.push(`${m}: side skal have overskrift og intro`);
+      }
+      if (s.firmaHint !== undefined && (typeof s.firmaHint !== "string" || !s.firmaHint.trim())) fejl.push(`${m}: side.firmaHint er tom`);
+    }
+    if (a.paaListen === false && !a.side) fejl.push(`${m}: paaListen false kraever en side (ellers kan varen ikke koebes nogen steder)`);
   }
   const saetTilPakke = {};
   for (const [p, a] of Object.entries(pakker)) {

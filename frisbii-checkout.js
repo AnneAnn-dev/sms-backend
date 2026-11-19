@@ -20,7 +20,9 @@
 //    kunde; loftet herunder begraenser, hvor mange e-mails man kan proeve
 //    (Ann 31/10: accepteret, staar i registret).
 //  - GET /checkout/produkter: det, der saelges, med navne og priser fra
-//    kataloget - saa siden aldrig har sine egne priser.
+//    kataloget - saa siden aldrig har sine egne priser. Fra 18/11-26 ogsaa
+//    beskrivelse, giverKunder, paaListen, side og listen "kommer" (Kommer
+//    snart): /bestil er den eneste betalingsside, hjemmesiden linker kun.
 //  - GET /bestil: bestillingssiden (static/bestil.html).
 //
 // Rabatkode (1/11-26, kun med FASE3_SYNK): kunden kan skrive en kuponkode
@@ -45,6 +47,7 @@ const path = require("path");
 const { opretLoft, klientIp } = require("./ratelimit");
 const { FASE3_SYNK } = require("./flags");
 const { KATALOG, varer, handleForVare, udgaver } = require("./frisbii-katalog");
+const { harKunder } = require("./moduler");
 const { firmaerMedEmail } = require("./frisbii-kunde");
 
 const FRISBII_CHECKOUT_API = "https://checkout-api.frisbii.com/v1";
@@ -96,14 +99,36 @@ function maskerEmail(s) {
 // Varer = moduler og pakker (Fase 4: "Kundehenvendelser og SoMe"). modul er varens noegle.
 // udelukker (Fase 4 salg, 18/11): de udgaver, der ikke kan koebes sammen med
 // varen - bestillingssiden fjerner fluebenet i den anden, naar den ene vaelges.
+// Bestillingssiden (18/11-26, Ann og Anne): /bestil er den eneste betalingsside.
+// Felterne kommer fra kataloget, saa siden aldrig har sine egne tekster:
+//   beskrivelse  - linjen under navnet
+//   giverKunder  - om varen giver Kunder og Opgaver (moduler.js, harKunder)
+//   paaListen    - kun med, naar den er false: varen staar ikke paa den fulde
+//                  liste, kun paa sin egen side (/bestil?pakke=<modul>)
+//   side         - overskrift, intro og evt. firmaHint til varens egen side
+// Listen styrer kun, hvad siden VISER. Hvad der kan KOEBES, afgoer
+// vaelgModuler, som foer: en vare med paaListen false kan stadig koebes.
 function tilSalg(katalog = KATALOG) {
   const tilgaengelig = varer(katalog).filter((a) => a.saelges);
   return tilgaengelig.map((a) => {
-    const p = { modul: a.noegle, navn: a.navn, prisOere: a.prisOere };
+    // salgsnavn (19/11): koeberen ser "Skrivehjælp og SoMe", ikke "med/uden kunder".
+    const p = { modul: a.noegle, navn: a.salgsnavn || a.navn, prisOere: a.prisOere };
+    if (a.beskrivelse) p.beskrivelse = a.beskrivelse;
+    p.giverKunder = harKunder(a.moduler);
+    if (a.paaListen === false) p.paaListen = false;
+    if (a.side) p.side = { ...a.side };
     const u = udgaver(a.noegle, katalog).filter((k) => tilgaengelig.some((x) => x.noegle === k));
     if (u.length) p.udelukker = u;
     return p;
   });
+}
+
+// Moduler, der vises graatonet som "Kommer snart" paa den fulde liste (som i
+// Din pakke). Kun moduler - en pakke, der ikke saelges endnu, vises ikke.
+function kommerSnart(katalog = KATALOG) {
+  return Object.values(katalog.MODUL_ADDONS)
+    .filter((a) => a.kommer && !a.saelges)
+    .map((a) => ({ navn: a.navn, prisOere: a.prisOere }));
 }
 
 // Kundens valg -> { ok, moduler } eller { ok: false, fejl }. Tager en liste
@@ -385,7 +410,7 @@ function checkoutModul(app, supabase) {
   if (FASE3_SYNK) {
     app.get("/checkout/produkter", (req, res) => {
       res.set("Cache-Control", "no-store");
-      res.json({ proevedage: KATALOG.PROEVEDAGE, produkter: tilSalg() });
+      res.json({ proevedage: KATALOG.PROEVEDAGE, produkter: tilSalg(), kommer: kommerSnart() });
     });
     app.get("/bestil", (req, res) => res.sendFile(path.join(__dirname, "static", "bestil.html")));
   }
@@ -399,6 +424,7 @@ function checkoutModul(app, supabase) {
 module.exports = checkoutModul;
 module.exports.vaelgModuler = vaelgModuler;
 module.exports.tilSalg = tilSalg;
+module.exports.kommerSnart = kommerSnart;
 module.exports.harKoerendeKonto = harKoerendeKonto;
 module.exports.rensKode = rensKode;
 module.exports.tjekKode = tjekKode;

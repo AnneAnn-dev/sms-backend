@@ -110,7 +110,7 @@ function byggCases() {
         cases.push({ id: `svar-${pk}-${sid}-tom`, type: "svar", firma, maa_ikke: [],
           input: { situation: sid, felter: {}, kanal: "sms", tone: "venlig", besked: sit.example } });
         // Fase 4 T2 (8/11): kun det afgoerende felt udfyldt = det mindste, appen tillader.
-        const afg = P.AFGOERENDE[sid];
+        const afg = P.afgoerendeFor(pack, sid);
         if (afg) {
           const minFelter = {}; let minAndet = "";
           if (afg === "andet") minAndet = "Fakturaen er sendt igen";
@@ -119,7 +119,7 @@ function byggCases() {
             input: { situation: sid, felter: minFelter, andet: minAndet, kanal: "sms", tone: "venlig", besked: sit.example } });
         }
         cases.push({ id: `svar-${pk}-${sid}-udfyldt`, type: "svar", firma, maa_ikke: [],
-          input: { situation: sid, felter: udfyldteFelter(sit), andet: P.AFGOERENDE[sid] === "andet" ? "Fakturaen er sendt igen" : "",
+          input: { situation: sid, felter: udfyldteFelter(sit), andet: P.afgoerendeFor(pack, sid) === "andet" ? "Fakturaen er sendt igen" : "",
                    kanal: sit.group === "klage" ? "mail" : "sms",
                    tone: sit.group === "klage" ? "imødekommende" : "venlig", besked: sit.example } });
       }

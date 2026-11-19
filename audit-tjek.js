@@ -46,19 +46,13 @@ const fs = require("fs");
 //   samme npm audit fix som proxy-addr 2.0.8. Scriptet fangede selv, at
 //   undtagelsen var blevet overfloedig, og gjorde koerslen roed - regel 2.
 //   Linjen er slettet samme dag. Se registret.
+//   GHSA-fc5q-39xc-vjpf i picomatch. Undtaget 18/11-26 med udloeb 25/11 (S40:
+//   kun via @appsignal/nodejs > node-gyp > tinyglobby, ingen rettet version).
+//   Samme aften (18/11, CI paa staging-pushet 4fbd303) fandtes fundet ikke
+//   laengere i rapporten - "Advisories i alt: 3, heraf high/critical: 0" - og
+//   regel 2 gjorde koerslen roed. Linjen er slettet samme dag. Se registret.
 
-const UNDTAGELSER = [
-  {
-    id: "GHSA-fc5q-39xc-vjpf",
-    pakke: "picomatch",
-    dato: "2026-11-18",
-    udloeber: "2026-11-25",
-    begrundelse: "Kun via @appsignal/nodejs > node-gyp > tinyglobby (byggevaerktoej ved npm install). " +
-      "Matcher kun moenstre skrevet i vaerktoejet; serveren kalder aldrig picomatch, og intet brugerinput naar dertil. " +
-      "Ingen rettet version (patched: None, berorte <= 4.0.7). Blokerede staging-deploy 18/11 (Wait for CI).",
-    retrigger: "rettet picomatch udgivet, eller @appsignal/nodejs uden node-gyp i kaeden - og senest udloebsdatoen (Ann 18/11: en uge)",
-  },
-];
+const UNDTAGELSER = [];
 
 // I dag som AAAA-MM-DD i dansk tid (CI koerer i UTC). Til test: AUDIT_IDAG.
 function idag() {
