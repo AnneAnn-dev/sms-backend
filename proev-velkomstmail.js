@@ -4,7 +4,7 @@
 //
 //   node proev-velkomstmail.js
 //
-// Fase 4 salg T5, 18/11-26. Ren ASCII (danske bogstaver som \u-koder).
+// Fase 4 salg T5, 18/11-26. Salgsnavn 19/11-26. Ren ASCII (danske bogstaver som \u-koder).
 "use strict";
 
 const { velkomstUdenNummer, tilHtml } = require("./mail");
@@ -24,7 +24,8 @@ const TELEFON = "nummer, der tager imod opkald";
 
 console.log("1. Skrivehjaelp og SoMe uden kunder (svar + facebook)");
 let m = mail(["svar", "facebook"]);
-har("pakkens navn", m.html, "Skrivehj\u00e6lp og SoMe uden kunder er klar til brug");
+har("pakkens salgsnavn (19/11)", m.html, "Skrivehj\u00e6lp og SoMe er klar til brug");
+harIkke("aldrig \"uden kunder\" i mailen (19/11)", m.html, "uden kunder");
 har("Skrivehjaelp-afsnittet", m.html, "svare dine kunder, skrive opslag til Facebook");
 harIkke("ingen kunder og opgaver", m.html, KUNDER);
 har("tilkoeb: Referat", m.html, REFERAT);
@@ -33,7 +34,8 @@ lig("emnet", m.subject, "Velkommen, Frisoer Frederikke \u2014 din konto er klar"
 
 console.log("\n2. Skrivehjaelp og SoMe med kunder (svar + facebook + kunder)");
 m = mail(["svar", "facebook", "kunder"]);
-har("pakkens navn", m.html, "Skrivehj\u00e6lp og SoMe med kunder er klar til brug");
+har("pakkens salgsnavn (19/11)", m.html, "Skrivehj\u00e6lp og SoMe er klar til brug");
+harIkke("aldrig \"med kunder\" i mailen (19/11)", m.html, "med kunder");
 har("kunder og opgaver", m.html, KUNDER);
 har("tilkoeb: Referat", m.html, REFERAT);
 har("tilkoeb: telefonnummer, efter Referat ('ogsaa')", m.html, "Det kan ogs\u00e5 tilf\u00f8jes under Din pakke.");
@@ -47,7 +49,7 @@ har("telefonnummer uden 'ogsaa'", m.html, "Det kan du tilf\u00f8je n\u00e5r som 
 
 console.log("\n4. Uden kunder + Referat (koebt sammen)");
 m = mail(["facebook", "referat", "svar"]);
-har("begge navne", m.html, "Skrivehj\u00e6lp og SoMe uden kunder, Referat er klar til brug");
+har("begge navne", m.html, "Skrivehj\u00e6lp og SoMe, Referat er klar til brug");
 har("Referat giver kunder og opgaver", m.html, KUNDER);
 harIkke("intet tilbud om Referat", m.html, REFERAT);
 
