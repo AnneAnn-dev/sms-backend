@@ -1,14 +1,14 @@
 # Byggeplan: Tilbud (Fase 5)
 
 Skrevet 19/11-26 ud fra arbejdskopien af `docs/` synket 19/11 (registret 803.155 bytes, sidste post D104).
-Beslutninger 1–9, opgavetyper, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 afgjort af Ann 20/11. **Ikke godkendt af Anne.** Åbne punkter står nederst.
+Beslutninger 1–9, opgavetyper, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 og tilbuddets input afgjort af Ann 20/11. **Ikke godkendt af Anne.** Åbne punkter står nederst.
 Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-repo\<emne>\`.
 
 Denne fil erstatter Trin 4 i `tilbud-runbook.md` som rækkefølge for tilbuddet. Primeren er stadig autoritativ for HVAD og HVORFOR (frysning, append-only, D13, D22).
 
 ## Port 5
 
-Et tilbud kan laves både med og uden referat, godkendes, deles som PDF og markeres sendt og accepteret — og et godkendt tilbud viser de samme tal, efter at profilen er rettet.
+Et tilbud kan laves ud fra opgavens beskrivelse alene og ud fra beskrivelsen plus flere referater, godkendes, deles som PDF og markeres sendt og accepteret — og et godkendt tilbud viser de samme tal, efter at profilen er rettet.
 
 ## Beslutninger (Ann 19/11)
 
@@ -23,6 +23,7 @@ Et tilbud kan laves både med og uden referat, godkendes, deles som PDF og marke
 | 7 | Tilbudsnummer | Fortløbende pr. firma, sat ved godkendelse. **Håndværkeren kan sætte startnummeret**, så han fortsætter sin egen serie. Nummeret kan ikke sættes under det højeste, der er brugt. |
 | 8 | PDF | jsPDF i browseren, hostet selv fra start. Anne laver layoutet. Intet logo i første udgave. |
 | 9 | Placering | Tilbud i opgavevinduet; timepris, kørsel, betingelser og startnummer i Profil. |
+| 10 | Input (Ann 20/11) | Forslaget bygger på **alt, der ligger på opgaven**: beskrivelsen (fra kundeformularen eller Ny opgave) og **alle opgavens referater**, hver med dato og i rækkefølge. Alle referater er valgt fra start; håndværkeren kan fravælge nogle, før forslaget laves. Tilbuddet husker sine kilder (referaternes id'er og beskrivelsens udgave), og kilderne fryses med resten. Er kilderne uenige (40 m² og senere 45 m²), vinder den nyeste, og forslaget skriver "kilderne er uenige" ved feltet. Et nyt referat efter afsendelse giver en ny version (D13, `kilde_referat_id`). |
 
 ## Referencetal (Ann 19/11)
 
@@ -51,12 +52,12 @@ To chats arbejder samtidig. De rører hver sine filer.
 
 | Trin | Spor 1: data og server | Spor 2: måling, derefter klient |
 |---|---|---|
-| **0** | Mål skemaet på staging: `information_schema.columns`, `pg_policies`, grants på `tilbud*` og `firma_profil`. Kun læsning. Afvigelser skrives ned. | Grænser for AI-målingen skrevet og godkendt af Ann og Anne **før** første resultat. Anne samler ca. 10 rigtige opgaver/referater med facit-linjer. |
-| **A** | D5: tilbudsruterne i egen fil. Én migration: `tilbud_historik` (INSERT-only RLS), rettelser fra trin 0, `opgavetype`, `maengde`, `enhed`, arbejde/materialer, `tilbudsnummer`, startnummer i `firma_profil`, grants. Kontrol og rollback i filen. | `prompts/tilbudslinjer.js` og et målescript mod sættet. Kvotepuljen `tilbud` og loftet foreslås (Ø2). |
+| **0** | Mål skemaet på staging: `information_schema.columns`, `pg_policies`, grants på `tilbud*` og `firma_profil`. Kun læsning. Afvigelser skrives ned. | Grænser for AI-målingen skrevet og godkendt af Ann og Anne **før** første resultat. Anne samler ca. 10 rigtige opgaver med facit-linjer: nogle med kun beskrivelse, nogle med beskrivelse plus 2–3 referater, mindst én hvor kilderne er uenige, og én med et injektionsforsøg i kundens tekst. |
+| **A** | D5: tilbudsruterne i egen fil. Én migration: `tilbud_historik` (INSERT-only RLS), rettelser fra trin 0, `opgavetype`, `maengde`, `enhed`, arbejde/materialer, `tilbudsnummer`, startnummer i `firma_profil`, kildelisten pr. tilbud (#10), grants. Kontrol og rollback i filen. | `prompts/tilbudslinjer.js` (kilderne mærket med type og dato; den nyeste vinder; uenighed meldes) og et målescript mod sættet. Kvotepuljen `tilbud` og loftet foreslås (Ø2). |
 | **B** | Ruter med CRUD pr. række og ejerskabstjek (IDOR); beregning i kode (numeric, moms). | AI-porten afgøres efter grænserne fra trin 0. Prompten låses med en version (D14). |
 | **C** | Godkend: profilværdier fryses ind, nummer tildeles atomisk, linje i historikken, tilbuddet låses. Ny version erstatter et afsendt. Sendt og accepteret som hændelser. **Frysningstest** som prøve. | Klient: Tilbud i opgavevinduet, linjeeditor med "ikke accepteret"-markering, Profil-felterne. |
-| **D** | `/api/tilbud/tilbudslinjer`: kvote før kald, låst model, formvalidering (P5), retry én gang. Referencetal-rute (kun egne tal). | PDF og del-knap. Referencetallet ved godkendelse. Browserprøve med `<img src=x onerror=…>` som navn. |
-| **Samling** | Ende til ende på staging, med og uden referat (Port 5). Seks-linse-gennemgang, Annes QA, installeret app på iPhone. | ← samme |
+| **D** | `/api/tilbud/tilbudslinjer`: klienten sender kun opgavens id og de valgte referaters id'er, aldrig tekst; serveren tjekker, at referaterne hører til opgaven og firmaet (IDOR), henter teksterne selv og lægger et loft på inputtets længde. Kvote før kald, låst model, formvalidering (P5), retry én gang. Referencetal-rute (kun egne tal). | PDF og del-knap. Referencetallet ved godkendelse. Browserprøve med `<img src=x onerror=…>` som navn. |
+| **Samling** | Ende til ende på staging: kun beskrivelse, og beskrivelse plus flere referater med ét fravalgt (Port 5). Seks-linse-gennemgang, Annes QA, installeret app på iPhone. | ← samme |
 | **Pilot** | Eget flag for tilbudsdelen (navn afgøres i koden). Modulet sat på manuelt: Anns firma, derefter DB Tømrerfirma. Tog fra en låst `staging`-commit. | |
 | **Salg** | Add-on `modul-tilbud` (400 kr./md. ekskl. moms) i Frisbii test, derefter live; salgsflag efter Fase 4-mønstret; `kommer: false`. | |
 
@@ -71,7 +72,7 @@ To chats arbejder samtidig. De rører hver sine filer.
 
 ## Registret
 
-Genåbnes eller udvides for tilbud: S6, Ø2, J9, D14, P5, D13, D5, S21 (egne tal). Nye rækker, `Parkeret` med udløser: referencetal på tværs af firmaer (vilkår og formål, anonymiseringsgrænse, konkurrenceret, forretningskonflikt), indlæsning af tidligere fakturaer, tilbudsrykkeren (D22). Ny J-række: kundens adresse og opgavetekst sendes til Scaleway (som J14). Spørgsmål til advokaten: opbevaring af tilbud (J4, D89).
+Genåbnes eller udvides for tilbud: S6, Ø2, J9, D14, P5, D13, D5, S21 (egne tal). Nye rækker, `Parkeret` med udløser: referencetal på tværs af firmaer (vilkår og formål, anonymiseringsgrænse, konkurrenceret, forretningskonflikt), indlæsning af tidligere fakturaer, tilbudsrykkeren (D22). Ny J-række: kundens adresse, opgavetekst fra formularen og referaterne sendes til Scaleway (som J14). S6 udvides: kundens formulartekst er utroværdigt input i prompten. Spørgsmål til advokaten: opbevaring af tilbud (J4, D89).
 
 ## Tilbagerulning
 
