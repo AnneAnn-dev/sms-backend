@@ -2,7 +2,7 @@
 
 Skrevet 20/11-26 af spor 2 ud fra arbejdskopien af `docs/` synket 20/11 (`fase5-tilbud-byggeplan.md` 16.994 bytes, registret 803.155 bytes).
 Udgave 4, 21/11: **AI-kaldet skriver kun over** fra kilderne og foreslår hverken timer eller priser (Ann 21/11; byggeplanens beslutning 3 og 4 rettes af spor 1). Annes svar på spørgsmål 1–6 er indført (21/11).
-**Forslag. Grænserne er ikke godkendt af Ann eller Anne.** Anne var enig i tallene i udgave 3; tabellen er ændret siden, så den skal godkendes igen, **før** et eneste modelsvar er set.
+**Grænserne i afsnit 4 er godkendt af Ann og Anne 21/11-26, før noget modelsvar er set** (udgave 5 indfører kun godkendelsen). Ændres en grænse herefter, sker det i en ny udgave med begrundelse, og aldrig efter at et resultat er set uden at det står der.
 
 Ingen kald til modellen er lavet. Dokumentet indeholder (a) testsættets form, (b) grænserne og hvad der sker ved rød port, og (c) skabelonen til facit (bilag A).
 
@@ -130,8 +130,8 @@ Ingen af trinene ændrer datamodellen.
 
 Grænserne i afsnit 4 er godkendt, før noget modelsvar er set.
 
-- Ann: ____________ dato: ________
-- Anne: ____________ dato: ________
+- Ann: godkendt 21/11-26 (meddelt i chatten med spor 2).
+- Anne: godkendt 21/11-26 (meddelt af Ann).
 
 ---
 
