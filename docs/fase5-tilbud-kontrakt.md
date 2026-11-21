@@ -1,6 +1,6 @@
 # Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2
 
-Udkast 1, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 19.391 bytes, committet 21/11). **Ikke aftalt endnu.** Ingen af sporene koder efter den, før spor 2 har svaret, og Ann har godkendt den.
+Udkast 2, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 20.313 bytes med #16 Rabat). Ændret fra udkast 1: rabat (#16) og kolonnerne i `leads` (målt 21/11). **Ikke aftalt endnu.** Ingen af sporene koder efter den, før spor 2 har svaret, og Ann har godkendt den.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -39,12 +39,14 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
   "timepris_oere": 47500,
   "moms_sats": "25.00",
   "koersel": { "form": "km", "km": "18", "sats_oere": 380, "beloeb_oere": null },
+  "rabat": { "form": "procent", "procent": "10", "beloeb_oere": null },
 
   "firma": { "navn": "…", "cvr": "…", "adresse": "…", "telefon": "…", "email": "…", "bank_reg": "…", "bank_konto": "…" },
 
   "summer": {
-    "arbejde_oere": 0, "materialer_oere": 0, "koersel_oere": 6840, "andet_oere": 0,
-    "ex_moms_oere": 6840, "moms_oere": 1710, "inkl_moms_oere": 8550
+    "arbejde_oere": 520000, "materialer_oere": 1500000, "koersel_oere": 0, "andet_oere": 0,
+    "foer_samlet_rabat_oere": 2020000, "samlet_rabat_oere": 202000,
+    "ex_moms_oere": 1818000, "moms_oere": 454500, "inkl_moms_oere": 2272500
   },
 
   "kilder": {
@@ -67,6 +69,8 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 
 - **`status`:** `kladde` → `godkendt` → `sendt` → `accepteret`. Desuden `afvist`, `udloebet` (findes i skemaet; Fase 5 sætter dem ikke) og `erstattet` (sættes på den gamle version, når en ny i samme kæde godkendes).
 - **`firma`, `timepris_oere`, `moms_sats`, `koersel`, `betingelser`:** i en kladde er det profilens værdier, som de er nu. Fra `godkendt` er det de frosne værdier (#2, #13). Klienten og PDF'en læser altid herfra, aldrig fra profilen.
+- **`rabat`** (#16): rabatten på hele tilbuddet. `form` er `null`, `"procent"` eller `"kroner"`; kun det matchende felt er udfyldt. Trækkes fra efter linjerne og før moms.
+- **`summer`:** arbejde, materialer, kørsel og andet er efter linjerabat. `samlet_rabat_oere` er rabatten på hele tilbuddet. Eksemplet er 12 t × 475 kr. − 500 kr. linjerabat, 15.000 kr. materialer, 10 % samlet.
 - **`kilder`:** sættes, når forslaget laves (afsnit 4), og fryses ved godkendelse (#10).
 - **`tilbudsnummer`:** heltal, sat ved godkendelse; en ny version får et nyt (#7).
 - **`kan_godkendes` og `mangler`:** serveren fortæller, hvad der står i vejen. Klienten viser listen; den gætter ikke selv.
@@ -82,6 +86,8 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
   "antal": "95",
   "enhed": { "id": "uuid", "navn": "m" },
   "enhedspris_oere": null,
+  "rabat": { "form": null, "procent": null, "beloeb_oere": null },
+  "rabat_oere": null,
   "linje_sum_oere": null,
   "kilde": "model",
   "bekraeftet": false
@@ -91,7 +97,9 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 - **`type`:** `arbejde`, `materiale`, `koersel`, `andet` (#5).
 - **Arbejdslinjen** oprettes af serveren med `enhedspris_oere` = tilbuddets timepris og `antal` = `null`, til han skriver timerne (#3). Den har `kilde: "haandvaerker"`.
 - **Kørselslinjen** oprettes og vedligeholdes af serveren ud fra `koersel`; klienten retter `koersel`, ikke linjen.
-- **`linje_sum_oere`** regnes af serveren efter afrundingsreglen (#14) og er `null`, så længe antal eller pris mangler.
+- **`rabat`** (#16): linjens rabat, samme form som tilbuddets. `rabat_oere` er beløbet, serveren har regnet. Erstatter `rabat_pct`.
+- **`linje_sum_oere`** regnes af serveren efter afrundingsreglen (#14): antal × pris − linjens rabat, afrundet én gang. `null`, så længe antal eller pris mangler.
+- **En rabat, der gør linjen eller tilbuddet negativt, afvises med `422`.**
 - **`enhed`** er fra grundlisten eller firmaets egne enheder (#11); linjen fryser navnet.
 
 ## 3. Hvad der er "ikke accepteret"
@@ -99,7 +107,7 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 | Felt | Sat af | Accepteres ved |
 |---|---|---|
 | `titel` | modellen | `titel_bekraeftet: true` i en PATCH |
-| `opgave_titel_forslag` | modellen | `POST …/opgave-titel` med `{ "handling": "accepter" }` eller `"afvis"`; først ved accept skrives titlen på opgaven (#12) |
+| `opgave_titel_forslag` | modellen | `POST …/opgave-titel` med `{ "handling": "accepter" }` eller `"afvis"`; først ved accept skrives titlen på opgaven, `leads.titel` (#12) |
 | `opgavetype` | modellen | `opgavetype_bekraeftet: true` |
 | `maengde` | modellen | `maengde_bekraeftet: true` |
 | linje med `kilde: "model"` | modellen | `bekraeftet: true` i linjens PATCH |
@@ -117,7 +125,7 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 
 Serveren:
 1. Tjekker, at tilbuddet er en kladde i hans firma, og at hvert referat hører til netop den opgave og det firma. Ellers `404`.
-2. Henter selv beskrivelse, noter og referaternes tekst, sætter referaterne i rækkefølge efter dato og lægger et loft på inputtets samlede længde (tallet kommer fra spor 2's måling).
+2. Henter selv beskrivelse (`leads.task`), noter (`leads.notes`) og referaternes tekst, sætter referaterne i rækkefølge efter dato og lægger et loft på inputtets samlede længde (tallet kommer fra spor 2's måling).
 3. Tjekker kvoten **før** kaldet (puljen `tilbud`, `kvote.js`).
 4. Kalder modellen med låst model og prompt-version (D14), validerer svaret (afsnit 5) og prøver én gang mere ved ugyldigt svar.
 5. **Erstatter tilbuddets ubekræftede model-linjer og -felter** med det nye forslag. Bekræftede linjer og hans egne linjer røres ikke.
@@ -183,5 +191,4 @@ Alle tilbudsruter kræver modulet `tilbud` (som `referat` i dag).
 1. Modelsvarets form (afsnit 5): er felterne og navnene de rigtige for prompten og testsættet?
 2. Lofterne: inputlængde, tekstlængder og antal materialer — fra målingen.
 3. Hvor mange af firmaets typer sendes med (forslag: de 50 mest brugte)?
-4. `rabat_pct` findes i skemaet, men ingen beslutning bruger den. Spor 1 foreslår at fjerne den, så afrundingsreglen har ét trin mindre. Ann afgør.
-5. Kolonnenavnene for opgavens titel og noter i `leads` er ikke målt endnu; spor 1 måler dem før trin A.
+4. Rabatterne på PDF'en: hvordan de vises (egne linjer er besluttet, layoutet er Annes og dit).
