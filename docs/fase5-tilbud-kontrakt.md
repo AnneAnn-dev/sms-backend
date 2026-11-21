@@ -1,6 +1,6 @@
 # Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2
 
-Udkast 7, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejder seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"): kopi af profilen ved oprettelse, rabat med brutto, mængde ud fra mål, pris = bekræftelse, modtager og gyldighed, statusskift og fortrydelse, samtidighed (`rev`), skalaer, fejlkoder, logning, rutestier, ordret-kontrol, PDF-feltliste. **Ikke godkendt endnu** — begge spor og Ann skal se det; indtil da gælder udkast 6.
+Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. **Ikke godkendt endnu** — spor 2 og Ann skal se det; indtil da gælder udkast 6.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -11,7 +11,7 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 - **Klienten regner ingenting.** Alle summer kommer fra serveren og vises, som de er. PDF'en læser kun det, serveren har gemt (#14).
 - **Ejerskab udledes af tokenet.** Et id, der tilhører et andet firma, giver `404`, ikke `403`, så det ikke afslører, at det findes (IDOR).
 - **Skalaer (B2):** øre er heltal (`bigint` i databasen, BigInt eller sikre heltal i koden), antal og mængde højst 3 decimaler, procent og moms højst 2 decimaler. Ingen regning i kommatal nogen steder.
-- **Fejlkoder:** `404` ikke fundet eller ikke dit · `409` tilbuddet er låst (ikke kladde), `rev` passer ikke, eller et forslag kører allerede · `413` input for langt · `422` ugyldige data, med `mangler: [...]` · `429` kvoten er brugt · `503` modellen svarer ikke. Forslaget har en fast timeout; kladden kan altid redigeres, også når forslaget fejler ("Lav tilbuddet uden forslag").
+- **Fejlkoder:** `404` ikke fundet eller ikke dit · `409` tilbuddet er låst (ikke kladde), `rev` passer ikke, eller et forslag kører allerede · `413` input for langt — intet skæres stille af; klienten tilbyder at fravælge referater (B8) · `422` ugyldige data, med `mangler: [...]` · `429` kvoten er brugt · `503` modellen svarer ikke. Forslaget har en fast timeout; kladden kan altid redigeres, også når forslaget fejler ("Lav tilbuddet uden forslag").
 - **Samtidighed (A3):** hvert tilbud har `rev` (heltal). En PATCH skal sende `rev` (som `If-Match`-header eller felt); passer den ikke, svarer serveren `409` med det aktuelle tilbud.
 - **Logning (B6):** ved formfejl og andre fejl logges kun fejlkode, feltsti og længder — aldrig kundens tekst, titler, navne eller modelsvarets indhold.
 
@@ -124,6 +124,7 @@ Efter `kladde` må kun `status`, `sendt_at`, `accepteret_at` og `rev` ændres, o
   "rabat_oere": null,
   "linje_sum_oere": null,
   "uenig": null,
+  "ordret": true,
   "kilde": "model",
   "bekraeftet": false
 }
@@ -134,6 +135,7 @@ Efter `kladde` må kun `status`, `sendt_at`, `accepteret_at` og `rev` ændres, o
 - **Kørselslinjen** oprettes og vedligeholdes af serveren ud fra `koersel`; klienten retter `koersel`, ikke linjen.
 - **`enhed`** er fra grundlisten eller firmaets egne enheder (#11); linjen fryser navnet. `"ny": true` betyder en enhed, firmaet ikke har endnu; den oprettes, når han bekræfter linjen ("Tilføj enhed").
 - **`uenig`:** kildernes forskellige værdier for linjen i samme form som `uenige[].vaerdier` (kilde, dato, værdi), eller `null`. Fjernes, når linjen bekræftes.
+- **`ordret`:** `false`, når modellens beskrivelse ikke findes ordret i kilden (afsnit 5); klienten viser "Står ikke sådan i dine noter — tjek". `true` på hans egne linjer. Hver værdi i `uenige` og `uenig` har også `ordret`.
 - **`rabat`** (#16): linjens rabat, samme form som tilbuddets. `rabat_oere` er beløbet, serveren har regnet. Erstatter `rabat_pct`.
 - **`brutto_oere`, `rabat_oere`, `linje_sum_oere`** regnes af serveren efter afrundingsreglen (#14, B1): brutto = antal × pris afrundet til øre; rabat afrundet for sig; netto (`linje_sum_oere`) = brutto − rabat. Så går de viste tal altid op. `null`, så længe antal eller pris mangler.
 - **En rabat, der gør linjen eller tilbuddet negativt, afvises med `422`.**
@@ -189,6 +191,7 @@ Serveren:
 - **`referater`** sorteres efter tidspunkt (`referater.created_at`), ikke kun dato, og får et løbenummer `nr` fra 1 i den rækkefølge. Så kan to referater fra samme dag skelnes, og "den nyeste vinder" har altid en nyeste.
 - **`referater[].kilde`:** `"optagelse"`, `"upload"` eller `"manuel"` (check-listen på `referater.kilde`, målt 20/11).
 - **`firmaets_typer`:** de 50 mest brugte, ved lige antal sorteret efter senest brugt.
+- **`enheder`:** grundlisten plus firmaets 30 mest brugte egne enheder (loft, D).
 
 Ikke med (#3, #4, dataminimering): timepris, kørsel, moms, kundens navn, telefon og adresse, id'er.
 
@@ -217,10 +220,24 @@ Formvalideringen på serveren (P5):
 - Alle felter må være `null`; `materialer` og `uenige` må være tomme.
 - **Mængden er mål, ikke et resultat** (B3): `maengde.faktorer` er de tal, der står i kilden (1–3 stk.); modellen ganger ikke. Serveren ganger.
 - **Tal:** `antal` og hver faktor er JSON-tal ≥ 0 med højst tre decimaler, eller `null`. **Et tal skrevet som tekst (`"1,5"`) eller med flere decimaler er en formfejl** og udløser den ene retry. Serveren laver tallet om til tekst (afsnit 0).
-- **Enheder:** modellen skriver enheden, som den står i teksten. Matcher den listen (uden hensyn til store/små bogstaver), bruges den; ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`).
+- **Enheder (A9):** modellen skriver enheden, som den står i teksten. Serveren mapper **først grundlistens synonymer** (én liste i koden, som målingen også bruger), **derefter firmaets egne enheder** (uden hensyn til store/små bogstaver, punktum og mellemrum); ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`). Synonymlisten:
+
+  | Grundliste | Synonymer |
+  |---|---|
+  | `m²` | m2, kvm, kvadratmeter, kvadratmetre |
+  | `m` | meter, lbm, løbende meter, lb. m |
+  | `m³` | m3, kubikmeter |
+  | `cm` | centimeter |
+  | `stk.` | stk, styk, styks, stykker |
+  | `kg` | kilo, kilogram |
+  | `timer` | time, timer, tim. |
+  | `dag` | dage, dag |
+  | `sæt` | sæt |
+
+  "t" er bevidst ikke med (time eller ton). Listen udvides efter den første måned (byggeplanens #11).
 - **Opgavetype:** matcher navnet en af firmaets typer (uden hensyn til store/små bogstaver og mellemrum i enderne), bruges den; ellers står den som nyt forslag.
 - **`uenige[].felt`** skal pege på et felt eller en linje, der findes i svaret, og **hver `kilde`/`dato` skal svare til en kilde, der faktisk var i input** (beskrivelsen med `beskrivelse_dato`, noterne med `null`, et referat med et `nr`, der fandtes i input, og netop det referats dato); ellers formfejl.
-- **Ordret-kontrol (B4):** hver `vaerdi` i `uenige` og hver materialebeskrivelse skal findes i den kilde, svaret henviser til (uden hensyn til store/små bogstaver og mellemrum). Findes den ikke, fjernes punktet og tælles (målingens G2); svaret afvises ikke for det.
+- **Ordret-kontrol (B4) — markér, fjern ikke (Ann 21/11):** hver `vaerdi` i `uenige` og hver materialebeskrivelse skal findes i den kilde, svaret henviser til (uden hensyn til store/små bogstaver og mellemrum). Findes den ikke, **bliver den stående med `"ordret": false`**, og klienten viser ved den "Står ikke sådan i dine noter — tjek". Den er stadig ikke accepteret. Intet fjernes i stilhed, og svaret afvises ikke for det. Målingen tæller `ordret: false` (G2).
 - Lofter på længder og antal (afsnit 7).
 
 ## 6. Ruter (spor 1, trin B–D)
@@ -242,11 +259,13 @@ Formvalideringen på serveren (P5):
 | `GET /api/tilbud/referencetal?opgavetype_id=` | egne accepterede tilbud: antal og kr. pr. enhed for arbejde og materialer hver for sig (#9, #16) |
 | `GET`/`POST /api/tilbud/opgavetyper`, `…/enheder` | firmaets typer og enheder (#11) |
 
+**Sletning af en opgave med godkendt tilbud (#17).** Opgavens sletterute svarer `409` med `{ "kode": "har_godkendt_tilbud", "besked": "…" }` — beskeden er advarslen (tilbuddet og historikken forsvinder, og han kan ikke dokumentere det bagefter; Annes ordlyd). Klienten viser den, og sender han sletningen igen med `{ "bekraeft": "slet_tilbud" }`, går den gennem slettevejen. Uden godkendt tilbud slettes opgaven som i dag.
+
 Alle tilbudsruter kræver modulet `tilbud` (som `referat` i dag). **Rutestier (B10):** de faste stier (`tilbudslinjer`, `referencetal`, `opgavetyper`, `enheder`, `kvote`, …) registreres før `/:id`, og `:id` skal være et uuid — ellers `404`. Ingen rute bekræfter flere ting på én gang (B14).
 
 ## 7. Lofter (foreløbige) og PDF
 
-**Lofterne er foreløbige, til spor 2's måling er kørt** (`docs/fase5-tilbud-maaling.md`, udgave 5). Startværdierne er rummelige med vilje:
+**Lofterne er foreløbige, til spor 2's måling er kørt** (`docs/fase5-tilbud-maaling.md`, udgave 7). Startværdierne er rummelige med vilje:
 
 | Hvad | Foreløbigt loft |
 |---|---|
