@@ -1,6 +1,6 @@
-# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt)
+# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt, udkast 9)
 
-Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
+Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Udkast 9 (Ann 21/11): sletning af en enkelt opgave venter (afsnit 6); ellers uændret. Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -259,7 +259,7 @@ Formvalideringen på serveren (P5):
 | `GET /api/tilbud/referencetal?opgavetype_id=` | egne accepterede tilbud: antal og kr. pr. enhed for arbejde og materialer hver for sig (#9, #16) |
 | `GET`/`POST /api/tilbud/opgavetyper`, `…/enheder` | firmaets typer og enheder (#11) |
 
-**Sletning af en opgave med godkendt tilbud (#17).** Opgavens sletterute svarer `409` med `{ "kode": "har_godkendt_tilbud", "besked": "…" }` — beskeden er advarslen (tilbuddet og historikken forsvinder, og han kan ikke dokumentere det bagefter; Annes ordlyd). Klienten viser den, og sender han sletningen igen med `{ "bekraeft": "slet_tilbud" }`, går den gennem slettevejen. Uden godkendt tilbud slettes opgaven som i dag.
+**Sletning (#17, Ann 21/11).** Der findes i dag ingen rute til at slette en enkelt opgave, og **den bygges ikke i Fase 5**. "Slet kunde" nægter fortsat, når en af kundens opgaver har et tilbud. Et firma slettes gennem `slet_firma()` (slettevejen). Når sletning af en opgave bygges, svarer den `409` med `{ "kode": "har_godkendt_tilbud", "besked": "…" }`, klienten viser advarslen med byggeplanens godkendte tekster, og sletningen sendes igen med `{ "bekraeft": "slet_tilbud" }`, efter at han har skrevet SLET.
 
 Alle tilbudsruter kræver modulet `tilbud` (som `referat` i dag). **Rutestier (B10):** de faste stier (`tilbudslinjer`, `referencetal`, `opgavetyper`, `enheder`, `kvote`, …) registreres før `/:id`, og `:id` skal være et uuid — ellers `404`. Ingen rute bekræfter flere ting på én gang (B14).
 
