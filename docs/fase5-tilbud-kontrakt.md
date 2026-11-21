@@ -1,6 +1,6 @@
-# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2
+# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt)
 
-Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. **Ikke godkendt endnu** — spor 2 og Ann skal se det; indtil da gælder udkast 6.
+Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -237,7 +237,7 @@ Formvalideringen på serveren (P5):
   "t" er bevidst ikke med (time eller ton). Listen udvides efter den første måned (byggeplanens #11).
 - **Opgavetype:** matcher navnet en af firmaets typer (uden hensyn til store/små bogstaver og mellemrum i enderne), bruges den; ellers står den som nyt forslag.
 - **`uenige[].felt`** skal pege på et felt eller en linje, der findes i svaret, og **hver `kilde`/`dato` skal svare til en kilde, der faktisk var i input** (beskrivelsen med `beskrivelse_dato`, noterne med `null`, et referat med et `nr`, der fandtes i input, og netop det referats dato); ellers formfejl.
-- **Ordret-kontrol (B4) — markér, fjern ikke (Ann 21/11):** hver `vaerdi` i `uenige` og hver materialebeskrivelse skal findes i den kilde, svaret henviser til (uden hensyn til store/små bogstaver og mellemrum). Findes den ikke, **bliver den stående med `"ordret": false`**, og klienten viser ved den "Står ikke sådan i dine noter — tjek". Den er stadig ikke accepteret. Intet fjernes i stilhed, og svaret afvises ikke for det. Målingen tæller `ordret: false` (G2).
+- **Ordret-kontrol (B4) — markér, fjern ikke (Ann 21/11):** hver `vaerdi` i `uenige` skal findes i den kilde, den henviser til; **hver materialebeskrivelse i mindst én af kilderne i input** (en materialelinje henviser ikke til en bestemt kilde). Begge dele uden hensyn til store/små bogstaver og mellemrum. Findes den ikke, **bliver den stående med `"ordret": false`**, og klienten viser ved den "Står ikke sådan i dine noter — tjek". Den er stadig ikke accepteret. Intet fjernes i stilhed, og svaret afvises ikke for det. Målingen tæller `ordret: false` (G2).
 - Lofter på længder og antal (afsnit 7).
 
 ## 6. Ruter (spor 1, trin B–D)
