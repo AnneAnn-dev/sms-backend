@@ -1,7 +1,7 @@
 # Byggeplan: Tilbud (Fase 5)
 
 Skrevet 19/11-26 ud fra arbejdskopien af `docs/` synket 19/11 (registret 803.155 bytes, sidste post D104).
-Beslutninger 1–9, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 og tilbuddets input afgjort af Ann 20/11. Efter spor 1's skemamåling (trin 0) afgjorde Ann 20/11: opgavetyperne er håndværkerens egne (erstatter den faste liste fra 19/11), kørsel, nummer pr. version, frysning af firmaoplysninger, beregning i øre, noter i input og titelforslag (#5, #7, #10–#14). **Ikke godkendt af Anne.** Åbne punkter står nederst.
+Beslutninger 1–9, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 og tilbuddets input afgjort af Ann 20/11. Efter spor 1's skemamåling (trin 0) afgjorde Ann 20/11: opgavetyperne er håndværkerens egne (erstatter den faste liste fra 19/11), kørsel, nummer pr. version, frysning af firmaoplysninger, beregning i øre, noter i input og titelforslag (#5, #7, #10–#14). Ann 21/11: afrundingsreglen (#14), nøgle for tilbudskæden (#15), og spor 1 ejer `kvote.js`. **Ikke godkendt af Anne.** Åbne punkter står nederst.
 Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-repo\<emne>\`.
 
 Denne fil erstatter Trin 4 i `tilbud-runbook.md` som rækkefølge for tilbuddet. Primeren er stadig autoritativ for HVAD og HVORFOR (frysning, append-only, D13, D22).
@@ -10,7 +10,7 @@ Denne fil erstatter Trin 4 i `tilbud-runbook.md` som rækkefølge for tilbuddet.
 
 Et tilbud kan laves ud fra opgavens beskrivelse alene og ud fra beskrivelsen plus flere referater, godkendes, deles som PDF og markeres sendt og accepteret — og et godkendt tilbud viser de samme tal, efter at profilen er rettet.
 
-## Beslutninger (Ann 19.–20/11)
+## Beslutninger (Ann 19.–21/11)
 
 | # | Emne | Beslutning |
 |---|---|---|
@@ -24,10 +24,11 @@ Et tilbud kan laves ud fra opgavens beskrivelse alene og ud fra beskrivelsen plu
 | 8 | PDF | jsPDF i browseren, hostet selv fra start. Anne laver layoutet. Intet logo i første udgave. |
 | 9 | Placering | Tilbud i opgavevinduet; timepris, kørsel, betingelser og startnummer i Profil. |
 | 10 | Input (Ann 20/11) | Forslaget bygger på **alt, der ligger på opgaven**: beskrivelsen (fra kundeformularen eller Ny opgave), **opgavens noter** (Ann 20/11) og **alle opgavens referater**, hver med dato og i rækkefølge. Alle referater er valgt fra start; håndværkeren kan fravælge nogle, før forslaget laves. Tilbuddet husker sine kilder (referaternes id'er og en kopi af beskrivelsen og noterne, som de så ud, da forslaget blev lavet), og kilderne fryses med resten. Kildelisten erstatter `tilbud.referat_id`, som fjernes (to veje fra `tilbud` til `referater` får PostgREST-embedding til at fejle). Er kilderne uenige (40 m² og senere 45 m²), vinder den nyeste, og forslaget skriver "kilderne er uenige" ved feltet. Et nyt referat efter afsendelse giver en ny version (D13, `kilde_referat_id`). |
-| 11 | Opgavetyper (Ann 20/11) | **Håndværkerens egne**, ikke en fast liste hos DDK. Han opretter en type direkte i tilbuddet (navn og enhed), når det passer ham; valget viser hans tidligere typer først, som hjælp, ikke som spærre. Samme navn med en anden enhed er en ny type. **Enheden vælges fra en liste** (Ann 20/11): stk., m, cm, m², m³, kg, timer og "Andet" med fri tekst. Listen kan udvides; en udvidelse ændrer ingen gamle tilbud. Ingen type = intet referencetal for det tilbud (ingen "Andet"). Dubletter og nuancer ryddes senere af DDK (normalisering, se Referencetal) — han skal ikke begrænses af det arbejde. |
+| 11 | Opgavetyper (Ann 20/11) | **Håndværkerens egne**, ikke en fast liste hos DDK. Han opretter en type direkte i tilbuddet (navn og enhed), når det passer ham; valget viser hans tidligere typer først, som hjælp, ikke som spærre. Samme navn med en anden enhed er en ny type. **Enheden vælges fra en liste** (Ann 20/11): stk., m, cm, m², m³, kg, timer og "Andet" med fri tekst. Listen kan udvides; en udvidelse ændrer ingen gamle tilbud. Ingen type = intet referencetal for det tilbud (ingen "Andet"). **Opslag uden hensyn til store/små bogstaver og mellemrum i enderne:** "Terrasse" og " terrasse" er samme type (unikt pr. firma på normaliseret navn og enhed), så hans egen historik ikke deler sig. En stavefejl ("terasse") fanges af forslagene, mens han skriver, ikke af reglen. Dubletter og nuancer ryddes senere af DDK (normalisering, se Referencetal) — han skal ikke begrænses af det arbejde. |
 | 12 | Titler (Ann 20/11) | Modellen foreslår **tilbuddets titel og opgavens titel**. Begge er **ikke accepteret**, til håndværkeren bekræfter eller retter dem; opgavens titel skrives først på opgaven, når han har accepteret den. |
 | 13 | Firmaoplysninger (Ann 20/11) | CVR, adresse, telefon, mail og bank **fryses ind ved godkendelse** som timeprisen. Et godkendt tilbud viser altid det, kunden fik. En ny version starter fra profilen, som den er nu. |
-| 14 | Beregning (Ann 20/11) | **Ingen fejl, heller ikke en øre.** Alle tal regnes af én funktion i kode i hele øre (ingen kommatal): linjesummer, arbejde, materialer, sum ekskl. moms, moms (én gang på summen) og total. Resultatet gemmes; PDF'en viser kun det gemte og regner aldrig selv. Den genererede `linje_sum`-kolonne fjernes (databasen rundede 18,525 til 18,53, JavaScript til 18,52). En prøve kontrollerer, at linjerne summerer præcist til totalen. |
+| 14 | Beregning (Ann 20/11) | **Ingen fejl, heller ikke en øre.** Alle tal regnes af én funktion i kode i hele øre (ingen kommatal): linjesummer, arbejde, materialer, sum ekskl. moms, moms (én gang på summen) og total. Resultatet gemmes; PDF'en viser kun det gemte og regner aldrig selv. Den genererede `linje_sum`-kolonne fjernes (databasen rundede 18,525 til 18,53, JavaScript til 18,52). **Afrundingsreglen (Ann 21/11):** en linje (antal × enhedspris med rabat) regnes præcist og afrundes én gang til hele øre; sum ekskl. moms er de afrundede linjer lagt sammen; momsen regnes én gang på summen ekskl. moms og afrundes én gang; total = sum ekskl. moms + moms. **Halve øre runder væk fra nul** (0,005 → 0,01; ikke bankers rounding). Prøverne har to tilfælde: et halvt øre på en linje (1,5 × 12,35 = 18,53) og et, hvor moms pr. linje og moms på summen giver forskellige ører (to linjer à 10,02: moms på summen = 5,01, ikke 5,02). En prøve kontrollerer, at linjerne summerer præcist til totalen. |
+| 15 | Tilbudskæden (Ann 21/11) | Tilbuddet får **en nøgle for kæden** nu, mens tabellen er tom; versionerne er unikke pr. kæde, ikke pr. opgave. **Fase 5 bygger kun én kæde pr. opgave** — en ny version erstatter den gamle. Alternativer side om side (fx lærk og trykimprægneret) er en kendt begrænsning; udløser: en pilot beder om alternativer. Så kræver det kun klient og ruter, ingen omlægning af data. |
 
 ## Referencetal (Ann 19/11)
 
@@ -72,7 +73,7 @@ To chats arbejder samtidig. De rører hver sine filer.
 
 ## Regler for de to chats
 
-- **Filejerskab.** Spor 1: `supabase/migrations/`, `routes/tilbud/`, `server.js`, `kor-proever.js`. Spor 2: `prompts/tilbudslinjer.js`, målescriptet, testsættet, `static/dashboard.html`, PDF-filen, `sw.js`. Spor 2 sender sine linjer til `kor-proever.js` som tekst.
+- **Filejerskab.** Spor 1: `supabase/migrations/`, `routes/tilbud/`, `server.js`, `kvote.js` (Ann 21/11), `kor-proever.js`. Spor 2: `prompts/tilbudslinjer.js`, målescriptet, testsættet, `static/dashboard.html`, PDF-filen, `sw.js`. Spor 2 sender sine linjer til `kor-proever.js` som tekst.
 - **Kontrakten** skrives før trin A: JSON for tilbud, linje og modelsvar, og `bygTilbudslinjePrompt(data) → {system, user}`.
 - **Registret:** kun spor 1 skriver; spor 2 leverer sine linjer som tekst.
 - **Grene:** `fase5/server` og `fase5/klient`. Ingen merger til `staging`, mens et tog kører.
