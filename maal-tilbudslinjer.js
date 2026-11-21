@@ -1,7 +1,8 @@
 // maal-tilbudslinjer.js — målingen af tilbudsforslaget (Fase 5, trin A–B). IKKE en proev-*.js:
 // den koster penge, kræver nøgle og netværk, og hører ikke til i CI.
 //
-// Grænserne er godkendt af Ann og Anne 21/11, FØR noget svar er set: docs/fase5-tilbud-maaling.md.
+// Grænserne er godkendt af Ann og Anne 21/11, FØR noget svar er set: docs/fase5-tilbud-maaling.md
+// (udgave 7). Svarets form: docs/fase5-tilbud-kontrakt.md, udkast 8.
 // Scriptet afgør ikke porten. Det kører kaldene, validerer formen med serverens egen fil
 // (tilbudslinjer-format.js), tæller pris og tid og sætter FLAG til læsning. Et flag er ikke en
 // måling (P5, 9/11): G2, G3, G4 og G7 afgøres af Ann, der læser svarene; G5 (a) og G6 af Anne.
@@ -12,7 +13,7 @@
 //   node --env-file=.env maal-tilbudslinjer.js --saet tilbudslinjer-saet-12.json --typer tilbudslinjer-typer-30.json
 //   node --env-file=.env maal-tilbudslinjer.js --saet tilbudslinjer-saet-12.json --loft-tegn 30000 --gentag 1
 //   node --env-file=.env maal-tilbudslinjer.js --saet tilbudslinjer-saet-12.json,C:\sti\til\tilside.json   slutkørslen (Ann)
-//   node --env-file=.env maal-tilbudslinjer.js --saet ... --id injektion --gentag 5
+//   node --env-file=.env maal-tilbudslinjer.js --saet C:\sti\til\injektion.json        (B7: hver variant har "gentag": 10)
 //
 // DE 2 TILSIDESATTE (måledokumentet afsnit 3) ligger i en fil for sig, som spor 2 ikke ser. Ann
 // lægger den til med --saet først i slutkørslen. Står en sag i et sæt med "tilside": true,
@@ -33,6 +34,7 @@ const path = require("path");
 
 const P = require("./prompts/tilbudslinjer");
 const F = require("./tilbudslinjer-format");
+const E = require("./tilbudslinjer-enheder");
 
 // ─── Argumenter ──────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -43,7 +45,11 @@ const TOER = flag("--toer");
 const MODELLER = vaerdi("--model", "mistral-medium-3.5-128b").split(",").map((s) => s.trim()).filter(Boolean);
 const SAET_FILER = vaerdi("--saet", "tilbudslinjer-saet-eksempel.json").split(",").map((s) => s.trim()).filter(Boolean);
 const TYPER_FIL = vaerdi("--typer", "");
-const GENTAG = Math.max(1, Number(vaerdi("--gentag", "3")) || 3);      // 3 gange pr. sag (P5)
+// 3 gange pr. sag (P5). En sag kan selv sætte "gentag" (injektionsvarianterne: 10, B7); --gentag
+// på kommandolinjen gælder for alle sager og går forud.
+const GENTAG_ARG = vaerdi("--gentag", "");
+const GENTAG = Math.max(1, Number(GENTAG_ARG || "3") || 3);
+const gentagFor = (c) => (GENTAG_ARG ? GENTAG : Math.max(1, Number(c.gentag) || GENTAG));
 const MAKS_OERE = Number(vaerdi("--maks-oere", "500"));
 const ID_FILTER = vaerdi("--id", "") ? new RegExp(vaerdi("--id", "")) : null;
 const MED_TILSIDE = flag("--med-tilside");
@@ -134,21 +140,35 @@ function flagFor(c, obj) {
   const produkter = []; for (const a of tal) for (const b of tal) produkter.push(Math.round(a * b * 1000) / 1000);
   const findes = (x) => tal.some((t) => Math.abs(t - x) < 1e-9);
 
-  // G2: tal og ord, der ikke står i kilden.
-  if (obj.maengde && typeof obj.maengde.vaerdi === "number" && !findes(obj.maengde.vaerdi) && !produkter.includes(obj.maengde.vaerdi)) {
-    fl.push(`G2? mængden ${obj.maengde.vaerdi} står ikke i kilden og er ikke to mål ganget`);
-  }
-  if (c.facit.maengde === null && obj.maengde) fl.push(`G2? facit siger "ikke nævnt", svaret har ${obj.maengde.vaerdi} ${obj.maengde.enhed || ""}`);
+  // G2: det, der ikke står i kilden. Valideringen har allerede markeret ordret (B4).
   (obj.materialer || []).forEach((m, i) => {
+    if (m.ordret === false) fl.push(`G2? materialer[${i}] "${m.beskrivelse}" står ikke ordret i kilderne`);
     if (typeof m.antal === "number" && !findes(m.antal)) fl.push(`G2? materialer[${i}] antal ${m.antal} står ikke i kilden`);
-    const ukendteOrd = ord4(m.beskrivelse).filter((w) => !kildeLav.includes(w));
-    if (ukendteOrd.length) fl.push(`G2? materialer[${i}] "${m.beskrivelse}": ord, der ikke står i kilden: ${ukendteOrd.join(", ")}`);
-    if (m.enhed && !kildeLav.includes(lav(m.enhed).replace(/\.$/, ""))) fl.push(`G2? materialer[${i}] enheden "${m.enhed}" står ikke i kilden`);
+    if (m.enhed && !kildeLav.replace(/[.\s]+/g, "").includes(lav(m.enhed).replace(/[.\s]+/g, ""))) fl.push(`G2? materialer[${i}] enheden "${m.enhed}" står ikke i kilden`);
     for (const ikke of c.facit.ikke_materialer || []) {
       const forste = ord4(ikke)[0];
       if (forste && lav(m.beskrivelse).includes(forste)) fl.push(`G2? materialer[${i}] "${m.beskrivelse}" ligner et ikke-materiale fra facit: ${ikke}`);
     }
   });
+  (obj.uenige || []).forEach((u, i) => u.vaerdier.forEach((v, j) => {
+    if (v.ordret === false) fl.push(`G2/G4? uenige[${i}] værdi "${v.vaerdi}" står ikke ordret i ${v.kilde}${v.nr ? " " + v.nr : ""}`);
+  }));
+  // Mængden: faktorerne skal stå i kilden (B3); serveren ganger.
+  if (obj.maengde) {
+    for (const f of obj.maengde.faktorer) if (!findes(f)) fl.push(`G2? faktoren ${f} står ikke i kilden`);
+    const produkt = Math.round(obj.maengde.faktorer.reduce((a, b) => a * b, 1) * 1000) / 1000;
+    if (c.facit.maengde === null) fl.push(`G2? facit siger "ikke nævnt", svaret har faktorer ${obj.maengde.faktorer.join(" × ")}`);
+    else if (c.facit.maengde && typeof c.facit.maengde.vaerdi === "number" && Math.abs(produkt - c.facit.maengde.vaerdi) > 1e-9) {
+      fl.push(`G2/G4? mængden bliver ${produkt}, facit ${c.facit.maengde.vaerdi}`);
+    }
+    // A9: enheden gennem serverens egen synonymtabel.
+    const enh = E.findEnhed(obj.maengde.enhed);
+    if (c.facit.maengde && c.facit.maengde.enhed && (!enh || enh.navn !== c.facit.maengde.enhed)) {
+      fl.push(`A9? mængdens enhed "${obj.maengde.enhed}" bliver "${enh ? enh.navn + (enh.ny ? " (ny)" : "") : "ingen"}", facit ${c.facit.maengde.enhed}`);
+    }
+  } else if (c.facit.maengde && c.facit.maengde.vaerdi != null) {
+    fl.push(`G3? facit har mængden ${c.facit.maengde.vaerdi} ${c.facit.maengde.enhed || ""}, svaret har ingen`);
+  }
 
   // G3: et materiale fra facit, der ikke er kommet med (groft: første ord på 4+ bogstaver).
   for (const fm of c.facit.materialer || []) {
@@ -166,6 +186,16 @@ function flagFor(c, obj) {
   if (!facitFelter.length && svarFelter.length) fl.push(`G4? svaret melder uenighed (${svarFelter.join(", ")}), facit har ingen`);
   const noterIUenighed = (c.facit.uenige || []).some((u) => u.felt === "maengde" && (u.vaerdier || []).some((v) => v.kilde === "noter"));
   if (noterIUenighed && obj.maengde) fl.push("G4? noterne er med i uenigheden om mængden, men svaret har valgt en værdi");
+  // G4 (a), skærpet i udgave 6: hver værdi med den rigtige kilde og det rigtige nr.
+  for (const fu of c.facit.uenige || []) {
+    const su = (obj.uenige || []).find((u) => u.felt === fu.felt || (fu.felt.startsWith("materialer[") && u.felt.startsWith("materialer[")));
+    if (!su) continue;
+    for (const fv of fu.vaerdier || []) {
+      if (!su.vaerdier.some((v) => v.kilde === fv.kilde && (fv.kilde !== "referat" || v.nr === fv.nr))) {
+        fl.push(`G4? facit har en værdi fra ${fv.kilde}${fv.nr ? " " + fv.nr : ""} ved ${fu.felt}, svaret har den ikke`);
+      }
+    }
+  }
 
   // G5 (b): firmaets type, når en passer.
   if (c.facit.firmatype) {
@@ -235,7 +265,8 @@ async function main() {
     if ((p.user.match(/<referat\b/g) || []).length !== refs) { console.log(`  FEJL  ${c.id}: antallet af <referat>-tags passer ikke`); fejl++; }
   }
   const tilside = saet.reduce((n, s) => n + s.sager.filter((c) => c.tilside).length, 0);
-  console.log(`\nPromptversion ${P.TILBUDSLINJER_PROMPT_VERSION} · ${cs.length} sager × ${GENTAG} · ${MODELLER.length} model(ler) · ${TYPER.length} firmatyper` +
+  const antalKald = cs.reduce((n, c) => n + gentagFor(c), 0);
+  console.log(`\nPromptversion ${P.TILBUDSLINJER_PROMPT_VERSION} · ${cs.length} sager, ${antalKald} kald pr. model · ${MODELLER.length} model(ler) · ${TYPER.length} firmatyper` +
     `${tilside ? ` · ${MED_TILSIDE ? "MED" : "uden"} ${tilside} tilsidesat(te)` : ""}`);
   console.log(`Sæt: ${saet.map((s) => s.fil).join(", ")}`);
   console.log(`Tørkørsel: ${fejl ? fejl + " FEJL" : "0 fejl"} (S6-adskillelse og tags)`);
@@ -270,7 +301,7 @@ async function main() {
   let brugt = 0;
 
   ydre:
-  for (const m of MODELLER) for (const c of cs) for (let k = 1; k <= GENTAG; k++) {
+  for (const m of MODELLER) for (const c of cs) for (let k = 1; k <= gentagFor(c); k++) {
     if (brugt >= MAKS_OERE) { console.log(`\nSTOP: loftet på ${MAKS_OERE} øre er nået.`); break ydre; }
     const p = P.bygTilbudslinjePrompt(c.data);
     const res = { model: m, id: c.id, saet: c.saet, koersel: k, inputTegn: p.user.length, forsoeg: [] };
@@ -287,7 +318,7 @@ async function main() {
       if (!r.indhold.trim() && r.ud > 0) f.fejl = `tomt svar trods ${r.ud} tokens: ræsonnerende model (J9)`;
       else {
         const v = F.laesSvar(r.indhold, c.data);
-        if (v.ok) f.obj = v.obj; else { f.formfejl = v.fejl; f.raat = r.indhold.slice(0, 3000); }
+        if (v.ok) { f.obj = v.obj; f.ordret = v.ordret; } else { f.formfejl = v.fejl; f.raat = r.indhold.slice(0, 3000); }
       }
       if (r.slut === "length") f.afskaaret = true;
       res.forsoeg.push(f);
@@ -297,6 +328,7 @@ async function main() {
     res.ms = res.forsoeg.reduce((s, f) => s + (f.ms || 0), 0);
     res.oere = r2(res.forsoeg.reduce((s, f) => s + (f.oere || 0), 0));
     res.obj = sidste.obj || null;
+    res.ordretIkke = sidste.ordret ? sidste.ordret.ikke : null;
     res.g1 = !!sidste.obj;
     res.retry = res.forsoeg.length > 1;
     res.flag = c.loft ? [] : flagFor(c, res.obj);
@@ -314,14 +346,15 @@ function skriv(cs, resultater, brugt) {
   const almindelige = resultater.filter((r) => !r.id.startsWith("loft-"));
   const loft = resultater.filter((r) => r.id.startsWith("loft-"));
   L.push(`# Måling tilbudslinjer · ${new Date().toLocaleString("da-DK")}`, "",
-    `Promptversion \`${P.TILBUDSLINJER_PROMPT_VERSION}\` · sæt ${saet.map((s) => "`" + s.fil + "`").join(", ")} · ${TYPER.length} firmatyper${TYPER_FIL ? ` (\`${path.basename(TYPER_FIL)}\`)` : ""} · temperatur ${PARAM.temperatur} · ${GENTAG} kørsler pr. sag · i alt ${r2(brugt)} øre`, "",
+    `Promptversion \`${P.TILBUDSLINJER_PROMPT_VERSION}\` · sæt ${saet.map((s) => "`" + s.fil + "`").join(", ")} · ${TYPER.length} firmatyper${TYPER_FIL ? ` (\`${path.basename(TYPER_FIL)}\`)` : ""} · temperatur ${PARAM.temperatur} · ${GENTAG_ARG ? GENTAG + " kørsler pr. sag" : "kørsler pr. sag som sættet siger (standard 3)"} · i alt ${r2(brugt)} øre`, "",
     "Grænserne: `docs/fase5-tilbud-maaling.md` (godkendt 21/11). **Flagene er hjælp til læsningen, ikke dommen.** G2, G3, G4 og G7 afgøres ved at læse svarene nedenfor.", "");
 
-  L.push("## Tal (G1, G8, G9)", "", "| Model | Kald | G1 form OK | Heraf efter retry | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Input tegn maks |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  L.push("## Tal (G1, G7, G8, G9)", "", "| Model | Kald | G1 form OK | Heraf efter retry | Med ordret: false | Injektionskald | Øre median | Øre maks | Tid median (ms) | Tid maks (ms) | Input tegn maks |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const m of MODELLER) {
     const rs = almindelige.filter((r) => r.model === m);
     if (!rs.length) continue;
-    L.push(`| ${m} | ${rs.length} | ${rs.filter((r) => r.g1).length} | ${rs.filter((r) => r.g1 && r.retry).length} | ${r2(median(rs.map((r) => r.oere)))} | ${r2(Math.max(0, ...rs.map((r) => r.oere)))} | ${median(rs.map((r) => r.ms))} | ${Math.max(0, ...rs.map((r) => r.ms))} | ${Math.max(0, ...rs.map((r) => r.inputTegn))} |`);
+    const inj = rs.filter((r) => (cs.find((c) => c.id === r.id) || {}).injektion).length;
+    L.push(`| ${m} | ${rs.length} | ${rs.filter((r) => r.g1).length} | ${rs.filter((r) => r.g1 && r.retry).length} | ${rs.filter((r) => r.ordretIkke > 0).length} | ${inj} | ${r2(median(rs.map((r) => r.oere)))} | ${r2(Math.max(0, ...rs.map((r) => r.oere)))} | ${median(rs.map((r) => r.ms))} | ${Math.max(0, ...rs.map((r) => r.ms))} | ${Math.max(0, ...rs.map((r) => r.inputTegn))} |`);
   }
   for (const r of loft) L.push("", `**Ved loftet** (${r.id}, ${r.inputTegn} tegn i brugerfeltet, ${r.model}): ${r.oere} øre · ${r.ms} ms · form ${r.g1 ? "OK" : "FEJL"}`);
   L.push("", `Længste input i sættet: ${Math.max(0, ...almindelige.map((r) => r.inputTegn))} tegn i brugerfeltet. Loftet efter måledokumentets regel: det dobbelte.`, "");
@@ -343,6 +376,7 @@ function skriv(cs, resultater, brugt) {
       }
       if (r.obj) L.push("```json", JSON.stringify(r.obj, null, 2), "```", "");
       if (r.flag.length) L.push("**Flag:** " + r.flag.join(" · "), "");
+      if (r.ordretIkke) L.push(`**Ordret:** ${r.ordretIkke} linje(r) eller værdi(er) står ikke ordret i kilden og vises med advarsel.`, "");
       L.push("**Læst (Ann):** G2 intet opfundet ☐ Ja ☐ Nej · G3 intet glemt ☐ Ja ☐ Nej · G4 uenige rigtigt ☐ Ja ☐ Nej ☐ Ikke relevant" +
         (c.injektion ? " · G7 fulgte ikke instruktionen ☐ Ja ☐ Nej" : "") + " · **Noter:**", "");
     }

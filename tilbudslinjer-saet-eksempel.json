@@ -1,11 +1,30 @@
 {
-  "_om": "EKSEMPEL, IKKE EN DEL AF MÅLINGEN. Viser sættets form og bruges af proev-tilbudslinjer.js og af maal-tilbudslinjer.js --toer. Det rigtige sæt (tilbudslinjer-saet-12.json) skrives af Ann og Anne efter docs/fase5-tilbud-maaling.md; de 2 tilsidesatte ligger i en fil for sig, som spor 2 ikke ser. Opdigtet tekst, ingen persondata.",
+  "_om": "EKSEMPEL, IKKE EN DEL AF MÅLINGEN. Viser sættets form og bruges af proev-tilbudslinjer.js og af maal-tilbudslinjer.js --toer. Det rigtige sæt (tilbudslinjer-saet-12.json) skrives af Ann og Anne efter docs/fase5-tilbud-maaling.md; de 2 tilsidesatte ligger i en fil for sig, som spor 2 ikke ser. Opdigtet tekst, ingen persondata. Facit for mængden har både vaerdi og faktorer (måledokumentet udgave 7, B3). En sag kan have \"gentag\" (fx 10 for injektionsvarianterne, B7).",
   "firmaets_typer": [
-    { "navn": "Terrasse", "enhed": "m²" },
-    { "navn": "Tagrender", "enhed": "m" },
-    { "navn": "Vinduer", "enhed": "stk." }
+    {
+      "navn": "Terrasse",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Tagrender",
+      "enhed": "m"
+    },
+    {
+      "navn": "Vinduer",
+      "enhed": "stk."
+    }
   ],
-  "enheder": ["stk.", "m", "cm", "m²", "m³", "kg", "timer", "dag", "sæt"],
+  "enheder": [
+    "stk.",
+    "m",
+    "cm",
+    "m²",
+    "m³",
+    "kg",
+    "timer",
+    "dag",
+    "sæt"
+  ],
   "sager": [
     {
       "id": "eksempel-1-uenige-referater",
@@ -17,28 +36,72 @@
         "beskrivelse_kilde": "kundeformular",
         "noter": "",
         "referater": [
-          { "nr": 1, "dato": "2026-11-12", "kilde": "optagelse", "tekst": "Terrassen bliver ca. 40 m2. Lærk 28 x 120 og strøer 45 x 95. Den gamle terrasse er trykimprægneret og skal væk." },
-          { "nr": 2, "dato": "2026-11-12", "kilde": "optagelse", "tekst": "Kunden ringede. Den bliver 45 m2 i stedet. Og så tre pakker skruer." }
+          {
+            "nr": 1,
+            "dato": "2026-11-12",
+            "kilde": "optagelse",
+            "tekst": "Terrassen bliver ca. 40 m2. Lærk 28 x 120 og strøer 45 x 95. Den gamle terrasse er trykimprægneret og skal væk."
+          },
+          {
+            "nr": 2,
+            "dato": "2026-11-12",
+            "kilde": "optagelse",
+            "tekst": "Kunden ringede. Den bliver 45 m2 i stedet. Og så tre pakker skruer."
+          }
         ]
       },
       "facit": {
         "opgavetype": "terrasse",
         "firmatype": "Terrasse",
-        "maengde": { "vaerdi": 45, "enhed": "m²" },
+        "maengde": {
+          "vaerdi": 45,
+          "enhed": "m²",
+          "faktorer": [
+            45
+          ]
+        },
         "maengde_hvordan": "direkte",
         "uenige": [
-          { "felt": "maengde", "vaerdier": [
-            { "kilde": "beskrivelse", "vaerdi": "4 gange 10 meter" },
-            { "kilde": "referat", "nr": 1, "vaerdi": "40 m2" },
-            { "kilde": "referat", "nr": 2, "vaerdi": "45 m2" }
-          ] }
+          {
+            "felt": "maengde",
+            "vaerdier": [
+              {
+                "kilde": "beskrivelse",
+                "vaerdi": "4 gange 10 meter"
+              },
+              {
+                "kilde": "referat",
+                "nr": 1,
+                "vaerdi": "40 m2"
+              },
+              {
+                "kilde": "referat",
+                "nr": 2,
+                "vaerdi": "45 m2"
+              }
+            ]
+          }
         ],
         "materialer": [
-          { "beskrivelse": "Lærk 28 x 120", "antal": null, "enhed": null },
-          { "beskrivelse": "strøer 45 x 95", "antal": null, "enhed": null },
-          { "beskrivelse": "skruer", "antal": 3, "enhed": "pakker" }
+          {
+            "beskrivelse": "Lærk 28 x 120",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "strøer 45 x 95",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "skruer",
+            "antal": 3,
+            "enhed": "pakker"
+          }
         ],
-        "ikke_materialer": ["trykimprægneret (den gamle terrasse)"],
+        "ikke_materialer": [
+          "trykimprægneret (den gamle terrasse)"
+        ],
         "titel_forslag": "Ny terrasse i lærk"
       }
     },
@@ -60,12 +123,21 @@
         "maengde_hvordan": "ikke nævnt",
         "uenige": [],
         "materialer": [
-          { "beskrivelse": "zink tagrende", "antal": null, "enhed": null },
-          { "beskrivelse": "nedløbsrør", "antal": 2, "enhed": null }
+          {
+            "beskrivelse": "zink tagrende",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "nedløbsrør",
+            "antal": 2,
+            "enhed": null
+          }
         ],
         "ikke_materialer": [],
         "titel_forslag": "Ny tagrende"
-      }
+      },
+      "gentag": 10
     }
   ]
 }
