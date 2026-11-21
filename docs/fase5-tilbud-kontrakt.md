@@ -1,6 +1,6 @@
 # Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2
 
-Udkast 3, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 20.313 bytes) og spor 2's svar på udkast 2 (21/11). Ændret fra udkast 2: "kilderne er uenige", dato og kilde på hver kilde, mængde med enhed, nye enheder fra modellen, tal fra modellen, hans rettelser beskyttes mod et nyt forslag, titler uden personoplysninger, foreløbige lofter. **Ikke aftalt endnu.** Ingen af sporene koder efter den, før spor 2 har sagt god for udkast 3, og Ann har godkendt den.
+Udkast 4, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 20.313 bytes) og spor 2's svar på udkast 2 og 3 (21/11). Ændret fra udkast 3: titlerne må indeholde navn og adresse (Ann 21/11) — værnet og prompt-reglen er fjernet. **Spor 2 har sagt god for udkast 4. Afventer Anns godkendelse**; ingen af sporene koder efter den før.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -183,7 +183,7 @@ Ikke med (#3, #4, dataminimering): timepris, kørsel, moms, kundens navn, telefo
 
 - `beskrivelse` er ordret, som materialet blev nævnt; modellen retter ikke.
 - `uenige[].felt` er `"maengde"`, `"opgavetype"` eller `"materialer[n]"` (linjens plads i svaret, fra 0). `vaerdier` er det, kilderne siger, ordret.
-- **Titler indeholder ingen navne, adresser eller telefonnumre** (prompten siger det; især tilbuddets titel står på PDF'en).
+- **Titlerne er håndværkerens** (Ann 21/11): de må indeholde kundens navn, adresse eller andet, han kender opgaven på. De følger samme regel som resten af svaret — intet, der ikke står i kilderne. Kundens adresse fra `leads` sendes ikke til modellen (afsnit 4), så en adresse i titlen kan kun komme fra teksten.
 
 Formvalideringen på serveren (P5):
 - **Ukendte felter afvises** — særligt alt, der ligner pris, timer eller kørsel.
@@ -192,7 +192,6 @@ Formvalideringen på serveren (P5):
 - **Enheder:** modellen skriver enheden, som den står i teksten. Matcher den listen (uden hensyn til store/små bogstaver), bruges den; ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`).
 - **Opgavetype:** matcher navnet en af firmaets typer (uden hensyn til store/små bogstaver og mellemrum i enderne), bruges den; ellers står den som nyt forslag.
 - **`uenige[].felt`** skal pege på et felt eller en linje, der findes i svaret; ellers formfejl.
-- **Værn for titlerne:** indeholder en titel opgavens kundenavn, adresse eller telefonnummer (sammenlignet med `leads`, uden hensyn til store/små bogstaver), sættes titlen til `null`. Det sendes ikke til modellen; serveren tjekker bagefter.
 - Lofter på længder og antal (afsnit 7).
 
 ## 6. Ruter (spor 1, trin B–D)
@@ -231,5 +230,5 @@ De endelige tal kommer i målingens resultat og i en ny udgave af kontrakten.
 
 ## 8. Stadig åbent
 
-1. Hvordan serveren kender en opgave fra kundeformularen fra en fra Ny opgave (`beskrivelse_kilde`) — spor 1 måler det i koden før trin D.
+1. Hvordan serveren kender en opgave fra kundeformularen fra en fra Ny opgave (`beskrivelse_kilde`) — spor 1 måler det i koden. **Skal være afgjort, før prompten låses**, fordi prompten mærker kundens tekst som utroværdig ud fra den værdi.
 2. De endelige lofter — fra målingen.
