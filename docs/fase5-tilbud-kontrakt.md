@@ -1,6 +1,6 @@
-# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2
+# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt)
 
-Udkast 5, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 20.313 bytes) og spor 2's svar på udkast 2 og 3 (21/11). Ændret fra udkast 3: titlerne må indeholde navn og adresse (Ann 21/11) — værnet og prompt-reglen er fjernet. Ændret fra udkast 4: hver uenig værdi har sin kilde og dato med (Ann 21/11). **Spor 2 har sagt god for udkast 4; ændringen i udkast 5 skal bekræftes af spor 2. Afventer Anns godkendelse**; ingen af sporene koder efter den før.
+Udkast 6, skrevet af spor 1 21/11-26 ud fra byggeplanen (`docs/fase5-tilbud-byggeplan.md`, 20.313 bytes) og spor 2's svar på udkast 2 og 3 (21/11). Ændret fra udkast 3: titlerne må indeholde navn og adresse (Ann 21/11) — værnet og prompt-reglen er fjernet. Ændret fra udkast 4: hver uenig værdi har sin kilde og dato med (Ann 21/11). Ændret fra udkast 5: referaterne får et løbenummer, så to referater fra samme dag kan skelnes (spor 2, 21/11). Spor 2 har bekræftet udkast 5 og foreslået udkast 6's tilføjelse. **Godkendt af Ann 21/11.** Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -36,7 +36,7 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
   "maengde_kilde": "model",
   "maengde_bekraeftet": false,
 
-  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ],
+  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "nr": 2, "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ],
 
   "indledning": "…",
   "betingelser": "…",
@@ -77,7 +77,7 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 - **`opgavetype`:** `"ny": true` betyder, at typen ikke findes på firmaet endnu; den oprettes først, når han bekræfter (#11).
 - **`maengde`:** har sin egen enhed. Passer enheden ikke til typens, står mængden som forslag uden type, og han vælger.
 - **`*_kilde`:** `"model"` eller `"haandvaerker"`. Se afsnit 3 om, hvornår den skifter.
-- **`uenige`** (#10): de felter, hvor kilderne siger noget forskelligt. **Hver værdi har sin kilde og dato med** (Ann 21/11), så han kan se, hvem der siger hvad: `kilde` er `"beskrivelse"`, `"noter"` eller `"referat"`, `dato` er kildens dato (`null` for noterne, som ingen dato har), `vaerdi` er det, kilden siger, ordret. Klienten viser fx "Noter: 48 m² · Referat 18/11: 45 m²". Et punkt fjernes, når feltet bekræftes.
+- **`uenige`** (#10): de felter, hvor kilderne siger noget forskelligt. **Hver værdi har sin kilde og dato med** (Ann 21/11), så han kan se, hvem der siger hvad: `kilde` er `"beskrivelse"`, `"noter"` eller `"referat"`, `dato` er kildens dato (`null` for noterne, som ingen dato har), `vaerdi` er det, kilden siger, ordret. Referatværdier har også `nr` (referatets løbenummer i input). Klienten viser fx "Noter: 48 m² · Referat 2 (18/11): 45 m²". Et punkt fjernes, når feltet bekræftes.
 - **`rabat`** (#16): rabatten på hele tilbuddet. `form` er `null`, `"procent"` eller `"kroner"`; kun det matchende felt er udfyldt. Trækkes fra efter linjerne og før moms.
 - **`summer`:** arbejde, materialer, kørsel og andet er efter linjerabat. `samlet_rabat_oere` er rabatten på hele tilbuddet. Eksemplet er 12 t × 475 kr. − 500 kr. linjerabat, 15.000 kr. materialer, 10 % samlet.
 - **`kilder`:** sættes, når forslaget laves (afsnit 4), og fryses ved godkendelse (#10).
@@ -151,7 +151,7 @@ Serveren:
   "beskrivelse_dato": "2026-11-12",
   "beskrivelse_kilde": "kundeformular",
   "noter": "…",
-  "referater": [ { "dato": "2026-11-18", "kilde": "optagelse", "tekst": "…" } ],
+  "referater": [ { "nr": 1, "dato": "2026-11-18", "kilde": "optagelse", "tekst": "…" } ],
   "firmaets_typer": [ { "navn": "Terrasse", "enhed": "m²" } ],
   "enheder": ["stk.", "m", "cm", "m²", "m³", "kg", "timer", "dag", "sæt", "rulle"]
 }
@@ -160,6 +160,7 @@ Serveren:
 - **`beskrivelse_dato`:** opgavens oprettelse (`leads.created_at`).
 - **`beskrivelse_kilde`:** `"kundeformular"` eller `"haandvaerker"` (Ny opgave). Kundens tekst er utroværdig (S6); prompten mærker den derefter. Hvordan serveren skelner de to, måler spor 1 i koden før trin D.
 - **`noter`** har ingen dato: `leads` har ingen kolonne for, hvornår noterne sidst blev ændret (målt 21/11; `updated_at` gælder hele rækken). **Reglen:** er noterne uenige med en anden kilde, vælger modellen ingen af dem. Feltet står tomt, og uenigheden meldes i `uenige` med begge værdier. Han vælger.
+- **`referater`** sorteres efter tidspunkt (`referater.created_at`), ikke kun dato, og får et løbenummer `nr` fra 1 i den rækkefølge. Så kan to referater fra samme dag skelnes, og "den nyeste vinder" har altid en nyeste.
 - **`referater[].kilde`:** `"optagelse"`, `"upload"` eller `"manuel"` (check-listen på `referater.kilde`, målt 20/11).
 - **`firmaets_typer`:** de 50 mest brugte, ved lige antal sorteret efter senest brugt.
 
@@ -177,12 +178,12 @@ Ikke med (#3, #4, dataminimering): timepris, kørsel, moms, kundens navn, telefo
     { "beskrivelse": "Lærkebrædder 28×120", "antal": 95, "enhed": "m" },
     { "beskrivelse": "Skruer", "antal": 3, "enhed": "pakker" }
   ],
-  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ]
+  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "nr": 2, "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ]
 }
 ```
 
 - `beskrivelse` er ordret, som materialet blev nævnt; modellen retter ikke.
-- `uenige[].felt` er `"maengde"`, `"opgavetype"` eller `"materialer[n]"` (linjens plads i svaret, fra 0). `vaerdier` er en liste af `{kilde, dato, vaerdi}`: `kilde` er `"beskrivelse"`, `"noter"` eller `"referat"`, `dato` er den dato, kilden har i input (`beskrivelse_dato`, referatets `dato`, `null` for noterne), og `vaerdi` er det, kilden siger, ordret.
+- `uenige[].felt` er `"maengde"`, `"opgavetype"` eller `"materialer[n]"` (linjens plads i svaret, fra 0). `vaerdier` er en liste af `{kilde, dato, vaerdi}`: `kilde` er `"beskrivelse"`, `"noter"` eller `"referat"`, `dato` er den dato, kilden har i input (`beskrivelse_dato`, referatets `dato`, `null` for noterne), og `vaerdi` er det, kilden siger, ordret. En referatværdi har desuden `nr` (referatets løbenummer); beskrivelse og noter har ikke `nr`.
 - **Titlerne er håndværkerens** (Ann 21/11): de må indeholde kundens navn, adresse eller andet, han kender opgaven på. De følger samme regel som resten af svaret — intet, der ikke står i kilderne. Kundens adresse fra `leads` sendes ikke til modellen (afsnit 4), så en adresse i titlen kan kun komme fra teksten.
 
 Formvalideringen på serveren (P5):
@@ -191,7 +192,7 @@ Formvalideringen på serveren (P5):
 - **Tal:** `antal` og `maengde.vaerdi` er JSON-tal ≥ 0 med højst tre decimaler, eller `null`. **Et tal skrevet som tekst (`"1,5"`) eller med flere decimaler er en formfejl** og udløser den ene retry. Serveren laver tallet om til tekst (afsnit 0).
 - **Enheder:** modellen skriver enheden, som den står i teksten. Matcher den listen (uden hensyn til store/små bogstaver), bruges den; ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`).
 - **Opgavetype:** matcher navnet en af firmaets typer (uden hensyn til store/små bogstaver og mellemrum i enderne), bruges den; ellers står den som nyt forslag.
-- **`uenige[].felt`** skal pege på et felt eller en linje, der findes i svaret, og **hver `kilde`/`dato` skal svare til en kilde, der faktisk var i input** (beskrivelsen med `beskrivelse_dato`, noterne med `null`, et referat med en af referaternes datoer); ellers formfejl.
+- **`uenige[].felt`** skal pege på et felt eller en linje, der findes i svaret, og **hver `kilde`/`dato` skal svare til en kilde, der faktisk var i input** (beskrivelsen med `beskrivelse_dato`, noterne med `null`, et referat med et `nr`, der fandtes i input, og netop det referats dato); ellers formfejl.
 - Lofter på længder og antal (afsnit 7).
 
 ## 6. Ruter (spor 1, trin B–D)
