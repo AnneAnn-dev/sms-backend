@@ -1,7 +1,7 @@
 # Byggeplan: Tilbud (Fase 5)
 
 Skrevet 19/11-26 ud fra arbejdskopien af `docs/` synket 19/11 (registret 803.155 bytes, sidste post D104).
-Beslutninger 1–9, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 og tilbuddets input afgjort af Ann 20/11. Efter spor 1's skemamåling (trin 0) afgjorde Ann 20/11: opgavetyperne er håndværkerens egne (erstatter den faste liste fra 19/11), kørsel, nummer pr. version, frysning af firmaoplysninger, beregning i øre, noter i input og titelforslag (#5, #7, #10–#14). Ann 21/11: afrundingsreglen (#14), nøgle for tilbudskæden (#15), spor 1 ejer `kvote.js`, AI-kaldet skriver kun over (#3, #4), firmaets egne enheder (#11) og rabat (#16). **Ikke godkendt af Anne.** Åbne punkter står nederst.
+Beslutninger 1–9, bundgrænse og vilkårslinje afgjort af Ann 19/11. Rækkefølgen efter Fase 5 og tilbuddets input afgjort af Ann 20/11. Efter spor 1's skemamåling (trin 0) afgjorde Ann 20/11: opgavetyperne er håndværkerens egne (erstatter den faste liste fra 19/11), kørsel, nummer pr. version, frysning af firmaoplysninger, beregning i øre, noter i input og titelforslag (#5, #7, #10–#14). Ann 21/11: afrundingsreglen (#14), nøgle for tilbudskæden (#15), spor 1 ejer `kvote.js`, AI-kaldet skriver kun over (#3, #4), firmaets egne enheder (#11) og rabat (#16). **Kontrakten mellem spor 1 og spor 2 godkendt af Ann 21/11** (udkast 6, `docs/fase5-tilbud-kontrakt.md`). **Ikke godkendt af Anne.** Åbne punkter står nederst.
 Claude skriver ikke i sms-backend og rører ikke prod; filer leveres i `_til-repo\<emne>\`.
 
 Denne fil erstatter Trin 4 i `tilbud-runbook.md` som rækkefølge for tilbuddet. Primeren er stadig autoritativ for HVAD og HVORFOR (frysning, append-only, D13, D22).
@@ -75,7 +75,7 @@ To chats arbejder samtidig. De rører hver sine filer.
 ## Regler for de to chats
 
 - **Filejerskab.** Spor 1: `supabase/migrations/`, `routes/tilbud/`, `server.js`, `kvote.js` (Ann 21/11), `kor-proever.js`. Spor 2: `prompts/tilbudslinjer.js`, målescriptet, testsættet, `static/dashboard.html`, PDF-filen, `sw.js`. Spor 2 sender sine linjer til `kor-proever.js` som tekst.
-- **Kontrakten** skrives før trin A: JSON for tilbud, linje og modelsvar, og `bygTilbudslinjePrompt(data) → {system, user}`.
+- **Kontrakten** ✅ **godkendt af Ann 21/11:** `docs/fase5-tilbud-kontrakt.md` (udkast 6, 15.838 bytes). Den fastlægger, hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten (`bygTilbudslinjePrompt(data) → {system, user}`), og hvad modellen må svare. Begge spor koder efter den. Byggeplanens beslutninger står over kontrakten. En ændring kræver en ny udgave, som begge spor og Ann har set. **Indholdet står kun i kontrakten** og gentages ikke her, så de to filer ikke kan komme til at sige noget forskelligt.
 - **Registret:** kun spor 1 skriver; spor 2 leverer sine linjer som tekst.
 - **Grene:** `fase5/server` og `fase5/klient`. Ingen merger til `staging`, mens et tog kører.
 
