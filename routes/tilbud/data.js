@@ -720,6 +720,10 @@ module.exports = function (app, supabase) {
           // opretter den. Samme valg som /opret-opgave i server.js, saa badgen
           // og "Ny"-maerket betyder det samme i begge lister.
           seen_at: new Date().toISOString(),
+          // Fase 5 (A14): oprettet i modulet uden opkald. Tilbudsforslaget
+          // laeser det som haandvaerkerens egen beskrivelse. oprettet_via er
+          // ikke i OPGAVE_FELTER: klienten kan ikke selv sige, hvor den kom fra.
+          oprettet_via: "tilbud",
           // call_id saettes IKKE. Se noten oeverst i filen.
         }))
         .select("id, name, address, task, status, created_at")

@@ -73,4 +73,12 @@ module.exports = {
   // det i Railway uden deploy. Add-ons'ene skal findes i Frisbii FOER flaget
   // taendes i et miljoe (opret-frisbii-produkter.js --vare ...).
   SKRIVEHJAELP_SALG: flag("SKRIVEHJAELP_SALG"),
+
+  // Fase 5 trin B (22/11-26): selve tilbuddet - /api/tilbud, /api/tilbud/:id,
+  // linjer, opgavetyper og enheder (routes/tilbud/tilbud.js). Ligger UNDER
+  // TILBUD_AKTIV: begge skal vaere true. Slukket = ruterne findes ikke (404).
+  // true i staging, naar migrationen tilbud_fase5 er koert dér; false i prod,
+  // til toget med migrationen er koert og Anne har lavet QA. Kunder og opgaver
+  // (TILBUD_AKTIV) roeres ikke af dette flag.
+  TILBUDSDEL_AKTIV: flag("TILBUDSDEL_AKTIV"),
 };

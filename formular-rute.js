@@ -66,6 +66,7 @@ module.exports = function registrerFormularRute(app, supabase) {
         task:         req.body.opgave,
         titel:        renTitel(req.body.titel),
         is_urgent:    req.body.urgent === "on",
+        oprettet_via: "kundeformular", // Fase 5 (A14): kundens tekst, utrovaerdig (S6)
       })
       .select()
       .single();

@@ -655,6 +655,7 @@ app.post("/opret-opgave", async (req, res) => {
     notes:        notes || null,
     address_mail: address_mail || null,
     seen_at:      new Date().toISOString(),
+    oprettet_via: "ny_opgave",      // Fase 5 (A14): beskrivelsen er haandvaerkerens egen
   }).select("id").single();
 
   if (leadError) {

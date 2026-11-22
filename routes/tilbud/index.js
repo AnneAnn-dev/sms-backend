@@ -33,6 +33,7 @@ const asr = require("../../asr-adapter");
 const tekstmodel = require("../../tekst-adapter");
 const teknikB = require("../../teknik-b");
 const kvote = require("../../kvote");
+const { TILBUDSDEL_AKTIV } = require("../../flags");
 
 const RUTER = [
   "/api/tilbud/status",
@@ -200,7 +201,13 @@ module.exports = function (app, supabase) {
 
   // Datafunktionerne: kunder, opgaver, referater. Returnerer sine egne stier,
   // saa status-ruten kan vise dem uden at der er to lister at holde ens.
-  const RUTER_I_ALT = RUTER.concat(require("./data")(app, supabase));
+  // Selve tilbuddet (Fase 5, ./tilbud.js) kun med TILBUDSDEL_AKTIV. Det
+  // registreres FØR status/kvote nedenfor, men dets /:id-ruter springer
+  // alt over, der ikke er et uuid, saa de faste stier rammes stadig.
+  const RUTER_I_ALT = RUTER.concat(
+    require("./data")(app, supabase),
+    TILBUDSDEL_AKTIV ? require("./tilbud")(app, supabase) : []
+  );
 
   // ─── Status ────────────────────────────────────────────────────────────────
   // Bevidst tom for logik, som /health: den skal kunne fejle NÅR modulet ikke
