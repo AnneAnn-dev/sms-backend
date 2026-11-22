@@ -18,8 +18,13 @@
  *   push_subscriptions         CASCADE
  *   referater                  CASCADE
  *   standardfelter              CASCADE
- *   tilbud                     CASCADE
- *   tilbud_linjer               CASCADE
+ *   tilbud                     CASCADE  -- låst, når godkendt: slettes kun
+ *   tilbud_linjer               CASCADE     gennem slet_firma() (Fase 5, #17)
+ *   tilbud_kilder               CASCADE
+ *   tilbud_historik             CASCADE  -- append-only; kun slettevejen
+ *   tilbud_forslag              CASCADE
+ *   opgavetyper                 CASCADE
+ *   enheder (firmaets egne)     CASCADE
  *   onboarding_sidevisninger   SET NULL   -- rækken bliver, firm_id nulstilles
  *   phone_numbers               SET NULL   -- nummeret lægges tilbage i puljen
  *
@@ -123,6 +128,11 @@ const CASCADE_TABELLER = [
   "standardfelter",
   "tilbud",
   "tilbud_linjer",
+  "tilbud_kilder",
+  "tilbud_historik",
+  "tilbud_forslag",
+  "opgavetyper",
+  "enheder",
 ];
 
 // Tabeller der nulstiller firm_id (SET NULL) — rækken består, kun koblingen
@@ -300,21 +310,19 @@ async function main() {
     console.log(`Slettet ${leadImageObjekter.length} fil(er) fra lead-images/.`);
   }
 
-  const { error: callsErr } = await supabase
-    .from("calls")
-    .delete()
-    .eq("firm_id", FIRMA_ID);
-  if (callsErr) throw new Error(`Sletning af calls fejlede: ${callsErr.message}`);
-  console.log(`Slettet ${antalCalls} række(r) fra calls (eksplicit, NO ACTION).`);
-
-  const { error: firmaSlettetErr } = await supabase
-    .from("firms")
-    .delete()
-    .eq("id", FIRMA_ID);
+  // Fase 5 (#17, A1): et godkendt tilbud og dets historik er låst. calls ->
+  // leads -> tilbud kaskaderer, så både calls og firms slettes i ÉN
+  // transaktion gennem slettevejen slet_firma(), som låsen genkender. En
+  // direkte .delete() på calls eller firms afvises, når firmaet har et
+  // godkendt tilbud.
+  const { data: slettet, error: firmaSlettetErr } = await supabase.rpc("slet_firma", { p_firm: FIRMA_ID });
   if (firmaSlettetErr) {
-    throw new Error(`Sletning af firms-rækken fejlede: ${firmaSlettetErr.message}`);
+    throw new Error(`slet_firma fejlede: ${firmaSlettetErr.message}`);
   }
-  console.log("firms-rækken slettet — CASCADE har ryddet de tilknyttede tabeller.");
+  if (slettet !== 1) {
+    throw new Error(`slet_firma slettede ${slettet} firms-række(r), forventede 1`);
+  }
+  console.log(`Slettet ${antalCalls} række(r) fra calls og firms-rækken gennem slet_firma() — CASCADE har ryddet de tilknyttede tabeller.`);
 
   for (const uid of brugerIds) {
     const { error } = await supabase.auth.admin.deleteUser(uid);

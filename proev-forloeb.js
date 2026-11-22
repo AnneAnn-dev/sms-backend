@@ -124,7 +124,7 @@ async function nyOpgave(firmId, navn) {
     else if (s.startet_at) ok('referat oprettet: i gang');
     else fejl('referat oprettet, men opgaven er ikke startet');
 
-    const { error: tF } = await admin.from('tilbud').insert({ firm_id: firmId, lead_id: L3, sum_ex_moms: 100 });
+    const { error: tF } = await admin.from('tilbud').insert({ firm_id: firmId, lead_id: L3 });
     s = await lead(L3);
     if (tF) fejl(`tilbud kunne ikke oprettes: ${tF.message}`);
     else if (s.startet_at) ok('tilbud oprettet: i gang');

@@ -140,14 +140,15 @@ async function seed(t) {
   if (e4) throw new Error(`referater (${t.navn}): ${e4.message}`);
   id.referat = ref.id;
 
+  // Fase 5 (tilbud_fase5): referat_id og sum_ex_moms er væk; beløb er øre.
   const { data: tilbud, error: e5 } = await admin.from('tilbud').insert({
-    firm_id: t.firmId, lead_id: lead.id, referat_id: ref.id, sum_ex_moms: 12345.67
+    firm_id: t.firmId, lead_id: lead.id, ex_moms_oere: 1234567
   }).select().single();
   if (e5) throw new Error(`tilbud (${t.navn}): ${e5.message}`);
   id.tilbud = tilbud.id;
 
   const { data: linje, error: e6 } = await admin.from('tilbud_linjer').insert({
-    firm_id: t.firmId, tilbud_id: tilbud.id, beskrivelse: 'Arbejdstimer', antal: 10, enhedspris: 550
+    firm_id: t.firmId, tilbud_id: tilbud.id, beskrivelse: 'Arbejdstimer', antal: 10, enhedspris_oere: 55000
   }).select().single();
   if (e6) throw new Error(`tilbud_linjer (${t.navn}): ${e6.message}`);
   id.linje = linje.id;
@@ -226,7 +227,7 @@ async function testSkrivelaas(klient, egen, ider) {
   const forsoeg = [
     ['kunder',         () => klient.from('kunder').insert({ firm_id: egen.firmId, navn: 'Snydekunde' })],
     ['referater',      () => klient.from('referater').update({ indhold: 'ændret' }).eq('id', ider.referat)],
-    ['tilbud',         () => klient.from('tilbud').update({ sum_ex_moms: 1 }).eq('id', ider.tilbud)],
+    ['tilbud',         () => klient.from('tilbud').update({ titel: 'ændret' }).eq('id', ider.tilbud)],
     ['tilbud_linjer',  () => klient.from('tilbud_linjer').delete().eq('id', ider.linje)],
     ['firma_profil',   () => klient.from('firma_profil').update({ timepris: 1 }).eq('firm_id', egen.firmId)],
     ['standardfelter', () => klient.from('standardfelter').delete().eq('id', ider.felt)]

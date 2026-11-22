@@ -79,6 +79,7 @@ const IKKE_I_CI = {
   "proev-leads-skriveret.js": "kalder staging som indlogget bruger med TILBUD_TEST_TOKEN; kraever --bekraeft (S35, 21/10)",
   "proev-laeg-sammen.js":   "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (D94 trin 4, 30/10)",
   "proev-slet-kunde.js":     "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (D94 trin 3b, 29/10)",
+  "proev-tilbud-skema.js":   "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (Fase 5 trin A, 21/11)",
 };
 
 const TIDSGRAENSE_MS = 120000;
