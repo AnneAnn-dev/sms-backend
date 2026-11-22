@@ -24,7 +24,9 @@
 
 "use strict";
 
-const TILBUDSLINJER_PROMPT_VERSION = "2026-11-22a";
+const TILBUDSLINJER_PROMPT_VERSION = "2026-11-22b";
+// 2026-11-22b: en enhed er højst 30 tegn, som databasen (`enheder_navn_laengde`; spor 1 22/11).
+//   Firmaets enheder og typer med en længere enhed sendes ikke med. Reglerne er uændrede.
 // 2026-11-22a: et tal, der gælder pr. rum, pr. lag eller "i hvert", er ikke materialets antal (T04,
 //   "3 stk. ... i hvert af de to rum"; Ann 22/11, måledokumentet udgave 10). Antal null. Ikke målt.
 // 2026-11-21c: tre regler fra sættets første sager (måledokumentet udgave 8, Ann 21/11): et antal,
@@ -39,7 +41,7 @@ const TILBUDSLINJER_PROMPT_VERSION = "2026-11-22a";
 
 // Lofter på input, så ét felt ikke kan fylde hele kaldet. Det samlede loft på inputtet
 // håndhæves af ruten (kontraktens afsnit 7, foreløbigt 40.000 tegn).
-const MAKS = { felt: 20000, typer: 50, typenavn: 60, enheder: 100, enhedsnavn: 40 };
+const MAKS = { felt: 20000, typer: 50, typenavn: 60, enheder: 100, enhedsnavn: 30 };
 
 class ValideringsFejl extends Error {}
 

@@ -27,7 +27,7 @@
 
 // Foreløbige lofter (kontraktens afsnit 7). De endelige kommer fra målingen.
 const LOFT = {
-  titel: 100, beskrivelse: 200, materialer: 60, typenavn: 60, enhed: 40,
+  titel: 100, beskrivelse: 200, materialer: 60, typenavn: 60, enhed: 30,
   uenige: 20, vaerdi: 200, faktorer: 3, svarTegn: 30000,
 };
 
