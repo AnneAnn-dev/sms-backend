@@ -3,7 +3,8 @@
 Håndtering af nummerpuljen: køb, konfiguration, afstemning, frigivelse og
 genopretning efter kontosuspendering.
 
-Sidst opdateret: 19/8-2026 (nyt afsnit 3½: forveksling af frigivelse/tilbagetagelse + genopretningsvej · skærpet returning-advarsel i afsnit 5)
+Sidst opdateret: 22/11-2026 (afsnit 3 og 8: målt, at `afstem-numre.js` tæller karantænenumre med som ledige · afsnit 8: puljen uden kunder)
+Forrige: 19/8-2026 (nyt afsnit 3½: forveksling af frigivelse/tilbagetagelse + genopretningsvej · skærpet returning-advarsel i afsnit 5)
 
 ---
 
@@ -108,9 +109,9 @@ Byg-trin 6 i drift-runbooken for selve logikken.
 For scripterne her betyder det: **`firm_id = null` er ikke det samme som
 ledigt.** Et nummer i karantæne skal ikke købes over, tildeles en ny kunde
 eller frigives manuelt, før `quarantined_until` er passeret (eller feltet
-bevidst ryddes, hvis kunden er endeligt opgivet). Om `afstem-numre.js` og
-den automatiske pool-udvælgelse allerede filtrerer korrekt på dette felt,
-bør bekræftes i koden — se punkt 8 nedenfor.
+bevidst ryddes, hvis kunden er endeligt opgivet). **`afstem-numre.js`
+filtrerer IKKE på feltet** — målt 22/11-26, se punkt 8. Dens "ledige" er
+`firm_id = null`, karantæne medregnet.
 
 Det amerikanske gratis-nummer fra kontooprettelsen (`+1618…`) dukkede op som
 forældreløst, indtil det blev frigivet. Sådanne kendte undtagelser bør frigives
@@ -231,9 +232,9 @@ viderestillingen er bekræftet slået fra. `last_firm_id` sættes bevidst til
 `null`: det felt betyder "win-back til dette firma", og det er ikke signalet
 her — slet ikke hvis firmarækken senere slettes.
 
-Husk forbeholdet i afsnit 8: det er endnu ikke bekræftet, at
-`afstem-numre.js`s optælling af "ledige numre" filtrerer karantænenumre fra.
-Indtil det er tjekket, kan nummeret tælle med som en buffer, det ikke er.
+Husk afsnit 8: `afstem-numre.js`s optælling af "ledige numre" filtrerer
+IKKE karantænenumre fra (målt 22/11-26). Nummeret tæller med som en buffer,
+det ikke er.
 
 ### Trin 3 — fjern personens adgang
 
@@ -474,13 +475,48 @@ hvilket gjorde det til det oplagte at kopiere ind og køre.
 køb kræver, at kontoen har saldo, og at DK-mobilnumre er ledige hos Twilio den
 dag. Ingen af delene er garanteret midt i en onboarding med en kunde i røret.
 
-**Tjek at "ledige" faktisk betyder ledige:** tællingen bør ekskludere numre i
-karantæne (se afsnit 3) — de har `firm_id = null`, men kan ikke tildeles en
-ny kunde før `quarantined_until` er passeret. Den automatiske
-pool-udvælgelse i provisioneringsflowet springer allerede karantænenumre
-over (jf. drift-runbooken); bekræft at `afstem-numre.js`s optælling af
-"ledige numre" bruger samme filter — ellers kan advarslen her komme for
-sent, fordi karantænenumre tælles med som en reel buffer, de ikke er.
+**"Ledige" i `afstem-numre.js` er IKKE det samme som ledige.** Målt
+22/11-26 i prod: fem rækker med `firm_id = null`, heraf én med
+`quarantined_until` 2/12-26 — scriptet meldte "5 ledige". Tællingen er
+`firm_id = null` og intet andet, så karantænenumre tælles med som en buffer,
+de ikke er, og advarslen ved 2 eller færre kan komme for sent. Det reelle tal
+læses i SQL-editoren:
+
+```sql
+select number, twilio_sid, quarantined_until, last_firm_id
+from phone_numbers
+where firm_id is null
+order by number;
+```
+
+Ledige i praksis er rækkerne, hvor `quarantined_until` er `NULL` eller
+passeret. Den automatiske pool-udvælgelse i provisioneringsflowet springer
+karantænenumre over (jf. drift-runbooken — ikke målt her).
+
+Lav-pulje-mailen ("Nummerpulje lav") er en anden mekanisme: den sendes fra
+`frisbii-webhook.js` **kun under en provisionering**, efter at et nummer er
+tildelt, og tæller `ledigeVerificeret` (afstemt mod Twilio) minus det netop
+tildelte. Grænsen er `LOW_POOL_THRESHOLD` i Railway, standard 3. Den kører
+ikke på et skema, så en frigivelse udløser ingen mail. *(Læst i koden
+22/11-26 i arbejdstræets kopi fra 9/9 — bekræft mod repoet med
+`Select-String -Path frisbii-webhook.js -Pattern LOW_POOL`.)*
+
+### Puljen uden kunder (22/11-26, Ann)
+
+Uden betalende kunder holdes prod på **ét ledigt nummer** som buffer, så
+første rigtige kunde kan onboardes uden et køb samme dag. Hvert nummer koster
+ca. $15/md. 22/11-26 blev fire numre frigivet efter afsnit 5 (heraf ét i
+karantæne fra et testfirma, ryddet bevidst — der har ikke været kunder på).
+Tilbage i prod: systemnummeret, fire tildelte (Ann, Anne, Kristians demofirma
+og testfirmaet) og ét ledigt. Staging: systemnummeret og ét tildelt.
+
+Konsekvenser, så ingen bliver overrasket:
+
+- `afstem-numre.js` melder "Lavt lager" ved hver kørsel. Det er forventet,
+  så længe politikken gælder.
+- Næste provisionering tager bufferen og udløser "Nummerpulje lav: 0 ledige".
+  Det er signalet til at købe (afsnit 1) — samme dag.
+- Hvornår bufferen hæves igen, er ikke besluttet.
 
 ---
 
