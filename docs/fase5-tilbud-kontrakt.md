@@ -1,6 +1,6 @@
-# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt, udkast 9)
+# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt, udkast 10)
 
-Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Udkast 9 (Ann 21/11): sletning af en enkelt opgave venter (afsnit 6); ellers uændret. Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
+Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Udkast 9 (Ann 21/11): sletning af en enkelt opgave venter (afsnit 6); ellers uændret. **Udkast 10 (22/11):** begge titler skal udfyldes i modelsvaret (Ann 22/11, afsnit 5), og enhedens navn er højst 30 tegn, som databasen tillader (afsnit 7; spor 2's filer rettet i `a4990d6`). **Udkast 10 godkendt af Ann 22/11.** Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -217,7 +217,7 @@ Ikke med (#3, #4, dataminimering): timepris, kørsel, moms, kundens navn, telefo
 
 Formvalideringen på serveren (P5):
 - **Ukendte felter afvises** — særligt alt, der ligner pris, timer eller kørsel.
-- Alle felter må være `null`; `materialer` og `uenige` må være tomme.
+- Alle felter må være `null`, **undtagen `tilbud_titel` og `opgave_titel`, som altid skal udfyldes** (Ann 22/11) — en titel, der er `null`, er en formfejl og udløser den ene retry; `materialer` og `uenige` må være tomme.
 - **Mængden er mål, ikke et resultat** (B3): `maengde.faktorer` er de tal, der står i kilden (1–3 stk.); modellen ganger ikke. Serveren ganger.
 - **Tal:** `antal` og hver faktor er JSON-tal ≥ 0 med højst tre decimaler, eller `null`. **Et tal skrevet som tekst (`"1,5"`) eller med flere decimaler er en formfejl** og udløser den ene retry. Serveren laver tallet om til tekst (afsnit 0).
 - **Enheder (A9):** modellen skriver enheden, som den står i teksten. Serveren mapper **først grundlistens synonymer** (én liste i koden, som målingen også bruger), **derefter firmaets egne enheder** (uden hensyn til store/små bogstaver, punktum og mellemrum); ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`). Synonymlisten:
@@ -274,6 +274,7 @@ Alle tilbudsruter kræver modulet `tilbud` (som `referat` i dag). **Rutestier (B
 | Antal materialer | 60 |
 | `uenige` (punkter / værdi) | 20 / 200 tegn |
 | Typenavn | 60 tegn |
+| Enhedens navn | 30 tegn (databasens grænse; en længere enhed fra modellen er en formfejl) |
 | Linjer pr. tilbud | 200 |
 | Input i alt | 40.000 tegn (endeligt: det dobbelte af sættets længste, målt ved loftet) |
 
