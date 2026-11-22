@@ -59,7 +59,9 @@ const { kraevModul } = require("../../moduler");
 const { medFirma, hentEgenRaekke } = require("../../ejerskab");
 const { renTitel } = require("../../opgave-felter");
 const B = require("./beregning");
-const { GRUNDLISTE, noegle, grundnavn } = require("./enheder");
+// Grundlisten, synonymerne og opslaget ejes af spor 2 og findes ÉT sted (kontrakt §5, A9):
+// tilbudslinjer-enheder.js i repoets rod. Målingen bruger samme fil.
+const { GRUNDLISTE, findEnhed } = require("../../tilbudslinjer-enheder");
 
 const RUTER = [
   "/api/tilbud",
@@ -440,23 +442,23 @@ module.exports = function (app, supabase) {
   // uden hensyn til store/små bogstaver, punktum og mellemrum. Ellers oprettes
   // den på firmaet. En deaktiveret egen enhed tages i brug igen.
   async function findEllerOpretEnhed(firmId, navn) {
-    const g = grundnavn(navn);
-    if (g) return { enhed: await grundEnhed(g), oprettet: false };
     const { data: egne, error } = await supabase.from("enheder").select("id, navn, aktiv").eq("firm_id", firmId);
     if (error) throw error;
-    const fundet = (egne || []).find((e) => noegle(e.navn) === noegle(navn));
-    if (fundet) {
-      if (!fundet.aktiv) {
+    const fund = findEnhed(navn, egne || []);
+    if (fund.grundliste) return { enhed: await grundEnhed(fund.navn), oprettet: false, grundliste: true };
+    if (!fund.ny) {
+      const fundet = (egne || []).find((e) => e.id === fund.id);
+      if (fundet && !fundet.aktiv) {
         const { error: aE } = await supabase.from("enheder").update({ aktiv: true }).eq("id", fundet.id).eq("firm_id", firmId);
         if (aE) throw aE;
       }
-      return { enhed: { id: fundet.id, navn: fundet.navn }, oprettet: false };
+      return { enhed: { id: fund.id, navn: fund.navn }, oprettet: false, grundliste: false };
     }
     const { data: ny, error: iE } = await supabase.from("enheder")
-      .insert(medFirma(firmId, { navn })).select("id, navn").single();
+      .insert(medFirma(firmId, { navn: fund.navn })).select("id, navn").single();
     if (iE && iE.code === "23505") return findEllerOpretEnhed(firmId, navn);   // en anden nåede først
     if (iE) throw iE;
-    return { enhed: ny, oprettet: true };
+    return { enhed: ny, oprettet: true, grundliste: false };
   }
 
   // Opgavetype (#11): unik pr. firma på normaliseret navn OG enhed — samme navn
@@ -658,8 +660,8 @@ module.exports = function (app, supabase) {
       const f = pluk(req.body, ["navn"]);
       const navn = tekstFelt(f.navn === undefined ? null : f.navn, "navn", MAKS.enhedsnavn);
       if (!navn) throw ugyldig("navn", "Enheden skal have et navn.");
-      const { enhed, oprettet } = await findEllerOpretEnhed(firmId, navn);
-      res.status(oprettet ? 201 : 200).json({ ok: true, oprettet, enhed: { id: enhed.id, navn: enhed.navn, grundliste: !!grundnavn(enhed.navn) } });
+      const { enhed, oprettet, grundliste } = await findEllerOpretEnhed(firmId, navn);
+      res.status(oprettet ? 201 : 200).json({ ok: true, oprettet, enhed: { id: enhed.id, navn: enhed.navn, grundliste } });
     } catch (e) { svarPaaFejl(res, e, "enhed kunne ikke oprettes"); }
   });
 
@@ -792,15 +794,12 @@ module.exports = function (app, supabase) {
             if (!nu("opgavetype_navn")) throw ugyldig("opgavetype", "Der er ingen opgavetype at bekræfte.");
             if (!nu("opgavetype_id")) {
               // En ny type oprettes først nu (#11). Enheden skal findes i forvejen.
-              const enhedsnavn = nu("opgavetype_enhed");
+              const { data: egne, error } = await supabase.from("enheder").select("id, navn").eq("firm_id", firmId).eq("aktiv", true);
+              if (error) throw error;
+              const fund = findEnhed(nu("opgavetype_enhed"), egne || []);
               let enhed = null;
-              const g = grundnavn(enhedsnavn);
-              if (g) enhed = await grundEnhed(g);
-              else {
-                const { data: egne, error } = await supabase.from("enheder").select("id, navn").eq("firm_id", firmId).eq("aktiv", true);
-                if (error) throw error;
-                enhed = (egne || []).find((e) => noegle(e.navn) === noegle(enhedsnavn)) || null;
-              }
+              if (fund && fund.grundliste) enhed = await grundEnhed(fund.navn);
+              else if (fund && !fund.ny) enhed = { id: fund.id, navn: fund.navn };
               if (!enhed) {
                 throw new Afvist(422, { error: "enhed_findes_ikke", mangler: ["opgavetype.enhed"], besked: "Enheden findes ikke endnu. Tilføj den, før typen bekræftes." });
               }
