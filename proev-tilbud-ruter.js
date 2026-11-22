@@ -1,10 +1,12 @@
 /**
- * proev-tilbud-ruter.js — Fase 5 trin B: tilbuddets ruter (routes/tilbud/tilbud.js)
+ * proev-tilbud-ruter.js — Fase 5 trin B og C: tilbuddets ruter (routes/tilbud/tilbud.js)
  * mod en KØRENDE server og STAGING-databasen.
  *
  * Beviser ejerskab (IDOR: fremmed id = 404), modulspærren, rev (409), at
  * serveren regner og gemmer tallene, og at databasens egen genregning i
- * godkend_tilbud() er enig til øren. Desuden, at en opgave oprettet gennem
+ * godkend_tilbud() er enig til øren. Trin C: godkend gennem ruten, frysningen
+ * (profilen ændres bagefter), sendt/accepteret/fortryd og en ny version, der
+ * erstatter den gamle. Desuden, at en opgave oprettet gennem
  * /api/tilbud/opgaver får oprettet_via = 'tilbud'.
  *
  * Opretter to testfirmaer (is_test) med hver sin bruger. Rører intet andet;
@@ -89,7 +91,7 @@ async function opgave(t, navn) {
 }
 
 (async () => {
-  console.log('\n=== Prøve: tilbuddets ruter (Fase 5 trin B) ===');
+  console.log('\n=== Prøve: tilbuddets ruter (Fase 5 trin B og C) ===');
   console.log(`Projekt-ref : ${REF}`);
   console.log(`Server      : ${SERVER}`);
   console.log(`Kørsels-id  : ${KOERSEL}\n`);
@@ -173,15 +175,51 @@ async function opgave(t, navn) {
     t = r.json.tilbud;
     tjek(t.opgavetype && t.opgavetype.id && t.opgavetype_bekraeftet, 'typen oprettet ved bekræftelsen');
 
-    console.log('\nGodkendelse i databasen (genregningen):');
+    console.log('\nGodkendelse (trin C) — databasen regner igen:');
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/godkend`, { rev: t.rev });
+    tjek(r.status === 422 && r.json.error === 'kan_ikke_godkendes' && r.json.mangler.includes('CVR mangler (Profil)'), `med mangler: 422 med listen (${r.status})`, r.json);
     await admin.from('firma_profil').update({ cvr: '12345678', bank_reg: '1234', bank_konto: '5678' }).eq('firm_id', a.firmId);
     r = await kald(a, 'POST', `/api/tilbud/${t.id}/hent-profil`, { rev: t.rev });
     t = r.json.tilbud;
     tjek(t.kan_godkendes, 'efter hent-profil: kan godkendes', t.mangler);
-    const { data: g, error: gF } = await admin.rpc('godkend_tilbud', { p_tilbud: t.id, p_firm: a.firmId });
-    tjek(!gF && g && g[0] && g[0].tilbudsnummer >= 1, `godkend_tilbud() er enig i de gemte tal${gF ? ': ' + gF.message : ''}`);
-    r = await kald(a, 'PATCH', `/api/tilbud/${t.id}`, { rev: t.rev + 1, titel: 'efter' });
+    r = await kald(b, 'POST', `/api/tilbud/${t.id}/godkend`, { rev: t.rev });
+    tjek(r.status === 404, `B godkender A's tilbud: 404 (${r.status})`);
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/godkend`, { rev: t.rev });
+    const g = r.json && r.json.tilbud;
+    tjek(r.status === 200 && g.status === 'godkendt' && g.tilbudsnummer >= 1 && g.gyldig_til, `godkendt gennem ruten: nummer ${g && g.tilbudsnummer} (godkend_tilbud() var enig i de gemte tal)`, r.json);
+    t = g;
+    r = await kald(a, 'PATCH', `/api/tilbud/${t.id}`, { rev: t.rev, titel: 'efter' });
     tjek(r.status === 409 && r.json.error === 'tilbud_laast', `efter godkendelse: 409 tilbud_laast (${r.status})`);
+
+    console.log('\nFrysningen (#13, A10):');
+    await admin.from('firma_profil').update({ cvr: '87654321', timepris: 600 }).eq('firm_id', a.firmId);
+    await admin.from('leads').update({ name: 'Ændret navn' }).eq('id', leadA);
+    r = await kald(a, 'GET', `/api/tilbud/${t.id}`);
+    tjek(r.json.tilbud.firma.cvr === '12345678' && r.json.tilbud.timepris_oere === 47500 && r.json.tilbud.kunde.navn === 'Kunde A' && JSON.stringify(r.json.tilbud.summer) === JSON.stringify(t.summer),
+      'profil og kunde ændret bagefter: tilbuddet viser det, kunden fik', r.json.tilbud.firma);
+    const { data: hist } = await admin.from('tilbud_historik').select('haendelse, kopi').eq('tilbud_id', t.id);
+    tjek((hist || []).length === 1 && hist[0].kopi.tilbud.firma_cvr === '12345678', `historikken har en fuld kopi af det godkendte (${(hist || []).length} række)`);
+
+    console.log('\nHændelser (#1, #2) og fortryd:');
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/sendt`, { rev: t.rev }); t = r.json.tilbud;
+    tjek(r.status === 200 && t.status === 'sendt' && t.sendt_at, `sendt (${r.status})`);
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/accepteret`, { rev: t.rev }); t = r.json.tilbud;
+    tjek(r.status === 200 && t.status === 'accepteret' && t.accepteret_at, `accepteret (${r.status})`);
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/fortryd`, { rev: t.rev }); t = r.json.tilbud;
+    tjek(r.status === 200 && t.status === 'sendt' && t.accepteret_at === null, `fortryd: tilbage til sendt (${r.status})`);
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/sendt`, { rev: t.rev });
+    tjek(r.status === 409 && r.json.error === 'haendelse_ikke_tilladt', `sendt igen: 409 (${r.status})`);
+
+    console.log('\nNy version (#7, #15):');
+    r = await kald(a, 'POST', `/api/tilbud/${t.id}/ny-version`, { rev: t.rev });
+    let v2 = r.json && r.json.tilbud;
+    tjek(r.status === 201 && v2.version === 2 && v2.status === 'kladde' && v2.firma.cvr === '87654321' && v2.timepris_oere === 60000,
+      `version 2 som kladde med profilen, som den er nu (${r.status})`, r.json);
+    r = await kald(a, 'POST', `/api/tilbud/${v2.id}/godkend`, { rev: v2.rev }); v2 = r.json.tilbud;
+    tjek(r.status === 200 && v2.erstatter && v2.erstatter.tilbudsnummer === t.tilbudsnummer && v2.tilbudsnummer === t.tilbudsnummer + 1,
+      `version 2 godkendt: nummer ${v2 && v2.tilbudsnummer}, erstatter nr. ${t.tilbudsnummer}`, r.json);
+    r = await kald(a, 'GET', `/api/tilbud/${t.id}`);
+    tjek(r.json.tilbud.status === 'erstattet', `version 1 er erstattet (${r.json.tilbud.status})`);
 
     console.log('\nOpgavens oprindelse (A14):');
     r = await kald(a, 'POST', '/api/tilbud/opgaver', { name: 'Kunde C', address: 'Prøvevej 3', task: 'Prøve' });

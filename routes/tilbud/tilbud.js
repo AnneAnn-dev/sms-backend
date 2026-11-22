@@ -17,9 +17,13 @@
 //   DELETE /api/tilbud/:id/linjer/:linjeId    slet en linje
 //   POST   /api/tilbud/:id/opgave-titel       { handling: "accepter" | "afvis" }
 //   POST   /api/tilbud/:id/hent-profil        profilen ind igen, regnet om (#13)
+//   POST   /api/tilbud/:id/godkend            frys, nummer, historik, lås (trin C, #2, #7)
+//   POST   /api/tilbud/:id/sendt              hændelse, han selv markerer (#1)
+//   POST   /api/tilbud/:id/accepteret         hændelse, han selv markerer (#2)
+//   POST   /api/tilbud/:id/fortryd            fortryder sidste hændelse (§1, statusskift)
+//   POST   /api/tilbud/:id/ny-version         ny kladde i samme kæde (#7, #13, #15)
 //
-// Trin C (godkend, ny-version, sendt, accepteret, fortryd) og trin D
-// (tilbudslinjer, referencetal) kommer i denne fil senere.
+// Trin D (tilbudslinjer, referencetal) kommer i denne fil senere.
 //
 // ─── TRE REGLER, DER BÆRER FILEN ────────────────────────────────────────────
 //
@@ -69,6 +73,11 @@ const RUTER = [
   "/api/tilbud/:id/linjer",
   "/api/tilbud/:id/opgave-titel",
   "/api/tilbud/:id/hent-profil",
+  "/api/tilbud/:id/godkend",
+  "/api/tilbud/:id/sendt",
+  "/api/tilbud/:id/accepteret",
+  "/api/tilbud/:id/fortryd",
+  "/api/tilbud/:id/ny-version",
   "/api/tilbud/opgavetyper",
   "/api/tilbud/enheder",
 ];
@@ -1050,6 +1059,199 @@ module.exports = function (app, supabase) {
       });
       res.json({ ok: true, tilbud });
     } catch (e) { svarPaaFejl(res, e, "profilen kunne ikke hentes ind"); }
+  });
+
+  /* ─────────────────────────────  TRIN C  ────────────────────────────── */
+
+  // Hvem gjorde det (historikkens created_by). null, hvis det ikke kan læses —
+  // historikken skal skrives alligevel.
+  async function brugerId(req) {
+    try {
+      const token = (req.headers.authorization || "").replace("Bearer ", "");
+      if (!token || !supabase.auth || !supabase.auth.getUser) return null;
+      const { data } = await supabase.auth.getUser(token);
+      return data && data.user ? data.user.id : null;
+    } catch (_) { return null; }
+  }
+
+  // Databasefunktionernes fejl -> svar. Teksterne er vores egne (ingen kundetekst).
+  function rpcFejl(error) {
+    const m = String(error.message || "");
+    if (/tilbud_findes_ikke/.test(m)) return new Afvist(404, { error: "ikke_fundet", besked: "Den findes ikke." });
+    if (/firma_profil_mangler/.test(m)) return new Afvist(422, { error: "kan_ikke_godkendes", mangler: ["firmaprofil mangler (Profil)"], besked: "Udfyld din profil, før tilbuddet godkendes." });
+    if (/tilbud_mangler:/.test(m)) {
+      return new Afvist(422, { error: "kan_ikke_godkendes", mangler: m.split("tilbud_mangler:")[1].split(";").map((x) => x.trim()).filter(Boolean), besked: "Tilbuddet kan ikke godkendes endnu." });
+    }
+    if (/summer_passer_ikke/.test(m)) {
+      // Koden og databasen regner ikke ens. Det må aldrig ske — og sker det, skal
+      // det ses med det samme (#14), ikke rettes i stilhed.
+      const e = new Error("summer_passer_ikke"); e.code = "summer_passer_ikke";
+      console.error("❌ godkend: databasens genregning er uenig med koden");
+      sendError(e);
+      return new Afvist(422, { error: "summer_passer_ikke", mangler: ["summer"], besked: "Tallene kunne ikke bekræftes. Tilbuddet er ikke godkendt. Prøv at rette en linje og godkend igen — ellers kontakt os." });
+    }
+    if (/tilbud_ikke_kladde|haendelse_ikke_tilladt|tilbud_statusskift|tilbud_laast/.test(m)) {
+      return new Afvist(409, { error: "haendelse_ikke_tilladt", besked: "Det kan ikke lade sig gøre i tilbuddets nuværende status." });
+    }
+    return error;
+  }
+
+  // Tag rev (rev -> rev + 1) med rev som nøgle, før en databasefunktion kaldes.
+  // Så kan en rettelse, han ikke har set, ikke nå at komme imellem: den, der
+  // kommer bagefter med det gamle rev, får 409.
+  async function tagRev(firmId, t, rev) {
+    const { data, error } = await supabase.from("tilbud").update({ rev: rev + 1 })
+      .eq("id", t.id).eq("firm_id", firmId).eq("rev", rev).eq("status", t.status)
+      .select("id").maybeSingle();
+    if (error) throw error;
+    if (!data) throw await revFejl(firmId, t.id);
+  }
+
+  // Godkend (§6, #2, #7). Koden tjekker først (læselig liste til ham), så
+  // tjekker og regner databasen igen og tildeler nummeret (godkend_tilbud).
+  app.post("/api/tilbud/:id/godkend", idVagt("id"), spaerSkriv, async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    try {
+      pluk(req.body, ["rev"]);
+      const rev = laesRev(req);
+      const { t, linjer } = await hentAlt(firmId, req.params.id);
+      if (t.status !== "kladde" || t.rev !== rev) throw await revFejl(firmId, t.id);
+      const { data: lead, error: lE } = await supabase.from("leads").select("id, name, address")
+        .eq("id", t.lead_id).eq("firm_id", firmId).maybeSingle();
+      if (lE) throw lE;
+      const mangler = hvadMangler(t, linjer, lead);
+      if (mangler.length) {
+        throw new Afvist(422, { error: "kan_ikke_godkendes", mangler, besked: "Tilbuddet kan ikke godkendes endnu." });
+      }
+      // Summerne skal være regnet ud fra det, der står nu (efterregn retter en
+      // afbrudt skrivning). Databasen regner selv igen og afviser ved afvigelse.
+      const { summer } = B.regnTilbud(somBeregningTilbud(t), sorterLinjer(linjer).map(somBeregningLinje));
+      const skal = Object.keys(summer).some((k) => t[k] !== summer[k]);
+      const { data: taget, error: tE } = await supabase.from("tilbud")
+        .update({ ...(skal ? summer : {}), rev: rev + 1 })
+        .eq("id", t.id).eq("firm_id", firmId).eq("rev", rev).eq("status", "kladde")
+        .select("id").maybeSingle();
+      if (tE) throw tE;
+      if (!taget) throw await revFejl(firmId, t.id);
+      const { error } = await supabase.rpc("godkend_tilbud", { p_tilbud: t.id, p_firm: firmId, p_bruger: await brugerId(req) });
+      if (error) throw rpcFejl(error);
+      res.json({ ok: true, tilbud: await fuld(firmId, t.id) });
+    } catch (e) { svarPaaFejl(res, e, "tilbud kunne ikke godkendes"); }
+  });
+
+  // Hændelserne (#1, #2) og fortryd (§1). Statusskiftet og historikken skrives
+  // af tilbud_haendelse() i databasen; her tjekkes kun ejerskab, rev og om
+  // skiftet overhovedet giver mening, så svaret er læseligt.
+  const HAENDELSER = {
+    sendt:      { fra: ["godkendt"], db: "sendt" },
+    accepteret: { fra: ["godkendt", "sendt"], db: "accepteret" },
+    fortryd:    { fra: ["sendt", "accepteret"], db: "fortrudt" },
+  };
+  for (const [navn, h] of Object.entries(HAENDELSER)) {
+    app.post(`/api/tilbud/:id/${navn}`, idVagt("id"), spaerSkriv, async (req, res) => {
+      const firmId = await firma(req, res); if (!firmId) return;
+      try {
+        pluk(req.body, ["rev"]);
+        const rev = laesRev(req);
+        const t = await hentEgenRaekke(supabase, "tilbud", req.params.id, firmId, "*");
+        if (t.rev !== rev) throw await revFejl(firmId, t.id);
+        if (!h.fra.includes(t.status)) {
+          throw new Afvist(409, {
+            error: "haendelse_ikke_tilladt", status: t.status,
+            besked: t.status === "kladde" ? "Tilbuddet skal godkendes først." : "Det kan ikke lade sig gøre i tilbuddets nuværende status.",
+            tilbud: await fuld(firmId, t.id),
+          });
+        }
+        await tagRev(firmId, t, rev);
+        const { error } = await supabase.rpc("tilbud_haendelse", { p_tilbud: t.id, p_firm: firmId, p_haendelse: h.db, p_bruger: await brugerId(req) });
+        if (error) throw rpcFejl(error);
+        res.json({ ok: true, tilbud: await fuld(firmId, t.id) });
+      } catch (e) { svarPaaFejl(res, e, `tilbud ${navn} kunne ikke markeres`); }
+    });
+  }
+
+  // Ny version (§6, #7, #13, #15): ny kladde i samme kæde. Profilen kopieres,
+  // som den er NU; indholdet, linjerne og kilderne kopieres fra den version,
+  // den skal erstatte. Den gamle version røres ikke — den bliver først
+  // `erstattet`, når den nye godkendes (godkend_tilbud).
+  app.post("/api/tilbud/:id/ny-version", idVagt("id"), spaerSkriv, async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    let nyId = null;
+    try {
+      pluk(req.body, ["rev"]);
+      const rev = laesRev(req);
+      const { t, linjer } = await hentAlt(firmId, req.params.id);
+      if (t.rev !== rev) throw await revFejl(firmId, t.id);
+      if (!["godkendt", "sendt", "accepteret"].includes(t.status)) {
+        throw new Afvist(409, { error: "haendelse_ikke_tilladt", status: t.status, besked: t.status === "kladde" ? "En kladde rettes direkte; der laves ikke en ny version af den." : "Der kan kun laves en ny version af den gældende udgave." });
+      }
+      const { data: kaede, error: kE } = await supabase.from("tilbud").select("id, version, status")
+        .eq("firm_id", firmId).eq("kaede_id", t.kaede_id);
+      if (kE) throw kE;
+      const kladde = (kaede || []).find((x) => x.status === "kladde");
+      if (kladde) return res.status(409).json({ error: "kladde_findes", tilbud_id: kladde.id, besked: "Der er allerede en ny version under arbejde." });
+      if ((kaede || []).some((x) => x.version > t.version)) {
+        throw new Afvist(409, { error: "haendelse_ikke_tilladt", besked: "Der findes en nyere version. Lav den nye version ud fra den." });
+      }
+
+      const p = await profilKopi(firmId);
+      const felter = {
+        ...p.felter,
+        lead_id: t.lead_id, kaede_id: t.kaede_id, version: t.version + 1,
+        titel: t.titel, titel_kilde: t.titel_kilde, titel_bekraeftet: t.titel_bekraeftet,
+        opgavetype_id: t.opgavetype_id, opgavetype_navn: t.opgavetype_navn, opgavetype_enhed: t.opgavetype_enhed,
+        opgavetype_kilde: t.opgavetype_kilde, opgavetype_bekraeftet: t.opgavetype_bekraeftet,
+        maengde: talTekst(t.maengde), maengde_faktorer: t.maengde_faktorer == null ? null : t.maengde_faktorer.map(talTekst),
+        maengde_kilde: t.maengde_kilde, maengde_bekraeftet: t.maengde_bekraeftet,
+        uenige: t.uenige || [],
+        indledning: t.indledning,
+        rabat_form: t.rabat_form, rabat_procent: talTekst(t.rabat_procent), rabat_beloeb_oere: t.rabat_beloeb_oere,
+        // Kørslens form og km hører til opgaven; satsen og beløbet til profilen.
+        koersel_form: t.koersel_form, koersel_km: talTekst(t.koersel_km),
+        koersel_sats_oere: t.koersel_form === "fast" ? null : p.kmSats,
+        koersel_beloeb_oere: t.koersel_form === "km" ? null : p.fast,
+        kilde_beskrivelse_kopi: t.kilde_beskrivelse_kopi, kilde_noter_kopi: t.kilde_noter_kopi, kilder_lavet_at: t.kilder_lavet_at,
+      };
+      nyId = crypto.randomUUID();
+      const nyT = { ...felter, id: nyId, firm_id: firmId };
+
+      // Linjerne kopieres (ikke kørslen, den laves igen ud fra den nye sats).
+      // Arbejdslinjer, der stod til den gamle timepris, følger den nye (#13).
+      let nyeLinjer = sorterLinjer(linjer).filter((l) => l.type !== "koersel").map((l) => ({
+        id: crypto.randomUUID(), tilbud_id: nyId, firm_id: firmId,
+        sortering: l.sortering, type: l.type, beskrivelse: l.beskrivelse, antal: talTekst(l.antal),
+        enhed_id: l.enhed_id, enhed_navn: l.enhed_navn, enhed_ny: l.enhed_ny,
+        enhedspris_oere: l.type === "arbejde" && l.enhedspris_oere === t.timepris_oere ? felter.timepris_oere : l.enhedspris_oere,
+        rabat_form: l.rabat_form, rabat_procent: talTekst(l.rabat_procent), rabat_beloeb_oere: l.rabat_beloeb_oere,
+        kilde: l.kilde, bekraeftet: l.bekraeftet, ordret: l.ordret, uenig: l.uenig,
+      }));
+      nyeLinjer = anvend(nyeLinjer, koerselOps(nyT, nyeLinjer));
+      const sorteret = sorterLinjer(nyeLinjer);
+      sorteret.forEach((l, i) => Object.assign(l, medTal(l, i + 1)));
+      const { summer } = B.regnTilbud(somBeregningTilbud(nyT), sorteret.map(somBeregningLinje));
+
+      const { error: tE } = await supabase.from("tilbud").insert(medFirma(firmId, { id: nyId, ...felter, ...summer }));
+      if (tE && tE.code === "23505") { nyId = null; return res.status(409).json({ error: "kladde_findes", besked: "Der er allerede en ny version under arbejde." }); }
+      if (tE) { nyId = null; throw tE; }
+      if (sorteret.length) {
+        const { error } = await supabase.from("tilbud_linjer").insert(sorteret);
+        if (error) throw error;
+      }
+      const { data: kilder, error: kiE } = await supabase.from("tilbud_kilder")
+        .select("referat_id, nr, dato, kilde, tekst_kopi").eq("tilbud_id", t.id).eq("firm_id", firmId);
+      if (kiE) throw kiE;
+      if ((kilder || []).length) {
+        const { error } = await supabase.from("tilbud_kilder")
+          .insert(kilder.map((k) => medFirma(firmId, { ...k, tilbud_id: nyId, lead_id: t.lead_id })));
+        if (error) throw error;
+      }
+      const id = nyId; nyId = null;
+      res.status(201).json({ ok: true, tilbud: await fuld(firmId, id) });
+    } catch (e) {
+      // Ingen halv kladde: den nye version slettes igen, så længe den er kladde.
+      if (nyId) await supabase.from("tilbud").delete().eq("id", nyId).eq("firm_id", firmId).eq("status", "kladde");
+      svarPaaFejl(res, e, "ny version kunne ikke oprettes");
+    }
   });
 
   return RUTER;
