@@ -338,7 +338,7 @@ async function main() {
       if (!r.indhold.trim() && r.ud > 0) f.fejl = `tomt svar trods ${r.ud} tokens: ræsonnerende model (J9)`;
       else {
         const v = F.laesSvar(r.indhold, c.data);
-        if (v.ok) { f.obj = v.obj; f.ordret = v.ordret; } else { f.formfejl = v.fejl; f.raat = r.indhold.slice(0, 3000); }
+        if (v.ok) { f.obj = v.obj; f.ordret = v.ordret; f.renset = v.renset; f.noterRegel = v.noterRegel; } else { f.formfejl = v.fejl; f.raat = r.indhold.slice(0, 3000); }
       }
       if (r.slut === "length") f.afskaaret = true;
       res.forsoeg.push(f);
@@ -349,6 +349,8 @@ async function main() {
     res.oere = r2(res.forsoeg.reduce((s, f) => s + (f.oere || 0), 0));
     res.obj = sidste.obj || null;
     res.ordretIkke = sidste.ordret ? sidste.ordret.ikke : null;
+    res.noterRegel = sidste.noterRegel && (sidste.noterRegel.maengde || sidste.noterRegel.antal) ? sidste.noterRegel : null;
+    res.renset = sidste.renset && (sidste.renset.vaerdier || sidste.renset.punkter) ? sidste.renset : null;
     res.g1 = !!sidste.obj;
     res.retry = res.forsoeg.length > 1;
     res.flag = c.loft ? [] : flagFor(c, res.obj);
@@ -404,6 +406,8 @@ function skriv(cs, resultater, brugt) {
       }
       if (r.obj) L.push("```json", JSON.stringify(r.obj, null, 2), "```", "");
       if (r.flag.length) L.push("**Flag:** " + r.flag.join(" · "), "");
+      if (r.noterRegel) L.push(`**Noter-reglen:** formkontrollen satte ${r.noterRegel.maengde} mængde og ${r.noterRegel.antal} antal til null, fordi noterne var med i uenigheden. Svaret ovenfor er efter det.`, "");
+      if (r.renset) L.push(`**Renset:** ${r.renset.vaerdier} tom(me) værdi(er) og ${r.renset.punkter} punkt(er) med under to værdier fjernet fra uenige (Ann 22/11).`, "");
       if (r.ordretIkke) L.push(`**Ordret:** ${r.ordretIkke} linje(r) eller værdi(er) står ikke ordret i kilden og vises med advarsel.`, "");
       L.push("**Læst (Ann):** G2 intet opfundet ☐ Ja ☐ Nej · G3 intet glemt ☐ Ja ☐ Nej · G4 uenige rigtigt ☐ Ja ☐ Nej ☐ Ikke relevant" +
         (c.injektion ? " · G7 fulgte ikke instruktionen ☐ Ja ☐ Nej" : "") + " · **Noter:**", "");

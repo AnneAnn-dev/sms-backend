@@ -55,7 +55,11 @@ const findesI = (tekst, kilde) => flad(kilde).includes(flad(tekst));
 /**
  * @param {string} raat  modellens rå svar
  * @param {object} data  det samme data, prompten blev bygget af (kontraktens afsnit 4)
- * @returns {{ok: true, obj: object, ordret: {ialt: number, ikke: number}} | {ok: false, fejl: string[]}}
+ * @returns {{ok: true, obj: object, ordret: {ialt: number, ikke: number}, renset: {vaerdier: number, punkter: number}, noterRegel: {maengde: number, antal: number}} | {ok: false, fejl: string[]}}
+ *   `renset`: hvor mange tomme værdier og punkter med under to værdier, der blev fjernet fra uenige
+ *   (Ann 22/11). Logges af ruten som tal; svaret afvises ikke for det.
+ *   `noterRegel`: hvor mange gange mængden eller et antal blev sat til null, fordi noterne var med
+ *   i uenigheden (Ann 22/11). Ved ok er det allerede gjort i `obj`.
  *   Ved ok er `obj` modelsvaret med `ordret` (true/false) tilføjet på hver materialelinje og på
  *   hver værdi i `uenige`. Modellen må ikke selv skrive `ordret`; gør den, er det et opfundet felt.
  */
@@ -143,6 +147,21 @@ function laes(raat, data) {
   const noter = typeof data.noter === "string" ? data.noter : "";
   const alleKilder = [beskrivelse, noter, ...refTekst.values()].join("\n");
 
+  // Tomme værdier i uenige fjernes, før formen tjekkes (Ann 22/11, efter runde 2): en kilde, der
+  // intet siger om feltet, er ikke en del af uenigheden. Et punkt med under to værdier tilbage er
+  // ingen uenighed og fjernes. Kun værdier, der er null eller tom tekst; alt andet tjekkes som før.
+  const renset = { vaerdier: 0, punkter: 0 };
+  if (Array.isArray(obj.uenige)) {
+    obj.uenige = obj.uenige.filter((u) => {
+      if (!erObj(u) || !Array.isArray(u.vaerdier)) return true;
+      const foer = u.vaerdier.length;
+      u.vaerdier = u.vaerdier.filter((v) => !(erObj(v) && (v.vaerdi === null || v.vaerdi === undefined || (typeof v.vaerdi === "string" && !v.vaerdi.trim()))));
+      renset.vaerdier += foer - u.vaerdier.length;
+      if (u.vaerdier.length < 2) { renset.punkter++; return false; }
+      return true;
+    });
+  }
+
   // uenige: hvert punkt skal pege på et felt, der findes, og på kilder, der var i input.
   const ue = obj.uenige;
   if (ue !== null && ue !== undefined) {
@@ -203,7 +222,19 @@ function laes(raat, data) {
       return { ...v, ordret };
     }),
   }));
-  return { ok: true, obj: ud, ordret: { ialt, ikke } };
+  // Noter-reglen (kontraktens regel for noter, Ann 22/11 efter runde 2): noterne har ingen dato, så
+  // er de med i en uenighed, vælges ingen værdi. Modellen holdt ikke reglen (S2, runde 1 og 2), så
+  // den håndhæves her: mængden eller linjens antal sættes til null. Uenigheden bliver stående.
+  const noterRegel = { maengde: 0, antal: 0 };
+  for (const u of ud.uenige) {
+    if (!u.vaerdier.some((v) => v.kilde === "noter")) continue;
+    if (u.felt === "maengde" && ud.maengde) { ud.maengde = null; noterRegel.maengde++; }
+    const m = u.felt.match(/^materialer\[(\d+)\]$/);
+    if (m && ud.materialer[Number(m[1])] && ud.materialer[Number(m[1])].antal !== null && ud.materialer[Number(m[1])].antal !== undefined) {
+      ud.materialer[Number(m[1])] = { ...ud.materialer[Number(m[1])], antal: null }; noterRegel.antal++;
+    }
+  }
+  return { ok: true, obj: ud, ordret: { ialt, ikke }, renset, noterRegel };
 }
 
 module.exports = { laesSvar, LOFT, FELTER, _godtTal: godtTal, _findesI: findesI };
