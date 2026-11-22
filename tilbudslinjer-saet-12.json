@@ -1,5 +1,5 @@
 {
-  "_om": "Testsættet til målingen af tilbudslinjer (docs/fase5-tilbud-maaling.md). 10 sager: 6 offentlige tilbud (T03, T04, T05, T09, T13, T19; anonymiseret af Ann, facit fra bilag-A-forslag-v4 med Anns afgørelser 21-22/11) og 4 sager lavet i appen på staging af Anne 22/11 (S1-S4, referaterne ordret fra referater.indhold). S2's noter er skrevet af spor 2, fordi appen ikke har et notefelt. Firmaets typer: den opdigtede liste med 30 typer (Ann 22/11 i stedet for Annes liste). 'valgfri' i facit: tæller hverken som glemt eller opfundet. De 2 tilsidesatte ligger IKKE her. Facit godkendes af Ann.",
+  "_om": "Testsættet til målingen af tilbudslinjer (docs/fase5-tilbud-maaling.md). 10 sager: 6 offentlige tilbud (T03, T04, T05, T09, T13, T19; anonymiseret af Ann, facit fra bilag-A-forslag-v4 med Anns afgørelser 21-22/11) og 4 sager lavet i appen på staging af Anne 22/11 (S1-S4, referaterne ordret fra referater.indhold). S2's noter er skrevet af spor 2, fordi appen ikke har et notefelt. Firmaets typer: den opdigtede liste med 30 typer (Ann 22/11 i stedet for Annes liste). 'valgfri' i facit: tæller hverken som glemt eller opfundet. De tilsidesatte (T06, T15, T18) ligger IKKE her. Facit godkendes af Ann.",
   "firmaets_typer": [
     {
       "navn": "Terrasse",
