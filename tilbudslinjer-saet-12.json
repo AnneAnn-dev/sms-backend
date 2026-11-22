@@ -514,7 +514,8 @@
       },
       "facit": {
         "opgavetype": "Terrasse",
-        "firmatype": "Terrasse",
+        "firmatype": ["Terrasse", "terasse"],
+        "firmatype_note": "Ann 22/11 efter runde 1: begge er firmaets typer, og begge tæller rigtigt.",
         "maengde": {
           "vaerdi": 40,
           "enhed": "m²",

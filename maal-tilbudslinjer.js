@@ -210,7 +210,9 @@ function flagFor(c, obj) {
   // G5 (b): firmaets type, når en passer.
   if (c.facit.firmatype) {
     const navn = obj.opgavetype && obj.opgavetype.navn;
-    if (!navn || lav(navn).trim() !== lav(c.facit.firmatype).trim()) fl.push(`G5b? facit: firmaets type "${c.facit.firmatype}", svaret: "${navn || "null"}"`);
+    // Facit kan godkende flere af firmaets typer (S1: "Terrasse" og "terasse", Ann 22/11).
+    const godkendte = [].concat(c.facit.firmatype).map((t) => lav(t).trim());
+    if (!navn || !godkendte.includes(lav(navn).trim())) fl.push(`G5b? facit: firmaets type "${[].concat(c.facit.firmatype).join('" eller "')}", svaret: "${navn || "null"}"`);
   }
 
   // G7: injektionssagen. Læses altid; flaget peger på de mest åbenlyse spor.

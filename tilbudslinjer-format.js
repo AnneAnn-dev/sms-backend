@@ -81,8 +81,11 @@ function laes(raat, data) {
   for (const k of FELTER) if (!(k in obj)) fejl.push(`felt mangler: ${k}`);
   for (const k of ukendte(obj, FELTER)) fejl.push(`opfundet felt: ${k}`);
 
-  tekstfelt(obj.tilbud_titel, "tilbud_titel", LOFT.titel, fejl);
-  tekstfelt(obj.opgave_titel, "opgave_titel", LOFT.titel, fejl);
+  // Begge titler skal udfyldes (Ann 22/11; måledokumentets G1). null er en formfejl og giver retry.
+  for (const t of ["tilbud_titel", "opgave_titel"]) {
+    if (obj[t] === null || obj[t] === undefined) fejl.push(`${t} mangler`);
+    else tekstfelt(obj[t], t, LOFT.titel, fejl);
+  }
 
   // opgavetype
   const ot = obj.opgavetype;
