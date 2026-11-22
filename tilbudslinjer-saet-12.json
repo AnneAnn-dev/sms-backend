@@ -1,0 +1,730 @@
+{
+  "_om": "Testsættet til målingen af tilbudslinjer (docs/fase5-tilbud-maaling.md). 10 sager: 6 offentlige tilbud (T03, T04, T05, T09, T13, T19; anonymiseret af Ann, facit fra bilag-A-forslag-v4 med Anns afgørelser 21-22/11) og 4 sager lavet i appen på staging af Anne 22/11 (S1-S4, referaterne ordret fra referater.indhold). S2's noter er skrevet af spor 2, fordi appen ikke har et notefelt. Firmaets typer: den opdigtede liste med 30 typer (Ann 22/11 i stedet for Annes liste). 'valgfri' i facit: tæller hverken som glemt eller opfundet. De 2 tilsidesatte ligger IKKE her. Facit godkendes af Ann.",
+  "firmaets_typer": [
+    {
+      "navn": "Terrasse",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Terrasse, hævet",
+      "enhed": "m²"
+    },
+    {
+      "navn": "terasse",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Trappe",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Rækværk",
+      "enhed": "m"
+    },
+    {
+      "navn": "Hegn",
+      "enhed": "m"
+    },
+    {
+      "navn": "Plankeværk",
+      "enhed": "m"
+    },
+    {
+      "navn": "Carport",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Skur",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Tagrender",
+      "enhed": "m"
+    },
+    {
+      "navn": "Tagrender og nedløb",
+      "enhed": "m"
+    },
+    {
+      "navn": "Tagudskiftning",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Tagreparation",
+      "enhed": "timer"
+    },
+    {
+      "navn": "Vinduer",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Vinduesudskiftning",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Døre",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Hoveddør",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Gulv",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Gulvafslibning",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Køkken",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Køkkenmontering",
+      "enhed": "timer"
+    },
+    {
+      "navn": "Badeværelse",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Lofter",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Isolering",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Efterisolering loft",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Facadebeklædning",
+      "enhed": "m²"
+    },
+    {
+      "navn": "Inddækning",
+      "enhed": "m"
+    },
+    {
+      "navn": "Skydedøre",
+      "enhed": "stk."
+    },
+    {
+      "navn": "Småopgaver",
+      "enhed": "timer"
+    },
+    {
+      "navn": "Service",
+      "enhed": "timer"
+    }
+  ],
+  "enheder": [
+    "stk.",
+    "m",
+    "cm",
+    "m²",
+    "m³",
+    "kg",
+    "timer",
+    "dag",
+    "sæt"
+  ],
+  "sager": [
+    {
+      "id": "T03-vvs-madpakkehus",
+      "kilde": "offentligt tilbud",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Hermed tilbud på VVS-arbejde i forbindelse med ny madpakke-hytte i haven.\nSanitet består af følgende :\n2 stk. Juvel Intra AF12 – KV stålbordplade med vask ( 120 cm vendbar )\nOphængsbeslag til vaske\n3 stk. Tempostop vand-ventiler med selv-luk, krom\n2 stk. Tud til tempostop, krom\n2 stk. Frese udendørshane, koldt vand\nVandinstallationer til ovenstående incl. fittings, rør og lignende.\nVandstik :\nVandstik fra eksisterende vandledning ved sti og frem til ny madpakke-hytte.\nVandstik udføres i 32mm PEL.\nGrave-arbejde incl. grovplanering ( regner med I selv planerer efterfølgende og sår græs )",
+        "beskrivelse_dato": "2025-05-14",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": []
+      },
+      "facit": {
+        "opgavetype": "VVS-installation, madpakkehus",
+        "firmatype": null,
+        "maengde": null,
+        "maengde_hvordan": "ikke nævnt",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "Juvel Intra AF12 – KV stålbordplade med vask ( 120 cm vendbar )",
+            "antal": 2,
+            "enhed": "stk."
+          },
+          {
+            "beskrivelse": "Ophængsbeslag til vaske",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Tempostop vand-ventiler med selv-luk, krom",
+            "antal": 3,
+            "enhed": "stk."
+          },
+          {
+            "beskrivelse": "Tud til tempostop, krom",
+            "antal": 2,
+            "enhed": "stk."
+          },
+          {
+            "beskrivelse": "Frese udendørshane, koldt vand",
+            "antal": 2,
+            "enhed": "stk."
+          },
+          {
+            "beskrivelse": "fittings, rør og lignende",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "32mm PEL",
+            "antal": null,
+            "enhed": null
+          }
+        ],
+        "ikke_materialer": [
+          "eksisterende vandledning",
+          "græs"
+        ],
+        "titel_forslag": "VVS til ny madpakkehytte"
+      }
+    },
+    {
+      "id": "T04-el-madpakkehus",
+      "kilde": "offentligt tilbud",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Vedr. elinstallationer til nyt mapakkehus.\n– Levering, opsætning og montering af kabelskab for terræn med sikringsafgang til mapakkehus. Kabelskabet placeres væk fra gangstien.\n– Eksisterende hovedkabel til servicebygning blotlægges og forlænges til nyt kabelskab.\n– Ny forsyning fremføres fra kabelskab til madpakkehus.\n– I madpakkehuset etableres der:\n  1 stk. eltavle med sikringsafgange for installationer i madpakkehuset.\n  3 stk. stikkontakter og LED lysarmatur i hvert af de to rum.\n  1 stk. kraftudtag CEE 16A.\n– Opmærkning, test og afprøvning af elinstallationerne.",
+        "beskrivelse_dato": "2025-05-10",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": []
+      },
+      "facit": {
+        "opgavetype": "El-installation, madpakkehus",
+        "firmatype": null,
+        "maengde": null,
+        "maengde_hvordan": "ikke nævnt",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "kabelskab for terræn",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "eltavle med sikringsafgange",
+            "antal": 1,
+            "enhed": "stk."
+          },
+          {
+            "beskrivelse": "stikkontakter",
+            "antal": null,
+            "enhed": null,
+            "note": "Ann 22/11: tomt antal; '3 stk. ... i hvert af de to rum' er ikke et antal"
+          },
+          {
+            "beskrivelse": "LED lysarmatur",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          },
+          {
+            "beskrivelse": "kraftudtag CEE 16A",
+            "antal": 1,
+            "enhed": "stk."
+          }
+        ],
+        "ikke_materialer": [
+          "Eksisterende hovedkabel",
+          "servicebygning"
+        ],
+        "titel_forslag": "Elinstallation i nyt madpakkehus"
+      }
+    },
+    {
+      "id": "T05-fliser-med-referat",
+      "kilde": "offentligt tilbud + referat (Anne, staging 21/11)",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Vedr. Madpakkehus\nVedr. Nedtagning\n1: Bortfjernelse af gammelt madpakkehus.\n2: Bortfjernelse af gamle fliser, afgravning af jord/sand og udlægning samt afretning af sand til ny flisebelægning. Cirkel med diameter på ca. 10 m. Areal : Ca. 80 m2.\n3: Indkøb af ca. 80 m2 fliser / sten. (Magen til dem i bålhytten)\n4: Udlægning af fliser / sten.\n5: Etablering af afløb fra tre nedløbsrør og to håndvaske til faskine eller tilsvarende.",
+        "beskrivelse_dato": "2026-11-21",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": [
+          {
+            "nr": 1,
+            "dato": "2026-11-21",
+            "kilde": "optagelse",
+            "tekst": "Nyt madpakkehus - nedtagning, afløb og fliser\n\n- Nedtagning og fjernelse af gammelt madpakkehus med træ\n- Fjernelse af fliser, grus og sand\n- Afretning og lægning af sand til ny flisbelægning, diameter cirka 15, areal cirka 90 kvm\n- Sikring af afløb fra tre nedløbsrør og to håndvaske til to faskiner\n- Fliserne stakkes op ved siden af til kundens medarbejder\n- Madpakkehuset placeres med fin adgang til haven\n- Tidsramme: om cirka 4 uger, senest om 6 uger\n\nDer skal nedtages og fjernes gammelt madpakkehus med træ og fliser, samt grus og sand. Herefter afrettes og lægges sand til ny flisbelægning på cirka 90 kvm med diameter cirka 15. Afløb fra tre nedløbsrør og to håndvaske skal sikres til to faskiner. Fliserne stakkes op ved siden af til kundens medarbejder. Det nye hus placeres med adgang til haven. Tidsramme er om cirka 4 uger, senest om 6 uger."
+          }
+        ]
+      },
+      "facit": {
+        "opgavetype": "Flisebelægning",
+        "firmatype": null,
+        "maengde": {
+          "vaerdi": 90,
+          "enhed": "m²",
+          "faktorer": [
+            90
+          ]
+        },
+        "maengde_hvordan": "direkte (referatet, nyeste)",
+        "uenige": [
+          {
+            "felt": "maengde",
+            "vaerdier": [
+              {
+                "kilde": "beskrivelse",
+                "vaerdi": "Ca. 80 m2"
+              },
+              {
+                "kilde": "referat",
+                "nr": 1,
+                "vaerdi": "cirka 90 kvm"
+              }
+            ]
+          },
+          {
+            "felt": "materialer[fliser / sten]",
+            "vaerdier": [
+              {
+                "kilde": "beskrivelse",
+                "vaerdi": "ca. 80 m2 fliser / sten"
+              },
+              {
+                "kilde": "referat",
+                "nr": 1,
+                "vaerdi": "areal cirka 90 kvm"
+              }
+            ]
+          }
+        ],
+        "uenige_valgfri": [
+          "diameter (ikke et felt; meldes den, er det falsk efter G4 b)"
+        ],
+        "materialer": [
+          {
+            "beskrivelse": "fliser / sten",
+            "antal": null,
+            "enhed": "m2",
+            "note": "Ann 21/11: tomt antal, uenigheden meldes ved linjen"
+          },
+          {
+            "beskrivelse": "sand",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "faskiner",
+            "antal": 2,
+            "enhed": null
+          }
+        ],
+        "ikke_materialer": [
+          "gammelt madpakkehus",
+          "gamle fliser",
+          "grus",
+          "Fliserne stakkes op (de gamle)",
+          "Magen til dem i bålhytten",
+          "nedløbsrør",
+          "håndvaske"
+        ],
+        "titel_forslag": "Nedtagning af madpakkehus og ny flisebelægning"
+      }
+    },
+    {
+      "id": "T09-vandvarmer-alternativer",
+      "kilde": "offentligt tilbud",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Hermed fremsendes tilbud på udskiftning af el-vandvarmer.\n30 ltr. Metro el-vandvarmer udskiftes til 60 ltr. type 622.\nDa den nye beholder er højere 87,5 cm. er det nødvendigt at ændre/flytte rør over beholder.\nDesværre er der problemer med leveringerne af el-vandvarmere fra Metro, så denne er i øjeblikket i restordre.\nSom alternativ kan anvendes en Bosch Tronic 4500 T 50 ltr. el-vandvarmer, som kan leveres omgående.\nDenne er ikke så høj 61 cm. hvilket skulle kunne lade sig gøre.\nMen så er den bredere og dybere 51 x51 cm, hvilket vi ikke har kontrolleret. Jeg forventer at rør ved siden, så skal flyttes.\nTilbud omfatter ikke: El-tilslutning hvis vi ikke direkte kan tilslutte den nye beholder.",
+        "beskrivelse_dato": "2023-02-22",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": []
+      },
+      "facit": {
+        "opgavetype": "Udskiftning af vandvarmer",
+        "firmatype": null,
+        "maengde": null,
+        "maengde_hvordan": "ikke nævnt",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "60 ltr. type 622",
+            "antal": null,
+            "enhed": null,
+            "note": "alternativ 1"
+          },
+          {
+            "beskrivelse": "Bosch Tronic 4500 T 50 ltr. el-vandvarmer",
+            "antal": null,
+            "enhed": null,
+            "note": "alternativ 2"
+          },
+          {
+            "beskrivelse": "rør",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [
+          "30 ltr. Metro el-vandvarmer (den gamle)",
+          "El-tilslutning"
+        ],
+        "titel_forslag": "Ny el-vandvarmer (60 l), evt. Bosch 50 l"
+      }
+    },
+    {
+      "id": "T13-salmeboeger-note",
+      "kilde": "offentligt tilbud + note",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Det er mig en glæde at fremsende tilbud på om indbinding af jeres salmebøger.\nTilbuddet dækker\nMaterialer.\nAdskillelse af gamle salmebog.\nInd limning af ny forsats.\nNy forstærkning af ryg.\nBind produceres.\nGuldtryk på ryg og forside, samt kirke navn\nInd limning af bogblok.\nLevering uden beregning,",
+        "beskrivelse_dato": "2026-11-21",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "NOTE: der er i alt 263 samlebøger",
+        "referater": []
+      },
+      "facit": {
+        "opgavetype": "Bogbinding / ombinding",
+        "firmatype": null,
+        "maengde": {
+          "vaerdi": 263,
+          "enhed": null,
+          "faktorer": [
+            263
+          ]
+        },
+        "maengde_hvordan": "direkte (noterne)",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "ny forsats",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "forstærkning af ryg",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          },
+          {
+            "beskrivelse": "Guldtryk",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [
+          "gamle salmebog",
+          "bogblok"
+        ],
+        "titel_forslag": "Ombinding af 263 salmebøger"
+      }
+    },
+    {
+      "id": "T19-hegnsmur",
+      "kilde": "offentligt tilbud",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Rep 1 stk hegnsmur mod gaden, tættes på indkørsel\nAlle fuger kraases ud og fuge op med farvet mørtel\nUdskiftning af skadet mursten ca 10 stk\nAfdækning eftergås og fuges op\nRep sokkelpuds\nEksisterende mursten kan ikke skaffes\nDer må forventes farveforskel mellem nye og eksisterende mursten og mørtelfuger",
+        "beskrivelse_dato": "2023-06-12",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": []
+      },
+      "facit": {
+        "opgavetype": "Murreparation",
+        "firmatype": null,
+        "maengde": {
+          "vaerdi": 1,
+          "enhed": "stk.",
+          "faktorer": [
+            1
+          ]
+        },
+        "maengde_valgfri": true,
+        "maengde_hvordan": "valgfri: 1 stk. eller ikke nævnt",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "farvet mørtel",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "mursten",
+            "antal": 10,
+            "enhed": "stk"
+          },
+          {
+            "beskrivelse": "sokkelpuds",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [
+          "Eksisterende mursten",
+          "skadet mursten"
+        ],
+        "titel_forslag": "Reparation af hegnsmur mod gaden"
+      }
+    },
+    {
+      "id": "S1-terrasse-tre-referater-samme-dag",
+      "kilde": "app, staging 22/11 (Anne): kundeformular + 3 referater",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Hej\nVi vil gerne ha en ny terasse i lærk ved huset.",
+        "beskrivelse_dato": "2026-11-22",
+        "beskrivelse_kilde": "kundeformular",
+        "noter": "",
+        "referater": [
+          {
+            "nr": 1,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Måling hos M. Hansen - cirkel 40 grader meter\n\n- Målt interesse hos M. Hansen i deres hus\n- Cirkel på 40 grader meter\n- Ønske om lækkert lys\n- Skal lægges med strøer\n- Skal være helt i vatter\n\nHar været ude hos M. Hansen i deres hus og målt interesse. Der er tale om en cirkel på 40 grader meter. De ønsker det i noget lækkert lys, lagt med strøer, som lige bliver lagt i vatter. Det hele skal være helt i vatter."
+          },
+          {
+            "nr": 2,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Mie fra M. Hansen - terrassen skal være større\n\n- Mie fra M. Hansen har ringet\n- terrassen skal være 45 kvadratmeter\n\nMie ude fra M. Hansen har ringet og bekræftet, at terrassen skal være større, nemlig 45 kvadratmeter."
+          },
+          {
+            "nr": 3,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Kundehenvendelse om terrasse\n\n- Kunden har ringet igen\n- Terassen skal være 40 kvadratmeter\n\nKunden har ringet igen. Terassen skal være 40 kvadratmeter."
+          }
+        ]
+      },
+      "facit": {
+        "opgavetype": "Terrasse",
+        "firmatype": "Terrasse",
+        "maengde": {
+          "vaerdi": 40,
+          "enhed": "m²",
+          "faktorer": [
+            40
+          ]
+        },
+        "maengde_hvordan": "direkte (referat 3, nyeste)",
+        "uenige": [
+          {
+            "felt": "maengde",
+            "vaerdier": [
+              {
+                "kilde": "referat",
+                "nr": 2,
+                "vaerdi": "45 kvadratmeter"
+              },
+              {
+                "kilde": "referat",
+                "nr": 3,
+                "vaerdi": "40 kvadratmeter"
+              }
+            ]
+          }
+        ],
+        "uenige_valgfri": [
+          "referat 1's '40 grader meter' må gerne være med i uenigheden"
+        ],
+        "materialer": [
+          {
+            "beskrivelse": "strøer",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "lærk",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [
+          "lækkert lys"
+        ],
+        "titel_forslag": "Ny terrasse i lærk"
+      }
+    },
+    {
+      "id": "S2-tagrender-noter-uenige",
+      "kilde": "app, staging 22/11 (Anne) + noter skrevet af spor 2 (appen har intet notefelt)",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "24 m tagrender",
+        "beskrivelse_dato": "2026-11-22",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "24 m tagrende",
+        "referater": [
+          {
+            "nr": 1,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Besøg hos Pia Mogensen - garage taghåndter\n\n- Målt taghånderne\n- Skal bruges 20 m tagrende\n- Der er to nedløbsrør\n\nHar været ude hos Pia Mogensen og kigget på garagen. Der skal bruges 20 m taghånd, og der er to nedløbsrør."
+          }
+        ]
+      },
+      "facit": {
+        "opgavetype": "Tagrender",
+        "firmatype": "Tagrender",
+        "maengde": null,
+        "maengde_hvordan": "uenig med noterne: tom",
+        "uenige": [
+          {
+            "felt": "materialer[tagrende]",
+            "vaerdier": [
+              {
+                "kilde": "beskrivelse",
+                "vaerdi": "24 m tagrender"
+              },
+              {
+                "kilde": "noter",
+                "vaerdi": "24 m tagrende"
+              },
+              {
+                "kilde": "referat",
+                "nr": 1,
+                "vaerdi": "20 m tagrende"
+              }
+            ]
+          }
+        ],
+        "uenige_valgfri": [
+          "uenigheden må også meldes ved maengde (tagrendens længde er opgavens størrelse)"
+        ],
+        "materialer": [
+          {
+            "beskrivelse": "tagrende",
+            "antal": null,
+            "enhed": "m",
+            "note": "noterne er med i uenigheden: tomt antal"
+          },
+          {
+            "beskrivelse": "nedløbsrør",
+            "antal": 2,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [],
+        "titel_forslag": "Nye tagrender på garage"
+      }
+    },
+    {
+      "id": "S3-terrasse-kun-maal",
+      "kilde": "app, staging 22/11 (Anne)",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Terasse bag huset",
+        "beskrivelse_dato": "2026-11-22",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": [
+          {
+            "nr": 1,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Terrasse hos Ravne\n\n- Besøg hos Ravne for at se have og tage mål til terrasse\n- Terrasse på 4,35 x 6,2 meter\n- Lægning af OSB plader\n- 12 pakker terrasseskruer\n\nSkal ud til Ravne for at se hendes have og tage mål til en terrasse. Terrassen bliver 4,35 x 6,2 meter med OSB plader. Forventer at bruge 12 pakker terrasseskruer."
+          }
+        ]
+      },
+      "facit": {
+        "opgavetype": "Terrasse",
+        "firmatype": "Terrasse",
+        "maengde": {
+          "vaerdi": 26.97,
+          "enhed": "m²",
+          "faktorer": [
+            4.35,
+            6.2
+          ]
+        },
+        "maengde_hvordan": "mål (faktorer)",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "OSB plader",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "terrasseskruer",
+            "antal": 12,
+            "enhed": "pakker"
+          }
+        ],
+        "ikke_materialer": [],
+        "titel_forslag": "Terrasse bag huset"
+      }
+    },
+    {
+      "id": "S4-fundament-hoert-forkert",
+      "kilde": "app, staging 22/11 (Anne); transskriptionen hørte forkert",
+      "injektion": false,
+      "data": {
+        "beskrivelse": "Støbes fundamenr",
+        "beskrivelse_dato": "2026-11-22",
+        "beskrivelse_kilde": "haandvaerker",
+        "noter": "",
+        "referater": [
+          {
+            "nr": 1,
+            "dato": "2026-11-22",
+            "kilde": "optagelse",
+            "tekst": "Udgravning og cement til fundament\n\n- udgravning på 2,3 meter, 0,5 meter dyb\n- 6 slags cement af mængsjern\n\nDer skal graves fundament ud med en udgravning på 2,3 meter og 0,5 meter dyb. Der bruges 6 slags cement af mængsjern."
+          }
+        ]
+      },
+      "facit": {
+        "opgavetype": "Fundament",
+        "firmatype": null,
+        "maengde": {
+          "vaerdi": 1.15,
+          "enhed": "m³",
+          "faktorer": [
+            2.3,
+            0.5
+          ]
+        },
+        "maengde_valgfri": true,
+        "maengde_hvordan": "valgfri: [2,3 og 0,5] eller ikke nævnt; 2 × 3 × 0,5 er opfundet",
+        "uenige": [],
+        "materialer": [
+          {
+            "beskrivelse": "cement",
+            "antal": 6,
+            "enhed": null,
+            "valgfri": true
+          },
+          {
+            "beskrivelse": "mængsjern",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          }
+        ],
+        "ikke_materialer": [
+          "armeringsjern (står der ikke)",
+          "sække (står der ikke)"
+        ],
+        "titel_forslag": "Fundament til skur"
+      }
+    }
+  ]
+}

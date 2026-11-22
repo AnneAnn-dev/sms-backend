@@ -92,6 +92,7 @@ sandt("tager kun noter, naar der ikke er andet", !kaster(() => P.bygTilbudslinje
   sandt("en type over 60 tegn springes over og stopper ikke forslaget", !pl.user.includes(lang) && pl.user.includes("- Hegn (m)"));
 }
 for (const s of SAET.sager) sandt(`eksempelsaettet bygger: ${s.id}`, !kaster(() => P.bygTilbudslinjePrompt({ ...s.data, firmaets_typer: SAET.firmaets_typer, enheder: SAET.enheder })));
+sandt("et tal pr. rum eller pr. lag er ikke et antal (T04)", /pr\. rum, pr\. lag.*antal er null, og gang ikke tallene sammen/.test(p.system));
 sandt("promptversionen er en dato", /^\d{4}-\d{2}-\d{2}[a-z]?$/.test(P.TILBUDSLINJER_PROMPT_VERSION));
 
 console.log("\n2. Formvalideringen - godkender det, den skal");

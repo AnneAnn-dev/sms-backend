@@ -24,7 +24,9 @@
 
 "use strict";
 
-const TILBUDSLINJER_PROMPT_VERSION = "2026-11-21c";
+const TILBUDSLINJER_PROMPT_VERSION = "2026-11-22a";
+// 2026-11-22a: et tal, der gælder pr. rum, pr. lag eller "i hvert", er ikke materialets antal (T04,
+//   "3 stk. ... i hvert af de to rum"; Ann 22/11, måledokumentet udgave 10). Antal null. Ikke målt.
 // 2026-11-21c: tre regler fra sættets første sager (måledokumentet udgave 8, Ann 21/11): et antal,
 //   der hænger på en mængde, kilderne er uenige om, står tomt og meldes ved linjen (T05; appen viser
 //   "Vi har ikke valgt for dig. Skriv det rigtige.") · beskrivelsen er altid den
@@ -49,7 +51,7 @@ Regler:
 1. Skriv KUN det over, der står i kilderne. Find aldrig på materialer, mængder, antal, enheder eller opgavetyper. Står noget ikke der, er feltet null.
 2. Materialer: kun det, der skal BRUGES i opgaven. Noget, der beskriver det, der er der i dag ("den gamle terrasse er trykimprægneret"), er ikke et materiale til tilbuddet. Tilføj aldrig materialer, der plejer at høre til, hvis de ikke er nævnt.
 3. Skriv materialet, som det står i kilden. Ret ikke stavning, mål eller betegnelser, heller ikke hvis de ser forkerte ud.
-4. Antal skrives kun, når antallet står ved materialet i kilden. Ellers er antal null. Regn aldrig et antal ud fra opgavens størrelse. Er kilderne uenige om et tal, antallet hænger på (fx "ca. 80 m2 fliser" i én kilde og "areal cirka 90 kvm" i en anden), er antal null; skriv hverken det ene eller det andet tal, men skriv uenigheden i "uenige" ved linjen (felt "materialer[n]") med hver kildes værdi.
+4. Antal skrives kun, når antallet står ved materialet i kilden. Ellers er antal null. Regn aldrig et antal ud fra opgavens størrelse. Et tal, der gælder pr. rum, pr. lag, pr. stykke eller "i hvert" (fx "3 stk. i hvert af de to rum", "2 lag", "2x"), er ikke materialets antal: antal er null, og gang ikke tallene sammen. Er kilderne uenige om et tal, antallet hænger på (fx "ca. 80 m2 fliser" i én kilde og "areal cirka 90 kvm" i en anden), er antal null; skriv hverken det ene eller det andet tal, men skriv uenigheden i "uenige" ved linjen (felt "materialer[n]") med hver kildes værdi.
 5. Enhed skrives, som den står i kilden ("pakker", "m", "stk."). Står der ingen enhed, er enhed null.
 6. Hovedmængden er størrelsen på hele opgaven. Skriv den som de MÅL, der står i kilden, i "faktorer", og regn ALDRIG selv. Står størrelsen direkte ("ca. 24 m²"), er faktorer [24]. Giver kilden mål, der skal ganges ("4 gange 6 meter"), er faktorer [4, 6], og enhed er enheden for resultatet (m²). Højst tre faktorer. Står ingen størrelse i kilden, er maengde null. Gæt aldrig en størrelse.
 7. Opgavetype: passer en af firmaets typer, så brug dens navn og enhed præcis, som de står i <firmaets_typer>. Passer ingen, så skriv et kort navn for opgaven (højst 60 tegn) og en enhed fra <enheder>.

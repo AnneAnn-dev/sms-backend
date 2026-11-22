@@ -157,7 +157,7 @@ function flagFor(c, obj) {
   if (obj.maengde) {
     for (const f of obj.maengde.faktorer) if (!findes(f)) fl.push(`G2? faktoren ${f} står ikke i kilden`);
     const produkt = Math.round(obj.maengde.faktorer.reduce((a, b) => a * b, 1) * 1000) / 1000;
-    if (c.facit.maengde === null) fl.push(`G2? facit siger "ikke nævnt", svaret har faktorer ${obj.maengde.faktorer.join(" × ")}`);
+    if (c.facit.maengde === null) fl.push(`G2? facit: mængden tom (${c.facit.maengde_hvordan || "ikke nævnt"}), svaret har faktorer ${obj.maengde.faktorer.join(" × ")}`);
     else if (c.facit.maengde && typeof c.facit.maengde.vaerdi === "number" && Math.abs(produkt - c.facit.maengde.vaerdi) > 1e-9) {
       fl.push(`G2/G4? mængden bliver ${produkt}, facit ${c.facit.maengde.vaerdi}`);
     }
@@ -166,14 +166,20 @@ function flagFor(c, obj) {
     if (c.facit.maengde && c.facit.maengde.enhed && (!enh || enh.navn !== c.facit.maengde.enhed)) {
       fl.push(`A9? mængdens enhed "${obj.maengde.enhed}" bliver "${enh ? enh.navn + (enh.ny ? " (ny)" : "") : "ingen"}", facit ${c.facit.maengde.enhed}`);
     }
-  } else if (c.facit.maengde && c.facit.maengde.vaerdi != null) {
+  } else if (c.facit.maengde && c.facit.maengde.vaerdi != null && !c.facit.maengde_valgfri) {
     fl.push(`G3? facit har mængden ${c.facit.maengde.vaerdi} ${c.facit.maengde.enhed || ""}, svaret har ingen`);
   }
 
   // G3: et materiale fra facit, der ikke er kommet med (groft: første ord på 4+ bogstaver).
+  // "valgfri" i facit (udgave 10): må være med og må mangle; tæller hverken som glemt eller opfundet.
   for (const fm of c.facit.materialer || []) {
     const noegle = ord4(fm.beskrivelse)[0] || lav(fm.beskrivelse);
-    if (!(obj.materialer || []).some((m) => lav(m.beskrivelse).includes(noegle))) fl.push(`G3? facit-materialet "${fm.beskrivelse}" ses ikke i svaret`);
+    const fundne = (obj.materialer || []).filter((m) => lav(m.beskrivelse).includes(noegle));
+    if (!fundne.length && !fm.valgfri) fl.push(`G3? facit-materialet "${fm.beskrivelse}" ses ikke i svaret`);
+    // Facit har tomt antal, svaret har et tal (T04 "i hvert af de to rum", T05 uenig mængde).
+    if (fm.antal === null && fundne.some((m) => typeof m.antal === "number")) {
+      fl.push(`G2? facit har tomt antal ved "${fm.beskrivelse}", svaret har ${fundne.find((m) => typeof m.antal === "number").antal}`);
+    }
   }
 
   // G4: uenighed meldt der, hvor facit har den, og ikke andre steder.
@@ -183,7 +189,11 @@ function flagFor(c, obj) {
     if (f === "maengde" || f === "opgavetype") { if (!svarFelter.includes(f)) fl.push(`G4? facit har uenighed om ${f}, svaret melder ingen`); }
     else if (!svarFelter.some((s) => s.startsWith("materialer["))) fl.push(`G4? facit har uenighed om en materialelinje, svaret melder ingen`);
   }
-  if (!facitFelter.length && svarFelter.length) fl.push(`G4? svaret melder uenighed (${svarFelter.join(", ")}), facit har ingen`);
+  const ekstra = svarFelter.filter((s) => !facitFelter.some((f) => f === s || (f.startsWith("materialer[") && s.startsWith("materialer["))));
+  if (ekstra.length) {
+    const valgfri = (c.facit.uenige_valgfri || []).length ? ` (facit: valgfri, se uenige_valgfri: ${c.facit.uenige_valgfri.join("; ")})` : "";
+    fl.push(`G4b? svaret melder uenighed om ${ekstra.join(", ")}, facit har den ikke${valgfri}`);
+  }
   const noterIUenighed = (c.facit.uenige || []).some((u) => u.felt === "maengde" && (u.vaerdier || []).some((v) => v.kilde === "noter"));
   if (noterIUenighed && obj.maengde) fl.push("G4? noterne er med i uenigheden om mængden, men svaret har valgt en værdi");
   // G4 (a), skærpet i udgave 6: hver værdi med den rigtige kilde og det rigtige nr.
