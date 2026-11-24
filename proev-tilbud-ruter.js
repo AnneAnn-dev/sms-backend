@@ -255,6 +255,8 @@ async function opgave(t, navn) {
         tjek(ml.every((l) => !l.bekraeftet && l.enhedspris_oere === null && (l.antal === null || typeof l.antal === 'string')),
           `${ml.length} modellinjer: ingen priser, ikke bekræftet, antal som tekst`, ml);
         tjek(f.kilder.referat_ids.length === 1 && f.kilder.referat_ids[0] === ref.id, 'kilderne husker referatet');
+        tjek(f.indledning && f.indledning_kilde === 'model' && !f.indledning_bekraeftet && f.forslag_markeringer && Array.isArray(f.forslag_markeringer.indledning_tal_ikke),
+          `indledning fra modellen (${(f.indledning || '').length} tegn), ikke bekræftet; markeringer gemt`, f.forslag_markeringer);
         const { data: fl } = await admin.from('tilbud_forslag').select('model, prompt_version, retry').eq('tilbud_id', tf.id);
         const { data: brugt } = await admin.from('ai_forbrug').select('pris_oere').eq('firm_id', a.firmId).eq('formaal', 'tilbud');
         const oere = (brugt || []).reduce((s, x) => s + Number(x.pris_oere), 0);

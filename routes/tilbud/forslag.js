@@ -92,8 +92,10 @@ function inputTegn(data) {
  *   egne:       firmaets egne enheder [{ id, navn }]
  *   grund:      grundlistens rækker [{ id, navn }]
  *   log:        { model, prompt_version, retry, svartid_ms, tokens_ind, tokens_ud }
+ *   indledningTalIkke: laesSvar's tal i indledningen, der ikke står i kilderne (kontrakt udkast 12)
+ *   fjernedeTags:      bygTilbudslinjePrompt's antal fjernede egne mærker
  */
-function normaliser({ obj, data, kilder, typer, egne, grund, log }) {
+function normaliser({ obj, data, kilder, typer, egne, grund, log, indledningTalIkke, fjernedeTags }) {
   const grundId = new Map((grund || []).map((g) => [g.navn, g.id]));
   const slaaOp = (ord) => {
     const f = findEnhed(ord, egne || []);
@@ -153,9 +155,21 @@ function normaliser({ obj, data, kilder, typer, egne, grund, log }) {
     };
   }).filter((l) => l.beskrivelse);
 
+  // Advarslen (kontrakt §5): kilde, evt. nr, citatet og formkontrollens ordret-mærke.
+  const a = obj.advarsel;
+  const advarsel = a && typeof a === "object" && tekst(a.citat, 200)
+    ? { kilde: a.kilde, ...(a.nr !== undefined && a.nr !== null ? { nr: a.nr } : {}), citat: tekst(a.citat, 200), ordret: a.ordret !== false }
+    : null;
+
   return {
     titel: tekst(obj.tilbud_titel, 100),
     opgave_titel: tekst(obj.opgave_titel, 100),
+    indledning: tekst(obj.indledning, 3000),
+    markeringer: {
+      indledning_tal_ikke: Array.isArray(indledningTalIkke) ? indledningTalIkke.map(String).slice(0, 50) : [],
+      advarsel,
+      fjernede_tags: Number.isInteger(fjernedeTags) && fjernedeTags > 0 ? fjernedeTags : 0,
+    },
     opgavetype,
     maengde,
     uenige,

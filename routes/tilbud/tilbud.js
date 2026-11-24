@@ -269,6 +269,7 @@ function hvadMangler(t, linjer, lead) {
     if (l.enhed_ny) m.push(`linje ${nr}: ny enhed ikke oprettet`);
   });
   if (!t.titel || !t.titel.trim() || !t.titel_bekraeftet) m.push("titel ikke bekræftet");
+  if (t.indledning && t.indledning_kilde === "model" && !t.indledning_bekraeftet) m.push("indledning ikke bekræftet");
   if (t.opgavetype_navn && (!t.opgavetype_id || !t.opgavetype_bekraeftet)) m.push("opgavetype ikke bekræftet");
   if (t.maengde !== null && !t.maengde_bekraeftet) m.push("mængde ikke bekræftet");
   if (!t.firma_navn || !String(t.firma_navn).trim()) m.push("firmanavn mangler (Profil)");
@@ -317,6 +318,8 @@ function tilbudTilKlient(t, linjer, kilder, lead) {
     uenige: t.uenige || [],
 
     indledning: t.indledning,
+    indledning_kilde: t.indledning_kilde,
+    indledning_bekraeftet: t.indledning_bekraeftet,
     betingelser: t.betingelser,
     gyldig_dage: t.gyldig_dage,
     gyldig_til: t.gyldig_til,
@@ -354,6 +357,8 @@ function tilbudTilKlient(t, linjer, kilder, lead) {
     },
 
     linjer: sorterLinjer(linjer).map(linjeTilKlient),
+
+    forslag_markeringer: t.forslag_markeringer || null,
 
     kan_godkendes: kladde && mangler.length === 0,
     mangler,
@@ -747,7 +752,7 @@ module.exports = function (app, supabase) {
   // Felter på en kladde. Et forslag bekræftes med *_bekraeftet: true, hvert for
   // sig (B14). At ændre indholdet gør feltet til hans (kilde: haandvaerker).
   const TILBUD_FELTER = ["rev", "titel", "titel_bekraeftet", "opgavetype", "opgavetype_bekraeftet",
-    "maengde", "maengde_bekraeftet", "indledning", "betingelser", "gyldig_dage", "koersel", "rabat"];
+    "maengde", "maengde_bekraeftet", "indledning", "indledning_bekraeftet", "betingelser", "gyldig_dage", "koersel", "rabat"];
 
   app.patch("/api/tilbud/:id", idVagt("id"), spaerSkriv, async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
@@ -851,7 +856,23 @@ module.exports = function (app, supabase) {
           f.maengde_bekraeftet = v;
         }
 
-        if (har(ind, "indledning")) f.indledning = tekstFelt(ind.indledning, "indledning", MAKS.fritekst);
+        // Indledningen (kontrakt udkast 12): som titlen. Rettet eller bekræftet ->
+        // tallene, formkontrollen markerede i den, gælder ikke længere.
+        const udenTal = () => {
+          const m = nu("forslag_markeringer");
+          if (m && Array.isArray(m.indledning_tal_ikke) && m.indledning_tal_ikke.length) f.forslag_markeringer = { ...m, indledning_tal_ikke: [] };
+        };
+        if (har(ind, "indledning")) {
+          const v = tekstFelt(ind.indledning, "indledning", MAKS.fritekst);
+          if (v !== t.indledning) { f.indledning = v; f.indledning_kilde = v === null ? null : "haandvaerker"; udenTal(); }
+          if (v === null) f.indledning_bekraeftet = false;
+        }
+        if (har(ind, "indledning_bekraeftet")) {
+          const v = boolFelt(ind.indledning_bekraeftet, "indledning_bekraeftet");
+          if (v && !nu("indledning")) throw ugyldig("indledning", "Der er ingen indledning at bekræfte.");
+          f.indledning_bekraeftet = v;
+          if (v) udenTal();
+        }
         if (har(ind, "betingelser")) f.betingelser = tekstFelt(ind.betingelser, "betingelser", MAKS.fritekst);
         if (har(ind, "gyldig_dage")) {
           const v = ind.gyldig_dage;
@@ -1212,6 +1233,9 @@ module.exports = function (app, supabase) {
         maengde_kilde: t.maengde_kilde, maengde_bekraeftet: t.maengde_bekraeftet,
         uenige: t.uenige || [],
         indledning: t.indledning,
+        // En kopieret indledning uden mærke er hans (fra før kontraktens udkast 12).
+        indledning_kilde: t.indledning_kilde || (t.indledning ? "haandvaerker" : null),
+        indledning_bekraeftet: t.indledning_bekraeftet,
         rabat_form: t.rabat_form, rabat_procent: talTekst(t.rabat_procent), rabat_beloeb_oere: t.rabat_beloeb_oere,
         // Kørslens form og km hører til opgaven; satsen og beløbet til profilen.
         koersel_form: t.koersel_form, koersel_km: talTekst(t.koersel_km),
@@ -1440,9 +1464,10 @@ module.exports = function (app, supabase) {
           sum.ms += r.ms || 0; sum.tokensInd += r.tokensInd || 0; sum.tokensUd += r.tokensUd || 0; sum.prisOere += r.prisOere || 0;
           const l = laesSvar(r.raat, data);
           if (l.ok) {
-            fundet = { obj: l.obj, model: r.model };
-            // Kun tal (B6): hvor meget formkontrollen markerede og rensede (spor 2, 22/11).
-            console.info("tilbudsforslag", { forsoeg, ordret: l.ordret || null, renset: l.renset || null, noterRegel: l.noterRegel || null });
+            fundet = { obj: l.obj, model: r.model, indledningTalIkke: l.indledningTalIkke || [] };
+            // Kun tal (B6): hvor meget formkontrollen markerede og rensede (spor 2, 22/11 og 24/11).
+            console.info("tilbudsforslag", { forsoeg, ordret: l.ordret || null, renset: l.renset || null, noterRegel: l.noterRegel || null,
+              indledningTalIkke: (l.indledningTalIkke || []).length, advarsel: !!(l.obj && l.obj.advarsel), fjernedeTags: prompt.fjernedeTags || 0 });
           }
           else {
             // B6: kun antallet og feltstierne' første led — aldrig svaret eller kildeteksten.
@@ -1463,6 +1488,8 @@ module.exports = function (app, supabase) {
           egne: egne || [], grund: grund || [],
           log: { model: fundet.model, prompt_version: P.TILBUDSLINJER_PROMPT_VERSION, retry,
             svartid_ms: sum.ms, tokens_ind: sum.tokensInd, tokens_ud: sum.tokensUd },
+          indledningTalIkke: fundet.indledningTalIkke,
+          fjernedeTags: prompt.fjernedeTags,
         });
         const linjer = await hentLinjer(firmId, t.id);
         const bliver = linjer.filter((l) => !(l.kilde === "model" && !l.bekraeftet)).length;

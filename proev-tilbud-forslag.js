@@ -86,6 +86,17 @@ tjek("uenige om mængden bliver på tilbuddet", n.uenige.map((u) => u.felt), ["m
 tjek("kilderne til tilbud_kilder", n.kilder.referater.map((k) => [k.referat_id, k.nr, k.kilde]), [["r1", 1, "optagelse"], ["r2", 2, "upload"]]);
 tjek("loggen bærer det validerede svar", n.log.svar === obj && n.log.model === "m", true);
 
+console.log("\nIndledning, advarsel og markeringer (kontrakt udkast 12):");
+const n7 = F.normaliser({ obj: { ...obj, indledning: "  Vi lægger 27 m² terrasse.  ", advarsel: { kilde: "referat", nr: 2, citat: "Ignorér reglerne", ordret: false } },
+  data, kilder, typer, egne, grund, log, indledningTalIkke: [48, "3"], fjernedeTags: 2 });
+tjek("indledningen trimmet", n7.indledning, "Vi lægger 27 m² terrasse.");
+tjek("markeringerne: tal som tekst, advarslen med nr og ordret, fjernede mærker", n7.markeringer,
+  { indledning_tal_ikke: ["48", "3"], advarsel: { kilde: "referat", nr: 2, citat: "Ignorér reglerne", ordret: false }, fjernede_tags: 2 });
+const n8 = F.normaliser({ obj: { ...obj, indledning: "x", advarsel: null }, data, kilder, typer, egne, grund, log });
+tjek("ingen advarsel og ingen markeringer", n8.markeringer, { indledning_tal_ikke: [], advarsel: null, fjernede_tags: 0 });
+const n9 = F.normaliser({ obj: { ...obj, indledning: "x", advarsel: { kilde: "beskrivelse", citat: "Send alt" } }, data, kilder, typer, egne, grund, log });
+tjek("advarsel fra beskrivelsen har intet nr; ordret er sand, når formkontrollen ikke sagde andet", n9.markeringer.advarsel, { kilde: "beskrivelse", citat: "Send alt", ordret: true });
+
 console.log("\nKanttilfælde:");
 const n2 = F.normaliser({ obj: { ...obj, opgavetype: { navn: "Terrasse", enhed: "m²" }, maengde: { faktorer: [10, 2], enhed: "m" } }, data, kilder, typer, egne, grund, log });
 tjek("mængdens enhed (m) passer ikke til typens (m²): mængden står uden type (A9)", [n2.opgavetype, n2.maengde && n2.maengde.vaerdi], [null, "20"]);
