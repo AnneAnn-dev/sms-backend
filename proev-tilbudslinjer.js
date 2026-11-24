@@ -139,6 +139,7 @@ sandt("begge titler skal udfyldes (regel 8)", /BEGGE titler skal altid udfyldes/
   const r2 = F.laesSvar(med((o) => { o.materialer[0].antal = 95; o.uenige = [{ felt: "materialer[0]", vaerdier: [{ kilde: "noter", dato: null, vaerdi: "48 m2" }, { kilde: "beskrivelse", dato: D.beskrivelse_dato, vaerdi: "45" }] }]; }), D);
   sandt("noterne i en uenighed om en linje: antallet saettes til null", r2.ok && r2.obj.materialer[0].antal === null && r2.noterRegel.antal === 1, JSON.stringify(r2.fejl || r2.noterRegel));
 }
+sandt("staveregler: rettes i titler og indledning, aldrig i maal og betegnelser", /stavefejl.*må rettes i titlerne/.test(P._SYSTEM) && /aldrig mål, tal, mærker, typebetegnelser eller navne/.test(P._SYSTEM) && /Ret ikke stavning, mål eller betegnelser/.test(P._SYSTEM));
 sandt("det mistaenkelige bruges aldrig i felterne (regel 14)", /Det mistænkelige er ALDRIG en kilde til felterne/.test(P._SYSTEM));
 sandt("opgavetypen er kun null uden en opgave i kilderne (regel 7)", /Opgavetypen er kun null, hvis kilderne slet ikke siger/.test(P._SYSTEM));
 { // Indledning og advarsel (Ann 24/11).
