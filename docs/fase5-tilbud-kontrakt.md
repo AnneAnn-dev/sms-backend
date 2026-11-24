@@ -1,6 +1,6 @@
-# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt, udkast 11)
+# Fase 5 Tilbud — kontrakten mellem spor 1 og spor 2 (godkendt, udkast 12)
 
-Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Udkast 9 (Ann 21/11): sletning af en enkelt opgave venter (afsnit 6); ellers uændret. **Udkast 10 (22/11):** begge titler skal udfyldes i modelsvaret (Ann 22/11, afsnit 5), og enhedens navn er højst 30 tegn, som databasen tillader (afsnit 7; spor 2's filer rettet i `a4990d6`). **Udkast 10 godkendt af Ann 22/11.** **Udkast 11 (22/11, efter spor 2's runde 2):** tomme værdier i `uenige` fjernes i stedet for at afvise svaret, og noter-reglen håndhæves i formkontrollen (afsnit 5, Ann 22/11). **Udkast 11 godkendt af Ann 24/11.** Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
+Udkast 8, skrevet af spor 1 21/11-26. Udkast 6 blev godkendt af Ann 21/11. Udkast 7 indarbejdede seks-linse-gennemgangen (`claude/gennemgang-fase5-seks-linser-21-11.md`) og Anns seks beslutninger på den (byggeplanens #3, #4, #6, #13, #14, #17 og afsnittet "Databasen"). Udkast 8 tilføjer spor 2's svar på udkast 7: ordret-kontrollen markerer i stedet for at fjerne (Ann 21/11), synonymlisten for enhederne, sletning af en opgave med godkendt tilbud, og fire mindre rettelser. Spor 2 sagde god for udkast 8 21/11. **Godkendt af Ann 21/11** med præciseringen af ordret-kontrollen for materialer (afsnit 5). Udkast 9 (Ann 21/11): sletning af en enkelt opgave venter (afsnit 6); ellers uændret. **Udkast 10 (22/11):** begge titler skal udfyldes i modelsvaret (Ann 22/11, afsnit 5), og enhedens navn er højst 30 tegn, som databasen tillader (afsnit 7; spor 2's filer rettet i `a4990d6`). **Udkast 10 godkendt af Ann 22/11.** **Udkast 11 (22/11, efter spor 2's runde 2):** tomme værdier i `uenige` fjernes i stedet for at afvise svaret, og noter-reglen håndhæves i formkontrollen (afsnit 5, Ann 22/11). **Udkast 11 godkendt af Ann 24/11.** **Udkast 12 (24/11, efter Ann og Annes gennemlæsning af runde 3):** forslaget skriver tilbuddets `indledning`, som bekræftes som titlerne; linjerne er kildens poster; modellen kan melde en `advarsel`, og forslagets markeringer gemmes på tilbuddet (afsnit 1, 3, 5 og 7; Ann 24/11). **Udkast 12 godkendt af Ann 24/11.** Begge spor koder efter denne udgave; en ændring kræver en ny udgave, som begge spor og Ann har set.
 
 Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud og linje), hvilke felter der er "ikke accepteret", hvad serveren giver prompten, og hvad modellen må svare. Byggeplanens beslutninger står over kontrakten; numrene (#) henviser til dem.
 
@@ -43,7 +43,9 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 
   "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "nr": 2, "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ],
 
-  "indledning": "…",
+  "indledning": "Vi lægger ny terrasse i lærk på ca. 27 m² …",
+  "indledning_kilde": "model",
+  "indledning_bekraeftet": false,
   "betingelser": "…",
   "gyldig_dage": 30,
   "gyldig_til": null,
@@ -71,6 +73,12 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 
   "linjer": [ "… se afsnit 2 …" ],
 
+  "forslag_markeringer": {
+    "indledning_tal_ikke": ["48"],
+    "advarsel": null,
+    "fjernede_tags": 0
+  },
+
   "kan_godkendes": false,
   "mangler": ["titel ikke bekræftet", "linje 3: antal mangler"],
 
@@ -92,6 +100,8 @@ Kontrakten fastlægger fire ting: hvad klienten sender og får tilbage (tilbud o
 - **`rabat`** (#16): rabatten på hele tilbuddet. `form` er `null`, `"procent"` eller `"kroner"`; kun det matchende felt er udfyldt. Trækkes fra efter linjerne og før moms.
 - **`summer`:** arbejde, materialer, kørsel og andet er efter linjerabat. `samlet_rabat_oere` er rabatten på hele tilbuddet. Eksemplet er 12 t × 475 kr. − 500 kr. linjerabat, 15.000 kr. materialer, 10 % samlet.
 - **`kilder`:** sættes, når forslaget laves (afsnit 4), og fryses ved godkendelse (#10).
+- **`indledning`** (Ann 24/11): beskrivelsen af opgaven til kunden — alt, der skal laves, og kildernes betingelser, valg, forbehold og frister; ingen pris, timer eller kørsel. Forslaget skriver den som titlerne, og den bekræftes med `indledning_bekraeftet: true` (afsnit 3). Retter han den, bliver den hans. Den står på PDF'en og kopieres med til en ny version. Profilens standardbetingelser er noget andet (`betingelser`).
+- **`forslag_markeringer`:** det, formkontrollen markerede i det seneste forslag; `null` før det første, og erstattes ved hvert nyt forslag. Kopieres ikke til en ny version. `indledning_tal_ikke` er tal i indledningen, der ikke står i nogen kilde — klienten viser "Tal, der ikke står i dine noter: …"; listen tømmes, når han bekræfter eller retter indledningen. `advarsel` er `null` eller `{ "kilde", "nr"?, "citat", "ordret" }`: noget i kilderne, der ligner en besked til systemet (S6). `fjernede_tags` er antallet af vores egne mærker, der blev fjernet fra kilderne, før de gik til modellen. **Klienten viser en advarsel, når `advarsel` er udfyldt eller `fjernede_tags` > 0** — en markering, ikke en spærre. Ingen af delene står på PDF'en.
 - **`tilbudsnummer`:** heltal, sat ved godkendelse; en ny version får et nyt (#7).
 - **`kan_godkendes` og `mangler`:** serveren fortæller, hvad der står i vejen — også profilfelter (firmanavn, CVR, bank, timepris), med henvisning til Profil (B13). Klienten viser listen; den gætter ikke selv.
 
@@ -145,6 +155,7 @@ Efter `kladde` må kun `status`, `sendt_at`, `accepteret_at` og `rev` ændres, o
 | Felt | Sat af | Accepteres ved |
 |---|---|---|
 | `titel` | modellen | `titel_bekraeftet: true` i en PATCH |
+| `indledning` | modellen | `indledning_bekraeftet: true` (Ann 24/11) |
 | `opgave_titel_forslag` | modellen | `POST …/opgave-titel` med `{ "handling": "accepter" }` eller `"afvis"`; først ved accept skrives titlen på opgaven, `leads.titel` (#12) |
 | `opgavetype` | modellen | `opgavetype_bekraeftet: true` |
 | `maengde` | modellen | `maengde_bekraeftet: true` |
@@ -201,23 +212,29 @@ Ikke med (#3, #4, dataminimering): timepris, kørsel, moms, kundens navn, telefo
 {
   "tilbud_titel": "Ny terrasse i lærk",
   "opgave_titel": "Ny terrasse",
+  "indledning": "Vi lægger ny terrasse i lærk på ca. 27 m² …",
   "opgavetype": { "navn": "Terrasse", "enhed": "m²" },
   "maengde": { "faktorer": [4.35, 6.2], "enhed": "m²" },
   "materialer": [
     { "beskrivelse": "Lærkebrædder 28×120", "antal": 95, "enhed": "m" },
     { "beskrivelse": "Skruer", "antal": 3, "enhed": "pakker" }
   ],
-  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "nr": 2, "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ]
+  "uenige": [ { "felt": "maengde", "vaerdier": [ { "kilde": "noter", "dato": null, "vaerdi": "48 m²" }, { "kilde": "referat", "nr": 2, "dato": "2026-11-18", "vaerdi": "45 m²" } ] } ],
+  "advarsel": null
 }
 ```
 
-- `beskrivelse` er ordret, som materialet blev nævnt; modellen retter ikke.
+- **`materialer` er kildens poster** (Ann 24/11): en linje, som kilden skriver den — et materiale, en ydelse eller arbejde (fx "Grave-arbejde incl. grovplanering"). Feltet beholder sit navn og sin form. Serveren opretter modellens linjer som `type: "materiale"` og gætter ikke typen; han skifter den i linjens PATCH.
+- `beskrivelse` er ordret, som posten blev nævnt; modellen retter ikke.
+- **`indledning`** (Ann 24/11): beskrivelsen af opgaven til kunden (afsnit 1). Ingen pris, timer eller kørsel.
+- **`advarsel`** (Ann 24/11): `null` eller `{ "kilde": "beskrivelse" | "noter" | "referat", "nr"?: n, "citat": "…" }` — modellen melder, at noget i kilderne ligner en besked til systemet. Kilden skal findes i input, som i `uenige`; citatet får `ordret: true/false` (markér, fjern ikke). `bygTilbudslinjePrompt` returnerer desuden `fjernedeTags` (afsnit 1, `forslag_markeringer`).
 - `uenige[].felt` er `"maengde"`, `"opgavetype"` eller `"materialer[n]"` (linjens plads i svaret, fra 0). `vaerdier` er en liste af `{kilde, dato, vaerdi}`: `kilde` er `"beskrivelse"`, `"noter"` eller `"referat"`, `dato` er den dato, kilden har i input (`beskrivelse_dato`, referatets `dato`, `null` for noterne), og `vaerdi` er det, kilden siger, ordret. En referatværdi har desuden `nr` (referatets løbenummer); beskrivelse og noter har ikke `nr`.
 - **Titlerne er håndværkerens** (Ann 21/11): de må indeholde kundens navn, adresse eller andet, han kender opgaven på. De følger samme regel som resten af svaret — intet, der ikke står i kilderne. Kundens adresse fra `leads` sendes ikke til modellen (afsnit 4), så en adresse i titlen kan kun komme fra teksten.
 
 Formvalideringen på serveren (P5):
 - **Ukendte felter afvises** — særligt alt, der ligner pris, timer eller kørsel.
-- Alle felter må være `null`, **undtagen `tilbud_titel` og `opgave_titel`, som altid skal udfyldes** (Ann 22/11) — en titel, der er `null`, er en formfejl og udløser den ene retry; `materialer` og `uenige` må være tomme.
+- Alle felter må være `null`, **undtagen `tilbud_titel`, `opgave_titel` (Ann 22/11) og `indledning` (Ann 24/11), som altid skal udfyldes** — et af dem som `null` er en formfejl og udløser den ene retry; `materialer` og `uenige` må være tomme.
+- **Tal i indledningen (Ann 24/11) — markér, fjern ikke:** et tal i `indledning`, der ikke står i nogen kilde, tælles i `indledningTalIkke` og vises ved indledningen. Svaret afvises ikke for det.
 - **Mængden er mål, ikke et resultat** (B3): `maengde.faktorer` er de tal, der står i kilden (1–3 stk.); modellen ganger ikke. Serveren ganger.
 - **Tal:** `antal` og hver faktor er JSON-tal ≥ 0 med højst tre decimaler, eller `null`. **Et tal skrevet som tekst (`"1,5"`) eller med flere decimaler er en formfejl** og udløser den ene retry. Serveren laver tallet om til tekst (afsnit 0).
 - **Enheder (A9):** modellen skriver enheden, som den står i teksten. Serveren mapper **først grundlistens synonymer** (én liste i koden, som målingen også bruger), **derefter firmaets egne enheder** (uden hensyn til store/små bogstaver, punktum og mellemrum); ellers bliver den et forslag til en ny enhed på firmaet (`"ny": true`). Synonymlisten:
@@ -271,8 +288,10 @@ Alle tilbudsruter kræver modulet `tilbud` (som `referat` i dag). **Rutestier (B
 | Hvad | Foreløbigt loft |
 |---|---|
 | Tilbuddets og opgavens titel | 100 tegn |
-| Materialebeskrivelse | 200 tegn |
-| Antal materialer | 60 |
+| Indledning | 3.000 tegn (databasen har ingen lavere grænse) |
+| Linjens beskrivelse (post) | 200 tegn |
+| Antal linjer i forslaget | 60 |
+| Advarslens citat | 200 tegn |
 | `uenige` (punkter / værdi) | 20 / 200 tegn |
 | Typenavn | 60 tegn |
 | Enhedens navn | 30 tegn (databasens grænse; en længere enhed fra modellen er en formfejl) |
