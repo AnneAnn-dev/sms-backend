@@ -1,5 +1,5 @@
 {
-  "_om": "Testsættet til målingen af tilbudslinjer (docs/fase5-tilbud-maaling.md). 10 sager: 6 offentlige tilbud (T03, T04, T05, T09, T13, T19; anonymiseret af Ann, facit fra bilag-A-forslag-v4 med Anns afgørelser 21-22/11) og 4 sager lavet i appen på staging af Anne 22/11 (S1-S4, referaterne ordret fra referater.indhold). S2's noter er skrevet af spor 2, fordi appen ikke har et notefelt. Firmaets typer: den opdigtede liste med 30 typer (Ann 22/11 i stedet for Annes liste). 'valgfri' i facit: tæller hverken som glemt eller opfundet. De tilsidesatte (T06, T15, T18) ligger IKKE her. Facit godkendes af Ann.",
+  "_om": "Testsættet til målingen af tilbudslinjer (docs/fase5-tilbud-maaling.md). 10 sager: 6 offentlige tilbud (T03, T04, T05, T09, T13, T19; anonymiseret af Ann, facit fra bilag-A-forslag-v4 med Anns afgørelser 21-22/11) og 4 sager lavet i appen på staging af Anne 22/11 (S1-S4, referaterne ordret fra referater.indhold). S2's noter er skrevet af spor 2, fordi appen ikke har et notefelt. Firmaets typer: den opdigtede liste med 30 typer (Ann 22/11 i stedet for Annes liste). 'valgfri' i facit: tæller hverken som glemt eller opfundet. De tilsidesatte (T06, T15, T18) ligger IKKE her. Facit godkendes af Ann. Udgave 13 (Ann 24/11): linjerne er kildens poster, 'indledning_skal_med' er G10 (a), 'advarsel' er G11. Facit godkendt af Ann 24/11.",
   "firmaets_typer": [
     {
       "navn": "Terrasse",
@@ -178,21 +178,36 @@
             "enhed": "stk."
           },
           {
-            "beskrivelse": "fittings, rør og lignende",
+            "beskrivelse": "Vandinstallationer til ovenstående incl. fittings, rør og lignende",
             "antal": null,
             "enhed": null
           },
           {
-            "beskrivelse": "32mm PEL",
+            "beskrivelse": "Vandstik fra eksisterende vandledning ved sti og frem til ny madpakke-hytte, i 32mm PEL",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Grave-arbejde incl. grovplanering",
             "antal": null,
             "enhed": null
           }
         ],
         "ikke_materialer": [
-          "eksisterende vandledning",
+          "eksisterende vandledning (alene)",
           "græs"
         ],
-        "titel_forslag": "VVS til ny madpakkehytte"
+        "titel_forslag": "VVS til ny madpakkehytte",
+        "indledning_skal_med": [
+          "VVS-arbejde til ny madpakke-hytte",
+          "sanitet: vaske, ventiler og haner",
+          "vandinstallationer inkl. fittings og rør",
+          "vandstik fra eksisterende vandledning ved stien frem til hytten",
+          "vandstik i 32 mm PEL",
+          "gravearbejde med grovplanering",
+          "kunden planerer selv og sår græs bagefter"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -214,7 +229,17 @@
         "uenige": [],
         "materialer": [
           {
-            "beskrivelse": "kabelskab for terræn",
+            "beskrivelse": "Levering, opsætning og montering af kabelskab for terræn med sikringsafgang",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Eksisterende hovedkabel blotlægges og forlænges til nyt kabelskab",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Ny forsyning fremføres fra kabelskab til madpakkehus",
             "antal": null,
             "enhed": null
           },
@@ -224,28 +249,37 @@
             "enhed": "stk."
           },
           {
-            "beskrivelse": "stikkontakter",
+            "beskrivelse": "stikkontakter og LED lysarmatur",
             "antal": null,
             "enhed": null,
-            "note": "Ann 22/11: tomt antal; '3 stk. ... i hvert af de to rum' er ikke et antal"
-          },
-          {
-            "beskrivelse": "LED lysarmatur",
-            "antal": null,
-            "enhed": null,
-            "valgfri": true
+            "note": "tomt antal: '3 stk. ... i hvert af de to rum'"
           },
           {
             "beskrivelse": "kraftudtag CEE 16A",
             "antal": 1,
             "enhed": "stk."
+          },
+          {
+            "beskrivelse": "Opmærkning, test og afprøvning af elinstallationerne",
+            "antal": null,
+            "enhed": null
           }
         ],
         "ikke_materialer": [
-          "Eksisterende hovedkabel",
           "servicebygning"
         ],
-        "titel_forslag": "Elinstallation i nyt madpakkehus"
+        "titel_forslag": "Elinstallation i nyt madpakkehus",
+        "indledning_skal_med": [
+          "kabelskab for terræn med sikringsafgang",
+          "kabelskabet placeres væk fra gangstien",
+          "eksisterende hovedkabel blotlægges og forlænges til nyt kabelskab",
+          "ny forsyning fra kabelskab til madpakkehus",
+          "eltavle i madpakkehuset",
+          "stikkontakter og LED-lys i begge rum",
+          "kraftudtag",
+          "opmærkning, test og afprøvning"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -312,32 +346,49 @@
         ],
         "materialer": [
           {
+            "beskrivelse": "Bortfjernelse af gammelt madpakkehus",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Bortfjernelse af gamle fliser, afgravning af jord/sand og udlægning samt afretning af sand",
+            "antal": null,
+            "enhed": null
+          },
+          {
             "beskrivelse": "fliser / sten",
             "antal": null,
             "enhed": "m2",
-            "note": "Ann 21/11: tomt antal, uenigheden meldes ved linjen"
+            "note": "tomt antal, uenig 80/90"
           },
           {
-            "beskrivelse": "sand",
+            "beskrivelse": "Udlægning af fliser / sten",
             "antal": null,
             "enhed": null
           },
           {
-            "beskrivelse": "faskiner",
-            "antal": 2,
-            "enhed": null
+            "beskrivelse": "Etablering af afløb fra tre nedløbsrør og to håndvaske til faskiner",
+            "antal": null,
+            "enhed": null,
+            "note": "'to faskiner' må stå som antal 2"
           }
         ],
         "ikke_materialer": [
-          "gammelt madpakkehus",
-          "gamle fliser",
-          "grus",
-          "Fliserne stakkes op (de gamle)",
-          "Magen til dem i bålhytten",
-          "nedløbsrør",
-          "håndvaske"
+          "Magen til dem i bålhytten (krav, hører til indledningen)"
         ],
-        "titel_forslag": "Nedtagning af madpakkehus og ny flisebelægning"
+        "titel_forslag": "Nedtagning af madpakkehus og ny flisebelægning",
+        "indledning_skal_med": [
+          "nedtagning og bortfjernelse af gammelt madpakkehus",
+          "gamle fliser, grus og sand fjernes",
+          "sand afrettes til ny flisebelægning, ca. 90 kvm",
+          "fliser/sten magen til dem i bålhytten",
+          "udlægning af fliser/sten",
+          "afløb fra tre nedløbsrør og to håndvaske til to faskiner",
+          "de gamle fliser stakkes op ved siden af",
+          "det nye hus placeres med adgang til haven",
+          "tidsramme ca. 4 uger, senest 6 uger"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -371,7 +422,7 @@
             "note": "alternativ 2"
           },
           {
-            "beskrivelse": "rør",
+            "beskrivelse": "ændre/flytte rør",
             "antal": null,
             "enhed": null,
             "valgfri": true
@@ -381,7 +432,17 @@
           "30 ltr. Metro el-vandvarmer (den gamle)",
           "El-tilslutning"
         ],
-        "titel_forslag": "Ny el-vandvarmer (60 l), evt. Bosch 50 l"
+        "titel_forslag": "Ny el-vandvarmer (60 l), evt. Bosch 50 l",
+        "indledning_skal_med": [
+          "30 ltr. Metro udskiftes til 60 ltr. type 622",
+          "den nye er højere (87,5 cm), så rør over beholderen ændres/flyttes",
+          "Metro er i restordre",
+          "alternativ: Bosch Tronic 4500 T 50 ltr., kan leveres omgående",
+          "Bosch er 61 cm høj, men 51 x 51 cm, ikke kontrolleret",
+          "rør ved siden forventes flyttet",
+          "omfatter ikke el-tilslutning, hvis den nye ikke kan tilsluttes direkte"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -409,28 +470,61 @@
         "uenige": [],
         "materialer": [
           {
-            "beskrivelse": "ny forsats",
+            "beskrivelse": "Materialer",
             "antal": null,
             "enhed": null
           },
           {
-            "beskrivelse": "forstærkning af ryg",
+            "beskrivelse": "Adskillelse af gamle salmebog",
             "antal": null,
-            "enhed": null,
-            "valgfri": true
+            "enhed": null
           },
           {
-            "beskrivelse": "Guldtryk",
+            "beskrivelse": "Ind limning af ny forsats",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Ny forstærkning af ryg",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Bind produceres",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Guldtryk på ryg og forside, samt kirke navn",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Ind limning af bogblok",
+            "antal": null,
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Levering uden beregning",
             "antal": null,
             "enhed": null,
             "valgfri": true
           }
         ],
-        "ikke_materialer": [
-          "gamle salmebog",
-          "bogblok"
+        "ikke_materialer": [],
+        "titel_forslag": "Ombinding af 263 salmebøger",
+        "indledning_skal_med": [
+          "indbinding af 263 salmebøger",
+          "materialer",
+          "adskillelse af gamle salmebog",
+          "indlimning af ny forsats",
+          "ny forstærkning af ryg",
+          "bind produceres",
+          "guldtryk på ryg og forside samt kirkens navn",
+          "indlimning af bogblok",
+          "levering uden beregning"
         ],
-        "titel_forslag": "Ombinding af 263 salmebøger"
+        "advarsel": false
       }
     },
     {
@@ -459,27 +553,40 @@
         "uenige": [],
         "materialer": [
           {
-            "beskrivelse": "farvet mørtel",
+            "beskrivelse": "Alle fuger kraases ud og fuge op med farvet mørtel",
             "antal": null,
             "enhed": null
           },
           {
-            "beskrivelse": "mursten",
+            "beskrivelse": "Udskiftning af skadet mursten",
             "antal": 10,
             "enhed": "stk"
           },
           {
-            "beskrivelse": "sokkelpuds",
+            "beskrivelse": "Afdækning eftergås og fuges op",
             "antal": null,
-            "enhed": null,
-            "valgfri": true
+            "enhed": null
+          },
+          {
+            "beskrivelse": "Rep sokkelpuds",
+            "antal": null,
+            "enhed": null
           }
         ],
         "ikke_materialer": [
-          "Eksisterende mursten",
-          "skadet mursten"
+          "Eksisterende mursten"
         ],
-        "titel_forslag": "Reparation af hegnsmur mod gaden"
+        "titel_forslag": "Reparation af hegnsmur mod gaden",
+        "indledning_skal_med": [
+          "reparation af 1 stk. hegnsmur mod gaden, tæt på indkørslen",
+          "alle fuger kradses ud og fuges med farvet mørtel",
+          "ca. 10 skadede mursten udskiftes",
+          "afdækning eftergås og fuges",
+          "sokkelpuds repareres",
+          "eksisterende mursten kan ikke skaffes",
+          "farveforskel mellem nye og eksisterende mursten og fuger må forventes"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -514,7 +621,10 @@
       },
       "facit": {
         "opgavetype": "Terrasse",
-        "firmatype": ["Terrasse", "terasse"],
+        "firmatype": [
+          "Terrasse",
+          "terasse"
+        ],
         "firmatype_note": "Ann 22/11 efter runde 1: begge er firmaets typer, og begge tæller rigtigt.",
         "maengde": {
           "vaerdi": 40,
@@ -546,21 +656,32 @@
         ],
         "materialer": [
           {
-            "beskrivelse": "strøer",
-            "antal": null,
-            "enhed": null
-          },
-          {
             "beskrivelse": "lærk",
             "antal": null,
             "enhed": null,
             "valgfri": true
+          },
+          {
+            "beskrivelse": "strøer",
+            "antal": null,
+            "enhed": null
           }
         ],
         "ikke_materialer": [
+          "lækkert lys",
+          "vatter"
+        ],
+        "titel_forslag": "Ny terrasse i lærk",
+        "indledning_skal_med": [
+          "ny terrasse i lærk ved huset",
+          "40 m²",
+          "lægges med strøer",
+          "helt i vatter"
+        ],
+        "indledning_valgfri": [
           "lækkert lys"
         ],
-        "titel_forslag": "Ny terrasse i lærk"
+        "advarsel": false
       }
     },
     {
@@ -614,7 +735,7 @@
             "beskrivelse": "tagrende",
             "antal": null,
             "enhed": "m",
-            "note": "noterne er med i uenigheden: tomt antal"
+            "note": "tomt antal, noterne er med i uenigheden"
           },
           {
             "beskrivelse": "nedløbsrør",
@@ -624,7 +745,12 @@
           }
         ],
         "ikke_materialer": [],
-        "titel_forslag": "Nye tagrender på garage"
+        "titel_forslag": "Nye tagrender på garage",
+        "indledning_skal_med": [
+          "nye tagrender på garagen (uden længde: kilderne er uenige)",
+          "to nedløbsrør"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -671,7 +797,14 @@
           }
         ],
         "ikke_materialer": [],
-        "titel_forslag": "Terrasse bag huset"
+        "titel_forslag": "Terrasse bag huset",
+        "indledning_skal_med": [
+          "terrasse bag huset",
+          "4,35 x 6,2 m",
+          "OSB plader",
+          "12 pakker terrasseskruer"
+        ],
+        "advarsel": false
       }
     },
     {
@@ -708,6 +841,12 @@
         "uenige": [],
         "materialer": [
           {
+            "beskrivelse": "udgravning",
+            "antal": null,
+            "enhed": null,
+            "valgfri": true
+          },
+          {
             "beskrivelse": "cement",
             "antal": 6,
             "enhed": null,
@@ -724,7 +863,13 @@
           "armeringsjern (står der ikke)",
           "sække (står der ikke)"
         ],
-        "titel_forslag": "Fundament til skur"
+        "titel_forslag": "Fundament til skur",
+        "indledning_skal_med": [
+          "fundament støbes",
+          "udgravning 2,3 m, 0,5 m dyb",
+          "cement (og 'mængsjern', som det står)"
+        ],
+        "advarsel": false
       }
     }
   ]

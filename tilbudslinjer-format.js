@@ -29,9 +29,10 @@
 const LOFT = {
   titel: 100, beskrivelse: 200, materialer: 60, typenavn: 60, enhed: 30,
   uenige: 20, vaerdi: 200, faktorer: 3, svarTegn: 30000,
+  indledning: 3000, citat: 200,
 };
 
-const FELTER = ["tilbud_titel", "opgave_titel", "opgavetype", "maengde", "materialer", "uenige"];
+const FELTER = ["tilbud_titel", "opgave_titel", "indledning", "opgavetype", "maengde", "materialer", "uenige", "advarsel"];
 const erObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const ukendte = (o, tilladte) => Object.keys(o).filter((k) => !tilladte.includes(k));
 
@@ -51,13 +52,17 @@ function tekstfelt(v, navn, loft, fejl) {
 // "Uden hensyn til store/små bogstaver og mellemrum" (kontrakten): sammenlign uden dem.
 const flad = (s) => String(s == null ? "" : s).toLowerCase().replace(/\s+/g, "");
 const findesI = (tekst, kilde) => flad(kilde).includes(flad(tekst));
+// Tallene i en tekst, med punktum som decimaltegn ("4,35" og "4.35" er det samme tal).
+const talI = (s) => (String(s == null ? "" : s).match(/\d+(?:[.,]\d+)?/g) || []).map((n) => String(Number(n.replace(",", "."))));
 
 /**
  * @param {string} raat  modellens rå svar
  * @param {object} data  det samme data, prompten blev bygget af (kontraktens afsnit 4)
- * @returns {{ok: true, obj: object, ordret: {ialt: number, ikke: number}, renset: {vaerdier: number, punkter: number}, noterRegel: {maengde: number, antal: number}} | {ok: false, fejl: string[]}}
+ * @returns {{ok: true, obj: object, ordret: {ialt: number, ikke: number}, renset: {vaerdier: number, punkter: number}, noterRegel: {maengde: number, antal: number}, indledningTalIkke: string[]} | {ok: false, fejl: string[]}}
  *   `renset`: hvor mange tomme værdier og punkter med under to værdier, der blev fjernet fra uenige
  *   (Ann 22/11). Logges af ruten som tal; svaret afvises ikke for det.
+ *   `indledningTalIkke`: tal i indledningen, der ikke står i nogen kilde (markeres for håndværkeren).
+ *   `advarsel.ordret`: om advarslens citat står i den kilde, den henviser til.
  *   `noterRegel`: hvor mange gange mængden eller et antal blev sat til null, fordi noterne var med
  *   i uenigheden (Ann 22/11). Ved ok er det allerede gjort i `obj`.
  *   Ved ok er `obj` modelsvaret med `ordret` (true/false) tilføjet på hver materialelinje og på
@@ -89,6 +94,23 @@ function laes(raat, data) {
   for (const t of ["tilbud_titel", "opgave_titel"]) {
     if (obj[t] === null || obj[t] === undefined) fejl.push(`${t} mangler`);
     else tekstfelt(obj[t], t, LOFT.titel, fejl);
+  }
+
+  // indledning (Ann 24/11): obligatorisk som titlerne.
+  if (obj.indledning === null || obj.indledning === undefined) fejl.push("indledning mangler");
+  else tekstfelt(obj.indledning, "indledning", LOFT.indledning, fejl);
+
+  // advarsel (Ann 24/11): null eller {kilde, nr?, citat}. Kilden skal findes i input.
+  const adv = obj.advarsel;
+  if (adv !== null && adv !== undefined) {
+    if (!erObj(adv)) fejl.push("advarsel er ikke et objekt");
+    else {
+      const tilladte = adv.kilde === "referat" ? ["kilde", "nr", "citat"] : ["kilde", "citat"];
+      for (const k of ukendte(adv, tilladte)) fejl.push(`opfundet felt i advarsel: ${k}`);
+      if (typeof adv.citat !== "string" || !adv.citat.trim()) fejl.push("advarsel.citat er tom");
+      else if (adv.citat.length > LOFT.citat) fejl.push(`advarsel.citat for lang: ${adv.citat.length} tegn`);
+      if (!["beskrivelse", "noter", "referat"].includes(adv.kilde)) fejl.push("advarsel.kilde er ukendt");
+    }
   }
 
   // opgavetype
@@ -146,6 +168,12 @@ function laes(raat, data) {
   const beskrivelse = typeof data.beskrivelse === "string" ? data.beskrivelse : "";
   const noter = typeof data.noter === "string" ? data.noter : "";
   const alleKilder = [beskrivelse, noter, ...refTekst.values()].join("\n");
+
+  if (erObj(adv)) {
+    if (adv.kilde === "beskrivelse" && !beskrivelse.trim()) fejl.push("advarsel: der var ingen beskrivelse i input");
+    if (adv.kilde === "noter" && !noter.trim()) fejl.push("advarsel: der var ingen noter i input");
+    if (adv.kilde === "referat" && !refTekst.has(adv.nr)) fejl.push(`advarsel: referat nr ${JSON.stringify(adv.nr)} var ikke i input`);
+  }
 
   // Tomme værdier i uenige fjernes, før formen tjekkes (Ann 22/11, efter runde 2): en kilde, der
   // intet siger om feltet, er ikke en del af uenigheden. Et punkt med under to værdier tilbage er
@@ -234,7 +262,18 @@ function laes(raat, data) {
       ud.materialer[Number(m[1])] = { ...ud.materialer[Number(m[1])], antal: null }; noterRegel.antal++;
     }
   }
-  return { ok: true, obj: ud, ordret: { ialt, ikke }, renset, noterRegel };
+  // Advarslens citat: ordret i den kilde, den henviser til (markér, fjern ikke).
+  if (erObj(ud.advarsel)) {
+    const a = ud.advarsel;
+    const kilde = a.kilde === "beskrivelse" ? beskrivelse : a.kilde === "noter" ? noter : refTekst.get(a.nr);
+    ud.advarsel = { ...a, ordret: findesI(a.citat, kilde) };
+  }
+
+  // Tal-kontrol på indledningen (Ann 24/11, markér, fjern ikke): hvert tal skal stå i en kilde.
+  const kildeTal = new Set(talI(alleKilder));
+  const indledningTalIkke = [...new Set(talI(ud.indledning))].filter((n) => !kildeTal.has(n));
+
+  return { ok: true, obj: ud, ordret: { ialt, ikke }, renset, noterRegel, indledningTalIkke };
 }
 
-module.exports = { laesSvar, LOFT, FELTER, _godtTal: godtTal, _findesI: findesI };
+module.exports = { laesSvar, LOFT, FELTER, _godtTal: godtTal, _findesI: findesI, _talI: talI };
