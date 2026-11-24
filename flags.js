@@ -81,4 +81,11 @@ module.exports = {
   // til toget med migrationen er koert og Anne har lavet QA. Kunder og opgaver
   // (TILBUD_AKTIV) roeres ikke af dette flag.
   TILBUDSDEL_AKTIV: flag("TILBUDSDEL_AKTIV"),
+
+  // Fase 5 trin D (22/11-26): KUN tilbudsforslaget, POST /api/tilbud/tilbudslinjer
+  // (det ene AI-kald). Nødbremsen (B9): slukket = ruten findes ikke (404), og
+  // resten af tilbuddet virker som før — han laver tilbuddet selv. Ligger under
+  // TILBUDSDEL_AKTIV. Slukket i begge miljøer, til AI-porten er grøn (spor 2's
+  // måling) og promptversionen er låst. Modellen står i TILBUDSLINJER_MODEL.
+  TILBUDSFORSLAG_AKTIV: flag("TILBUDSFORSLAG_AKTIV"),
 };

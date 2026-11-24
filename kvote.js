@@ -79,8 +79,17 @@ const LOFTER = [
 // og misbrug, ikke almindelig brug.
 const PULJER = {
   optagelse: {
-    formaal: ["transskription", "referat", "opgave_transskription", "tilbud", "notefoto"],
+    formaal: ["transskription", "referat", "opgave_transskription", "notefoto"],
     lofter: null, // firmaets lofter, se firmaLofterOere()
+  },
+  // Fase 5 trin D (22/11-26): tilbudsforslaget, POST /api/tilbud/tilbudslinjer.
+  // Formålet `tilbud` stod i CHECK-reglen fra starten, men intet bogførte det
+  // (målt på staging 22/11: 0 rækker). Det er flyttet hertil fra `optagelse`, så
+  // et forslag aldrig tager af optagekvoten. Tælles i øre som de andre (Ann 22/11).
+  // Et forslag koster 3–10 øre med nyt forsøg (spor 2's måling, runde 1).
+  tilbud: {
+    formaal: ["tilbud"],
+    lofter: ["AI_TILBUD_MAANEDSLOFT_DKK", "AI_TILBUD_DAGSLOFT_DKK"],
   },
   svar: {
     formaal: ["skrivehjaelp_svar", "skrivehjaelp_kommentar"],
@@ -144,8 +153,19 @@ const TEKSTER = {
       "eller prøve igen i morgen.",
     globalt_maanedsloft: "Skrivehjælpen kan ikke bruges lige nu. Vi er på sagen.",
   },
+  // ⚠️ UDKAST (spor 1, 22/11-26) — ikke godkendt af Anne. Ordlyden er hendes.
+  // Fælles for alle fire: han kan altid lave tilbuddet selv (kontrakt §0).
+  tilbud: {
+    kald_for_stort: "Opgavens tekster er for lange til et forslag. Fravælg et referat, og prøv igen.",
+    firma_maanedsloft: "Månedens tilbudsforslag er brugt op. Du kan stadig lave tilbuddet selv. " +
+      "Skriv til os, hvis du har brug for mere denne måned.",
+    firma_dagsloft: "Du har brugt dagens tilbudsforslag. Du kan stadig lave tilbuddet selv, " +
+      "eller prøve igen i morgen.",
+    globalt_maanedsloft: "Tilbudsforslaget kan ikke bruges lige nu. Du kan stadig lave tilbuddet selv. Vi er på sagen.",
+  },
 };
-const tekst = (pulje, aarsag) => TEKSTER[pulje === "optagelse" ? "optagelse" : "skrivehjaelp"][aarsag];
+const tekst = (pulje, aarsag) =>
+  TEKSTER[pulje === "optagelse" ? "optagelse" : pulje === "tilbud" ? "tilbud" : "skrivehjaelp"][aarsag];
 
 // DAGSLOFTET ER PR. FIRMA, ikke globalt (besluttet 29/9 af Ann). Et globalt
 // dagsloft ville lukke for ALLE firmaer, fordi ét havde en dårlig dag — og de

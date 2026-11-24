@@ -233,6 +233,26 @@ async function proev(navn, forventetAarsag, opsaetning, ekstra = {}, lofter = LO
   await proev("... og heller ikke for facebook", "tilladt",
     { raekker: [] }, { pulje: "facebook" }, udenSvarDag);
   await proev("ukendt pulje afvises", "kastede kvote_brug", { raekker: [] }, { pulje: "andet" }, SKRIV);
+
+  // Fase 5 trin D (22/11-26): puljen tilbud. Formaalet `tilbud` er flyttet fra optagelse.
+  console.log("\nPULJEN tilbud — tilbudsforslaget tager ikke af optagekvoten (Fase 5)");
+  const TILB = { ...SKRIV, AI_TILBUD_MAANEDSLOFT_DKK: "10", AI_TILBUD_DAGSLOFT_DKK: "2" };
+  lig("formaalet tilbud hoerer til puljen tilbud", k.puljeFor && k.puljeFor("tilbud"), "tilbud");
+  await proev("tilbud under dagsloftet er tilladt", "tilladt",
+    { raekker: [oere(199, IDAG, "F1", "tilbud")] }, { pulje: "tilbud" }, TILB);
+  await proev("tilbud paa dagsloftet (2 kr.) spaerrer", "firma_dagsloft",
+    { raekker: [oere(200, IDAG, "F1", "tilbud")] }, { pulje: "tilbud" }, TILB);
+  await proev("referatforbrug taeller ikke i tilbud", "tilladt",
+    { raekker: [oere(9000, IDAG)] }, { pulje: "tilbud" }, TILB);
+  await proev("tilbudsforbrug taeller ikke i optagelse", "tilladt",
+    { raekker: [oere(5000, IDAG, "F1", "tilbud")] }, {}, TILB);
+  await proev("manglende tilbud-loft afviser tilbud (fail-closed)", "kastede kvote_konfiguration",
+    { raekker: [] }, { pulje: "tilbud" }, SKRIV);
+  await proev("... men lukker IKKE for svar", "tilladt",
+    { raekker: [] }, { pulje: "svar" }, SKRIV);
+  const t0 = await k.tjek({ firmId: "F1", pulje: "tilbud" },
+    attrap({ raekker: [oere(200, IDAG, "F1", "tilbud")] }), TILB);
+  lig("tilbuddets afvisning siger, at han kan lave det selv", /lave tilbuddet selv/.test(t0.besked), true);
   const t1 = await k.tjek({ firmId: "F1", pulje: "svar" },
     attrap({ raekker: [oere(200, IDAG, "F1", "skrivehjaelp_svar")] }), SKRIV);
   lig("svarets afvisning naevner ikke optagelse", /optag/i.test(t1.besked), false);

@@ -62,6 +62,7 @@ const KOERES = [
   "proev-tekst-adapter.js",
   "proev-telefon-nummer.js",
   "proev-tilbud-beregning.js",
+  "proev-tilbud-forslag.js",
   "proev-velkomstmail.js",
   "proev-ventetid.js",
 ];
@@ -81,7 +82,7 @@ const IKKE_I_CI = {
   "proev-laeg-sammen.js":   "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (D94 trin 4, 30/10)",
   "proev-slet-kunde.js":     "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (D94 trin 3b, 29/10)",
   "proev-tilbud-skema.js":   "laeser Supabase-noegler fra .env og kalder staging-databasen; kraever --bekraeft (Fase 5 trin A, 21/11)",
-  "proev-tilbud-ruter.js":   "kalder en koerende server og staging-databasen med noegler fra .env; kraever --bekraeft (Fase 5 trin B, 22/11)",
+  "proev-tilbud-ruter.js":   "kalder en koerende server og staging-databasen med noegler fra .env; kraever --bekraeft (Fase 5 trin B-D, 22/11)",
 };
 
 const TIDSGRAENSE_MS = 120000;

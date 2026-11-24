@@ -1,5 +1,5 @@
 /**
- * proev-tilbud-ruter.js — Fase 5 trin B og C: tilbuddets ruter (routes/tilbud/tilbud.js)
+ * proev-tilbud-ruter.js — Fase 5 trin B, C og D: tilbuddets ruter (routes/tilbud/tilbud.js)
  * mod en KØRENDE server og STAGING-databasen.
  *
  * Beviser ejerskab (IDOR: fremmed id = 404), modulspærren, rev (409), at
@@ -7,7 +7,10 @@
  * godkend_tilbud() er enig til øren. Trin C: godkend gennem ruten, frysningen
  * (profilen ændres bagefter), sendt/accepteret/fortryd og en ny version, der
  * erstatter den gamle. Desuden, at en opgave oprettet gennem
- * /api/tilbud/opgaver får oprettet_via = 'tilbud'.
+ * /api/tilbud/opgaver får oprettet_via = 'tilbud'. Trin D: referencetallet
+ * (gratis), og med --forslag ét rigtigt tilbudsforslag mod modellen (koster
+ * få øre; kræver TILBUDSFORSLAG_AKTIV=true på serveren og migrationen
+ * 20261122120000_tilbud_forslag_skriv på staging).
  *
  * Opretter to testfirmaer (is_test) med hver sin bruger. Rører intet andet;
  * alt ryddes op gennem slet_firma() i finally.
@@ -15,6 +18,7 @@
  *   node proev-tilbud-ruter.js                          # tørkørsel: viser mål
  *   node proev-tilbud-ruter.js --bekraeft               # kører prøven
  *   node proev-tilbud-ruter.js --bekraeft --url=http://localhost:3000
+ *   node proev-tilbud-ruter.js --bekraeft --forslag --url=...   # også ét rigtigt forslag
  *
  * Serveren skal køre med TILBUD_AKTIV=true og TILBUDSDEL_AKTIV=true, mod
  * samme database som .env, og migrationen tilbud_fase5 skal være kørt dér.
@@ -31,6 +35,7 @@ const URL      = process.env.SUPABASE_URL;
 const SERVICE  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON     = process.env.SUPABASE_ANON_KEY;
 const BEKRAEFT = process.argv.includes('--bekraeft');
+const FORSLAG  = process.argv.includes('--forslag');
 const urlArg   = process.argv.find((a) => a.startsWith('--url='));
 const SERVER   = ((urlArg ? urlArg.slice(6) : process.env.BASE_URL) || '').replace(/\/$/, '');
 
@@ -91,7 +96,7 @@ async function opgave(t, navn) {
 }
 
 (async () => {
-  console.log('\n=== Prøve: tilbuddets ruter (Fase 5 trin B og C) ===');
+  console.log('\n=== Prøve: tilbuddets ruter (Fase 5 trin B, C og D) ===');
   console.log(`Projekt-ref : ${REF}`);
   console.log(`Server      : ${SERVER}`);
   console.log(`Kørsels-id  : ${KOERSEL}\n`);
@@ -221,6 +226,43 @@ async function opgave(t, navn) {
     r = await kald(a, 'GET', `/api/tilbud/${t.id}`);
     tjek(r.json.tilbud.status === 'erstattet', `version 1 er erstattet (${r.json.tilbud.status})`);
 
+    console.log('\nReferencetal (trin D, #9, #16):');
+    r = await kald(a, 'POST', `/api/tilbud/${v2.id}/accepteret`, { rev: v2.rev });
+    r = await kald(a, 'GET', `/api/tilbud/referencetal?opgavetype_id=${v2.opgavetype.id}`);
+    tjek(r.status === 200 && r.json.antal === 1 && r.json.opgavetype.enhed === 'm²' && r.json.arbejde_oere_pr_enhed && r.json.arbejde_oere_pr_enhed.median > 0,
+      `egne accepterede tilbud: ${r.json && r.json.antal} (arbejde ${r.json && r.json.arbejde_oere_pr_enhed && r.json.arbejde_oere_pr_enhed.median} øre pr. m²)`, r.json);
+    r = await kald(b, 'GET', `/api/tilbud/referencetal?opgavetype_id=${v2.opgavetype.id}`);
+    tjek(r.status === 404, `B ser ikke A's referencetal: 404 (${r.status})`);
+
+    if (FORSLAG) {
+      console.log('\nTilbudsforslaget (trin D, kontrakt §4) — ét rigtigt kald:');
+      const leadF = await opgave(a, 'Kunde F');
+      await admin.from('leads').update({ task: 'Ny terrasse i lærk, ca. 40 m². Der skal bruges lærkebrædder 28x120 og en pakke skruer.' }).eq('id', leadF);
+      const { data: ref, error: refF } = await admin.from('referater')
+        .insert({ firm_id: a.firmId, lead_id: leadF, moede_dato: '2026-11-18', indhold: 'Vi målte terrassen op til 4,35 gange 6,2 meter.', kilde: 'manuel' })
+        .select('id').single();
+      if (refF) throw new Error(`referat: ${refF.message}`);
+      r = await kald(a, 'POST', '/api/tilbud', { lead_id: leadF });
+      const tf = r.json.tilbud;
+      r = await kald(b, 'POST', '/api/tilbud/tilbudslinjer', { tilbud_id: tf.id, referat_ids: [ref.id] });
+      tjek(r.status === 404, `B laver forslag på A's tilbud: 404 (${r.status})`);
+      r = await kald(a, 'POST', '/api/tilbud/tilbudslinjer', { tilbud_id: tf.id, referat_ids: [ref.id] });
+      const f = r.json && r.json.tilbud;
+      tjek(r.status === 200 && f && f.titel && f.titel_kilde === 'model' && !f.titel_bekraeftet,
+        `forslag skrevet (${r.status}): titel fra modellen, ikke bekræftet`, r.json);
+      if (f) {
+        const ml = f.linjer.filter((l) => l.kilde === 'model');
+        tjek(ml.every((l) => !l.bekraeftet && l.enhedspris_oere === null && (l.antal === null || typeof l.antal === 'string')),
+          `${ml.length} modellinjer: ingen priser, ikke bekræftet, antal som tekst`, ml);
+        tjek(f.kilder.referat_ids.length === 1 && f.kilder.referat_ids[0] === ref.id, 'kilderne husker referatet');
+        const { data: fl } = await admin.from('tilbud_forslag').select('model, prompt_version, retry').eq('tilbud_id', tf.id);
+        const { data: brugt } = await admin.from('ai_forbrug').select('pris_oere').eq('firm_id', a.firmId).eq('formaal', 'tilbud');
+        const oere = (brugt || []).reduce((s, x) => s + Number(x.pris_oere), 0);
+        tjek((fl || []).length === 1 && (brugt || []).length >= 1,
+          `tilbud_forslag: ${fl && fl[0] && fl[0].model} / ${fl && fl[0] && fl[0].prompt_version}${fl && fl[0] && fl[0].retry ? ' (nyt forsøg)' : ''}; bogført ${(brugt || []).length} kald, ${oere.toFixed(2)} øre`);
+      }
+    }
+
     console.log('\nOpgavens oprindelse (A14):');
     r = await kald(a, 'POST', '/api/tilbud/opgaver', { name: 'Kunde C', address: 'Prøvevej 3', task: 'Prøve' });
     const { data: ny } = await admin.from('leads').select('oprettet_via').eq('id', r.json && r.json.opgave ? r.json.opgave.id : '00000000-0000-0000-0000-000000000000').maybeSingle();
@@ -232,6 +274,8 @@ async function opgave(t, navn) {
     console.log('\nOprydning:');
     for (const t of [a, b]) {
       if (!t) continue;
+      // ai_forbrug først: tabellens forhold til firms er ikke prøvet her (forslaget bogfører).
+      await admin.from('ai_forbrug').delete().eq('firm_id', t.firmId);
       const { error } = await admin.rpc('slet_firma', { p_firm: t.firmId });
       if (error) console.log(`  ⚠️ slet_firma ${t.navn}: ${error.message}`);
       if (t.userId) await admin.auth.admin.deleteUser(t.userId);

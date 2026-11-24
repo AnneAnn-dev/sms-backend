@@ -167,4 +167,4 @@ function fraTusindedele(m) {
   return `${hel}.${rest.toString().padStart(3, "0").replace(/0+$/, "")}`;
 }
 
-module.exports = { regnLinje, regnTilbud, koerselsLinje, maengdeFraFaktorer, Beregningsfejl, LINJETYPER, ANTAL_RE, PROCENT_RE };
+module.exports = { regnLinje, regnTilbud, koerselsLinje, maengdeFraFaktorer, Beregningsfejl, LINJETYPER, ANTAL_RE, PROCENT_RE, tilTusindedele, divRund };

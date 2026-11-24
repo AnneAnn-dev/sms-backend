@@ -22,8 +22,9 @@
 //   POST   /api/tilbud/:id/accepteret         hændelse, han selv markerer (#2)
 //   POST   /api/tilbud/:id/fortryd            fortryder sidste hændelse (§1, statusskift)
 //   POST   /api/tilbud/:id/ny-version         ny kladde i samme kæde (#7, #13, #15)
-//
-// Trin D (tilbudslinjer, referencetal) kommer i denne fil senere.
+//   GET    /api/tilbud/referencetal?opgavetype_id=  egne accepterede tilbud pr. enhed (trin D, #9, #16)
+//   POST   /api/tilbud/tilbudslinjer          forslaget — det ene AI-kald (trin D, kontrakt §4),
+//                                             kun med TILBUDSFORSLAG_AKTIV
 //
 // ─── TRE REGLER, DER BÆRER FILEN ────────────────────────────────────────────
 //
@@ -62,6 +63,7 @@ const { firmIdFromToken } = require("../../auth");
 const { kraevModul } = require("../../moduler");
 const { medFirma, hentEgenRaekke } = require("../../ejerskab");
 const { renTitel } = require("../../opgave-felter");
+const { TILBUDSFORSLAG_AKTIV } = require("../../flags");
 const B = require("./beregning");
 // Grundlisten, synonymerne og opslaget ejes af spor 2 og findes ÉT sted (kontrakt §5, A9):
 // tilbudslinjer-enheder.js i repoets rod. Målingen bruger samme fil.
@@ -78,6 +80,7 @@ const RUTER = [
   "/api/tilbud/:id/accepteret",
   "/api/tilbud/:id/fortryd",
   "/api/tilbud/:id/ny-version",
+  "/api/tilbud/referencetal",
   "/api/tilbud/opgavetyper",
   "/api/tilbud/enheder",
 ];
@@ -606,33 +609,36 @@ module.exports = function (app, supabase) {
 
   /* ────────────────────────────  OPGAVETYPER  ──────────────────────────── */
 
-  // De mest brugte først, ved lige antal den senest brugte (kontrakt §4).
+  // Firmaets aktive typer, de mest brugte først, ved lige antal den senest
+  // brugte (kontrakt §4). Bruges af listen og af forslaget (højst 50 dér).
+  async function firmaetsTyper(firmId) {
+    const { data: typer, error } = await supabase.from("opgavetyper")
+      .select("id, navn, enhed_id, created_at").eq("firm_id", firmId).eq("aktiv", true);
+    if (error) throw error;
+    const { data: enheder, error: eE } = await supabase.from("enheder").select("id, navn");
+    if (eE) throw eE;
+    const { data: brug, error: bE } = await supabase.from("tilbud")
+      .select("opgavetype_id, created_at").eq("firm_id", firmId).not("opgavetype_id", "is", null);
+    if (bE) throw bE;
+    const navnPaa = new Map((enheder || []).map((e) => [e.id, e.navn]));
+    const tael = new Map();
+    for (const b of brug || []) {
+      const x = tael.get(b.opgavetype_id) || { antal: 0, senest: "" };
+      x.antal++; if (String(b.created_at) > x.senest) x.senest = String(b.created_at);
+      tael.set(b.opgavetype_id, x);
+    }
+    return (typer || []).map((x) => ({
+      id: x.id, navn: x.navn,
+      enhed: { id: x.enhed_id, navn: navnPaa.get(x.enhed_id) || null },
+      antal_brugt: (tael.get(x.id) || {}).antal || 0,
+      senest_brugt: (tael.get(x.id) || {}).senest || null,
+    })).sort((a, b) => (b.antal_brugt - a.antal_brugt) || String(b.senest_brugt || "").localeCompare(String(a.senest_brugt || "")) || a.navn.localeCompare(b.navn, "da"));
+  }
+
   app.get("/api/tilbud/opgavetyper", spaerLaes, async (req, res) => {
     const firmId = await firma(req, res); if (!firmId) return;
-    try {
-      const { data: typer, error } = await supabase.from("opgavetyper")
-        .select("id, navn, enhed_id, created_at").eq("firm_id", firmId).eq("aktiv", true);
-      if (error) throw error;
-      const { data: enheder, error: eE } = await supabase.from("enheder").select("id, navn");
-      if (eE) throw eE;
-      const { data: brug, error: bE } = await supabase.from("tilbud")
-        .select("opgavetype_id, created_at").eq("firm_id", firmId).not("opgavetype_id", "is", null);
-      if (bE) throw bE;
-      const navnPaa = new Map((enheder || []).map((e) => [e.id, e.navn]));
-      const tael = new Map();
-      for (const b of brug || []) {
-        const x = tael.get(b.opgavetype_id) || { antal: 0, senest: "" };
-        x.antal++; if (String(b.created_at) > x.senest) x.senest = String(b.created_at);
-        tael.set(b.opgavetype_id, x);
-      }
-      const ud = (typer || []).map((x) => ({
-        id: x.id, navn: x.navn,
-        enhed: { id: x.enhed_id, navn: navnPaa.get(x.enhed_id) || null },
-        antal_brugt: (tael.get(x.id) || {}).antal || 0,
-        senest_brugt: (tael.get(x.id) || {}).senest || null,
-      })).sort((a, b) => (b.antal_brugt - a.antal_brugt) || String(b.senest_brugt || "").localeCompare(String(a.senest_brugt || "")) || a.navn.localeCompare(b.navn, "da"));
-      res.json({ ok: true, opgavetyper: ud });
-    } catch (e) { svarPaaFejl(res, e, "opgavetyper kunne ikke hentes"); }
+    try { res.json({ ok: true, opgavetyper: await firmaetsTyper(firmId) }); }
+    catch (e) { svarPaaFejl(res, e, "opgavetyper kunne ikke hentes"); }
   });
 
   app.post("/api/tilbud/opgavetyper", spaerSkriv, async (req, res) => {
@@ -1062,6 +1068,7 @@ module.exports = function (app, supabase) {
   });
 
   /* ─────────────────────────────  TRIN C  ────────────────────────────── */
+  // (rpcFejl og tagRev bruges også af trin D nedenfor.)
 
   // Hvem gjorde det (historikkens created_by). null, hvis det ikke kan læses —
   // historikken skal skrives alligevel.
@@ -1254,7 +1261,236 @@ module.exports = function (app, supabase) {
     }
   });
 
-  return RUTER;
+  /* ─────────────────────────────  TRIN D  ────────────────────────────── */
+
+  // Referencetal (#9, #16, kontrakt §6): KUN firmaets egne accepterede tilbud
+  // af typen (S21). Kr. pr. enhed for arbejde og materialer hver for sig, efter
+  // linjerabat og før rabatten på hele tilbuddet; den samlede rabat for sig.
+  // Ingen bundgrænse for egne tal — antallet står ved siden af.
+  app.get("/api/tilbud/referencetal", spaerLaes, async (req, res) => {
+    const firmId = await firma(req, res); if (!firmId) return;
+    try {
+      const typeId = uuidFelt(req.query.opgavetype_id, "opgavetype_id");
+      const { data: type, error } = await supabase.from("opgavetyper").select("id, navn, enhed_id")
+        .eq("id", typeId).eq("firm_id", firmId).maybeSingle();
+      if (error) throw error;
+      if (!type) throw new Afvist(404, { error: "ikke_fundet", besked: "Typen findes ikke." });
+      const enhed = await brugbarEnhed(firmId, type.enhed_id);
+      const { data: rk, error: rE } = await supabase.from("tilbud")
+        .select("maengde, arbejde_oere, materialer_oere, foer_samlet_rabat_oere, samlet_rabat_oere")
+        .eq("firm_id", firmId).eq("opgavetype_id", type.id).eq("status", "accepteret");
+      if (rE) throw rE;
+      const pr = (rk || []).filter((x) => x.maengde !== null && Number(x.maengde) > 0).map((x) => {
+        const milli = B.tilTusindedele(talTekst(x.maengde), "maengde");
+        return {
+          arbejde: Number(B.divRund(BigInt(x.arbejde_oere) * 1000n, milli)),
+          materialer: Number(B.divRund(BigInt(x.materialer_oere) * 1000n, milli)),
+          // hundrededele af en procent (heltal); vises med to decimaler
+          rabat: x.foer_samlet_rabat_oere > 0 ? Number(B.divRund(BigInt(x.samlet_rabat_oere) * 10000n, BigInt(x.foer_samlet_rabat_oere))) : 0,
+        };
+      });
+      // Heltal ind; medianen af et lige antal er gennemsnittet af de to midterste, afrundet.
+      const spænd = (tal) => {
+        if (!tal.length) return null;
+        const s = tal.slice().sort((a, b) => a - b), n = s.length;
+        const median = n % 2 ? s[(n - 1) / 2] : Number(B.divRund(BigInt(s[n / 2 - 1]) + BigInt(s[n / 2]), 2n));
+        return { min: s[0], median, max: s[n - 1] };
+      };
+      const procent = (x) => (x === null ? null : { min: (x.min / 100).toFixed(2), median: (x.median / 100).toFixed(2), max: (x.max / 100).toFixed(2) });
+      res.json({
+        ok: true,
+        opgavetype: { id: type.id, navn: type.navn, enhed: enhed.navn },
+        antal: pr.length,
+        arbejde_oere_pr_enhed: spænd(pr.map((x) => x.arbejde)),
+        materialer_oere_pr_enhed: spænd(pr.map((x) => x.materialer)),
+        samlet_rabat_procent: procent(spænd(pr.map((x) => x.rabat))),
+      });
+    } catch (e) { svarPaaFejl(res, e, "referencetal kunne ikke hentes"); }
+  });
+
+  // Forslaget (kontrakt §4) — kun med TILBUDSFORSLAG_AKTIV (nødbremsen, B9).
+  // Spor 2's filer hentes først her, så et slukket flag aldrig læser dem.
+  if (TILBUDSFORSLAG_AKTIV) {
+    const P = require("../../prompts/tilbudslinjer");
+    const { laesSvar } = require("../../tilbudslinjer-format");
+    const kvote = require("../../kvote");
+    const tekstmodel = require("../../tekst-adapter");
+    const F = require("./forslag");
+    const MAKS_INPUT_TEGN = 40000;   // kontrakt §7, foreløbigt
+    const TEGN_PR_TOKEN = 3;         // bevidst lavt for dansk: overvurderer prisen, aldrig under
+    const MAKS_TOKENS_UD = 3000;     // som målingen (maal-tilbudslinjer.js)
+
+    // Et rpc-kald, der returnerer én værdi: PostgREST giver værdien selv.
+    const skalar = (d) => (Array.isArray(d) ? (d.length ? Object.values(d[0])[0] : null) : d);
+
+    async function bogfoer(firmId, x) {
+      if (!(typeof x.prisOere === "number" && x.prisOere > 0)) return;
+      try {
+        await kvote.bogfoer({ firmId, formaal: "tilbud", leverandoer: x.leverandoer, model: x.model,
+          enhed: "token", maengde: (x.tokensInd || 0) + (x.tokensUd || 0), prisOere: x.prisOere }, supabase);
+      } catch (e) {
+        console.error("❌ tilbudsforslag: kaldet kunne ikke bogfoeres:", e.kode || e.name);
+        sendError(e);
+      }
+    }
+
+    app.post("/api/tilbud/tilbudslinjer", spaerSkriv, async (req, res) => {
+      const firmId = await firma(req, res); if (!firmId) return;
+      let laast = null;
+      try {
+        // 1. Kun id'er fra klienten, aldrig tekst (§4).
+        const ind = pluk(req.body, ["tilbud_id", "referat_ids"]);
+        const tilbudId = uuidFelt(ind.tilbud_id, "tilbud_id");
+        const ids = ind.referat_ids === undefined ? [] : ind.referat_ids;
+        if (!Array.isArray(ids) || ids.length > 50) throw ugyldig("referat_ids", "referat_ids skal være en liste med højst 50 id'er.");
+        const valgte = [...new Set(ids.map((x, i) => uuidFelt(x, `referat_ids[${i}]`)))];
+
+        const t = await hentEgenRaekke(supabase, "tilbud", tilbudId, firmId, "id, lead_id, status");
+        if (t.status !== "kladde") throw new Afvist(409, { error: "tilbud_laast", besked: "Tilbuddet er godkendt og kan ikke ændres. Lav en ny version." });
+        const { data: lead, error: lE } = await supabase.from("leads")
+          .select("id, task, notes, created_at, oprettet_via").eq("id", t.lead_id).eq("firm_id", firmId).maybeSingle();
+        if (lE) throw lE;
+        if (!lead) throw new Afvist(404, { error: "ikke_fundet", besked: "Den findes ikke." });
+        // Hvert referat skal høre til netop denne opgave og dette firma (IDOR).
+        const { data: opgavens, error: rE } = await supabase.from("referater")
+          .select("id, lead_id, indhold, moede_dato, kilde, created_at").eq("firm_id", firmId).eq("lead_id", t.lead_id);
+        if (rE) throw rE;
+        const paaOpgaven = new Map((opgavens || []).map((r) => [r.id, r]));
+        if (valgte.some((id) => !paaOpgaven.has(id))) throw new Afvist(404, { error: "ikke_fundet", besked: "Et af referaterne findes ikke på denne opgave." });
+
+        // 2. Serveren henter selv teksterne og bygger data (§4).
+        const typer = await firmaetsTyper(firmId);
+        const { data: grund, error: gE } = await supabase.from("enheder").select("id, navn").is("firm_id", null).eq("aktiv", true);
+        if (gE) throw gE;
+        const { data: egne, error: eE } = await supabase.from("enheder").select("id, navn").eq("firm_id", firmId).eq("aktiv", true);
+        if (eE) throw eE;
+        const { data: brugte, error: bE } = await supabase.from("tilbud_linjer").select("enhed_id").eq("firm_id", firmId).not("enhed_id", "is", null);
+        if (bE) throw bE;
+        const brug = new Map();
+        for (const b of brugte || []) brug.set(b.enhed_id, (brug.get(b.enhed_id) || 0) + 1);
+        const egneMest = (egne || []).slice().sort((a, b) => (brug.get(b.id) || 0) - (brug.get(a.id) || 0) || a.navn.localeCompare(b.navn, "da")).slice(0, 30);
+        const { data, kilder } = F.bygData({
+          lead, referater: valgte.map((id) => paaOpgaven.get(id)),
+          typer: typer.map((x) => ({ navn: x.navn, enhed: x.enhed.navn })),
+          enheder: GRUNDLISTE.concat(egneMest.map((e) => e.navn)),
+        });
+
+        // Loftet på input i alt (§7). Intet skæres stille af: klienten tilbyder at fravælge referater (B8).
+        const tegn = F.inputTegn(data);
+        if (tegn > MAKS_INPUT_TEGN) {
+          return res.status(413).json({
+            error: "for_meget_input", tegn, loft: MAKS_INPUT_TEGN,
+            referater: kilder.map((k) => ({ id: k.id, nr: k.nr, tegn: k.tekst.length })),
+            besked: "Opgavens tekster er for lange til ét forslag. Fravælg et eller flere referater, og prøv igen.",
+          });
+        }
+        let prompt;
+        try { prompt = P.bygTilbudslinjePrompt(data); }
+        catch (e) {
+          if (e instanceof P.ValideringsFejl) throw new Afvist(422, { error: "ugyldige_data", mangler: ["kilder"], besked: e.message });
+          throw e;
+        }
+        let maxPrisOere;
+        try {
+          maxPrisOere = 2 * tekstmodel.prisOereTilbudslinjer(Math.ceil((prompt.system.length + prompt.user.length) / TEGN_PR_TOKEN), MAKS_TOKENS_UD);
+        } catch (e) {
+          console.error("❌ tilbudsforslag: modellen er ikke sat op:", e.kode);
+          sendError(e);
+          return res.status(503).json({ error: "forslag_utilgaengeligt", besked: "Forslaget kan ikke laves lige nu. Du kan stadig lave tilbuddet selv." });
+        }
+
+        // Kører der allerede et forslag? (§4 trin 1)
+        const { data: st, error: sE } = await supabase.rpc("tilbud_forslag_start", { p_tilbud: t.id, p_firm: firmId });
+        if (sE) throw sE;
+        const start = skalar(st);
+        if (start === "koerer") throw new Afvist(409, { error: "forslag_koerer", besked: "Der laves allerede et forslag til tilbuddet. Vent et øjeblik." });
+        if (start === "ikke_kladde") throw new Afvist(409, { error: "tilbud_laast", besked: "Tilbuddet er godkendt og kan ikke ændres. Lav en ny version." });
+        if (start !== "ok") throw new Afvist(404, { error: "ikke_fundet", besked: "Den findes ikke." });
+        laast = t.id;
+
+        // 3. Kvoten FØR kaldet (Ø2, puljen tilbud).
+        let dom;
+        try { dom = await kvote.tjek({ firmId, maxPrisOere, pulje: "tilbud" }, supabase); }
+        catch (e) {
+          console.error("❌ tilbudsforslag: kvoten kunne ikke laeses:", e.kode);
+          sendError(e);
+          throw new Afvist(503, { error: "kvote_utilgaengelig", besked: "Forslaget kan ikke laves lige nu. Du kan stadig lave tilbuddet selv." });
+        }
+        if (!dom.tilladt) {
+          const h = new Error(`Kvoteafvisning (tilbud): ${dom.aarsag}`); h.name = "Kvoteafvisning";
+          console.warn("⚠️ KVOTE afviste tilbudsforslag", { firmId, aarsag: dom.aarsag });
+          sendError(h);
+          throw new Afvist(429, { error: dom.aarsag, besked: dom.besked, naesteNulstilling: dom.naesteNulstilling });
+        }
+
+        // 4. Kaldet — og ét nyt forsøg ved et ugyldigt svar. Hvert kald bogføres, også et ubrugeligt.
+        let fundet = null, retry = false;
+        const sum = { ms: 0, tokensInd: 0, tokensUd: 0, prisOere: 0 };
+        for (let forsoeg = 1; forsoeg <= 2 && !fundet; forsoeg++) {
+          let r;
+          try { r = await tekstmodel.tilbudslinjer({ system: prompt.system, bruger: prompt.user }); }
+          catch (e) {
+            await bogfoer(firmId, e);
+            if (e.kode === "tilbudslinjer_tom" && forsoeg === 1) { retry = true; continue; }
+            console.error("❌ tilbudsforslag: kaldet fejlede:", e.kode, e.status || "");
+            sendError(e);
+            throw new Afvist(503, { error: "forslag_fejlede", besked: "Forslaget kunne ikke laves lige nu. Prøv igen, eller lav tilbuddet selv." });
+          }
+          await bogfoer(firmId, r);
+          sum.ms += r.ms || 0; sum.tokensInd += r.tokensInd || 0; sum.tokensUd += r.tokensUd || 0; sum.prisOere += r.prisOere || 0;
+          const l = laesSvar(r.raat, data);
+          if (l.ok) {
+            fundet = { obj: l.obj, model: r.model };
+            // Kun tal (B6): hvor meget formkontrollen markerede og rensede (spor 2, 22/11).
+            console.info("tilbudsforslag", { forsoeg, ordret: l.ordret || null, renset: l.renset || null, noterRegel: l.noterRegel || null });
+          }
+          else {
+            // B6: kun antallet og feltstierne' første led — aldrig svaret eller kildeteksten.
+            console.warn("⚠️ tilbudsforslag formfejl", { forsoeg, antal: l.fejl.length, felter: l.fejl.map((f) => String(f).split(/[ :[]/)[0]).slice(0, 10) });
+            if (forsoeg === 1) retry = true;
+          }
+        }
+        if (!fundet) {
+          const e = new Error("tilbudsforslag_ubrugeligt"); e.name = "Tilbudsforslag";
+          sendError(e);
+          throw new Afvist(502, { error: "forslag_ubrugeligt", besked: "Forslaget kom tilbage i en form, vi ikke kunne bruge. Prøv igen, eller lav tilbuddet selv." });
+        }
+
+        // 5. Omsæt og skriv gennem den låsende funktion (§4 trin 5 og 6).
+        const forslag = F.normaliser({
+          obj: fundet.obj, data, kilder,
+          typer: typer.map((x) => ({ id: x.id, navn: x.navn, enhed: x.enhed.navn })),
+          egne: egne || [], grund: grund || [],
+          log: { model: fundet.model, prompt_version: P.TILBUDSLINJER_PROMPT_VERSION, retry,
+            svartid_ms: sum.ms, tokens_ind: sum.tokensInd, tokens_ud: sum.tokensUd },
+        });
+        const linjer = await hentLinjer(firmId, t.id);
+        const bliver = linjer.filter((l) => !(l.kilde === "model" && !l.bekraeftet)).length;
+        if (bliver + forslag.linjer.length > MAKS.linjer) {
+          throw ugyldig("linjer", `Forslaget ville give over ${MAKS.linjer} linjer. Slet nogle linjer, og prøv igen.`, "for_mange");
+        }
+        const { data: nyRev, error: wE } = await supabase.rpc("tilbud_skriv_forslag", { p_tilbud: t.id, p_firm: firmId, p_forslag: forslag });
+        if (wE) throw rpcFejl(wE);
+        laast = null;   // funktionen har ryddet markeringen
+        await efterregn(firmId, t.id, Number(skalar(nyRev)));
+        if (kvote.krydsedeVarsel && kvote.krydsedeVarsel(dom.forbrugtOere, sum.prisOere, dom.loftOere)) {
+          const v = new Error(`Kvotevarsel (tilbud): firmaet har passeret ${kvote.VARSEL_ANDEL * 100} % af sit loft`);
+          v.name = "Kvotevarsel"; sendError(v);
+        }
+        res.json({ ok: true, tilbud: await fuld(firmId, t.id) });
+      } catch (e) {
+        // Markeringen ryddes FØR svaret sendes — ellers kan et nyt forsøg lige
+        // bagefter få "kører allerede". Fejler oprydningen, rydder fristen den.
+        if (laast) {
+          try { await supabase.rpc("tilbud_forslag_slip", { p_tilbud: laast, p_firm: firmId }); }
+          catch (_) { /* fristen (180 sek.) rydder den alligevel */ }
+        }
+        svarPaaFejl(res, e, "tilbudsforslag fejlede");
+      }
+    });
+  }
+
+  return TILBUDSFORSLAG_AKTIV ? RUTER.concat(["/api/tilbud/tilbudslinjer"]) : RUTER;
 };
 
 // Til prøverne: de rene funktioner uden database.

@@ -426,9 +426,85 @@ async function skriv(
   return { raat: String(indhold), afskaaret: valg.finish_reason === "length", ...pris };
 }
 
+// ─── Tilbudsforslaget (Fase 5 trin D, 22/11-26) ──────────────────────────────
+// Samme form som skriv(): system og bruger kommer færdigbygget fra spor 2's
+// prompts/tilbudslinjer.js (S6), svaret returneres RÅT, spor 2's
+// tilbudslinjer-format.js dømmer formen, og ruten bogfører. Egen låst model i
+// TILBUDSLINJER_MODEL (D14), så et modelskifte i referatet eller Skrivehjælp
+// ikke flytter tilbuddet. Standardparametrene er målingens (maal-tilbudslinjer.js:
+// temperatur 0,1, højst 3000 tokens ud) — ruten skal kalde præcis som målt.
+const TILBUD = { modelVar: "TILBUDSLINJER_MODEL" };
+
+function prisOereTilbudslinjer(tokensInd, tokensUd, env) {
+  const { pris } = hentKonfig(env, TILBUD);
+  const i = (Number(tokensInd) || 0) / 1e6;
+  const u = (Number(tokensUd) || 0) / 1e6;
+  return (i * pris.ind + u * pris.ud) * EUR_TIL_DKK * 100;
+}
+
+function tilbudfejl(besked, kode, ekstra) {
+  const f = new Error("Tilbudsforslag: " + besked);
+  f.kode = kode;
+  Object.assign(f, ekstra || {});
+  return f;
+}
+
+async function tilbudslinjer(
+  { system, bruger, temperatur = 0.1, maksTokens = 3000, timeoutMs = 45000 },
+  env, fetchFn = fetch
+) {
+  if (typeof system !== "string" || !system.trim()) throw tilbudfejl("system mangler", "tilbudslinjer_brug");
+  if (typeof bruger !== "string" || !bruger.trim()) throw tilbudfejl("bruger mangler", "tilbudslinjer_brug");
+  let k;
+  try { k = hentKonfig(env, TILBUD); }
+  catch (e) { e.kode = "tilbudslinjer_konfiguration"; throw e; }
+
+  const afbryd = new AbortController();
+  const ur = setTimeout(() => afbryd.abort(), timeoutMs);
+  const t0 = Date.now();
+  let svar;
+  try {
+    svar = await fetchFn(`${k.url}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${k.noegle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: k.model, temperature: temperatur, max_tokens: maksTokens,
+        messages: [{ role: "system", content: system }, { role: "user", content: bruger }],
+      }),
+      signal: afbryd.signal,
+    });
+  } catch (e) {
+    clearTimeout(ur);
+    throw tilbudfejl(e.name === "AbortError"
+      ? `forslaget tog over ${Math.round(timeoutMs / 1000)} sekunder`
+      : `kunne ikke naa leverandoeren (${e.message})`, "tilbudslinjer_kald", { timeout: e.name === "AbortError" });
+  }
+  clearTimeout(ur);
+  if (!svar.ok) throw tilbudfejl(`leverandoeren svarede ${svar.status}`, "tilbudslinjer_kald", { status: svar.status });
+  let raa;
+  try { raa = await svar.json(); }
+  catch { throw tilbudfejl("leverandoeren svarede noget, der ikke er JSON", "tilbudslinjer_kald"); }
+
+  const valg = (raa.choices && raa.choices[0]) || {};
+  const indhold = (valg.message && valg.message.content) || "";
+  const tokensInd = (raa.usage && raa.usage.prompt_tokens) || 0;
+  const tokensUd = (raa.usage && raa.usage.completion_tokens) || 0;
+  const pris = { tokensInd, tokensUd, prisOere: prisOereTilbudslinjer(tokensInd, tokensUd, env),
+    leverandoer: k.navn, model: k.model, ms: Date.now() - t0 };
+
+  // Regel 4: tomt svar trods tokens = ræsonnerende model (J9). Prisen hænger på fejlen.
+  if (!String(indhold).trim()) {
+    throw tilbudfejl(tokensUd > 0
+      ? `modellen svarede TOMT, men brugte ${tokensUd} tokens: en raesonnerende model (J9)`
+      : "modellen svarede tomt", "tilbudslinjer_tom", { ...pris, slags: tokensUd > 0 ? "raesonnerende" : "tom" });
+  }
+  return { raat: String(indhold), afskaaret: valg.finish_reason === "length", ...pris };
+}
+
 module.exports = {
   referer, prisenhed, prisOere, valider,
   skriv, prisOereSkrivehjaelp,
+  tilbudslinjer, prisOereTilbudslinjer,
   // Eksporteret til test. Kald dem ikke fra produktionskode.
   _hentKonfig: hentKonfig,
   _LEVERANDOERER: LEVERANDOERER,
