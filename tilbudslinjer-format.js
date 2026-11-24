@@ -105,10 +105,12 @@ function laes(raat, data) {
   if (adv !== null && adv !== undefined) {
     if (!erObj(adv)) fejl.push("advarsel er ikke et objekt");
     else {
-      const tilladte = adv.kilde === "referat" ? ["kilde", "nr", "citat"] : ["kilde", "citat"];
+      const tilladte = adv.kilde === "referat" ? ["kilde", "nr", "citat", "afkortet"] : ["kilde", "citat", "afkortet"];
+      if ("afkortet" in adv) fejl.push("opfundet felt i advarsel: afkortet");
       for (const k of ukendte(adv, tilladte)) fejl.push(`opfundet felt i advarsel: ${k}`);
       if (typeof adv.citat !== "string" || !adv.citat.trim()) fejl.push("advarsel.citat er tom");
-      else if (adv.citat.length > LOFT.citat) fejl.push(`advarsel.citat for lang: ${adv.citat.length} tegn`);
+      // For langt citat afkortes i stedet for at afvise svaret (Ann 24/11): det er kun et uddrag.
+      else if (adv.citat.length > LOFT.citat) { adv.citat = adv.citat.slice(0, LOFT.citat - 1) + "…"; adv.afkortet = true; }
       if (!["beskrivelse", "noter", "referat"].includes(adv.kilde)) fejl.push("advarsel.kilde er ukendt");
     }
   }
@@ -266,7 +268,7 @@ function laes(raat, data) {
   if (erObj(ud.advarsel)) {
     const a = ud.advarsel;
     const kilde = a.kilde === "beskrivelse" ? beskrivelse : a.kilde === "noter" ? noter : refTekst.get(a.nr);
-    ud.advarsel = { ...a, ordret: findesI(a.citat, kilde) };
+    ud.advarsel = { ...a, ordret: findesI(a.afkortet ? a.citat.slice(0, -1) : a.citat, kilde) };
   }
 
   // Tal-kontrol på indledningen (Ann 24/11, markér, fjern ikke): hvert tal skal stå i en kilde.
