@@ -153,7 +153,7 @@ const TEKSTER = {
       "eller prøve igen i morgen.",
     globalt_maanedsloft: "Skrivehjælpen kan ikke bruges lige nu. Vi er på sagen.",
   },
-  // ⚠️ UDKAST (spor 1, 22/11-26) — ikke godkendt af Anne. Ordlyden er hendes.
+  // Godkendt af Anne 24/11-26 (uændret fra spor 1's udkast). Ordlyden er hendes.
   // Fælles for alle fire: han kan altid lave tilbuddet selv (kontrakt §0).
   tilbud: {
     kald_for_stort: "Opgavens tekster er for lange til et forslag. Fravælg et referat, og prøv igen.",
