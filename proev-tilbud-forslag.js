@@ -109,5 +109,13 @@ tjek("en faktor, der ikke kan stå i databasen: ingen mængde", n5.maengde, null
 const n6 = F.normaliser({ obj: { ...obj, materialer: [{ beskrivelse: "x", antal: 1e10, enhed: "stk" }] }, data, kilder, typer, egne, grund, log });
 tjek("et antal, der ikke kan stå i databasen: tomt", n6.linjer[0].antal, null);
 
+console.log("\nTidsfristen (G9, Ann 26/11):");
+tjek("fristen er 60 s for begge forsøg tilsammen", F.FORSLAG_FRIST_MS, 60000);
+tjek("første forsøg får hele minuttet", F.tidTilForsoeg(0, 0), 60000);
+tjek("efter 45 s får andet forsøg resten (15 s)", F.tidTilForsoeg(0, 45000), 15000);
+tjek("præcis 10 s tilbage: forsøget startes", F.tidTilForsoeg(0, 50000), 10000);
+tjek("under 10 s tilbage: intet nyt forsøg", F.tidTilForsoeg(0, 50001), 0);
+tjek("fristen er overskredet: intet nyt forsøg", F.tidTilForsoeg(0, 70000), 0);
+
 console.log(`\n${ok}/${ialt}`);
 process.exit(ok === ialt ? 0 : 1);

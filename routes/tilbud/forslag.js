@@ -28,6 +28,23 @@ const { findEnhed, noegle } = require("../../tilbudslinjer-enheder");
 const MAKS_ANTAL_MILLI = 999999999999;   // numeric(12,3)
 const TIDSZONE = "Europe/Copenhagen";
 
+// G9 (måledokumentet afsnit 5, Ann 26/11): håndværkeren venter højst ét minut
+// på et forslag — begge forsøg tilsammen, fordi G9 måler "inklusive en
+// eventuel retry". Porten 24/11: 69 af 70 kald under 18,5 s, ét hang i 85 s;
+// ved inputloftet (5.242 tegn) højst 6,1 s. Fristen afbryder altså kun det,
+// der hænger. Et afbrudt kald har ingen pris og bogføres ikke (kvote.js,
+// "KENDT HUL"; udestående i registret).
+const FORSLAG_FRIST_MS = 60000;
+// Et nyt forsøg startes kun, hvis der er mindst så lang tid tilbage — ellers
+// bliver det næsten sikkert afbrudt, og han venter forgæves.
+const MIN_FORSOEG_MS = 10000;
+
+// Hvor mange ms det næste forsøg må tage. 0 = start ikke et nyt forsøg.
+function tidTilForsoeg(startMs, nuMs, frist = FORSLAG_FRIST_MS, min = MIN_FORSOEG_MS) {
+  const rest = startMs + frist - nuMs;
+  return rest >= min ? rest : 0;
+}
+
 // JSON-tal (≥ 0, højst tre decimaler — laesSvar har tjekket formen) -> tekst.
 // Regnes som heltal i tusindedele, så 0.1 + 0.2-fejl aldrig når tilbuddet.
 // For stort til databasen -> null: han skriver selv antallet (intet gættes).
@@ -183,4 +200,5 @@ function normaliser({ obj, data, kilder, typer, egne, grund, log, indledningTalI
   };
 }
 
-module.exports = { bygData, normaliser, inputTegn, talTekst, beskrivelseKilde };
+module.exports = { bygData, normaliser, inputTegn, talTekst, beskrivelseKilde,
+  tidTilForsoeg, FORSLAG_FRIST_MS, MIN_FORSOEG_MS };

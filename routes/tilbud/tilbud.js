@@ -1448,16 +1448,21 @@ module.exports = function (app, supabase) {
         }
 
         // 4. Kaldet — og ét nyt forsøg ved et ugyldigt svar. Hvert kald bogføres, også et ubrugeligt.
+        // G9: højst ét minut i alt for begge forsøg (forslag.js, FORSLAG_FRIST_MS).
         let fundet = null, retry = false;
         const sum = { ms: 0, tokensInd: 0, tokensUd: 0, prisOere: 0 };
+        const t0 = Date.now();
         for (let forsoeg = 1; forsoeg <= 2 && !fundet; forsoeg++) {
+          const frist = F.tidTilForsoeg(t0, Date.now());
+          if (!frist) break;   // for lidt tid til et nyt forsøg: behandles som et ubrugeligt svar
           let r;
-          try { r = await tekstmodel.tilbudslinjer({ system: prompt.system, bruger: prompt.user }); }
+          try { r = await tekstmodel.tilbudslinjer({ system: prompt.system, bruger: prompt.user, timeoutMs: frist }); }
           catch (e) {
-            await bogfoer(firmId, e);
+            await bogfoer(firmId, e);   // et afbrudt kald har ingen pris: intet bogføres
             if (e.kode === "tilbudslinjer_tom" && forsoeg === 1) { retry = true; continue; }
-            console.error("❌ tilbudsforslag: kaldet fejlede:", e.kode, e.status || "");
+            console.error("❌ tilbudsforslag: kaldet fejlede:", e.kode, e.timeout ? "timeout" : (e.status || ""));
             sendError(e);
+            if (e.timeout) throw new Afvist(503, { error: "forslag_tog_for_lang_tid", besked: "Det tog for lang tid. Prøv igen." });
             throw new Afvist(503, { error: "forslag_fejlede", besked: "Forslaget kunne ikke laves lige nu. Prøv igen, eller lav tilbuddet selv." });
           }
           await bogfoer(firmId, r);
