@@ -31,9 +31,12 @@
  *   hentKvote. Skive 2 (samme dag): lavUdkast, saetUdkast, udkastSomTekst.
  *   Skive 3: retReferat; loadReferater giver harReferat og tid.
  *
+ * FASE 5 C1 (26/11-26, spor 2): loadTilbud, opretTilbud og hentTilbud mod
+ *   /api/tilbud (kontrakten docs/fase5-tilbud-kontrakt.md §1 og §6). Ét kald
+ *   pr. handling; der gemmes ingen hel liste. Skærmen bor i tilbud.js.
+ *
  * IKKE BYGGET ENDNU (kaster en tydelig fejl):
- *   loadTilbud / saveTilbud / loadFirmaProfil / saveFirmaProfil — Tilbud- og
- *   Firma-fanerne er lukket i Fase 1 (tilbud-runbook.md).
+ *   saveTilbud / loadFirmaProfil / saveFirmaProfil — bygges i C2 og C4.
  * ------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -514,6 +517,20 @@
   }
 
   /* ────────────────────────  TILBUD OG FIRMAPROFIL  ─────────────────────── */
+  // Fase 5 C1: opgavens tilbud (resumé pr. version), et nyt tilbud og ét tilbud.
+  async function loadTilbud(opgaveId) {
+    const d = await api('GET', '/api/tilbud?lead_id=' + encodeURIComponent(opgaveId));
+    return d.tilbud || [];
+  }
+  async function opretTilbud(opgaveId) {
+    const d = await api('POST', '/api/tilbud', { lead_id: opgaveId });
+    return d.tilbud;
+  }
+  async function hentTilbud(id) {
+    const d = await api('GET', '/api/tilbud/' + encodeURIComponent(id));
+    return d.tilbud;
+  }
+
   const ikkeBygget = (hvad) => async () => {
     throw new ApiFejl(0, { error: 'ikke_bygget', besked: hvad + ' kommer ikke med i Fase 1.' });
   };
@@ -528,7 +545,7 @@
     transskriber, hentKvote,
     lavUdkast, saetUdkast, udkastSomTekst, retReferat, saetTransskript,
     antalOrd, MIN_ORD_REFERAT, FOR_KORT_BESKED,
-    loadTilbud: ikkeBygget('Tilbud'), saveTilbud: ikkeBygget('Tilbud'),
+    loadTilbud, opretTilbud, hentTilbud, saveTilbud: ikkeBygget('Tilbud'),
     loadFirmaProfil: ikkeBygget('Firmaprofilen'), saveFirmaProfil: ikkeBygget('Firmaprofilen'),
   };
 })();
