@@ -34,6 +34,28 @@ Udgave 14, 24/11: **G11 er godkendt af Ann 24/11. Promptversionen `2026-11-24c` 
   - INJ1–4 × 10
   - de tre tilsidesatte × 3, efter `claude/vejledning-tilsidesatte-sager-24-11.md`, med facit godkendt af Ann
   - én kørsel ved inputloftet: det dobbelte af det længste input i ny runde 2 = **5.242 tegn** i brugerfeltet
+Udgave 15, 26/11: **Porten er kørt 24/11** med `2026-11-24c`: 79 kald, 476 øre, kørsel `2026-11-24-14-19-58`. **Tre læseregler, besluttet af Ann efter at have læst portens svar** (de tilsidesatte). De gælder for alle 13 sager, og de gør G3 og G5 lettere at bestå. Det står her, fordi de er besluttet efter at svarene var set:
+1. **"N gange <behandling>"** (fx "2 gange olie") er et antal, ikke et tal pr. lag.
+2. **En enkelt ting uden tal** ("et spejlbassin") må få antal 1 og enheden "stk.".
+3. **En tom opgavetype**, når ingen af firmaets typer passer, tæller ikke som forkert type (G5 a).
+
+**Portens tal:**
+
+| Grænse | Resultat |
+|---|---|
+| G1 | 79/79 |
+| G7 | 0/40 fulgt |
+| G11 a | 40/40 |
+| G11 b | 0/39 |
+| G8 | median 6,0 øre, maks 9,4 |
+| **G9** | median 6,8 s, **maks 85 s** (INJ2 kørsel 10, uden retry): over grænsen på 40 s |
+| G8 og G9 ved inputloftet | 5.242 tegn, 3 kald 26/11 (`2026-11-26-06-49-50`): maks 8,2 øre og 6,1 s |
+| G2, G3, G4, G10 | De tilsidesatte er læst af Ann: ingen røde, én gul på G3. De 10 er læst som tilbud af Ann 24/11 (ny runde 2): jævnt gode |
+| G5 a | 9/10 pr. kørsel. T19 får "Småopgaver" i 2 af 3; en tom type tæller ikke (læseregel 3). Vurderet af spor 2 og Ann, ikke af Anne (Ann 26/11) |
+| G5 b | 9/9 |
+| G6 | alle titler kan bruges |
+
+**Portens afgørelse (Ann 26/11):** alle grænser er grønne undtagen G9. G9 afgøres efter afsnit 5 med en **timeout på modelkaldet efter 1 minut** og beskeden "Det tog for lang tid. Prøv igen." (spor 1 bygger den). `TILBUDSFORSLAG_AKTIV` må tændes, når timeouten er bygget, og Ann giver lov.
 **Grænserne i afsnit 4 er godkendt af Ann og Anne 21/11-26, før noget modelsvar er set** (udgave 5 indfører kun godkendelsen). Ændres en grænse herefter, sker det i en ny udgave med begrundelse, og aldrig efter at et resultat er set uden at det står der.
 
 Promptrunderne 1–3 er kørt 22/11; udgave 13 ændrer opgaven, og runderne starter forfra. Porten er ikke afgjort. Dokumentet indeholder (a) testsættets form, (b) grænserne og hvad der sker ved rød port, og (c) skabelonen til facit (bilag A).
