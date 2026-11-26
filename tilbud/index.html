@@ -443,6 +443,14 @@
   .badge-indtalt { background: #FFF6E9; color: #7A5A16; }
   .badge-referat { background: #EAF2FB; color: #1A3A5C; }
   .badge-faerdig { background: #E8F5EE; color: #2E7D52; }
+  /* Fase 5 C1 (26/11): tilbud på opgaven (tilbud.js) */
+  .tilbud-tabel { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+  .tilbud-tabel th { text-align: left; font-size: 11px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--smoke); padding: 6px 4px; }
+  .tilbud-tabel td { border-bottom: 1px solid var(--smoke); padding: 8px 4px; vertical-align: top; }
+  .tilbud-tabel .tal { text-align: right; white-space: nowrap; }
+  .tilbud-tabel tfoot td { border-bottom: none; padding-top: 6px; }
+  .tilbud-mangler { margin-top: 14px; background: #FFF6E9; color: #7A5A16; border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+  .tilbud-mangler ul { margin: 6px 0 0; padding-left: 18px; }
   input.ret-titel { margin-bottom: 4px; }
 </style>
 
@@ -561,6 +569,14 @@
     <div class="section-label" style="margin-top:18px;">Referater</div>
     <div id="opgaveReferaterWrap"></div>
     <button class="btn btn-primary" id="nytReferatBtn" type="button" style="margin-top:14px;">+ Nyt referat</button>
+    <!-- Fase 5 C1 (26/11): tilbuddet bygger på referaterne og står under dem.
+         Skjult, når tilbudsdelen ikke er slået til (tilbud.js). -->
+    <div id="opgaveTilbudBlok" style="display:none">
+      <div class="section-label" style="margin-top:22px;">Tilbud</div>
+      <div class="error-banner" id="errorBannerOpgaveTilbud"></div>
+      <div id="opgaveTilbudWrap"></div>
+      <button class="btn btn-secondary" id="nytTilbudBtn" type="button" style="margin-top:14px;display:none">+ Nyt tilbud</button>
+    </div>
   </div>
 
   <!-- ================= SCREEN: REFERAT DETALJE ================= -->
@@ -570,6 +586,15 @@
     </div>
     <div class="error-banner" id="errorBannerReferatDetail"></div>
     <div id="referatDetailWrap"></div>
+  </div>
+
+  <!-- ================= SCREEN: TILBUD DETALJE (Fase 5, tilbud.js) ================= -->
+  <div class="screen" id="screen-tilbud-detail">
+    <div class="back-row">
+      <button class="back-btn" id="backToOpgaveDetailFromTilbud">‹ Opgaven</button>
+    </div>
+    <div class="error-banner" id="errorBannerTilbudDetail"></div>
+    <div id="tilbudDetailWrap"></div>
   </div>
 
   <!-- ================= SCREEN: TILBUD / FIRMA (lukket i Fase 1) ================= -->
@@ -740,6 +765,7 @@
 <script src="/adressevaelger.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <script src="graenseflade.js"></script>
+<script src="tilbud.js"></script>
 <script src="optager.js"></script>
 <script>
 'use strict';
@@ -1239,6 +1265,7 @@ async function openOpgaveDetail(kundeId, opgaveId) {
   referaterWrap.innerHTML = '<p class="indlaeser">Henter referater …</p>';
   skjulFejl('errorBannerOpgaveDetail');
   showScreen('opgave-detail');
+  if (window.TilbudSkaerm) TilbudSkaerm.visPaaOpgave(opgaveId);   // Fase 5 C1
   let opgaver, referater;
   try {
     opgaver = await loadOpgaver(kundeId);
