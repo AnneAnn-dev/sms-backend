@@ -127,6 +127,25 @@ const forbi = (r) => r.status !== 401 && r.status !== 403 && r.status !== 503;
     if (r.status === 401) ok('uden login: 401');
     else fejl(`uden login: ${r.status}`);
 
+    // Fase 5 (28/11): tilbudsdelens to flag i svaret, som de effektive værdier.
+    r = await kald(a, 'GET', '/api/moduler');
+    const fl = r.json || {};
+    if (typeof fl.tilbudsdelAktiv === 'boolean' && typeof fl.tilbudsforslagAktiv === 'boolean')
+      ok(`tilbudsdelAktiv=${fl.tilbudsdelAktiv}, tilbudsforslagAktiv=${fl.tilbudsforslagAktiv} (booleans)`);
+    else fejl(`flagene mangler eller er ikke booleans: ${JSON.stringify(fl)}`);
+    if ((fl.tilbudAktiv || !fl.tilbudsdelAktiv) && (fl.tilbudsdelAktiv || !fl.tilbudsforslagAktiv))
+      ok('lagene holder: forslag kræver tilbudsdel, tilbudsdel kræver tilbudAktiv');
+    else fejl(`lagene holder ikke: ${JSON.stringify(fl)}`);
+    // Reglen selv (uden server): alle otte kombinationer af de tre flag.
+    const { tilbudsflag } = require('./moduler');
+    let regelOk = true;
+    for (const ta of [false, true]) for (const d of [false, true]) for (const fo of [false, true]) {
+      const v = tilbudsflag(ta, { TILBUDSDEL_AKTIV: d, TILBUDSFORSLAG_AKTIV: fo });
+      if (v.tilbudsdelAktiv !== (ta && d) || v.tilbudsforslagAktiv !== (ta && d && fo)) regelOk = false;
+    }
+    if (regelOk) ok('tilbudsflag(): alle 8 kombinationer giver de effektive værdier');
+    else fejl('tilbudsflag(): mindst én kombination er forkert');
+
     // --- Serveren: spærren ---------------------------------------------------------
     console.log('\nServeren — spærren foran Referathjælperen:');
     r = await kald(a, 'GET', '/api/tilbud/kvote');

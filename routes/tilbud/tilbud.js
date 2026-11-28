@@ -1340,7 +1340,12 @@ module.exports = function (app, supabase) {
     const kvote = require("../../kvote");
     const tekstmodel = require("../../tekst-adapter");
     const F = require("./forslag");
-    const MAKS_INPUT_TEGN = 40000;   // kontrakt §7, foreløbigt
+    // Kontrakt §7 og måledokumentet: det målte loft, sat af Ann 28/11. Kørslen
+    // 28/11 (2026-11-28-08-49-03) lagde præcis 10.000 tegn kildetekst ind
+    // (beskrivelse, noter og referater, som F.inputTegn tæller): højst 10,09 øre
+    // og 5,2 s (G8 højst 25 øre pr. kald, G9 højst 40 s). Ved 5.242 tegn (26/11):
+    // 8,2 øre og 6,1 s. Hæves kun efter en ny måling ved det højere tal.
+    const MAKS_INPUT_TEGN = 10000;
     const TEGN_PR_TOKEN = 3;         // bevidst lavt for dansk: overvurderer prisen, aldrig under
     const MAKS_TOKENS_UD = 3000;     // som målingen (maal-tilbudslinjer.js)
 

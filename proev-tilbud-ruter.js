@@ -24,7 +24,9 @@
  * --haengende-model (G9, 26/11): serveren skal være startet med
  *   node -r ./hjaelp-haengende-model.js server.js
  * og TILBUDSFORSLAG_AKTIV=true. Modelkaldet hænger så, til det afbrydes, og
- * fristen er 3 s. Prøven beviser: 503 forslag_tog_for_lang_tid med Anns tekst,
+ * fristen er 3 s. Prøven beviser inputloftet (28/11): ét tegn over 10.000 giver
+ * 413 for_meget_input, og præcis 10.000 slipper igennem til modelkaldet (som så
+ * hænger). Og den beviser: 503 forslag_tog_for_lang_tid med Anns tekst,
  * at låsen er sluppet (et nyt forsøg giver ikke 409 forslag_koerer), at intet
  * bogføres i ai_forbrug, og at kladden er urørt. Koster intet. Kører ikke
  * resten af prøven. Startes serveren uden hjælpefilen, svarer den rigtige
@@ -108,7 +110,7 @@ async function opgave(t, navn) {
 
 // G9 (26/11): timeout-vejen. Serveren hænger på modelkaldet (hjaelp-haengende-model.js).
 async function proevHaengende(a) {
-  console.log('\nTimeout-vejen (G9) — modellen svarer ikke, fristen er 3 s:');
+  console.log('\nInputloftet og timeout-vejen (G9) — modellen svarer ikke, fristen er 3 s:');
   const leadH = await opgave(a, 'Kunde H');
   const { data: ref, error: refF } = await admin.from('referater')
     .insert({ firm_id: a.firmId, lead_id: leadH, moede_dato: '2026-11-26', indhold: 'Terrasse ca. 20 m².', kilde: 'manuel' })
@@ -118,6 +120,27 @@ async function proevHaengende(a) {
   if (r.status !== 201) throw new Error(`kladde: ${r.status}`);
   const th = r.json.tilbud;
   const linjerFoer = th.linjer.length;
+
+  // Inputloftet (28/11): beskrivelsen "Prøve" er 5 tegn, ingen noter. Et referat på
+  // 9.995 tegn rammer præcis loftet 10.000; et på 9.996 er ét tegn over.
+  const LOFT = 10000;
+  const fyld = (n) => 'Terrasse ca. 20 m², gammelt træ fjernes. '.repeat(300).slice(0, n);
+  const nyRef = async (n) => {
+    const { data, error } = await admin.from('referater')
+      .insert({ firm_id: a.firmId, lead_id: leadH, moede_dato: '2026-11-27', indhold: fyld(n), kilde: 'manuel' })
+      .select('id').single();
+    if (error) throw new Error(`referat (${n} tegn): ${error.message}`);
+    return data.id;
+  };
+  const refOver = await nyRef(LOFT - 5 + 1);
+  r = await kald(a, 'POST', '/api/tilbud/tilbudslinjer', { tilbud_id: th.id, referat_ids: [refOver] });
+  tjek(r.status === 413 && r.json && r.json.error === 'for_meget_input' && r.json.loft === LOFT && r.json.tegn === LOFT + 1,
+    `ét tegn over loftet: 413 for_meget_input, loft ${LOFT}, tegn ${LOFT + 1} (${r.status} ${r.json && r.json.error} ${r.json && r.json.loft}/${r.json && r.json.tegn})`, r.json && { error: r.json.error, loft: r.json.loft, tegn: r.json.tegn });
+  const refPaa = await nyRef(LOFT - 5);
+  r = await kald(a, 'POST', '/api/tilbud/tilbudslinjer', { tilbud_id: th.id, referat_ids: [refPaa] });
+  tjek(r.status === 503 && r.json && r.json.error === 'forslag_tog_for_lang_tid',
+    `præcis på loftet: slipper igennem til modelkaldet, som hænger (${r.status} ${r.json && r.json.error})`, r.json);
+
   // Forsøg 2 straks efter beviser, at låsen blev sluppet — ellers 409 forslag_koerer.
   for (const nr of [1, 2]) {
     const t0 = Date.now();

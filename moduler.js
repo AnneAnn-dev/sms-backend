@@ -21,6 +21,7 @@
 "use strict";
 
 const { firmIdFromToken } = require("./auth");
+const flags = require("./flags");
 
 // "kunder" (Fase 4 salg, 17/11-26): Kunder og Opgaver for et firma, der ikke
 // har dem gennem et andet modul. Saelges ikke for sig; foelger med pakken
@@ -78,17 +79,30 @@ function kraevModul(supabase, modul, { kunSkrivning = false } = {}) {
   };
 }
 
+// Fase 5 (28/11-26, spor 2's ønske): hvilke dele af tilbuddet serveren FAKTISK
+// har. Flagene ligger i lag, som ruterne monteres: tilbudsdelen kun under
+// TILBUD_AKTIV (routes/tilbud/index.js), forslaget kun under tilbudsdelen
+// (routes/tilbud/tilbud.js). Klienten får de effektive værdier, så "Lav
+// forslag" aldrig vises over en rute, der svarer 404. Flagene læses fra
+// flags.js — ingen kopi.
+function tilbudsflag(tilbudAktiv, f = flags) {
+  const tilbudsdelAktiv = Boolean(tilbudAktiv && f.TILBUDSDEL_AKTIV);
+  return { tilbudsdelAktiv, tilbudsforslagAktiv: Boolean(tilbudsdelAktiv && f.TILBUDSFORSLAG_AKTIV) };
+}
+
 // GET /api/moduler — hvad appen skal vise. tilbudAktiv er den globale
 // nødbremse (TILBUD_AKTIV): slukket betyder, at referat og tilbud ikke
 // findes på serveren, uanset firmaets rækker. harKunder (T3): false skjuler
-// Opgaver og Kunder i appen (se harKunder ovenfor).
+// Opgaver og Kunder i appen (se harKunder ovenfor). tilbudsdelAktiv og
+// tilbudsforslagAktiv: se tilbudsflag ovenfor. De siger, hvad serveren har,
+// ikke om firmaet har modulet "tilbud" — det står i moduler.
 function registrerModulRuter(app, supabase, { tilbudAktiv }) {
   app.get("/api/moduler", async (req, res) => {
     const firmId = await firmIdFromToken(supabase, req);
     if (!firmId) return res.status(401).json({ error: "Ikke logget ind" });
     try {
       const moduler = await aktiveModuler(supabase, firmId);
-      res.json({ moduler, tilbudAktiv, harKunder: harKunder(moduler) });
+      res.json({ moduler, tilbudAktiv, harKunder: harKunder(moduler), ...tilbudsflag(tilbudAktiv) });
     } catch (err) {
       console.error("❌ /api/moduler:", err.message);
       res.status(503).json({ error: "moduler_utilgaengelige" });
@@ -96,4 +110,4 @@ function registrerModulRuter(app, supabase, { tilbudAktiv }) {
   });
 }
 
-module.exports = { MODULER, GIVER_KUNDER, UDEN_KUNDER, harKunder, aktiveModuler, kraevModul, registrerModulRuter };
+module.exports = { MODULER, GIVER_KUNDER, UDEN_KUNDER, harKunder, aktiveModuler, kraevModul, registrerModulRuter, tilbudsflag };
