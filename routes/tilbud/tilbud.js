@@ -1453,7 +1453,9 @@ module.exports = function (app, supabase) {
         const sum = { ms: 0, tokensInd: 0, tokensUd: 0, prisOere: 0 };
         const t0 = Date.now();
         for (let forsoeg = 1; forsoeg <= 2 && !fundet; forsoeg++) {
-          const frist = F.tidTilForsoeg(t0, Date.now());
+          // Fristen læses fra F ved hvert kald, så prøven kan sætte den ned i sin egen
+          // serverproces (hjaelp-haengende-model.js). Prod læser altid 60 s.
+          const frist = F.tidTilForsoeg(t0, Date.now(), F.FORSLAG_FRIST_MS, F.MIN_FORSOEG_MS);
           if (!frist) break;   // for lidt tid til et nyt forsøg: behandles som et ubrugeligt svar
           let r;
           try { r = await tekstmodel.tilbudslinjer({ system: prompt.system, bruger: prompt.user, timeoutMs: frist }); }

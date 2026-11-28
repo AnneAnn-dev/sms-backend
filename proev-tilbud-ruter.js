@@ -19,6 +19,16 @@
  *   node proev-tilbud-ruter.js --bekraeft               # kører prøven
  *   node proev-tilbud-ruter.js --bekraeft --url=http://localhost:3000
  *   node proev-tilbud-ruter.js --bekraeft --forslag --url=...   # også ét rigtigt forslag
+ *   node proev-tilbud-ruter.js --bekraeft --haengende-model --url=...   # kun timeout-vejen (G9)
+ *
+ * --haengende-model (G9, 26/11): serveren skal være startet med
+ *   node -r ./hjaelp-haengende-model.js server.js
+ * og TILBUDSFORSLAG_AKTIV=true. Modelkaldet hænger så, til det afbrydes, og
+ * fristen er 3 s. Prøven beviser: 503 forslag_tog_for_lang_tid med Anns tekst,
+ * at låsen er sluppet (et nyt forsøg giver ikke 409 forslag_koerer), at intet
+ * bogføres i ai_forbrug, og at kladden er urørt. Koster intet. Kører ikke
+ * resten af prøven. Startes serveren uden hjælpefilen, svarer den rigtige
+ * model, og prøven bliver rød.
  *
  * Serveren skal køre med TILBUD_AKTIV=true og TILBUDSDEL_AKTIV=true, mod
  * samme database som .env, og migrationen tilbud_fase5 skal være kørt dér.
@@ -36,6 +46,7 @@ const SERVICE  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON     = process.env.SUPABASE_ANON_KEY;
 const BEKRAEFT = process.argv.includes('--bekraeft');
 const FORSLAG  = process.argv.includes('--forslag');
+const HAENGER  = process.argv.includes('--haengende-model');
 const urlArg   = process.argv.find((a) => a.startsWith('--url='));
 const SERVER   = ((urlArg ? urlArg.slice(6) : process.env.BASE_URL) || '').replace(/\/$/, '');
 
@@ -95,6 +106,37 @@ async function opgave(t, navn) {
   return data.id;
 }
 
+// G9 (26/11): timeout-vejen. Serveren hænger på modelkaldet (hjaelp-haengende-model.js).
+async function proevHaengende(a) {
+  console.log('\nTimeout-vejen (G9) — modellen svarer ikke, fristen er 3 s:');
+  const leadH = await opgave(a, 'Kunde H');
+  const { data: ref, error: refF } = await admin.from('referater')
+    .insert({ firm_id: a.firmId, lead_id: leadH, moede_dato: '2026-11-26', indhold: 'Terrasse ca. 20 m².', kilde: 'manuel' })
+    .select('id').single();
+  if (refF) throw new Error(`referat: ${refF.message}`);
+  let r = await kald(a, 'POST', '/api/tilbud', { lead_id: leadH });
+  if (r.status !== 201) throw new Error(`kladde: ${r.status}`);
+  const th = r.json.tilbud;
+  const linjerFoer = th.linjer.length;
+  // Forsøg 2 straks efter beviser, at låsen blev sluppet — ellers 409 forslag_koerer.
+  for (const nr of [1, 2]) {
+    const t0 = Date.now();
+    r = await kald(a, 'POST', '/api/tilbud/tilbudslinjer', { tilbud_id: th.id, referat_ids: [ref.id] });
+    const sek = (Date.now() - t0) / 1000;
+    tjek(r.status === 503 && r.json && r.json.error === 'forslag_tog_for_lang_tid' && r.json.besked === 'Det tog for lang tid. Prøv igen.',
+      `forsøg ${nr}: 503 forslag_tog_for_lang_tid med Anns tekst${nr === 2 ? ' (låsen var sluppet)' : ''} (${r.status} ${r.json && r.json.error})`, r.json);
+    tjek(sek >= 2.5 && sek < 15, `forsøg ${nr}: svar efter ${sek.toFixed(1)} s (fristen i hjælpefilen er 3 s)`);
+  }
+  const { data: brugt } = await admin.from('ai_forbrug').select('id').eq('firm_id', a.firmId).eq('formaal', 'tilbud');
+  tjek((brugt || []).length === 0, `intet bogført i ai_forbrug for det afbrudte kald (${(brugt || []).length} rækker)`);
+  const { data: fl } = await admin.from('tilbud_forslag').select('tilbud_id').eq('tilbud_id', th.id);
+  tjek((fl || []).length === 0, `intet forslag gemt i tilbud_forslag (${(fl || []).length} rækker)`);
+  r = await kald(a, 'GET', `/api/tilbud/${th.id}`);
+  const tn = r.json && r.json.tilbud;
+  tjek(r.status === 200 && tn && tn.status === 'kladde' && tn.linjer.length === linjerFoer && tn.titel_kilde !== 'model',
+    `kladden er urørt (${tn && tn.linjer.length} linje, ingen titel fra modellen)`, tn && { status: tn.status, titel_kilde: tn.titel_kilde });
+}
+
 (async () => {
   console.log('\n=== Prøve: tilbuddets ruter (Fase 5 trin B, C og D) ===');
   console.log(`Projekt-ref : ${REF}`);
@@ -119,6 +161,11 @@ async function opgave(t, navn) {
     for (const t of [a, b]) {
       const { error } = await admin.from('firma_moduler').insert({ firm_id: t.firmId, modul: 'tilbud', kilde: 'proeve' });
       if (error) throw new Error(`modul ${t.navn}: ${error.message}`);
+    }
+
+    if (HAENGER) {
+      await proevHaengende(a);
+      return;   // finally rydder op og skriver resultatet
     }
 
     console.log('\nOprettelse og ejerskab:');
@@ -283,8 +330,8 @@ async function opgave(t, navn) {
       if (t.userId) await admin.auth.admin.deleteUser(t.userId);
       console.log(`  🧹 ryddet: ${t.navn}`);
     }
+    // I finally, så også --haengende-model (der returnerer tidligt) får resultatet.
+    console.log(`\n=== Resultat: ${bestaaet} bestået, ${fejlet} fejlet ===\n`);
+    process.exit(fejlet ? 1 : 0);
   }
-
-  console.log(`\n=== Resultat: ${bestaaet} bestået, ${fejlet} fejlet ===\n`);
-  process.exit(fejlet ? 1 : 0);
 })();
